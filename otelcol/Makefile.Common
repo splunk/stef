@@ -1,0 +1,60 @@
+# Explicitly define the shell we will use for commands.
+SHELL?=/bin/bash
+
+# SRC_ROOT is the top of the source tree.
+SRC_ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+
+# build tags required by any component should be defined as an independent variables and later added to GO_BUILD_TAGS below
+GO_BUILD_TAGS=""
+GOTEST_OPT?= -race -v -timeout 180s --tags=$(GO_BUILD_TAGS)
+GOCMD?= go
+GOTEST=$(GOCMD) test
+GOOS=$(shell $(GOCMD) env GOOS)
+GOARCH=$(shell $(GOCMD) env GOARCH)
+ADDLICENCESE= addlicense
+MDLINKCHECK=markdown-link-check
+MISSPELL=misspell -error
+MISSPELL_CORRECTION=misspell -w
+LINT=golangci-lint
+IMPI=impi
+# BUILD_TYPE should be one of (dev, release).
+BUILD_TYPE?=release
+
+ALL_PKG_DIRS := $(shell $(GOCMD) list -f '{{ .Dir }}' ./... | sort)
+
+ALL_SRC := $(shell find $(ALL_PKG_DIRS) -name '*.go' \
+                                -not -path '*/third_party/*' \
+                                -not -path '*/local/*' \
+                                -type f | sort)
+
+# All source code and documents. Used in spell check.
+ALL_SRC_AND_DOC := $(shell find $(ALL_PKG_DIRS) -name "*.md" -o -name "*.go" -o -name "*.yaml" \
+                                -not -path '*/third_party/*' \
+                                -type f | sort)
+
+pwd:
+	@pwd
+
+all-pkgs:
+	@echo $(shell $(GOCMD) list $(sort $(ALL_PKG_DIRS))) | tr ' ' '\n' | sort
+
+all-srcs:
+	@echo $(ALL_SRC) | tr ' ' '\n' | sort
+
+all-pkg-dirs:
+	@echo $(ALL_PKG_DIRS) | tr ' ' '\n' | sort
+
+.DEFAULT_GOAL := test
+
+.PHONY: test
+test:
+	$(GOTEST) $(GOTEST_OPT) $(ALL_PKG_DIRS)
+
+.PHONY: tidy
+tidy:
+	rm -fr go.sum
+	$(GOCMD) mod tidy -compat=1.18
+
+.PHONY: moddownload
+moddownload:
+	$(GOCMD) mod download

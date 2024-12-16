@@ -1,0 +1,217 @@
+package {{ .PackageName }}
+
+import (
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+	"github.com/tigrannajaryan/stef/stef-go/schema"
+)
+
+type {{.StructName}}Writer struct {
+	Record {{.StructName}}
+
+	opts         pkg.WriterOptions
+	dst          pkg.ChunkWriter
+	frameEncoder pkg.FrameEncoder
+	encoder      {{.StructName}}Encoder
+	state        WriterState
+	writeBufs pkg.WriteBufs
+	frameRecordCount uint64
+	recordCount  uint64
+}
+
+func New{{.StructName}}Writer(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*{{.StructName}}Writer, error) {
+	writer := &{{.StructName}}Writer{
+		dst:  dst,
+		opts: opts,
+	}
+
+	// Set default options.
+	if writer.opts.MaxUncompressedFrameByteSize == 0 {
+		writer.opts.MaxUncompressedFrameByteSize = pkg.DefaultMaxFrameSize
+	}
+	if writer.opts.MaxTotalDictSize == 0 {
+		writer.opts.MaxTotalDictSize = pkg.DefaultMaxTotalDictSize
+	}
+
+	if writer.opts.Schema != nil {
+		// If the schema is overridden must include the descriptor so that the readers
+        // can decode the data correctly.
+		writer.opts.IncludeDescriptor = true
+
+		ownSchema, err := {{.StructName}}WireSchema()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := ownSchema.Compatible(writer.opts.Schema); err != nil {
+			return nil, fmt.Errorf("schema is not compatible with Writer: %w", err)
+		}
+	}
+
+	writer.Record.Init()
+	writer.state.Init(&writer.opts)
+	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
+
+	if err := writer.frameEncoder.Init(dst, writer.opts.Compression); err != nil {
+		return nil, err
+	}
+
+	if err := writer.writeFixedHeader(); err != nil {
+		return nil, err
+	}
+
+	if err := writer.writeVarHeader(); err != nil {
+		return nil, err
+	}
+
+	return writer, nil
+}
+
+func (f *{{.StructName}}Writer) writeFixedHeader() error {
+	var hdrTail []byte
+
+	var versionAndType byte = pkg.HdrFormatVersion
+	hdrTail = append(hdrTail, versionAndType)
+
+	flags := byte(f.opts.Compression) & pkg.HdrFlagsCompressionMethod
+
+	hdrTail = append(hdrTail, flags)
+
+	hdrTail = binary.AppendUvarint(hdrTail, f.opts.TimestampMultiplier)
+	hdrTailSize := uint64(len(hdrTail))
+
+	var hdrFull []byte
+	hdrFull = append(hdrFull, pkg.HdrSignature...)
+	hdrFull = binary.AppendUvarint(hdrFull, hdrTailSize)
+	hdrFull = append(hdrFull, hdrTail...)
+
+	err := f.dst.WriteChunk(hdrFull, nil)
+	return err
+}
+
+func (w *{{.StructName}}Writer) writeVarHeader() error {
+	// Serialize varheader
+	hdr := pkg.VarHeader{}
+	if w.opts.IncludeDescriptor {
+		if w.opts.Schema != nil {
+			descr, err := json.Marshal(w.opts.Schema)
+			if err != nil {
+				return fmt.Errorf("could not marshal schema: %w", err)
+			}
+			msg := json.RawMessage(descr)
+			hdr.Schema = &msg
+		} else {
+			msg := json.RawMessage(wireSchema{{.StructName}})
+			hdr.Schema = &msg
+		}
+	}
+
+	if len(w.opts.UserData) > 0 {
+		hdr.UserData = w.opts.UserData
+	}
+
+	hdrBytes, err := json.Marshal(hdr)
+	if err != nil {
+		return err
+	}
+
+	// Write to the frame
+	_, err = w.frameEncoder.Write(hdrBytes)
+	if err != nil {
+		return err
+	}
+
+	// Close the the frame.
+	if err := w.frameEncoder.CloseFrame(); err != nil {
+		return err
+	}
+
+	// Open a new frame.
+	w.frameEncoder.OpenFrame(0)
+
+	return nil
+}
+
+func (w *{{.StructName}}Writer) Write() error {
+	w.encoder.Encode(&w.Record)
+	w.frameRecordCount++
+
+	if w.state.limiter.DictLimitReached() {
+		if err := w.resetDicts(); err != nil {
+			return err
+		}
+		nextFrameFlags := w.opts.FrameRestartFlags | pkg.RestartDictionaries
+		if err := w.restartFrame(nextFrameFlags); err != nil {
+			return err
+		}
+	} else if w.state.limiter.FrameLimitReached() {
+		nextFrameFlags := w.opts.FrameRestartFlags
+		if err := w.restartFrame(nextFrameFlags); err != nil {
+			return err
+		}
+	}
+
+	w.recordCount++
+
+	return nil
+}
+
+func (w *{{.StructName}}Writer) RecordCount() uint64 {
+	return w.recordCount
+}
+
+func (w *{{.StructName}}Writer) resetDicts() error {
+	// Reset all state so that the content that follows is not dependent on
+	// preceding content.
+	w.state.Reset()
+	w.encoder.Reset()
+	return nil
+}
+
+func (w *{{.StructName}}Writer) restartFrame(nextFrameFlags pkg.FrameFlags) error {
+	// Write record count.
+	if _, err := w.frameEncoder.Write(binary.AppendUvarint(nil, w.frameRecordCount)); err != nil {
+		return err
+	}
+	w.frameRecordCount = 0
+
+	// Write from column buffers to the frame buffer.
+	w.encoder.CollectColumns(&w.writeBufs.Columns)
+	if err := w.writeBufs.WriteTo(&w.frameEncoder); err != nil {
+		return err
+	}
+
+	// Close the current frame.
+	if err := w.frameEncoder.CloseFrame(); err != nil {
+		return err
+	}
+
+	// Open a new frame.
+	w.frameEncoder.OpenFrame(nextFrameFlags)
+
+	// Reset the frame size limiter, this is a new frame.
+	w.state.limiter.ResetFrameSize()
+
+	return nil
+}
+
+func (w *{{.StructName}}Writer) Flush() error {
+	if w.frameRecordCount == 0 {
+		// Nothing to flush.
+		return nil
+	}
+	return w.restartFrame(w.opts.FrameRestartFlags)
+}
+
+const wireSchema{{.StructName}} = `{{.Schema}}`
+
+func {{.StructName}}WireSchema() (*schema.Schema, error) {
+	var d schema.Schema
+	err := json.Unmarshal([]byte(wireSchema{{.StructName}}), &d)
+	if err != nil {
+		return nil, err
+	}
+	return &d,nil
+}

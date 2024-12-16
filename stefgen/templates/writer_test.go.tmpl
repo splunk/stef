@@ -1,0 +1,18 @@
+package {{ .PackageName }}
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+)
+
+func Test{{.StructName}}WriterWrite(t* testing.T) {
+	cw := &pkg.MemChunkWriter{}
+	tef, err := New{{.StructName}}Writer(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
+	require.NoError(t, err)
+
+	err = tef.Write()
+	require.NoError(t, err)
+}

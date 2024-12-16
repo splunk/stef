@@ -1,0 +1,357 @@
+package {{ .PackageName }}
+
+import (
+	{{if not .ElemType.MustClone}}
+	"slices"
+	{{end}}
+	"unsafe"
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+	"github.com/tigrannajaryan/stef/stef-go/pkg/encoders"
+)
+
+var _ = encoders.StringEncoder{}
+
+// {{ .ArrayName }} is a variable size array.
+type {{ .ArrayName }} struct {
+	elems []{{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}
+
+	parentModifiedFields *modifiedFields
+	parentModifiedBit uint64
+}
+
+func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	e.parentModifiedFields = parentModifiedFields
+	e.parentModifiedBit = parentModifiedBit
+}
+
+// Clone() creates a deep copy of {{ .ArrayName }}
+func (e *{{.ArrayName}}) Clone() {{ .ArrayName }} {
+    var clone {{ .ArrayName }}
+    copy{{.ArrayName}}(&clone, e)
+    return clone
+}
+
+// ByteSize returns approximate memory usage in bytes. Used to calculate
+// memory used by dictionaries.
+func (e *{{.ArrayName}}) byteSize() uint {
+    if len(e.elems)==0 {
+        return 0
+    }
+    // TODO: add size of elements if they are clonable.
+    size := uint(unsafe.Sizeof(e.elems[0]))*uint(len(e.elems))+uint(unsafe.Sizeof(e))
+    {{if .ElemType.MustClone}}
+    for i := range e.elems {
+        size += e.elems[i].byteSize()
+    }{{end}}
+    return size
+}
+
+{{if not .ElemType.MustClone}}
+// CopyFromSlice copies from a slice into this array. The length
+// of the array will be equal to the length of slice and elements of
+// the array will be assigned from elements of the slice.
+func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.GoQualifiedType}}) {
+	if !slices.Equal(e.elems, src) {
+		e.elems = pkg.EnsureLen(e.elems, len(src))
+		copy(e.elems, src)
+		e.markModified()
+	}
+}
+
+{{end}}
+
+// Append a new element at the end of the array.
+func (e* {{.ArrayName}}) Append(val {{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}) {
+	e.elems = append(e.elems, val)
+	e.markModified()
+}
+
+func (e* {{.ArrayName}}) markModified() {
+	e.parentModifiedFields.markModified(e.parentModifiedBit)
+}
+
+func (e* {{.ArrayName}}) markUnmodified() {
+	e.parentModifiedFields.markUnmodified()
+}
+
+func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
+    {{- if .ElemType.MustClone}}
+	if len(dst.elems)!=len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		dst.markModified()
+	}
+	if len(src.elems)>0 {
+		// Allocate all elements at once.
+		elems := make([]{{.ElemType.GoQualifiedType}}, len(src.elems))
+		for i := range src.elems {
+			{{if not .ElemType.IsPrimitive -}}
+			// Init the element.
+			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			{{- end}}
+			// Point to allocated element.
+			dst.elems[i] = &elems[i]
+			// Copy the element.
+			copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		}
+	}
+	{{- else}}
+	if len(dst.elems) != len(src.elems) {
+		n := min(len(dst.elems), len(src.elems))
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+
+		i := 0
+		for ; i < n; i++ {
+			if dst.elems[i] != src.elems[i] {
+				dst.elems[i] = src.elems[i]
+			}
+		}
+		for ; i < len(dst.elems); i++ {
+			dst.elems[i] = src.elems[i]
+		}
+		dst.markModified()
+	} else {
+		modified := false
+		for i:=0; i < len(dst.elems); i++ {
+			if dst.elems[i] != src.elems[i] {
+				dst.elems[i] = src.elems[i]
+				modified = true
+			}
+		}
+		if modified {
+			dst.markModified()
+		}
+	}
+    {{- end}}
+}
+
+// Len returns the number of elements in the array.
+func (e *{{.ArrayName}}) Len() int {
+	return len(e.elems)
+}
+
+// At returns element at index i.
+func (m *{{.ArrayName}}) At(i int) {{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}} {
+	return m.elems[i]
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *{{.ArrayName}}) EnsureLen(newLen int) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}, newLen-oldLen)...)
+		e.markModified()
+		{{- if .IsStructType}}
+		// Initialize newlly added elements.
+		for ; oldLen<newLen; oldLen++ {
+			e.elems[oldLen] = new({{.ElemType.GoQualifiedType}})
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+		{{- end}}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// IsEqual performs deep comparison and returns true if array is equal to val.
+func (e *{{ .ArrayName }}) IsEqual(val *{{ .ArrayName }}) bool {
+	if len(e.elems) != len(val.elems) {
+		return false
+	}
+	for i := range e.elems {
+		{{- if .ElemType.IsPrimitive }}
+		if !{{ .ElemType.EqualFunc }}(e.elems[i],val.elems[i]) {
+			return false
+		}
+		{{- else }}
+		if !e.elems[i].IsEqual(val.elems[i]) {
+			return false
+		}
+		{{- end}}
+	}
+	return true
+}
+
+// Cmp{{.ArrayName}} performs deep comparison and returns an integer that
+// will be 0 if left == right, negative if left < right, positive if left > right.
+func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {
+	c := len(left.elems) - len(right.elems)
+	if c != 0 {
+		return c
+	}
+	for i := range left.elems {
+		fc := {{.ElemType.CompareFunc}}(left.elems[i], right.elems[i])
+		if fc < 0 {
+			return -1
+		}
+		if fc > 0 {
+			return 1
+		}
+	}
+	return 0
+}
+
+type {{ .ArrayName }}Encoder struct {
+    buf pkg.BitsWriter
+	limiter *pkg.SizeLimiter
+	encoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Encoder
+	prevLen int
+	state* WriterState
+	lastVal {{.ElemType.GoQualifiedType}}
+}
+
+func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+    e.state = state
+	e.limiter = &state.limiter
+	{{ if .ElemType.IsPrimitive -}}
+	if err := e.encoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
+		return err
+	}
+	{{- else -}}
+	{{if .Recursive -}}
+	e.encoder = state.{{.ElemType.EncoderType}}Encoder
+	{{else}}
+	if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
+		return err
+	}
+	state.{{.ElemType.EncoderType}}Encoder = &e.encoder
+	{{end}}
+	e.lastVal.init(nil,0)
+	{{- end}}
+	return nil
+}
+
+func (e *{{ .ArrayName }}Encoder) Reset() {
+	e.prevLen = 0
+	{{- if not .Recursive}}
+	e.encoder.Reset()
+	{{- end}}
+}
+
+func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
+	newLen := len(arr.elems)
+	oldBitLen := e.buf.BitCount()
+
+	lenDelta := newLen - e.prevLen
+	e.prevLen = newLen
+	e.buf.WriteVarintCompact(int64(lenDelta))
+
+	for i := 0; i < newLen; i++ {
+		{{- if .ElemType.IsPrimitive}}
+		e.encoder.Encode(arr.elems[i])
+		{{- else}}
+		// Copy into last encoded value. This will correctly set "modified" field flags.
+		copy{{.ElemType.TypeName}}(&e.lastVal, arr.elems[i])
+		// Encode it.
+		e.encoder.Encode(&e.lastVal)
+		// Reset modified flags so that next modification attempt correctly sets
+		// the modified flags and the next encoding attempt is not skipped.
+		// Normally the flags would be reset by encoder.Encode() call above, but
+		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
+		// so we have to do it explicitly.
+		arr.elems[i].markUnmodified()
+		{{- end}}
+	}
+
+	// Account written bits in the limiter.
+	newBitLen := e.buf.BitCount()
+	e.limiter.AddFrameBits(newBitLen-oldBitLen)
+}
+
+func (e *{{ .ArrayName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
+	columnSet.SetBits(&e.buf)
+	{{- if not .Recursive}}
+	e.encoder.CollectColumns(columnSet.At(0))
+	{{- end}}
+}
+
+type {{ .ArrayName }}Decoder struct {
+    buf pkg.BitsReader
+	column *pkg.ReadableColumn
+	decoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Decoder
+	prevLen int
+	lastVal {{.ElemType.GoQualifiedType}}
+	lastValPtr *{{.ElemType.GoQualifiedType}}
+}
+
+// Init is called once in the lifetime of the stream.
+func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+	d.column = columns.Column()
+
+{{- if .ElemType.IsPrimitive}}
+{{- if .ElemType.DictName}}
+	err := d.decoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
+{{- else if .ElemType.IsDictPossible}}
+	err := d.decoder.Init(nil, columns.AddSubColumn())
+{{- else}}
+	err := d.decoder.Init(columns.AddSubColumn())
+{{- end}}
+	if err != nil {
+		return err
+	}
+{{- else}}
+	{{if .Recursive -}}
+		d.decoder = state.{{.ElemType.EncoderType}}Decoder
+	{{else}}
+		if err := d.decoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+		state.{{.ElemType.EncoderType}}Decoder = &d.decoder
+	{{end}}
+	d.lastVal.init(nil,0)
+{{- end}}
+	d.lastValPtr = &d.lastVal
+
+	return nil
+}
+
+// Continue is called at the start of the frame to continue decoding column data.
+// This should set the decoder's source buffer, so the new decoding continues from
+// the supplied column data. This should NOT reset the internal state of the decoder,
+// since columns can cross frame boundaries and the new column data is considered
+// continuation of that same column in the previous frame.
+func (d *{{ .ArrayName }}Decoder) Continue() {
+	d.buf.Reset(d.column.Data())
+	{{- if not .Recursive}}
+	d.decoder.Continue()
+	{{- end}}
+}
+
+func (d *{{ .ArrayName }}Decoder) Reset() {
+	d.decoder.Reset()
+}
+
+func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
+	lenDelta, err := d.buf.ReadVarintCompact()
+	if err != nil {
+		return err
+	}
+
+	newLen := d.prevLen + int(lenDelta)
+
+	dst.EnsureLen(newLen)
+
+	d.prevLen = newLen
+
+	for i := 0; i < newLen; i++ {
+		{{- if .ElemType.IsPrimitive}}
+		err = d.decoder.Decode(&d.lastVal)
+		if err != nil {
+			return err
+		}
+		dst.elems[i] = d.lastVal
+		{{- else}}
+		err = d.decoder.Decode({{if .ElemType.Flags.StoreByPtr}}&{{end}}d.lastValPtr)
+		if err != nil {
+			return err
+		}
+		copy{{.ElemType.TypeName}}(dst.elems[i], d.lastValPtr)
+		{{- end}}
+	}
+
+	return nil
+}

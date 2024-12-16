@@ -1,0 +1,86 @@
+package {{ .PackageName }}
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+)
+
+type {{.StructName}}Reader struct {
+	base pkg.BaseReader
+
+	decoder {{.StructName}}Decoder
+	state ReaderState
+	record {{.StructName}}
+	recordPtr *{{.StructName}}
+}
+
+func New{{.StructName}}Reader(source io.Reader) (*{{.StructName}}Reader, error) {
+	bufferedSource := bufio.NewReaderSize(source, 64 * 1024)
+	reader := &{{.StructName}}Reader{}
+
+	reader.record.Init()
+	reader.recordPtr = &reader.record
+
+	if err := reader.base.Init(bufferedSource); err != nil {
+		return nil, err
+	}
+
+	if err:=reader.initSchema(); err != nil {
+		return nil, err
+	}
+
+	return reader, nil
+}
+
+func (r *{{.StructName}}Reader) initSchema() error {
+	ownSchema, err := {{.StructName}}WireSchema()
+	if err != nil {
+		return err
+	}
+	if err := r.base.ReadVarHeader(ownSchema); err != nil {
+		return err
+	}
+
+	r.state.Init(r.base.Schema)
+	err = r.decoder.Init(&r.state, &r.base.ReadBufs.Columns)
+	if err != nil {
+		return fmt.Errorf("schema is not compatible with Reader: %w", err)
+	}
+
+	return nil
+}
+
+func (f *{{.StructName}}Reader) Header() *pkg.FixedHeader {
+	return &f.base.FixedHeader
+}
+
+func (f *{{.StructName}}Reader) UserData() map[string]any {
+	return f.base.VarHeader.UserData
+}
+
+func (r *{{.StructName}}Reader) Read() (*{{.StructName}}, error) {
+	for r.base.FrameRecordCount == 0 {
+		if err := r.nextFrame(); err != nil {
+			return nil, err
+		}
+	}
+	r.base.FrameRecordCount--
+	r.base.RecordCount++
+	err := r.decoder.Decode(r.recordPtr)
+	return r.recordPtr, err
+}
+
+func (r *{{.StructName}}Reader) RecordCount() uint64 {
+	return r.base.RecordCount
+}
+
+func (r *{{.StructName}}Reader) nextFrame() error {
+	if err:=r.base.NextFrame(); err != nil {
+		return err
+	}
+	r.decoder.Continue()
+	return nil
+}

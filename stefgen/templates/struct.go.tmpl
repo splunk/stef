@@ -1,0 +1,575 @@
+package {{ .PackageName }}
+
+import (
+"fmt"
+    "strings"
+	"unsafe"
+
+    {{if .DictName}}
+	"modernc.org/b/v2"{{end}}
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+	"github.com/tigrannajaryan/stef/stef-go/pkg/encoders"
+)
+
+var _ = strings.Compare
+var _ = encoders.StringEncoder{}
+
+type {{ .StructName }} struct {
+    {{ range .Fields }}
+    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.GoQualifiedType }}
+    {{- end }}
+
+    // modifiedFields keeps track of which fields are modified.
+    modifiedFields modifiedFields
+	{{- if .OptionalFieldCount}}
+
+    // Field presence bits.
+    // Fields which are present have the corresponding bit set, see fieldPresent{{ $.StructName }}* consts below.
+	optionalFieldsPresent uint64
+	{{- end}}
+}
+
+// Bitmasks for "modified" flags for each field.
+const (
+    {{ range .Fields }}
+	fieldModified{{ $.StructName }}{{.Name}}{{ .ConstModifier }}
+    {{- end }}
+)
+
+{{if .OptionalFieldCount}}
+// Bitmasks for "present" flags for optional fields.
+const (
+    {{ range .Fields }}
+	{{- if .Optional}}
+    fieldPresent{{ $.StructName }}{{.Name}}{{if not .OptionalIndex}} = uint64(1 << iota){{end}}
+    {{- end }}
+    {{- end }}
+)
+{{end}}
+
+// Init must be called once, before the {{.StructName }} is used.
+func (s *{{.StructName }}) Init() {
+    s.init(nil, 0)
+}
+
+func New{{.StructName }}() *{{.StructName }} {
+	var s {{.StructName}}
+    s.init(nil, 0)
+	return &s
+}
+
+func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    s.modifiedFields.parent = parentModifiedFields
+    s.modifiedFields.parentBit = parentModifiedBit
+
+    {{ range .Fields }}
+    {{- if .Type.Flags.StoreByPtr}}
+    s.{{.name}} = &{{ .Type.GoQualifiedType }}{}
+    {{- end }}
+	{{- if not .Type.IsPrimitive }}
+    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end -}}
+    {{- end -}}
+}
+
+{{ range .Fields }}
+func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.GoQualifiedType}} {
+	return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+}
+
+{{if .Type.IsPrimitive}}
+// Set{{.Name}} sets the value of {{.Name}} field.
+func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.GoQualifiedType}}) {
+    if !{{ .Type.EqualFunc }}({{if and .PassByPointer (not .IsStructType)}}&{{end}}s.{{.name}}, v)
+        {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
+		s.{{.name}} = v
+        s.mark{{.Name}}Modified()
+        {{- if .Optional}}
+		s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
+		{{- end}}
+    }
+}
+
+{{ if .Optional}}
+// Unset{{.Name}} unsets the precense flag of {{.Name}} field. A subsequent Has{{.Name}}() will return false.
+func (s *{{ $.StructName }}) Unset{{.Name}}() {
+    if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
+        s.optionalFieldsPresent &= ^fieldPresent{{ $.StructName }}{{.Name}}
+        s.mark{{.Name}}Modified()
+    }
+}
+
+// Has{{.Name}} returns true if the presence flag {{.Name}} field is set and false if it is unset.
+func (s *{{ $.StructName }}) Has{{.Name}}() bool {
+    return s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+}
+{{- end}}
+
+func (s *{{ $.StructName }}) mark{{.Name}}Modified() {
+	s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
+}
+
+{{end}}
+
+// Is{{.Name}}Modified returns true the value of {{.Name}} field was modified since
+// {{ $.StructName }} was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *{{ $.StructName }}) Is{{.Name}}Modified() bool {
+    return s.modifiedFields.mask & fieldModified{{ $.StructName }}{{.Name}} != 0
+}
+{{ end }}
+
+{{if .DictName}}
+func (s *{{ .StructName }}) Clone() *{{.StructName}} {
+	return &{{ .StructName }}{
+        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
+        {{ end }}
+	}
+}
+
+{{ end }}
+
+// ByteSize returns approximate memory usage in bytes. Used to calculate
+// memory used by dictionaries.
+func (s *{{ .StructName }}) byteSize() uint {
+    return uint(unsafe.Sizeof(*s))+
+       {{range .Fields -}}
+       {{- if .Type.MustClone}}s.{{.name}}.byteSize()+{{end}}
+       {{- end }}0
+}
+
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
+    {{- range .Fields -}}
+    {{- if .Type.MustClone}}
+    copy{{.Type.TypeName}}(
+        {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+    {{- else}}
+	{{- if .Optional}}
+	if src.Has{{.Name}}() {
+		dst.Set{{.Name}}(src.{{.name}})
+	} else {
+		dst.Unset{{.Name}}()
+	}
+	{{else}}
+    dst.Set{{.Name}}(src.{{.name}})
+    {{- end}}
+    {{- end}}
+    {{- end}}
+}
+
+// CopyFrom() performs a deep copy from src.
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
+    copy{{.StructName}}(s, src)
+}
+
+func (s* {{.StructName}}) markParentModified() {
+	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
+}
+
+func (s* {{.StructName}}) markUnmodified() {
+    s.modifiedFields.markUnmodified()
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+	s.{{.name}}.markUnmodified()
+	{{- end}}
+	{{- end }}
+}
+
+// IsEqual performs deep comparison and returns true if struct is equal to val.
+func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
+    {{- range .Fields }}
+    {{- if .Type.IsPrimitive }}
+    if !{{ .Type.EqualFunc }}(e.{{.name}}, val.{{.name}}) {
+        return false
+    }
+    {{- else }}
+    if !e.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}}) {
+        return false
+    }
+    {{- end }}
+    {{- end }}
+
+    return true
+}
+
+func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
+    return left.IsEqual(right)
+}
+
+// Cmp{{.StructName}} performs deep comparison and returns an integer that
+// will be 0 if left == right, negative if left < right, positive if left > right.
+func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
+    if left == nil {
+        if right == nil {
+            return 0
+        }
+        return -1
+    }
+    if right == nil {
+        return 1
+    }
+    {{ range .Fields }}
+    if c := {{ .Type.CompareFunc }}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}left.{{.name}},
+            {{- if .Type.Flags.TakePtr}}&{{end}}right.{{.name}}); c != 0 {
+        return c
+    }{{ end }}
+
+    return 0
+}
+
+// {{ .StructName }}Encoder implements encoding of {{ .StructName }}
+type {{ .StructName }}Encoder struct {
+    buf pkg.BitsWriter
+	limiter *pkg.SizeLimiter
+
+    // forceModifiedFields is set to true if the next encoding operation
+	// must write all fields, whether they are modified or no.
+	// This is used after frame restarts so that the data can be decoded
+	// from the frame start.
+    forceModifiedFields bool
+
+    {{ range .Fields }}
+    {{.name}}Encoder {{ .Type.EncoderType }}Encoder
+    {{- end }}
+    {{if .DictName}}
+	dict *{{ .StructName }}EncoderDict{{end}}
+
+    keepFieldMask uint64
+    fieldCount uint
+}
+
+{{if .DictName}}
+type {{ .StructName }}Entry struct {
+	refNum uint64
+	val  *{{ .StructName }}
+}
+
+// {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
+type {{ .StructName }}EncoderDict struct {
+	dict b.Tree[*{{ .StructName }}, {{ .StructName }}Entry]
+	limiter *pkg.SizeLimiter
+}
+
+func (d* {{ .StructName }}EncoderDict) Init(limiter *pkg.SizeLimiter) {
+    d.dict = *b.TreeNew[*{{ .StructName }}, {{ .StructName }}Entry](Cmp{{.StructName}})
+    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+    d.limiter = limiter
+}
+
+func (d* {{ .StructName }}EncoderDict) Reset() {
+    d.dict.Clear()
+    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+}
+{{end}}
+
+func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+    state.{{.StructName}}Encoder = e
+	e.limiter = &state.limiter
+    {{- if .DictName}}
+	e.dict = &state.{{.DictName}}
+    {{- end}}
+
+    if state.OverrideSchema != nil {
+        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
+        if !ok || overrideSchema == nil {
+            return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
+        }
+
+        // Number of fields in the target schema.
+        e.fieldCount = uint(len(overrideSchema.Fields))
+
+        // Set that many 1 bits in the keepFieldMask. All fields with higher number
+        // will be skipped when encoding.
+        e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
+    } else {
+        // Keep all fields when encoding.
+        e.fieldCount = {{len .Fields}}
+        e.keepFieldMask = ^uint64(0)
+    }
+
+    {{ range $i, $e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return nil // {{.Name}} and subsequent fields are skipped.
+    }
+    {{- if .IsPrimitive}}
+        {{- if .Type.DictName}}
+        if err := e.{{.name}}Encoder.Init(&state.{{.Type.DictName}}, e.limiter, columns.AddSubColumn()); err != nil {
+            return err
+        }
+        {{- else}}
+        if err := e.{{.name}}Encoder.Init({{if .Type.IsDictPossible}}nil, {{end}}e.limiter, columns.AddSubColumn()); err != nil {
+            return err
+        }
+        {{- end}}
+    {{- else}}
+    if err := e.{{.name}}Encoder.Init(state, columns.AddSubColumn()); err != nil {
+        return err
+    }
+    {{- end}}
+    {{- end}}
+
+    return nil
+}
+
+func (e *{{ .StructName }}Encoder) Reset() {
+	// Since we are resetting the state of encoder make sure the next Encode()
+	// call forcedly writes all fields and does not attempt to skip.
+    e.forceModifiedFields = true
+
+    {{- range .Fields}}
+    e.{{.name}}Encoder.Reset()
+    {{- end}}
+}
+
+// Encode encodes val into buf
+func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
+    oldLen := e.buf.BitCount()
+
+    {{if .DictName}}// Check if the {{ .StructName }} exists in the dictionary.
+	entry, exists := e.dict.dict.Get(val)
+	if exists {
+		// The {{ .StructName }} exists, we will reference it.
+		// Indicate a RefNum follows.
+		e.buf.WriteBit(0)
+		// Encode refNum.
+		e.buf.WriteUvarintCompact(entry.refNum)
+
+		// Account written bits in the limiter.
+        newLen := e.buf.BitCount()
+		e.limiter.AddFrameBits(newLen-oldLen)
+
+		// Mark all fields non-modified so that next Encode() correctly
+		// encodes only fields that change after this.
+        val.modifiedFields.mask = 0
+		return
+	}
+
+	// The {{ .StructName }} does not exist in the dictionary. Add it to the dictionary.
+	valInDict := val.Clone()
+	entry = {{ .StructName }}Entry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
+	e.dict.dict.Set(valInDict, entry)
+    e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+
+	// Indicate that an encoded {{ .StructName }} follows.
+	e.buf.WriteBit(1)
+	// TODO: optimize and merge WriteBit with the following WriteBits.
+	{{end -}}
+
+    // Mask that describes what fields are encoded. Start with all modified fields.
+    fieldMask := val.modifiedFields.mask
+
+    // If forceModifiedFields we need to set to 1 all bits so that we
+	// force writing of all fields.
+	if e.forceModifiedFields {
+        fieldMask =
+			{{- range .Fields }}
+                fieldModified{{ $.StructName }}{{.Name}} | {{end}}0
+    }
+
+    // Only write fields that we want to write. See Init() for keepFieldMask.
+    fieldMask &= e.keepFieldMask
+
+	// Write bits to indicate which fields follow.
+	e.buf.WriteBits(fieldMask, e.fieldCount)
+
+	{{ if .OptionalFieldCount}}
+    // Write bits to indicate which optional fields are set.
+    e.buf.WriteBits(val.optionalFieldsPresent, {{ .OptionalFieldCount}})
+	{{- end}}
+
+    // Encode modified, present fields.
+    {{ range .Fields }}
+	if fieldMask & fieldModified{{ $.StructName }}{{.Name}} != 0
+		{{- if .Optional -}}
+        &&
+		val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+		{{- end}} {
+		// Encode {{.Name}}
+		e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+	}
+	{{ end }}
+
+    // Account written bits in the limiter.
+    newLen := e.buf.BitCount()
+    e.limiter.AddFrameBits(newLen-oldLen)
+
+    // Mark all fields non-modified so that next Encode() correctly
+    // encodes only fields that change after this.
+    val.modifiedFields.mask = 0
+}
+
+// CollectColumns collects all buffers from all encoders into buf.
+func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
+    columnSet.SetBits(&e.buf)
+	{{ range $i,$e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return // {{.Name}} and subsequent fields are skipped.
+    }
+	e.{{.name}}Encoder.CollectColumns(columnSet.At({{$i}}))
+    {{- end }}
+}
+
+// {{ .StructName }}Decoder implements decoding of {{ .StructName }}
+type {{ .StructName }}Decoder struct {
+    buf pkg.BitsReader
+    column *pkg.ReadableColumn
+    lastValPtr *{{.StructName}}
+    lastVal {{.StructName}}
+    fieldCount uint
+
+    {{ range .Fields }}
+    {{.name}}Decoder {{ .Type.EncoderType }}Decoder
+    {{- end }}
+    {{if .DictName}}
+    dict *{{ .StructName }}DecoderDict
+    {{end}}
+}
+
+// Init is called once in the lifetime of the stream.
+func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+    state.{{ .StructName }}Decoder = d
+
+    if state.OverrideSchema != nil {
+        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
+        if !ok || overrideSchema == nil {
+            return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
+        }
+
+        // Number of fields in the target schema.
+        d.fieldCount = uint(len(overrideSchema.Fields))
+    } else {
+        // Keep all fields when encoding.
+        d.fieldCount = {{len .Fields}}
+    }
+
+    d.column = columns.Column()
+
+    {{if .IsMainStruct}}
+    d.lastVal.Init()
+	{{- else}}
+    d.lastVal.init(nil,0)
+    {{- end}}
+    d.lastValPtr = &d.lastVal
+
+    {{- if .DictName}}
+    d.dict = &state.{{.DictName}}
+    {{- end}}
+
+    var err error
+    {{ range $i,$e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return nil // {{.Name}} and subsequent fields are skipped.
+    }
+    {{- if .Type.IsPrimitive}}
+        {{- if .Type.DictName}}
+            err = d.{{.name}}Decoder.Init(&state.{{.Type.DictName}}, columns.AddSubColumn())
+        {{- else if .Type.IsDictPossible}}
+            err = d.{{.name}}Decoder.Init(nil, columns.AddSubColumn())
+        {{- else}}
+            err = d.{{.name}}Decoder.Init(columns.AddSubColumn())
+        {{- end}}
+    {{- else}}
+        err = d.{{.name}}Decoder.Init(state, columns.AddSubColumn())
+    {{- end}}
+        if err != nil {
+            return err
+        }
+    {{- end }}
+
+    return nil
+}
+
+// Continue is called at the start of the frame to continue decoding column data.
+// This should set the decoder's source buffer, so the new decoding continues from
+// the supplied column data. This should NOT reset the internal state of the decoder,
+// since columns can cross frame boundaries and the new column data is considered
+// continuation of that same column in the previous frame.
+func (d *{{ .StructName }}Decoder) Continue() {
+    d.buf.Reset(d.column.Data())
+
+    {{ range $i,$e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return // {{.Name}} and subsequent fields are skipped.
+    }
+    d.{{.name}}Decoder.Continue()
+    {{- end }}
+}
+
+func (d *{{ .StructName }}Decoder) Reset() {
+    {{- range .Fields}}
+    d.{{.name}}Decoder.Reset()
+    {{- end}}
+}
+
+func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
+    {{- if .DictName}}
+	// Check if the {{ .StructName }} exists in the dictionary.
+    dictFlag := d.buf.ReadBit()
+    if dictFlag == 0 {
+        refNum, err := d.buf.ReadUvarintCompact()
+        if err != nil {
+            return err
+        }
+        if refNum >= uint64(len(d.dict.dict)) {
+            return pkg.ErrInvalidRefNum
+        }
+        d.lastValPtr = d.dict.dict[refNum]
+        *dstPtr = d.lastValPtr
+        return nil
+    }
+
+	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// to modify it. Make a clone of it and decode into the clone.
+	val := d.lastValPtr.Clone()
+    d.lastValPtr = val
+    *dstPtr = val
+	{{- else}}
+    val := dstPtr
+    {{- end}}
+
+    var err error
+
+    // Read bits that indicate which fields follow.
+    val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+
+    {{ if .OptionalFieldCount}}
+    // Write bits to indicate which optional fields are set.
+    val.optionalFieldsPresent = d.buf.ReadBits({{ .OptionalFieldCount}})
+    {{- end}}
+
+    {{ range .Fields }}
+    if val.modifiedFields.mask & fieldModified{{ $.StructName }}{{.Name}} != 0
+    {{- if .Optional -}}
+    &&
+    val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+    {{- end}} {
+		// Field is changed and is present, decode it.
+ 		err = d.{{.name}}Decoder.Decode(&val.{{.name}})
+        if err != nil {
+            return err
+        }
+    }
+    {{ end }}
+
+    {{if .DictName}}
+    d.dict.dict = append(d.dict.dict, val)
+    {{end}}
+
+    return nil
+}
+
+{{if .DictName}}
+// {{ .StructName }}DecoderDict is the dictionary used by {{ .StructName }}Decoder
+type {{ .StructName }}DecoderDict struct {
+    dict []*{{.StructName}}
+}
+
+func (d* {{ .StructName }}DecoderDict) Init() {
+    d.dict = d.dict[:0]
+    d.dict = append(d.dict, nil) // nil {{.StructName}} is RefNum 0
+}
+{{end}}

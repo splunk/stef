@@ -1,0 +1,463 @@
+package {{ .PackageName }}
+
+import (
+    "fmt"
+    "strings"
+	"unsafe"
+
+    {{if .DictName}}
+	"modernc.org/b/v2"{{end}}
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+	"github.com/tigrannajaryan/stef/stef-go/pkg/encoders"
+)
+
+var _ = strings.Compare
+var _ = encoders.StringEncoder{}
+
+// {{ .StructName }} is a oneof struct.
+type {{ .StructName }} struct {
+    // The current type of the oneof.
+	typ {{$.StructName }}Type
+    {{ range .Fields }}
+    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.GoQualifiedType }}
+    {{- end }}
+
+    // Pointer to parent's modifiedFields
+    parentModifiedFields *modifiedFields
+    // Bit to set in parent's modifiedFields when this oneof is modified.
+    parentModifiedBit uint64
+}
+
+// Init must be called once, before the {{.StructName }} is used.
+func (s *{{.StructName }}) Init() {
+    s.init(nil, 0)
+}
+
+func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    s.parentModifiedFields = parentModifiedFields
+    s.parentModifiedBit = parentModifiedBit
+
+    {{ range .Fields }}
+    {{- if .Type.Flags.StoreByPtr}}
+    s.{{.name}} = &{{ .Type.GoQualifiedType }}{}
+    {{- end }}
+	{{- if not .Type.IsPrimitive }}
+    s.{{.name}}.init(parentModifiedFields, parentModifiedBit)
+    {{- end -}}
+    {{- end -}}
+}
+
+type {{$.StructName }}Type byte
+const (
+    {{.StructName }}TypeNone = {{$.StructName }}Type(iota)
+{{- range .Fields }}
+    {{$.StructName }}Type{{.Name}}
+{{- end }}
+    {{.StructName}}TypeCount
+)
+
+// Type returns the type of the value currently contained in {{ $.StructName }}.
+func (s *{{ $.StructName }}) Type() {{$.StructName }}Type {
+    return s.typ
+}
+
+// SetType sets the type of the value currently contained in {{ $.StructName }}.
+func (s *{{ $.StructName }}) SetType(typ {{$.StructName }}Type) {
+	if s.typ!=typ {
+        s.typ=typ
+		s.markParentModified()
+    }
+}
+
+{{ range .Fields }}
+// {{.Name}} returns the value if the contained type is currently {{$.StructName }}Type{{.Name}}.
+// The caller must check the type via Type() before attempting to call this function.
+func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.GoQualifiedType}} {
+	return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+}
+
+{{if .Type.IsPrimitive}}
+// Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName }}Type{{.Name}}.
+func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.GoQualifiedType}}) {
+    if !{{ .Type.EqualFunc }}({{if and .PassByPointer (not .IsStructType)}}&{{end}}s.{{.name}}, v) || s.typ!={{$.StructName }}Type{{.Name}} {
+		s.{{.name}} = v
+		s.typ = {{$.StructName }}Type{{.Name}}
+        s.markParentModified()
+    }
+}
+{{end}}
+{{ end }}
+
+{{if .DictName}}
+func (s *{{ .StructName }}) Clone() *{{.StructName}} {
+	return &{{ .StructName }}{
+        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
+        {{ end }}
+	}
+}
+
+{{ end }}
+
+// ByteSize returns approximate memory usage in bytes. Used to calculate
+// memory used by dictionaries.
+func (s *{{ .StructName }}) byteSize() uint {
+    return uint(unsafe.Sizeof(*s))+
+       {{range .Fields -}}
+       {{- if .Type.MustClone}}s.{{.name}}.byteSize()+{{end}}
+       {{- end }}0
+}
+
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
+	switch src.typ {
+    {{- range .Fields}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.MustClone}}
+        copy{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+        {{- else}}
+        dst.Set{{.Name}}(src.{{.name}})
+        {{- end}}
+    {{- end}}
+    }
+    dst.SetType(src.typ)
+}
+
+// CopyFrom() performs a deep copy from src.
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
+    copy{{.StructName}}(s, src)
+}
+
+func (s* {{.StructName}}) markParentModified() {
+	s.parentModifiedFields.markModified(s.parentModifiedBit)
+}
+
+func (s* {{.StructName}}) markUnmodified() {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+	s.{{.name}}.markUnmodified()
+	{{- end}}
+	{{- end }}
+}
+
+// IsEqual performs deep comparison and returns true if struct is equal to val.
+func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
+    if e.typ != val.typ {
+        return false
+    }
+    switch e.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.IsPrimitive }}
+        if !{{ .Type.EqualFunc }}(e.{{.name}}, val.{{.name}}) {
+            return false
+        }
+        {{- else }}
+        if !e.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}}) {
+            return false
+        }
+        {{- end }}
+        {{- end }}
+    }
+
+    return true
+}
+
+func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
+    return left.IsEqual(right)
+}
+
+// Cmp{{.StructName}} performs deep comparison and returns an integer that
+// will be 0 if left == right, negative if left < right, positive if left > right.
+func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
+    if left == nil {
+        if right == nil {
+            return 0
+        }
+        return -1
+    }
+    if right == nil {
+        return 1
+    }
+
+    c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
+    if c != 0 {
+        return c
+    }
+    switch left.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if c := {{ .Type.CompareFunc }}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}left.{{.name}},
+            {{- if .Type.Flags.TakePtr}}&{{end}}right.{{.name}}); c != 0 {
+            return c
+        }
+    {{- end }}
+    }
+
+    return 0
+}
+
+// {{ .StructName }}Encoder implements encoding of {{ .StructName }}
+type {{ .StructName }}Encoder struct {
+    buf pkg.BitsWriter
+	limiter *pkg.SizeLimiter
+    prevType {{.StructName}}Type
+    fieldCount uint
+
+    {{ range .Fields }}
+    {{.name}}Encoder {{ .Type.EncoderType }}Encoder
+    {{- end }}
+    {{if .DictName}}
+	dict *{{ .StructName }}EncoderDict{{end}}
+}
+
+{{if .DictName}}
+type {{ .StructName }}Entry struct {
+	refNum uint64
+	val  *{{ .StructName }}
+}
+
+// {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
+type {{ .StructName }}EncoderDict struct {
+	dict b.Tree[*{{ .StructName }}, {{ .StructName }}Entry]
+	limiter *pkg.SizeLimiter
+}
+
+func (d* {{ .StructName }}EncoderDict) Init(limiter *pkg.SizeLimiter) {
+    d.dict = *b.TreeNew[*{{ .StructName }}, {{ .StructName }}Entry](Cmp{{.StructName}})
+    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+    d.limiter = limiter
+}
+
+func (d* {{ .StructName }}EncoderDict) Reset() {
+    d.dict.Clear()
+    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+}
+{{end}}
+
+func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+    state.{{.StructName}}Encoder = e
+	e.limiter = &state.limiter
+    {{- if .DictName}}
+	e.dict = &state.{{.DictName}}
+    {{end}}
+
+    if state.OverrideSchema != nil {
+        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
+        if !ok || overrideSchema == nil {
+            return fmt.Errorf("cannot find oneof in override schema: %s", {{printf "%q" .StructName}})
+        }
+
+        // Number of fields in the target schema.
+        e.fieldCount = uint(len(overrideSchema.Fields))
+    } else {
+        // Keep all fields when encoding.
+        e.fieldCount = {{len .Fields}}
+    }
+
+    var err error
+    {{ range $i, $e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return nil
+    }
+    {{- if .IsPrimitive}}
+        {{- if .Type.DictName}}
+        err = e.{{.name}}Encoder.Init(&state.{{.Type.DictName}}, e.limiter, columns.AddSubColumn())
+        {{- else}}
+        err = e.{{.name}}Encoder.Init({{if .Type.IsDictPossible}}nil, {{end}}e.limiter, columns.AddSubColumn())
+        {{- end}}
+    {{- else}}
+    err = e.{{.name}}Encoder.Init(state, columns.AddSubColumn())
+    {{- end}}
+    if err != nil {
+        return err
+    }
+    {{- end}}
+    return nil
+}
+
+func (e *{{ .StructName }}Encoder) Reset() {
+	// Since we are resetting the state of encoder make sure the next Encode()
+	// call forcedly writes all fields and does not attempt to skip.
+	e.prevType = 0
+    {{- range .Fields}}
+    e.{{.name}}Encoder.Reset()
+    {{- end}}
+}
+
+// Encode encodes val into buf
+func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
+    oldLen := e.buf.BitCount()
+
+    typ := val.typ
+    if uint(typ) > e.fieldCount {
+        // The current field type is not supported in target schema. Encode the type as None.
+        typ = {{ $.StructName }}TypeNone
+    }
+
+	// Compute type delta. 0 means the type is the same as the last time.
+	typDelta := int(typ) - int(e.prevType)
+    e.prevType = typ
+	e.buf.WriteVarintCompact(int64(typDelta))
+
+    // Account written bits in the limiter.
+    newLen := e.buf.BitCount()
+    e.limiter.AddFrameBits(newLen-oldLen)
+
+    // Encode currently selected field.
+	switch typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        // Encode {{.Name}}
+        e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+    {{- end }}
+    }
+}
+
+// CollectColumns collects all buffers from all encoders into buf.
+func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
+    columnSet.SetBits(&e.buf)
+    {{ range $i,$e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return // {{.Name}} and subsequent fields are skipped.
+    }
+    e.{{.name}}Encoder.CollectColumns(columnSet.At({{$i}}))
+    {{- end }}
+}
+
+// {{ .StructName }}Decoder implements decoding of {{ .StructName }}
+type {{ .StructName }}Decoder struct {
+    buf pkg.BitsReader
+    column *pkg.ReadableColumn
+    lastValPtr *{{.StructName}}
+    lastVal {{.StructName}}
+    fieldCount uint
+
+    prevType {{.StructName}}Type
+
+    {{ range .Fields }}
+    {{.name}}Decoder {{ .Type.EncoderType }}Decoder
+    {{- end }}
+    {{if .DictName}}
+    dict *{{ .StructName }}DecoderDict
+    {{end}}
+}
+
+// Init is called once in the lifetime of the stream.
+func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+    state.{{ .StructName }}Decoder = d
+
+    if state.OverrideSchema != nil {
+        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
+        if !ok || overrideSchema == nil {
+            return fmt.Errorf("cannot find oneof in override schema: %s", {{printf "%q" .StructName}})
+        }
+
+        // Number of fields in the target schema.
+        d.fieldCount = uint(len(overrideSchema.Fields))
+    } else {
+        // Keep all fields when encoding.
+        d.fieldCount = {{len .Fields}}
+    }
+
+    d.column = columns.Column()
+
+    {{if .IsMainStruct}}
+    d.lastVal.Init()
+	{{else}}
+    d.lastVal.init(nil,0)
+    {{- end}}
+    d.lastValPtr = &d.lastVal
+
+    var err error
+    {{- range .Fields }}
+    {{- if .Type.IsPrimitive}}
+        {{- if .Type.DictName}}
+        err = d.{{.name}}Decoder.Init(&state.{{.Type.DictName}}, columns.AddSubColumn())
+        {{- else if .Type.IsDictPossible}}
+        err = d.{{.name}}Decoder.Init(nil, columns.AddSubColumn())
+        {{- else}}
+        err = d.{{.name}}Decoder.Init(columns.AddSubColumn())
+        {{- end}}
+    {{- else}}
+    err = d.{{.name}}Decoder.Init(state, columns.AddSubColumn())
+    {{- end}}
+    if err != nil {
+        return err
+    }
+    {{- end }}
+
+    {{- if .DictName}}
+    d.dict = &state.{{.DictName}}
+    {{- end}}
+
+    return nil
+}
+
+// Continue is called at the start of the frame to continue decoding column data.
+// This should set the decoder's source buffer, so the new decoding continues from
+// the supplied column data. This should NOT reset the internal state of the decoder,
+// since columns can cross frame boundaries and the new column data is considered
+// continuation of that same column in the previous frame.
+func (d *{{ .StructName }}Decoder) Continue() {
+    d.buf.Reset(d.column.Data())
+
+    {{ range $i,$e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return // {{.Name}} and subsequent fields are skipped.
+    }
+    d.{{.name}}Decoder.Continue()
+    {{- end }}
+}
+
+func (d *{{ .StructName }}Decoder) Reset() {
+    d.prevType = 0
+    {{- range .Fields}}
+    d.{{.name}}Decoder.Reset()
+    {{- end}}
+}
+
+func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
+	// Read Type delta
+    typeDelta, err := d.buf.ReadVarintCompact()
+    if err != nil {
+        return err
+    }
+
+	// Calculate and validate the new Type
+	typ := int(d.prevType) + int(typeDelta)
+	if typ < 0 || typ >= int({{.StructName}}TypeCount) {
+		return pkg.ErrInvalidOneOfType
+    }
+
+	dst := dstPtr
+	dst.typ = {{.StructName}}Type(typ)
+    d.prevType = {{.StructName}}Type(dst.typ)
+
+	// Decode selected field
+	switch dst.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        // Decode {{.Name}}
+        err = d.{{.name}}Decoder.Decode(&dst.{{.name}})
+        if err != nil {
+            return err
+        }
+    {{- end }}
+    }
+	return nil
+}
+
+{{if .DictName}}
+// {{ .StructName }}DecoderDict is the dictionary used by {{ .StructName }}Decoder
+type {{ .StructName }}DecoderDict struct {
+    dict []*{{.StructName}}
+}
+
+func (d* {{ .StructName }}DecoderDict) Init() {
+    d.dict = d.dict[:0]
+    d.dict = append(d.dict, nil) // nil {{.StructName}} is RefNum 0
+}
+{{end}}

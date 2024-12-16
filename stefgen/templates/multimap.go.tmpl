@@ -1,0 +1,643 @@
+{{- /*gotype: github.com/tigrannajaryan/stef/stef-go/generator.MultimapTemplateModel*/ -}}
+package {{ .PackageName }}
+
+import (
+    "strings"
+    "unsafe"
+	"slices"
+
+	"github.com/tigrannajaryan/stef/stef-go/pkg"
+	"github.com/tigrannajaryan/stef/stef-go/pkg/encoders"
+)
+
+// {{ .MultimapName }} is a multimap, (aka an associative array or a list) of key value
+// pairs from {{.Key.Type.TypeName}} to {{.Value.Type.TypeName}}.
+type {{ .MultimapName }} struct {
+	elems []{{ .MultimapName }}Elem
+	initedCount int
+
+	parentModifiedFields *modifiedFields
+	parentModifiedBit uint64
+}
+
+type {{ .MultimapName }}Elem struct {
+	key   {{if.Key.Type.Flags.StoreByPtr}}*{{end}}{{.Key.Type.GoQualifiedType}}
+	value {{if.Value.Type.Flags.StoreByPtr}}*{{end}}{{.Value.Type.GoQualifiedType}}
+}
+
+func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.GoQualifiedType}} {
+	return {{if.Key.Type.Flags.PassByPtr}}&{{end}}e.key
+}
+
+func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.GoQualifiedType}} {
+	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}e.value
+}
+
+func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	m.parentModifiedFields = parentModifiedFields
+	m.parentModifiedBit = parentModifiedBit
+}
+
+// Clone() creates a deep copy of {{.MultimapName}}
+func (m *{{.MultimapName}}) Clone() {{.MultimapName}} {
+	clone := {{.MultimapName}}{}
+	copy{{.MultimapName}}(&clone, m)
+	return clone
+}
+
+// Len returns the number of elements in the multimap.
+func (m *{{.MultimapName}}) Len() int {
+	return len(m.elems)
+}
+
+// At returns element at index i.
+func (m *{{.MultimapName}}) At(i int) *{{.MultimapName}}Elem {
+	return &m.elems[i]
+}
+
+// EnsureLen ensures the length of the multimap is equal to newLen.
+// It will grow or shrink the multimap if needed.
+func (m *{{.MultimapName}}) EnsureLen(newLen int) {
+	oldLen :=len(m.elems)
+	if newLen!=oldLen {
+		m.elems = pkg.EnsureLen(m.elems, newLen)
+		{{if or .Key.Type.Flags.StoreByPtr .Value.Type.Flags.StoreByPtr}}
+		{{- if .Key.Type.Flags.StoreByPtr}}
+		var	newKeys []{{.Key.Type.GoQualifiedType}}
+		if newLen>m.initedCount {
+			newKeys = make([]{{.Key.Type.GoQualifiedType}},newLen-m.initedCount)
+		}
+		{{- end}}
+		{{- if .Value.Type.Flags.StoreByPtr}}
+		var	newVals []{{.Value.Type.GoQualifiedType}}
+		if newLen>m.initedCount {
+			newVals = make([]{{.Value.Type.GoQualifiedType}},newLen-m.initedCount)
+		}
+		{{- end}}
+		// Set pointers to elements in the slice and init elements with pointers to the parent struct.
+		for i:=m.initedCount; i < newLen; i++ {
+			{{- if .Key.Type.Flags.StoreByPtr}}
+			m.elems[i].key = &newKeys[i-m.initedCount]
+			m.elems[i].key.init(m.parentModifiedFields, m.parentModifiedBit)
+			{{- end}}
+			{{- if .Value.Type.Flags.StoreByPtr}}
+			m.elems[i].value = &newVals[i-m.initedCount]
+			m.elems[i].value.init(m.parentModifiedFields, m.parentModifiedBit)
+			{{- end}}
+		}
+		{{else}}
+		// Init elements with pointers to the parent struct.
+		for i:=m.initedCount; i < newLen; i++ {
+			{{- if not .Key.Type.IsPrimitive}}
+			m.elems[i].key.init(m.parentModifiedFields, m.parentModifiedBit)
+			{{- end}}
+			{{- if not .Value.Type.IsPrimitive}}
+			m.elems[i].value.init(m.parentModifiedFields, m.parentModifiedBit)
+			{{- end}}
+		}
+		{{end}}
+		if m.initedCount < newLen {
+			m.initedCount = newLen
+		}
+		m.markModified()
+	}
+}
+
+func (m* {{.MultimapName}}) markModified() {
+	m.parentModifiedFields.markModified(m.parentModifiedBit)
+}
+
+func (m* {{.MultimapName}}) isModified() bool {
+	return m.parentModifiedFields.isModified(m.parentModifiedBit)
+}
+
+func (m* {{.MultimapName}}) markUnmodified() {
+	m.parentModifiedFields.markUnmodified()
+}
+
+{{if and (not .Key.Type.MustClone) (not .Value.Type.MustClone)}}
+func (m *{{.MultimapName}}) Append(k {{.Key.Type.GoQualifiedType}}, v {{.Value.Type.GoQualifiedType}}) {
+	m.elems = append(m.elems, {{.MultimapName}}Elem{key: k, value: v})
+	m.markModified()
+}
+{{end}}
+
+{{if not .Key.Type.MustClone}}
+// SetKey sets the key of the element at index i.
+func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.GoQualifiedType}}) {
+	if m.elems[i].key != k {
+		m.elems[i].key = k
+		m.markModified()
+	}
+}
+
+{{if .Value.Type.IsPrimitive}}
+// SetValue sets the value of the element at index i.
+func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.GoQualifiedType}}) {
+	if !{{.Value.Type.EqualFunc}}(m.elems[i].value, v) {
+		m.elems[i].value = v
+		m.markModified()
+	}
+}
+{{end}}
+{{end}}
+
+func (m *{{.MultimapName}}) Sort() {
+	slices.SortFunc(m.elems, func(a, b {{.MultimapName}}Elem) int {
+		return {{.Key.Type.CompareFunc}}(a.key, b.key)
+	})
+}
+
+// ByteSize returns approximate memory usage in bytes. Used to calculate
+// memory used by dictionaries.
+func (m *{{.MultimapName}}) byteSize() uint {
+	return uint(unsafe.Sizeof({{.MultimapName}}Elem{}))*uint(len(m.elems))+uint(unsafe.Sizeof(m.elems))
+}
+
+func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
+	modified := false
+	if len(dst.elems)!=len(src.elems) {
+		dst.EnsureLen(len(src.elems))
+		modified = true
+	}
+
+	{{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
+	if !slices.Equal(dst.elems, src.elems) {
+		copy(dst.elems, src.elems)
+		modified = true
+	}
+	{{else}}
+	for i:=0; i < len(src.elems); i++ {
+		{{- if .Key.Type.IsPrimitive}}
+		if dst.elems[i].key != src.elems[i].key {
+			dst.elems[i].key = src.elems[i].key
+			modified = true
+		}
+		{{else}}
+		if !{{.Key.Type.EqualFunc}}(dst.elems[i].key, src.elems[i].key) {
+			copy{{.Key.Type.TypeName}}(dst.elems[i].key, src.elems[i].key)
+			modified = true
+		}
+		{{end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		if dst.elems[i].value != src.elems[i].value {
+			dst.elems[i].value = src.elems[i].value
+			modified = true
+		}
+		{{else}}
+		if !{{.Value.Type.EqualFunc}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}src.elems[i].value) {
+			copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}src.elems[i].value)
+			modified = true
+		}
+		{{- end}}
+	}
+	{{end}}
+	if (modified) {
+		dst.markModified()
+	}
+}
+
+func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}) {
+    copy{{.MultimapName}}(m, src)
+}
+
+func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
+	if len(e.elems) != len(val.elems) {
+		return false
+	}
+	for i := range e.elems {
+		{{- if .Key.Type.IsPrimitive }}
+		if !{{ .Key.Type.EqualFunc }}(e.elems[i].key,val.elems[i].key) {
+			return false
+		}
+		{{- else }}
+		if !e.elems[i].IsEqual(val.elems[i]) {
+			return false
+		}
+		{{- end}}
+		{{- if .Value.Type.IsPrimitive }}
+		if !{{ .Value.Type.EqualFunc }}(e.elems[i].value,val.elems[i].value) {
+			return false
+		}
+		{{- else }}
+		if !e.elems[i].value.IsEqual({{if .Value.Type.Flags.PassByPtr}}&{{end}}val.elems[i].value) {
+			return false
+		}
+		{{- end}}
+	}
+	return true
+}
+
+func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
+    l := min(len(left.elems), len(right.elems))
+    for i := 0; i < l; i++ {
+        c := {{.Key.Type.CompareFunc}}(left.elems[i].key, right.elems[i].key)
+        if c != 0 {
+            return c
+        }
+    }
+    lenDiff := len(left.elems) - len(right.elems)
+
+    if lenDiff != 0 {
+        return lenDiff
+    }
+
+    for i := 0; i < l; i++ {
+        c := {{.Value.Type.CompareFunc}}(
+			{{if .Value.Type.Flags.PassByPtr}}&{{end}}left.elems[i].value,
+			{{if .Value.Type.Flags.PassByPtr}}&{{end}}right.elems[i].value,
+		)
+        if c != 0 {
+            return c
+        }
+    }
+    return 0
+}
+
+type {{ .MultimapName }}Encoder struct {
+    buf pkg.BytesWriter
+	columns pkg.WriteColumnSet
+	limiter *pkg.SizeLimiter
+
+	keyEncoder   {{if .Key.Recursive}}*{{end}}{{.Key.Type.EncoderType}}Encoder
+	valueEncoder {{if .Value.Recursive}}*{{end}}{{.Value.Type.EncoderType}}Encoder
+
+	lastVal {{ .MultimapName }}
+}
+
+func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+	e.limiter = &state.limiter
+    {{- if .Key.Type.IsPrimitive}}
+        err := e.keyEncoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
+    {{- else}}
+		err := e.keyEncoder.Init(state, columns.AddSubColumn())
+    {{- end}}
+	if err != nil {
+		return nil
+	}
+    {{- if .Value.Type.IsPrimitive}}
+		err = e.valueEncoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
+    {{- else}}
+		{{- if .Value.Recursive}}
+		e.valueEncoder = state.{{.Value.Type.EncoderType}}Encoder
+		{{- else}}
+		err = e.valueEncoder.Init(state, columns.AddSubColumn())
+		{{- end}}
+    {{- end}}
+	return err
+}
+
+func (e *{{ .MultimapName }}Encoder) Reset() {
+{{- if not .Key.Recursive -}}
+	e.keyEncoder.Reset()
+{{- end}}
+{{ if not .Value.Recursive -}}
+	e.valueEncoder.Reset()
+{{end -}}
+}
+
+// IsEqual performs deep comparison and returns true if encoder's previously encoded
+// value is equal to list.
+func (e *{{ .MultimapName }}Encoder) IsEqual(list *{{ .MultimapName }}) bool {
+	return e.lastVal.IsEqual(list)
+}
+
+func (e *{{ .MultimapName }}Encoder) Encode(list *{{ .MultimapName }}) (changed bool) {
+	oldLen := len(e.buf.Bytes())
+
+	if len(list.elems) == 0 {
+		// Zero-length attr list.
+		e.buf.WriteUvarint(0b1)
+
+		changed = len(e.lastVal.elems) != 0
+		e.lastVal.elems = pkg.EnsureLen(e.lastVal.elems, 0)
+
+		newLen := len(e.buf.Bytes())
+		e.limiter.AddFrameBytes(uint(newLen - oldLen))
+
+		return changed
+	}
+
+	if list.isSameKeys(&e.lastVal) {
+		changed = e.encodeValuesOnly(list)
+	} else {
+		e.encodeFull(list)
+		changed = true
+	}
+
+	newLen := len(e.buf.Bytes())
+	e.limiter.AddFrameBytes(uint(newLen - oldLen))
+
+	return changed
+}
+
+func (e *{{ .MultimapName }}Encoder) encodeValuesOnly(list *{{ .MultimapName }}) (changed bool) {
+	if len(list.elems) > 62 {
+		// TODO: implement this case.
+		panic("not implemented")
+	}
+
+	// Calculate changed values.
+	changedValuesBits := uint64(0)
+	for i := range list.elems {
+		changedValuesBits <<= 1
+		{{- if .Value.Type.IsPrimitive}}
+		if e.lastVal.elems[i].value != list.elems[i].value {
+			changedValuesBits |= 1
+		}
+		{{else}}
+		if !{{.Value.Type.EqualFunc}}(
+			{{- if .Value.Type.Flags.PassByPtr}}&{{end}}e.lastVal.elems[i].value,
+			{{- if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value) {
+			changedValuesBits |= 1
+		}
+		{{- end}}
+	}
+
+	e.buf.WriteUvarint(changedValuesBits << 1)
+
+	// Encode changed values first.
+	bitToRead := uint64(1) << (len(list.elems) - 1)
+	for i := range list.elems {
+		if (bitToRead & changedValuesBits) != 0 {
+			e.valueEncoder.Encode({{if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value)
+		}
+		bitToRead >>= 1
+		if bitToRead == 0 {
+			break
+		}
+	}
+
+	// Store changed values in lastVal after encoding.
+	e.lastVal.EnsureLen(len(list.elems))
+	bitToRead = uint64(1) << (len(list.elems) - 1)
+	for i := range list.elems {
+		if (bitToRead & changedValuesBits) != 0 {
+		{{- if .Value.Type.IsPrimitive}}
+			e.lastVal.elems[i].value = list.elems[i].value
+		{{else}}
+			copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}e.lastVal.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value)
+		{{- end}}
+		}
+		bitToRead >>= 1
+		if bitToRead == 0 {
+			break
+		}
+	}
+
+	return changedValuesBits != 0
+}
+
+func (e *{{ .MultimapName }}Encoder) encodeFull(list *{{ .MultimapName }}) {
+	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
+
+	// Encode values first.
+	for i := range list.elems {
+		e.keyEncoder.Encode(list.elems[i].key)
+		e.valueEncoder.Encode({{if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value)
+	}
+
+	// Store changed values in lastVal.
+	e.lastVal.EnsureLen(len(list.elems))
+	for i := range list.elems {
+		{{- if .Key.Type.IsPrimitive}}
+		e.lastVal.elems[i].key = list.elems[i].key
+		{{- else}}
+		copy{{.Key.Type.TypeName}}(e.lastVal.elems[i].key, list.elems[i].key)
+		{{- end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		e.lastVal.elems[i].value = list.elems[i].value
+		{{- else}}
+		copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}e.lastVal.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value)
+		{{- end}}
+	}
+}
+
+func (e *{{ .MultimapName }}Encoder) RencodeLast() {
+	list := e.lastVal
+	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
+	for i := range list.elems {
+		e.keyEncoder.Encode(list.elems[i].key)
+		e.valueEncoder.Encode({{if .Value.Type.Flags.PassByPtr}}&{{end}}list.elems[i].value)
+	}
+}
+
+func (val1 *{{ .MultimapName }}) isSameKeys(val2 *{{ .MultimapName }}) bool {
+	if len(val1.elems) != len(val2.elems) {
+		return false
+	}
+
+	for i := range val1.elems {
+		// Attribute key.
+		if val1.elems[i].key != val2.elems[i].key {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (e *{{ .MultimapName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
+	columnSet.SetBytes(&e.buf)
+{{if not .Key.Recursive -}}
+ 	e.keyEncoder.CollectColumns(columnSet.At(0))
+{{- end}}
+{{ if not .Value.Recursive -}}
+	e.valueEncoder.CollectColumns(columnSet.At(1))
+{{- end}}
+}
+
+type {{.MultimapName}}Decoder struct {
+    buf pkg.BytesReader
+	column *pkg.ReadableColumn
+	keyDecoder   {{if .Key.Recursive -}}*{{end}}{{.Key.Type.EncoderType}}Decoder
+	valueDecoder {{if .Value.Recursive -}}*{{end}}{{.Value.Type.EncoderType}}Decoder
+	lastVal {{.MultimapName}}
+}
+
+// Init is called once in the lifetime of the stream.
+func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+	d.column = columns.Column()
+
+{{- if .Key.Type.IsPrimitive}}
+	err := d.keyDecoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
+{{- else}}
+	err := d.keyDecoder.Init(state, columns.AddSubColumn())
+{{- end}}
+	if err != nil {
+		return nil
+	}
+
+{{- if .Value.Type.IsPrimitive}}
+	err = d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
+{{- else}}
+	{{- if .Value.Recursive}}
+	d.valueDecoder = state.{{.Value.Type.EncoderType}}Decoder
+	{{- else}}
+	err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	{{- end}}
+{{- end}}
+	return err
+}
+
+// Continue is called at the start of the frame to continue decoding column data.
+// This should set the decoder's source buffer, so the new decoding continues from
+// the supplied column data. This should NOT reset the internal state of the decoder,
+// since columns can cross frame boundaries and the new column data is considered
+// continuation of that same column in the previous frame.
+func (d *{{ .MultimapName }}Decoder) Continue() {
+    d.buf.Reset(d.column.Data())
+{{ if not .Key.Recursive -}}
+	d.keyDecoder.Continue()
+{{- end}}
+{{ if not .Value.Recursive -}}
+    d.valueDecoder.Continue()
+{{- end -}}
+}
+
+func (d *{{ .MultimapName }}Decoder) Reset() {
+{{- if not .Key.Recursive -}}
+	d.keyDecoder.Reset()
+{{- end}}
+{{if not .Value.Recursive -}}
+	d.valueDecoder.Reset()
+{{end -}}
+}
+
+func (d *{{ .MultimapName }}Decoder) Decode(dst *{{.MultimapName}}) error {
+	countOrChangedValues, err := d.buf.ReadUvarint()
+	if err != nil {
+		return err
+	}
+	if countOrChangedValues == 0 {
+		// Nothing changed.
+		d.decodeCopyOfLast(dst)
+		return nil
+	}
+
+	if countOrChangedValues&0b1 == 0 {
+		return d.decodeValuesOnly(countOrChangedValues >> 1, dst)
+	}
+
+	if countOrChangedValues&0b1 == 0b1 {
+		return d.decodeFull(int(countOrChangedValues >> 1), dst)
+	}
+	return pkg.ErrMultimap
+}
+
+func (d *{{.MultimapName}}Decoder) decodeCopyOfLast(dst *{{.MultimapName}}) error {
+	dst.EnsureLen(len(d.lastVal.elems))
+	for i := range dst.elems {
+		{{- if .Key.Type.IsPrimitive}}
+		dst.elems[i].key = d.lastVal.elems[i].key
+		{{- else}}
+		copy{{.Key.Type.TypeName}}(d.lastVal.elems[i].key, dst.elems[i].key)
+		{{- end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		dst.elems[i].value = d.lastVal.elems[i].value
+		{{- else}}
+		copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}d.lastVal.elems[i].value)
+		{{- end}}
+	}
+	return nil
+}
+
+func (d *{{.MultimapName}}Decoder) decodeValuesOnly(changedValuesBits uint64, dst *{{.MultimapName}}) error {
+	if len(d.lastVal.elems) == 0 {
+		// The last attrs empty so value-only encoding does not make sense.
+		return pkg.ErrMultimap
+	}
+
+	count := len(d.lastVal.elems)
+	dst.EnsureLen(count)
+
+	// Copy unchanged values from lastVal
+	bitToRead := uint64(1) << (len(dst.elems) - 1)
+	for i := range dst.elems {
+		// Copy the key from lastVal. All keys are the same.
+		dst.elems[i].key = d.lastVal.elems[i].key
+		if (bitToRead & changedValuesBits) == 0 {
+			// Value is not changed, copy from lastVal.
+			{{- if .Value.Type.IsPrimitive}}
+			dst.elems[i].value = d.lastVal.elems[i].value
+			{{- else}}
+			copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}d.lastVal.elems[i].value)
+			{{- end}}
+		}
+		bitToRead >>= 1
+	}
+
+	// Decode changed values
+	var err error
+	bitToRead = uint64(1) << (len(dst.elems) - 1)
+	for i := range dst.elems {
+		if (bitToRead & changedValuesBits) != 0 {
+			// Value is changed, decode it.
+			err = d.valueDecoder.Decode(&dst.elems[i].value)
+			if err != nil {
+				return err
+			}
+		}
+		bitToRead >>= 1
+	}
+
+	// Decode() calls above may have changed lastVal len if we have a recursive data type.
+	// Set the correct length again.
+	d.lastVal.EnsureLen(count)
+
+	// Store the values in lastVal.
+	bitToRead = uint64(1) << (len(dst.elems) - 1)
+	for i := range dst.elems {
+		if (bitToRead & changedValuesBits) != 0 {
+			{{- if .Value.Type.IsPrimitive}}
+			d.lastVal.elems[i].value = dst.elems[i].value
+			{{- else}}
+			copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}d.lastVal.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value)
+			{{- end}}
+		}
+		bitToRead >>= 1
+	}
+
+	return nil
+}
+
+func (d *{{ .MultimapName }}Decoder) decodeFull(count int, dst *{{.MultimapName}}) error {
+	if count < 0 || count >= pkg.MultimapElemCountLimit {
+		return pkg.ErrMultimapCountLimit
+	}
+
+	dst.EnsureLen(count)
+	// Decode values first.
+	var err error
+	for i := 0; i < count; i++ {
+		err = d.keyDecoder.Decode(&dst.elems[i].key)
+		if err != nil {
+			return err
+		}
+		err = d.valueDecoder.Decode(&dst.elems[i].value)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Store decoded values in lastVal.
+	d.lastVal.EnsureLen(count)
+	for i := 0; i < count; i++ {
+		{{- if .Key.Type.IsPrimitive}}
+		d.lastVal.elems[i].key = dst.elems[i].key
+		{{- else}}
+		copy{{.Key.Type.TypeName}}(d.lastVal.elems[i].key, dst.elems[i].key)
+		{{- end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		d.lastVal.elems[i].value = dst.elems[i].value
+		{{- else}}
+		copy{{.Value.Type.TypeName}}({{if .Value.Type.Flags.PassByPtr}}&{{end}}d.lastVal.elems[i].value, {{if .Value.Type.Flags.PassByPtr}}&{{end}}dst.elems[i].value)
+		{{- end}}
+	}
+
+	return nil
+}
