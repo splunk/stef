@@ -11,4 +11,4 @@ To run tests: `make`
 - [stef-otel](./stef-otel): Otel/STEF protocol schema and generated code in Go.
 - [stef-pdata](./stef-otlp): Collector pdata <-> Otel/STEF converters.
 - [stef-spec](./stef-spec): STEF Specification and Protobuf definitions.
-- [stefgen](./stefgen): Generator of serializers from STEF schema.
+- [stefgen](./stefgen): Generates serializers from STEF schema.
