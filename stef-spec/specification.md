@@ -67,8 +67,8 @@ Status: [Development]
 The data format described in this specification uses a custom notation. Unless 
 otherwise specified all data is tightly packed. Fields may occupy a number of bits 
 that is not an integer multiply of 8 and may cross the boundaries of bytes. There is no 
-implied padding after such fields to ensure the next field starts at the byte boundary. 
-When any padding between fields is used it is explicitly called out.
+implied padding after such fields. When any padding between fields is used it is
+explicitly called out.
 
 Fields are MSB-ordered, i.e. most-significant bits of the byte are
 used first. For example a 3-bit field A, followed by a 2-bit field B looks like this
@@ -103,7 +103,7 @@ Formats of data structures are described in the following notation:
 }
 ```
 
-There is one of more fields in the structure, a field is named and has a size or type 
+There is one or more fields in the structure. A field is named and has a size or type 
 notation after the colon.
 
 Here is the list of field size and type notations:
@@ -125,7 +125,7 @@ variable-length encoding.
 `Field: SC` - Field holds an signed integer value using the
 [VarintCompact](#varintcompact) variable-length encoding.
 
-`Field: <ST>` = C - Field has a constant value of C. Size/type <ST> can be any one of the 
+`Field: <ST> = C` - Field has a constant value of C. Size/type <ST> can be any one of the 
 notations above.
 
 `/Field: <ST>/` - Field is optional.
