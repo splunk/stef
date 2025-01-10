@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+option go_package = "/stef_proto";
+
+// Destination is a service to which STEF data can be sent.
+service STEFDestination {
+  // Stream is a channel to send STEF data from the client to Destination.
+  // Once the stream is open the Destination MUST send a ServerMessage with
+  // DestCapabilities field set.
+  // The client MUST examine received DestCapabilities and if the client is
+  // able to operate as requested by DestCapabilities the client MUST begin sending
+  // ClientMessage containing STEF data. The Destination MUST periodically
+  // respond with ServerMessage containing ExportResponse field.
+  // One gRPC stream corresponds to one STEF byte stream.
+  rpc Stream(stream STEFClientMessage) returns (stream STEFServerMessage) {}
+}
+
+message STEFClientMessage {
+  // The bytes of STEF stream. The recipient is responsible for assembling the
+  // STEF data stream from a sequence of messages in the order the
+  // messages are received and decoding the STEF data stream.
+  //
+  // See specification.md for specification of STEF stream.
+  bytes stef_bytes = 1;
+
+  // Indicates that the last byte of tef_bytes is also an end of a chunk (a STEF header or
+  // STEF frame). This can be used by recipients to accumulates bytes until the end of
+  // the chunk is encountered and only then start decoding the chunk.
+  // Clients MUST ensure they mark this field true at least once in a while otherwise
+  // recipients may never start decoding the data.
+  bool is_end_of_chunk = 2;
+}
+
+message STEFDestinationCapabilities {
+  // dictionary_limits of the destination. The client MUST honor the limits.
+  STEFDictionaryLimits dictionary_limits = 1;
+
+  // schema_json is the STEF schema supported by the destination. The schema description
+  // is in JSON format.
+  // Upon receiving this schema description from the destination the client has 4
+  // possibilities:
+  // 1. The schema matches client's schema exactly. The client can send its STEF data as is.
+  // 2. The schema is a superset of client's schema. The client can send its STEF
+  //    data as is and MUST specify client's schema in the STEF header. The destination
+  //    will be able to read STEF data because STEF Readers support reading data encoded
+  //    in schema that is subset of their supported schema.
+  // 3. The schema is a subset of client's schema. The client MUST downgrade its encoders
+  //    to output STEF data in the specified schema.
+  // 4. The schema is incompatible with client's schema (neither an exact match, nor a
+  //    subset or superset). The client and the destination are incompatible and cannot
+  //    communicate. The client MUST close the stream, further communication is not possible.
+  bytes schema_json = 2;
+}
+
+// DictionaryLimits defines the limits of the recipient. Once any of the limits
+// are reached the sender will reset the dictionaries. This prevents the
+// dictionaries growing indefinitely large.
+message STEFDictionaryLimits {
+  // Maximum total in-memory byte size of all dictionaries.
+  // 0 means no limit.
+  // The sender's total byte size calculation may be approximate. Senders
+  // SHOULD make the best effort to make this calculation as accurate as possible.
+  // Note that the memory size is inherently dependent on dictionary in-memory
+  // memory structure, word size, etc, so it may end up differing between what
+  // the sender computes and what receiver's re-created dictionary ends up using.
+  // Receivers that are memory constrained should specify conservatively low values
+  // for the limit.
+  uint64 max_dict_bytes = 2;
+}
+
+
+message STEFServerMessage {
+  oneof message {
+    STEFDestinationCapabilities capabilities = 1;
+    STEFDataResponse response = 2;
+  }
+}
+
+message STEFDataResponse {
+  // ack_record_id acknowledges receipt of STEF data
+  // with record_id <= ack_record_id.
+  //
+  // The client must be ready to re-connect and re-send unacknowledged
+  // metric data in case of disconnection or other failures. When reconnecting
+  // after failure, the STEF stream is restarted and the original unacknowledged
+  // metric data is re-encoded again (since encoding depends on the state of the
+  // connection).
+  uint64 ack_record_id = 1;
+
+  // Record id of STEF data items that the destination was not able to
+  // read or validate. If the client retries sending it MUST NOT send the data
+  // with specified record ids again.
+  repeated uint64 bad_data_record_ids = 2;
+}
