@@ -1,7 +1,7 @@
 # Sequential Tabular Encoding Format (STEF)
 
 Tigran Najaryan<br/>
-December 2024
+January 2025
 
 Status: [Development]
 
