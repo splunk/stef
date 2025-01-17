@@ -20,14 +20,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/splunk/stef/stef-go/pkg"
+	"github.com/splunk/stef/go/pkg"
 
-	tef_grpc "github.com/splunk/stef/stef-gogrpc"
-	"github.com/splunk/stef/stef-gogrpc/stef_proto"
-	tef_grpctypes "github.com/splunk/stef/stef-gogrpc/types"
-	"github.com/splunk/stef/stef-otel/oteltef"
-	otlpconvert "github.com/splunk/stef/stef-pdata/metrics"
-	"github.com/splunk/stef/stef-pdata/metrics/sortedbymetric"
+	tef_grpc "github.com/splunk/stef/go/grpc"
+	"github.com/splunk/stef/go/grpc/stef_proto"
+	tef_grpctypes "github.com/splunk/stef/go/grpc/types"
+	"github.com/splunk/stef/go/otel/oteltef"
+	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
 type stefExporter struct {

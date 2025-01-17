@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/splunk/stef/stef-go/schema"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 // genSchema is a TEF schema description in form that is useful for generation.

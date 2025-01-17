@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/splunk/stef/stef-go/schema"
+	"github.com/splunk/stef/go/pkg/schema"
 
 	"github.com/splunk/stef/stefgen/generator"
 )

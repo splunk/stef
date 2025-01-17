@@ -6,11 +6,11 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/stef-go/pkg"
+	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/stef-otel/oteltef"
-	otlpconvert "github.com/splunk/stef/stef-pdata/metrics"
-	"github.com/splunk/stef/stef-pdata/metrics/sortedbymetric"
+	"github.com/splunk/stef/go/otel/oteltef"
+	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 
 	"github.com/splunk/stef/benchmarks/encodings"
 )

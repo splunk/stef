@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/stef-go/pkg"
+	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/benchmarks/cmd"
 	"github.com/splunk/stef/benchmarks/encodings/stef"

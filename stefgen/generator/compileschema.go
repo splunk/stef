@@ -3,7 +3,7 @@ package generator
 import (
 	"fmt"
 
-	"github.com/splunk/stef/stef-go/schema"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 func compileSchema(src *schema.Schema) (*genSchema, error) {

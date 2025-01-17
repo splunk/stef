@@ -16,9 +16,9 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/stef-go/pkg"
-	"github.com/splunk/stef/stef-otel/oteltef"
-	traces2 "github.com/splunk/stef/stef-pdata/traces"
+	"github.com/splunk/stef/go/otel/oteltef"
+	traces2 "github.com/splunk/stef/go/pdata/traces"
+	"github.com/splunk/stef/go/pkg"
 )
 
 func TestTracesMultipart(t *testing.T) {

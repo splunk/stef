@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/splunk/stef/stef-go/pkg"
+	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/benchmarks/cmd"
-	"github.com/splunk/stef/stef-otel/oteltef"
+	"github.com/splunk/stef/go/otel/oteltef"
 )
 
 var InputPath = ""

@@ -4,8 +4,8 @@ go 1.23.2
 
 require (
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/splunk/stef/stef-gogrpc v0.0.0
-	github.com/splunk/stef/stef-pdata v0.0.0
+	github.com/splunk/stef/go/grpc v0.0.0
+	github.com/splunk/stef/go/pdata v0.0.0
 	go.opentelemetry.io/collector v0.103.0 // indirect
 	go.opentelemetry.io/collector/confmap v0.103.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.103.0
@@ -25,9 +25,9 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.103.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.103.0
 	github.com/open-telemetry/otel-arrow v0.24.0
+	github.com/splunk/stef/go/otel v0.0.0
+	github.com/splunk/stef/go/pkg v0.0.0
 	github.com/stretchr/testify v1.10.0
-	github.com/splunk/stef/stef-go v0.0.0
-	github.com/splunk/stef/stef-otel v0.0.0
 	go.opentelemetry.io/collector/component v0.103.0
 	go.opentelemetry.io/collector/connector v0.103.0
 	go.opentelemetry.io/collector/consumer v0.103.0
@@ -265,8 +265,8 @@ exclude go.opencensus.io v0.19.1
 replace github.com/testcontainers/testcontainers-go => github.com/testcontainers/testcontainers-go v0.15.0
 
 replace (
-	github.com/splunk/stef/stef-go => ../stef-go
-	github.com/splunk/stef/stef-gogrpc => ../stef-gogrpc
-	github.com/splunk/stef/stef-otel => ../stef-otel
-	github.com/splunk/stef/stef-pdata => ../stef-pdata
+	github.com/splunk/stef/go/grpc => ../go/grpc
+	github.com/splunk/stef/go/otel => ../go/otel
+	github.com/splunk/stef/go/pdata => ../go/pdata
+	github.com/splunk/stef/go/pkg => ../go/pkg
 )

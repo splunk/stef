@@ -850,7 +850,7 @@ reader that it MUST also reset its dictionaries.
 ## STEF/gRPC Protocol
 
 STEF data can be communicated over gRPC via
-[TEFDestination](../stef-gogrpc/proto/destination.proto) service.
+[TEFDestination](../go/grpc/proto/destination.proto) service.
 
 `TEFDestination` service is used to deliver STEF data from a Sender to a Receiver.
 The Sender is responsible for producing a STEF Data Stream and uses a STEF Writer.

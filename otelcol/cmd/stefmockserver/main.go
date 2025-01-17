@@ -9,9 +9,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	tefgrpc "github.com/splunk/stef/stef-gogrpc"
-	"github.com/splunk/stef/stef-gogrpc/stef_proto"
-	"github.com/splunk/stef/stef-otel/oteltef"
+	tefgrpc "github.com/splunk/stef/go/grpc"
+	"github.com/splunk/stef/go/grpc/stef_proto"
+	"github.com/splunk/stef/go/otel/oteltef"
 )
 
 func newGrpcServer(port int) (*grpc.Server, net.Listener, int) {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/splunk/stef/stef-go/schema"
+	"github.com/splunk/stef/go/pkg/schema"
 
 	"github.com/splunk/stef/stefgen/templates"
 )
