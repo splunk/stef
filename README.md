@@ -17,7 +17,8 @@ To run tests: `make`
 
 1. To release a new version vX.Y.Z run `make prepver VERSION=vX.Y.Z` to update go.mod 
 files.
-2. TBD.
+2. Create a PR with changes and get it merged.
+3. Run `make releasever VERSION=vX.Y.Z` to create and push version tags to github.
 
 ## Splunk Copyright Notice
 
