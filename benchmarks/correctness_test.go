@@ -12,10 +12,10 @@ import (
 
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/stef-go/pkg"
-	"github.com/splunk/stef/stef-otel/oteltef"
-	"github.com/splunk/stef/stef-pdata/metrics"
-	"github.com/splunk/stef/stef-pdata/metrics/testtools"
+	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/go/pdata/metrics/testtools"
+	"github.com/splunk/stef/go/pkg"
 )
 
 func TestConvertTEFFromToOTLP(t *testing.T) {

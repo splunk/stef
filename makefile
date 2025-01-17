@@ -1,18 +1,18 @@
 .PHONY: default
 default:
 	cd stefgen && make
-	cd stef-go && make
-	cd stef-gogrpc && make
-	cd stef-otel && make
-	cd stef-pdata && make
+	cd go/pkg && make
+	cd go/grpc && make
+	cd go/otel && make
+	cd go/pdata && make
 	cd otelcol && make
 	cd benchmarks && make
 
 all:
 	cd stefgen && make all
-	cd stef-go && make all
-	cd stef-gogrpc && make all
-	cd stef-otel && make all
-	cd stef-pdata && make all
+	cd go/pkg && make all
+	cd go/grpc && make all
+	cd go/otel && make all
+	cd go/pdata && make all
 	cd otelcol && make all
 	cd benchmarks && make all

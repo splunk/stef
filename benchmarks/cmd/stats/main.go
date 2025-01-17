@@ -11,7 +11,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/splunk/stef/stef-otel/oteltef"
+	"github.com/splunk/stef/go/otel/oteltef"
 
 	"github.com/splunk/stef/benchmarks/cmd"
 )

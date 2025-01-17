@@ -6,10 +6,10 @@ To run tests: `make`
 
 - [benchmarks](./benchmarks): Benchmarks, tests, comparisons to other formats.
 - [otelcol](./otelcol): Otel/STEF protocol Collector exporter implementation.
-- [stef-go](./stef-go): STEF supporting libraries for Go.
-- [stef-gogrpc](./stef-gogrpc): STEF/gRPC protocol implementation in Go.
-- [stef-otel](./stef-otel): Otel/STEF protocol schema and generated code in Go.
-- [stef-pdata](./stef-otlp): Collector pdata <-> Otel/STEF converters.
+- [go/pkg](./go/pkg): STEF supporting libraries for Go.
+- [go/grpc](./go/grpc): STEF/gRPC protocol implementation in Go.
+- [go/otel](./go/otel): Otel/STEF protocol schema and generated code in Go.
+- [go/pdata](./go/pdata): Collector pdata <-> Otel/STEF converters.
 - [stef-spec](./stef-spec): STEF Specification and Protobuf definitions.
 - [stefgen](./stefgen): Generates serializers from STEF schema.
 

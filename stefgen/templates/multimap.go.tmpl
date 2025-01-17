@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/splunk/stef/stef-go/generator.MultimapTemplateModel*/ -}}
+{{- /*gotype: github.com/splunk/stef/go/pkg/generator.MultimapTemplateModel*/ -}}
 package {{ .PackageName }}
 
 import (
@@ -6,8 +6,8 @@ import (
     "unsafe"
 	"slices"
 
-	"github.com/splunk/stef/stef-go/pkg"
-	"github.com/splunk/stef/stef-go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/encoders"
 )
 
 // {{ .MultimapName }} is a multimap, (aka an associative array or a list) of key value

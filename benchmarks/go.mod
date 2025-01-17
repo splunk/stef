@@ -6,10 +6,10 @@ require (
 	github.com/klauspost/compress v1.17.9
 	github.com/open-telemetry/otel-arrow v0.31.0
 	github.com/parquet-go/parquet-go v0.23.0
+	github.com/splunk/stef/go/otel v0.0.0
+	github.com/splunk/stef/go/pdata v0.0.0
+	github.com/splunk/stef/go/pkg v0.0.0
 	github.com/stretchr/testify v1.10.0
-	github.com/splunk/stef/stef-go v0.0.0
-	github.com/splunk/stef/stef-otel v0.0.0
-	github.com/splunk/stef/stef-pdata v0.0.0
 	go.opentelemetry.io/collector/pdata v1.19.0
 	golang.org/x/text v0.18.0
 	google.golang.org/protobuf v1.35.2
@@ -60,10 +60,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/splunk/stef/stef-go => ../stef-go
+replace github.com/splunk/stef/go/pkg => ../go/pkg
 
-replace github.com/splunk/stef/stef-gogrpc => ../stef-gogrpc
+replace github.com/splunk/stef/go/grpc => ../go/grpc
 
-replace github.com/splunk/stef/stef-pdata => ../stef-pdata
+replace github.com/splunk/stef/go/pdata => ../go/pdata
 
-replace github.com/splunk/stef/stef-otel => ../stef-otel
+replace github.com/splunk/stef/go/otel => ../go/otel

@@ -10,8 +10,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
-	"github.com/splunk/stef/stef-go/pkg"
-	"github.com/splunk/stef/stef-otel/oteltef"
+	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/pkg"
 )
 
 func TestCopy(t *testing.T) {
