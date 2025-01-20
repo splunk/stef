@@ -13,6 +13,12 @@ To run tests: `make`
 - [stef-spec](./stef-spec): STEF Specification and Protobuf definitions.
 - [stefgen](./stefgen): Generates serializers from STEF schema.
 
+## Releasing
+
+1. To release a new version vX.Y.Z run `make prepver VERSION=vX.Y.Z` to update go.mod 
+files.
+2. TBD.
+
 ## Splunk Copyright Notice
 
 Copyright 2022 Splunk Inc.
