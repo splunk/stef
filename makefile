@@ -1,3 +1,10 @@
+# Function to execute a command.
+# Accepts command to execute as first parameter.
+define exec-command
+$(1)
+
+endef
+
 .PHONY: default
 default:
 	cd stefgen && make
@@ -17,11 +24,15 @@ all:
 	cd otelcol && make all
 	cd benchmarks && make all
 
-prepver:
+.PHONY: verifyver
+verifyver:
 ifndef VERSION
 		@echo "VERSION is unset or set to the empty string"
 		@exit 1
 endif
+
+.PHONY: prepver
+prepver: verifyver
 	echo Updating to version ${VERSION}
 	cd go/grpc     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd go/otel     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
@@ -30,3 +41,10 @@ endif
 				   && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION} && go mod tidy
 	cd otelcol     && go mod tidy
 	cd benchmarks  && go mod tidy
+
+MODULES := go/pkg go/grpc go/otel go/pdata
+
+.PHONY: releasever
+releasever: verifyver
+	echo Tagging version $(VERSION)
+	$(foreach gomod,$(MODULES),$(call exec-command,git tag $(gomod)/$(VERSION) && git push origin $(gomod)/$(VERSION)))
