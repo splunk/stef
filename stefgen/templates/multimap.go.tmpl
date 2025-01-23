@@ -115,6 +115,18 @@ func (m* {{.MultimapName}}) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m* {{.MultimapName}}) markUnmodifiedRecursively() {
+	for i:=0; i < len(m.elems); i++ {
+		{{- if not .Key.Type.IsPrimitive}}
+		m.elems[i].key.markUnmodifiedRecursively()
+		{{- end}}
+		{{- if not .Value.Type.IsPrimitive}}
+		m.elems[i].value.markUnmodifiedRecursively()
+		{{- end}}
+	}
+}
+
+
 {{if and (not .Key.Type.MustClone) (not .Value.Type.MustClone)}}
 func (m *{{.MultimapName}}) Append(k {{.Key.Type.GoQualifiedType}}, v {{.Value.Type.GoQualifiedType}}) {
 	m.elems = append(m.elems, {{.MultimapName}}Elem{key: k, value: v})

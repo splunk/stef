@@ -55,6 +55,21 @@ func (s *Envelope) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0
 }
 
+func (s *Envelope) markUnmodifiedRecursively() {
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Envelope) Clone() Envelope {
+	return Envelope{
+		attributes: s.attributes.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Envelope) byteSize() uint {

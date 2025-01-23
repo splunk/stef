@@ -69,6 +69,10 @@ func (e *Float64Array) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *Float64Array) markUnmodifiedRecursively() {
+
+}
+
 func copyFloat64Array(dst *Float64Array, src *Float64Array) {
 	if len(dst.elems) != len(src.elems) {
 		n := min(len(dst.elems), len(src.elems))

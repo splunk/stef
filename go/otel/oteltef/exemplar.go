@@ -148,6 +148,38 @@ func (s *Exemplar) IsFilteredAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0
 }
 
+func (s *Exemplar) markUnmodifiedRecursively() {
+
+	if s.IsTimestampModified() {
+	}
+
+	if s.IsValueModified() {
+		s.value.markUnmodifiedRecursively()
+	}
+
+	if s.IsSpanIDModified() {
+	}
+
+	if s.IsTraceIDModified() {
+	}
+
+	if s.IsFilteredAttributesModified() {
+		s.filteredAttributes.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Exemplar) Clone() Exemplar {
+	return Exemplar{
+		timestamp:          s.timestamp,
+		value:              s.value.Clone(),
+		spanID:             s.spanID,
+		traceID:            s.traceID,
+		filteredAttributes: s.filteredAttributes.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Exemplar) byteSize() uint {

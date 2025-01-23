@@ -59,6 +59,13 @@ func (e *ExemplarArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *ExemplarArray) markUnmodifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markUnmodifiedRecursively()
+	}
+
+}
+
 func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))

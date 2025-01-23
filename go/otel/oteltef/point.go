@@ -122,6 +122,34 @@ func (s *Point) IsExemplarsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedPointExemplars != 0
 }
 
+func (s *Point) markUnmodifiedRecursively() {
+
+	if s.IsStartTimestampModified() {
+	}
+
+	if s.IsTimestampModified() {
+	}
+
+	if s.IsValueModified() {
+		s.value.markUnmodifiedRecursively()
+	}
+
+	if s.IsExemplarsModified() {
+		s.exemplars.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Point) Clone() Point {
+	return Point{
+		startTimestamp: s.startTimestamp,
+		timestamp:      s.timestamp,
+		value:          s.value.Clone(),
+		exemplars:      s.exemplars.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Point) byteSize() uint {

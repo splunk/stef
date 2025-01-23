@@ -290,6 +290,10 @@ func diffResourceMetrics(left pmetric.ResourceMetrics, right pmetric.ResourceMet
 		return err
 	}
 
+	if left.Resource().DroppedAttributesCount() != right.Resource().DroppedAttributesCount() {
+		return errors.New("DroppedAttributesCount mismatch")
+	}
+
 	if left.ScopeMetrics().Len() != right.ScopeMetrics().Len() {
 		return errors.New("ScopeMetrics count mismatch")
 	}
@@ -319,6 +323,10 @@ func diffScopeMetrics(left pmetric.ScopeMetrics, right pmetric.ScopeMetrics) err
 	err := diffAttrs(left.Scope().Attributes(), right.Scope().Attributes())
 	if err != nil {
 		return err
+	}
+
+	if left.Scope().DroppedAttributesCount() != right.Scope().DroppedAttributesCount() {
+		return errors.New("DroppedAttributesCount mismatch")
 	}
 
 	if left.Metrics().Len() != right.Metrics().Len() {

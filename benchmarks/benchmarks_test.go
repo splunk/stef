@@ -23,7 +23,7 @@ import (
 
 var testEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
-	&stef.STEFEncoding{},
+	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	//&stef.STEFSEncoding{},
 	//&stef.STEFUEncoding{},
 	&otelarrow.OtelArrowEncoding{},

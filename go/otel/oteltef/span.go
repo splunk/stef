@@ -14,19 +14,20 @@ var _ = strings.Compare
 var _ = encoders.StringEncoder{}
 
 type Span struct {
-	traceID           pkg.Bytes
-	spanID            pkg.Bytes
-	traceState        string
-	parentSpanID      pkg.Bytes
-	flags             uint64
-	name              string
-	kind              uint64
-	startTimeUnixNano uint64
-	endTimeUnixNano   uint64
-	attributes        Attributes
-	events            EventArray
-	links             LinkArray
-	status            SpanStatus
+	traceID                pkg.Bytes
+	spanID                 pkg.Bytes
+	traceState             string
+	parentSpanID           pkg.Bytes
+	flags                  uint64
+	name                   string
+	kind                   uint64
+	startTimeUnixNano      uint64
+	endTimeUnixNano        uint64
+	attributes             Attributes
+	droppedAttributesCount uint64
+	events                 EventArray
+	links                  LinkArray
+	status                 SpanStatus
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -44,6 +45,7 @@ const (
 	fieldModifiedSpanStartTimeUnixNano
 	fieldModifiedSpanEndTimeUnixNano
 	fieldModifiedSpanAttributes
+	fieldModifiedSpanDroppedAttributesCount
 	fieldModifiedSpanEvents
 	fieldModifiedSpanLinks
 	fieldModifiedSpanStatus
@@ -298,6 +300,30 @@ func (s *Span) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanAttributes != 0
 }
 
+func (s *Span) DroppedAttributesCount() uint64 {
+	return s.droppedAttributesCount
+}
+
+// SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
+func (s *Span) SetDroppedAttributesCount(v uint64) {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+		s.droppedAttributesCount = v
+		s.markDroppedAttributesCountModified()
+	}
+}
+
+func (s *Span) markDroppedAttributesCountModified() {
+	s.modifiedFields.markModified(fieldModifiedSpanDroppedAttributesCount)
+}
+
+// IsDroppedAttributesCountModified returns true the value of DroppedAttributesCount field was modified since
+// Span was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *Span) IsDroppedAttributesCountModified() bool {
+	return s.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0
+}
+
 func (s *Span) Events() *EventArray {
 	return &s.events
 }
@@ -334,6 +360,76 @@ func (s *Span) IsStatusModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatus != 0
 }
 
+func (s *Span) markUnmodifiedRecursively() {
+
+	if s.IsTraceIDModified() {
+	}
+
+	if s.IsSpanIDModified() {
+	}
+
+	if s.IsTraceStateModified() {
+	}
+
+	if s.IsParentSpanIDModified() {
+	}
+
+	if s.IsFlagsModified() {
+	}
+
+	if s.IsNameModified() {
+	}
+
+	if s.IsKindModified() {
+	}
+
+	if s.IsStartTimeUnixNanoModified() {
+	}
+
+	if s.IsEndTimeUnixNanoModified() {
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsDroppedAttributesCountModified() {
+	}
+
+	if s.IsEventsModified() {
+		s.events.markUnmodifiedRecursively()
+	}
+
+	if s.IsLinksModified() {
+		s.links.markUnmodifiedRecursively()
+	}
+
+	if s.IsStatusModified() {
+		s.status.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Span) Clone() Span {
+	return Span{
+		traceID:                s.traceID,
+		spanID:                 s.spanID,
+		traceState:             s.traceState,
+		parentSpanID:           s.parentSpanID,
+		flags:                  s.flags,
+		name:                   s.name,
+		kind:                   s.kind,
+		startTimeUnixNano:      s.startTimeUnixNano,
+		endTimeUnixNano:        s.endTimeUnixNano,
+		attributes:             s.attributes.Clone(),
+		droppedAttributesCount: s.droppedAttributesCount,
+		events:                 s.events.Clone(),
+		links:                  s.links.Clone(),
+		status:                 s.status.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Span) byteSize() uint {
@@ -352,6 +448,7 @@ func copySpan(dst *Span, src *Span) {
 	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
 	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 	copyEventArray(&dst.events, &src.events)
 	copyLinkArray(&dst.links, &src.links)
 	copySpanStatus(&dst.status, &src.status)
@@ -404,6 +501,9 @@ func (e *Span) IsEqual(val *Span) bool {
 		return false
 	}
 	if !e.attributes.IsEqual(&val.attributes) {
+		return false
+	}
+	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
 		return false
 	}
 	if !e.events.IsEqual(&val.events) {
@@ -466,6 +566,9 @@ func CmpSpan(left, right *Span) int {
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
+		return c
+	}
 	if c := CmpEventArray(&left.events, &right.events); c != 0 {
 		return c
 	}
@@ -490,19 +593,20 @@ type SpanEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	traceIDEncoder           encoders.BytesEncoder
-	spanIDEncoder            encoders.BytesEncoder
-	traceStateEncoder        encoders.StringEncoder
-	parentSpanIDEncoder      encoders.BytesEncoder
-	flagsEncoder             encoders.Uint64Encoder
-	nameEncoder              encoders.StringEncoder
-	kindEncoder              encoders.Uint64Encoder
-	startTimeUnixNanoEncoder encoders.Uint64Encoder
-	endTimeUnixNanoEncoder   encoders.Uint64Encoder
-	attributesEncoder        AttributesEncoder
-	eventsEncoder            EventArrayEncoder
-	linksEncoder             LinkArrayEncoder
-	statusEncoder            SpanStatusEncoder
+	traceIDEncoder                encoders.BytesEncoder
+	spanIDEncoder                 encoders.BytesEncoder
+	traceStateEncoder             encoders.StringEncoder
+	parentSpanIDEncoder           encoders.BytesEncoder
+	flagsEncoder                  encoders.Uint64Encoder
+	nameEncoder                   encoders.StringEncoder
+	kindEncoder                   encoders.Uint64Encoder
+	startTimeUnixNanoEncoder      encoders.Uint64Encoder
+	endTimeUnixNanoEncoder        encoders.Uint64Encoder
+	attributesEncoder             AttributesEncoder
+	droppedAttributesCountEncoder encoders.Uint64Encoder
+	eventsEncoder                 EventArrayEncoder
+	linksEncoder                  LinkArrayEncoder
+	statusEncoder                 SpanStatusEncoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -526,7 +630,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 13
+		e.fieldCount = 14
 		e.keepFieldMask = ^uint64(0)
 	}
 
@@ -591,18 +695,24 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		return err
 	}
 	if e.fieldCount <= 10 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+		return err
+	}
+	if e.fieldCount <= 11 {
 		return nil // Events and subsequent fields are skipped.
 	}
 	if err := e.eventsEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
-	if e.fieldCount <= 11 {
+	if e.fieldCount <= 12 {
 		return nil // Links and subsequent fields are skipped.
 	}
 	if err := e.linksEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
-	if e.fieldCount <= 12 {
+	if e.fieldCount <= 13 {
 		return nil // Status and subsequent fields are skipped.
 	}
 	if err := e.statusEncoder.Init(state, columns.AddSubColumn()); err != nil {
@@ -626,6 +736,7 @@ func (e *SpanEncoder) Reset() {
 	e.startTimeUnixNanoEncoder.Reset()
 	e.endTimeUnixNanoEncoder.Reset()
 	e.attributesEncoder.Reset()
+	e.droppedAttributesCountEncoder.Reset()
 	e.eventsEncoder.Reset()
 	e.linksEncoder.Reset()
 	e.statusEncoder.Reset()
@@ -652,6 +763,7 @@ func (e *SpanEncoder) Encode(val *Span) {
 				fieldModifiedSpanStartTimeUnixNano |
 				fieldModifiedSpanEndTimeUnixNano |
 				fieldModifiedSpanAttributes |
+				fieldModifiedSpanDroppedAttributesCount |
 				fieldModifiedSpanEvents |
 				fieldModifiedSpanLinks |
 				fieldModifiedSpanStatus | 0
@@ -713,6 +825,11 @@ func (e *SpanEncoder) Encode(val *Span) {
 	if fieldMask&fieldModifiedSpanAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+	}
+
+	if fieldMask&fieldModifiedSpanDroppedAttributesCount != 0 {
+		// Encode DroppedAttributesCount
+		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
 	}
 
 	if fieldMask&fieldModifiedSpanEvents != 0 {
@@ -784,17 +901,21 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	}
 	e.attributesEncoder.CollectColumns(columnSet.At(9))
 	if e.fieldCount <= 10 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(10))
+	if e.fieldCount <= 11 {
 		return // Events and subsequent fields are skipped.
 	}
-	e.eventsEncoder.CollectColumns(columnSet.At(10))
-	if e.fieldCount <= 11 {
+	e.eventsEncoder.CollectColumns(columnSet.At(11))
+	if e.fieldCount <= 12 {
 		return // Links and subsequent fields are skipped.
 	}
-	e.linksEncoder.CollectColumns(columnSet.At(11))
-	if e.fieldCount <= 12 {
+	e.linksEncoder.CollectColumns(columnSet.At(12))
+	if e.fieldCount <= 13 {
 		return // Status and subsequent fields are skipped.
 	}
-	e.statusEncoder.CollectColumns(columnSet.At(12))
+	e.statusEncoder.CollectColumns(columnSet.At(13))
 }
 
 // SpanDecoder implements decoding of Span
@@ -805,19 +926,20 @@ type SpanDecoder struct {
 	lastVal    Span
 	fieldCount uint
 
-	traceIDDecoder           encoders.BytesDecoder
-	spanIDDecoder            encoders.BytesDecoder
-	traceStateDecoder        encoders.StringDecoder
-	parentSpanIDDecoder      encoders.BytesDecoder
-	flagsDecoder             encoders.Uint64Decoder
-	nameDecoder              encoders.StringDecoder
-	kindDecoder              encoders.Uint64Decoder
-	startTimeUnixNanoDecoder encoders.Uint64Decoder
-	endTimeUnixNanoDecoder   encoders.Uint64Decoder
-	attributesDecoder        AttributesDecoder
-	eventsDecoder            EventArrayDecoder
-	linksDecoder             LinkArrayDecoder
-	statusDecoder            SpanStatusDecoder
+	traceIDDecoder                encoders.BytesDecoder
+	spanIDDecoder                 encoders.BytesDecoder
+	traceStateDecoder             encoders.StringDecoder
+	parentSpanIDDecoder           encoders.BytesDecoder
+	flagsDecoder                  encoders.Uint64Decoder
+	nameDecoder                   encoders.StringDecoder
+	kindDecoder                   encoders.Uint64Decoder
+	startTimeUnixNanoDecoder      encoders.Uint64Decoder
+	endTimeUnixNanoDecoder        encoders.Uint64Decoder
+	attributesDecoder             AttributesDecoder
+	droppedAttributesCountDecoder encoders.Uint64Decoder
+	eventsDecoder                 EventArrayDecoder
+	linksDecoder                  LinkArrayDecoder
+	statusDecoder                 SpanStatusDecoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -834,7 +956,7 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 		d.fieldCount = uint(len(overrideSchema.Fields))
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 13
+		d.fieldCount = 14
 	}
 
 	d.column = columns.Column()
@@ -915,20 +1037,27 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 		return err
 	}
 	if d.fieldCount <= 10 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	err = d.droppedAttributesCountDecoder.Init(columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
+	if d.fieldCount <= 11 {
 		return nil // Events and subsequent fields are skipped.
 	}
 	err = d.eventsDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
-	if d.fieldCount <= 11 {
+	if d.fieldCount <= 12 {
 		return nil // Links and subsequent fields are skipped.
 	}
 	err = d.linksDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
-	if d.fieldCount <= 12 {
+	if d.fieldCount <= 13 {
 		return nil // Status and subsequent fields are skipped.
 	}
 	err = d.statusDecoder.Init(state, columns.AddSubColumn())
@@ -988,14 +1117,18 @@ func (d *SpanDecoder) Continue() {
 	}
 	d.attributesDecoder.Continue()
 	if d.fieldCount <= 10 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	d.droppedAttributesCountDecoder.Continue()
+	if d.fieldCount <= 11 {
 		return // Events and subsequent fields are skipped.
 	}
 	d.eventsDecoder.Continue()
-	if d.fieldCount <= 11 {
+	if d.fieldCount <= 12 {
 		return // Links and subsequent fields are skipped.
 	}
 	d.linksDecoder.Continue()
-	if d.fieldCount <= 12 {
+	if d.fieldCount <= 13 {
 		return // Status and subsequent fields are skipped.
 	}
 	d.statusDecoder.Continue()
@@ -1012,6 +1145,7 @@ func (d *SpanDecoder) Reset() {
 	d.startTimeUnixNanoDecoder.Reset()
 	d.endTimeUnixNanoDecoder.Reset()
 	d.attributesDecoder.Reset()
+	d.droppedAttributesCountDecoder.Reset()
 	d.eventsDecoder.Reset()
 	d.linksDecoder.Reset()
 	d.statusDecoder.Reset()
@@ -1100,6 +1234,14 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 {
 		// Field is changed and is present, decode it.
 		err = d.attributesDecoder.Decode(&val.attributes)
+		if err != nil {
+			return err
+		}
+	}
+
+	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 {
+		// Field is changed and is present, decode it.
+		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}

@@ -16,10 +16,11 @@ var _ = strings.Compare
 var _ = encoders.StringEncoder{}
 
 type Scope struct {
-	name       string
-	version    string
-	schemaURL  string
-	attributes Attributes
+	name                   string
+	version                string
+	schemaURL              string
+	attributes             Attributes
+	droppedAttributesCount uint64
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -31,6 +32,7 @@ const (
 	fieldModifiedScopeVersion
 	fieldModifiedScopeSchemaURL
 	fieldModifiedScopeAttributes
+	fieldModifiedScopeDroppedAttributesCount
 )
 
 // Init must be called once, before the Scope is used.
@@ -135,12 +137,58 @@ func (s *Scope) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedScopeAttributes != 0
 }
 
+func (s *Scope) DroppedAttributesCount() uint64 {
+	return s.droppedAttributesCount
+}
+
+// SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
+func (s *Scope) SetDroppedAttributesCount(v uint64) {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+		s.droppedAttributesCount = v
+		s.markDroppedAttributesCountModified()
+	}
+}
+
+func (s *Scope) markDroppedAttributesCountModified() {
+	s.modifiedFields.markModified(fieldModifiedScopeDroppedAttributesCount)
+}
+
+// IsDroppedAttributesCountModified returns true the value of DroppedAttributesCount field was modified since
+// Scope was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *Scope) IsDroppedAttributesCountModified() bool {
+	return s.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0
+}
+
+func (s *Scope) markUnmodifiedRecursively() {
+
+	if s.IsNameModified() {
+	}
+
+	if s.IsVersionModified() {
+	}
+
+	if s.IsSchemaURLModified() {
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsDroppedAttributesCountModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
 func (s *Scope) Clone() *Scope {
 	return &Scope{
-		name:       s.name,
-		version:    s.version,
-		schemaURL:  s.schemaURL,
-		attributes: s.attributes.Clone(),
+		name:                   s.name,
+		version:                s.version,
+		schemaURL:              s.schemaURL,
+		attributes:             s.attributes.Clone(),
+		droppedAttributesCount: s.droppedAttributesCount,
 	}
 }
 
@@ -156,6 +204,7 @@ func copyScope(dst *Scope, src *Scope) {
 	dst.SetVersion(src.version)
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -184,6 +233,9 @@ func (e *Scope) IsEqual(val *Scope) bool {
 		return false
 	}
 	if !e.attributes.IsEqual(&val.attributes) {
+		return false
+	}
+	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
 		return false
 	}
 
@@ -219,6 +271,9 @@ func CmpScope(left, right *Scope) int {
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
+		return c
+	}
 
 	return 0
 }
@@ -234,10 +289,11 @@ type ScopeEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder       encoders.StringEncoder
-	versionEncoder    encoders.StringEncoder
-	schemaURLEncoder  encoders.StringEncoder
-	attributesEncoder AttributesEncoder
+	nameEncoder                   encoders.StringEncoder
+	versionEncoder                encoders.StringEncoder
+	schemaURLEncoder              encoders.StringEncoder
+	attributesEncoder             AttributesEncoder
+	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	dict *ScopeEncoderDict
 
@@ -286,7 +342,7 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 4
+		e.fieldCount = 5
 		e.keepFieldMask = ^uint64(0)
 	}
 
@@ -314,6 +370,12 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
+	if e.fieldCount <= 4 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -326,6 +388,7 @@ func (e *ScopeEncoder) Reset() {
 	e.versionEncoder.Reset()
 	e.schemaURLEncoder.Reset()
 	e.attributesEncoder.Reset()
+	e.droppedAttributesCountEncoder.Reset()
 }
 
 // Encode encodes val into buf
@@ -345,9 +408,9 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 		newLen := e.buf.BitCount()
 		e.limiter.AddFrameBits(newLen - oldLen)
 
-		// Mark all fields non-modified so that next Encode() correctly
+		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.modifiedFields.mask = 0
+		val.markUnmodifiedRecursively()
 		return
 	}
 
@@ -370,7 +433,8 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 			fieldModifiedScopeName |
 				fieldModifiedScopeVersion |
 				fieldModifiedScopeSchemaURL |
-				fieldModifiedScopeAttributes | 0
+				fieldModifiedScopeAttributes |
+				fieldModifiedScopeDroppedAttributesCount | 0
 	}
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
@@ -399,6 +463,11 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	if fieldMask&fieldModifiedScopeAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+	}
+
+	if fieldMask&fieldModifiedScopeDroppedAttributesCount != 0 {
+		// Encode DroppedAttributesCount
+		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
 	}
 
 	// Account written bits in the limiter.
@@ -430,6 +499,10 @@ func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		return // Attributes and subsequent fields are skipped.
 	}
 	e.attributesEncoder.CollectColumns(columnSet.At(3))
+	if e.fieldCount <= 4 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(4))
 }
 
 // ScopeDecoder implements decoding of Scope
@@ -440,10 +513,11 @@ type ScopeDecoder struct {
 	lastVal    Scope
 	fieldCount uint
 
-	nameDecoder       encoders.StringDecoder
-	versionDecoder    encoders.StringDecoder
-	schemaURLDecoder  encoders.StringDecoder
-	attributesDecoder AttributesDecoder
+	nameDecoder                   encoders.StringDecoder
+	versionDecoder                encoders.StringDecoder
+	schemaURLDecoder              encoders.StringDecoder
+	attributesDecoder             AttributesDecoder
+	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ScopeDecoderDict
 }
@@ -462,7 +536,7 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 		d.fieldCount = uint(len(overrideSchema.Fields))
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 4
+		d.fieldCount = 5
 	}
 
 	d.column = columns.Column()
@@ -501,6 +575,13 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 4 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	err = d.droppedAttributesCountDecoder.Init(columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -529,6 +610,10 @@ func (d *ScopeDecoder) Continue() {
 		return // Attributes and subsequent fields are skipped.
 	}
 	d.attributesDecoder.Continue()
+	if d.fieldCount <= 4 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	d.droppedAttributesCountDecoder.Continue()
 }
 
 func (d *ScopeDecoder) Reset() {
@@ -536,6 +621,7 @@ func (d *ScopeDecoder) Reset() {
 	d.versionDecoder.Reset()
 	d.schemaURLDecoder.Reset()
 	d.attributesDecoder.Reset()
+	d.droppedAttributesCountDecoder.Reset()
 }
 
 func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
@@ -592,6 +678,14 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 {
 		// Field is changed and is present, decode it.
 		err = d.attributesDecoder.Decode(&val.attributes)
+		if err != nil {
+			return err
+		}
+	}
+
+	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 {
+		// Field is changed and is present, decode it.
+		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}

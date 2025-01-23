@@ -14,11 +14,12 @@ var _ = strings.Compare
 var _ = encoders.StringEncoder{}
 
 type Link struct {
-	traceID    pkg.Bytes
-	spanID     pkg.Bytes
-	traceState string
-	flags      uint64
-	attributes Attributes
+	traceID                pkg.Bytes
+	spanID                 pkg.Bytes
+	traceState             string
+	flags                  uint64
+	attributes             Attributes
+	droppedAttributesCount uint64
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -31,6 +32,7 @@ const (
 	fieldModifiedLinkTraceState
 	fieldModifiedLinkFlags
 	fieldModifiedLinkAttributes
+	fieldModifiedLinkDroppedAttributesCount
 )
 
 // Init must be called once, before the Link is used.
@@ -159,6 +161,65 @@ func (s *Link) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedLinkAttributes != 0
 }
 
+func (s *Link) DroppedAttributesCount() uint64 {
+	return s.droppedAttributesCount
+}
+
+// SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
+func (s *Link) SetDroppedAttributesCount(v uint64) {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+		s.droppedAttributesCount = v
+		s.markDroppedAttributesCountModified()
+	}
+}
+
+func (s *Link) markDroppedAttributesCountModified() {
+	s.modifiedFields.markModified(fieldModifiedLinkDroppedAttributesCount)
+}
+
+// IsDroppedAttributesCountModified returns true the value of DroppedAttributesCount field was modified since
+// Link was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *Link) IsDroppedAttributesCountModified() bool {
+	return s.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0
+}
+
+func (s *Link) markUnmodifiedRecursively() {
+
+	if s.IsTraceIDModified() {
+	}
+
+	if s.IsSpanIDModified() {
+	}
+
+	if s.IsTraceStateModified() {
+	}
+
+	if s.IsFlagsModified() {
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsDroppedAttributesCountModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Link) Clone() Link {
+	return Link{
+		traceID:                s.traceID,
+		spanID:                 s.spanID,
+		traceState:             s.traceState,
+		flags:                  s.flags,
+		attributes:             s.attributes.Clone(),
+		droppedAttributesCount: s.droppedAttributesCount,
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Link) byteSize() uint {
@@ -172,6 +233,7 @@ func copyLink(dst *Link, src *Link) {
 	dst.SetTraceState(src.traceState)
 	dst.SetFlags(src.flags)
 	copyAttributes(&dst.attributes, &src.attributes)
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -203,6 +265,9 @@ func (e *Link) IsEqual(val *Link) bool {
 		return false
 	}
 	if !e.attributes.IsEqual(&val.attributes) {
+		return false
+	}
+	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
 		return false
 	}
 
@@ -241,6 +306,9 @@ func CmpLink(left, right *Link) int {
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
+		return c
+	}
 
 	return 0
 }
@@ -256,11 +324,12 @@ type LinkEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	traceIDEncoder    encoders.BytesEncoder
-	spanIDEncoder     encoders.BytesEncoder
-	traceStateEncoder encoders.StringEncoder
-	flagsEncoder      encoders.Uint64Encoder
-	attributesEncoder AttributesEncoder
+	traceIDEncoder                encoders.BytesEncoder
+	spanIDEncoder                 encoders.BytesEncoder
+	traceStateEncoder             encoders.StringEncoder
+	flagsEncoder                  encoders.Uint64Encoder
+	attributesEncoder             AttributesEncoder
+	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -284,7 +353,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 5
+		e.fieldCount = 6
 		e.keepFieldMask = ^uint64(0)
 	}
 
@@ -318,6 +387,12 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
+	if e.fieldCount <= 5 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -331,6 +406,7 @@ func (e *LinkEncoder) Reset() {
 	e.traceStateEncoder.Reset()
 	e.flagsEncoder.Reset()
 	e.attributesEncoder.Reset()
+	e.droppedAttributesCountEncoder.Reset()
 }
 
 // Encode encodes val into buf
@@ -348,7 +424,8 @@ func (e *LinkEncoder) Encode(val *Link) {
 				fieldModifiedLinkSpanID |
 				fieldModifiedLinkTraceState |
 				fieldModifiedLinkFlags |
-				fieldModifiedLinkAttributes | 0
+				fieldModifiedLinkAttributes |
+				fieldModifiedLinkDroppedAttributesCount | 0
 	}
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
@@ -384,6 +461,11 @@ func (e *LinkEncoder) Encode(val *Link) {
 		e.attributesEncoder.Encode(&val.attributes)
 	}
 
+	if fieldMask&fieldModifiedLinkDroppedAttributesCount != 0 {
+		// Encode DroppedAttributesCount
+		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+	}
+
 	// Account written bits in the limiter.
 	newLen := e.buf.BitCount()
 	e.limiter.AddFrameBits(newLen - oldLen)
@@ -417,6 +499,10 @@ func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		return // Attributes and subsequent fields are skipped.
 	}
 	e.attributesEncoder.CollectColumns(columnSet.At(4))
+	if e.fieldCount <= 5 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(5))
 }
 
 // LinkDecoder implements decoding of Link
@@ -427,11 +513,12 @@ type LinkDecoder struct {
 	lastVal    Link
 	fieldCount uint
 
-	traceIDDecoder    encoders.BytesDecoder
-	spanIDDecoder     encoders.BytesDecoder
-	traceStateDecoder encoders.StringDecoder
-	flagsDecoder      encoders.Uint64Decoder
-	attributesDecoder AttributesDecoder
+	traceIDDecoder                encoders.BytesDecoder
+	spanIDDecoder                 encoders.BytesDecoder
+	traceStateDecoder             encoders.StringDecoder
+	flagsDecoder                  encoders.Uint64Decoder
+	attributesDecoder             AttributesDecoder
+	droppedAttributesCountDecoder encoders.Uint64Decoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -448,7 +535,7 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 		d.fieldCount = uint(len(overrideSchema.Fields))
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 5
+		d.fieldCount = 6
 	}
 
 	d.column = columns.Column()
@@ -493,6 +580,13 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 5 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	err = d.droppedAttributesCountDecoder.Init(columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -525,6 +619,10 @@ func (d *LinkDecoder) Continue() {
 		return // Attributes and subsequent fields are skipped.
 	}
 	d.attributesDecoder.Continue()
+	if d.fieldCount <= 5 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	d.droppedAttributesCountDecoder.Continue()
 }
 
 func (d *LinkDecoder) Reset() {
@@ -533,6 +631,7 @@ func (d *LinkDecoder) Reset() {
 	d.traceStateDecoder.Reset()
 	d.flagsDecoder.Reset()
 	d.attributesDecoder.Reset()
+	d.droppedAttributesCountDecoder.Reset()
 }
 
 func (d *LinkDecoder) Decode(dstPtr *Link) error {
@@ -578,6 +677,14 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 	if val.modifiedFields.mask&fieldModifiedLinkAttributes != 0 {
 		// Field is changed and is present, decode it.
 		err = d.attributesDecoder.Decode(&val.attributes)
+		if err != nil {
+			return err
+		}
+	}
+
+	if val.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0 {
+		// Field is changed and is present, decode it.
+		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}

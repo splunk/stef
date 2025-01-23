@@ -16,6 +16,7 @@ func ResourceToOtlp(resource *oteltef.Resource, out pmetric.ResourceMetrics) err
 	if err != nil {
 		return err
 	}
+	out.Resource().SetDroppedAttributesCount(uint32(resource.DroppedAttributesCount()))
 	return nil
 }
 
@@ -31,6 +32,7 @@ func ScopeToOtlp(scope *oteltef.Scope, out pmetric.ScopeMetrics) error {
 	if err != nil {
 		return err
 	}
+	out.Scope().SetDroppedAttributesCount(uint32(scope.DroppedAttributesCount()))
 	return nil
 }
 

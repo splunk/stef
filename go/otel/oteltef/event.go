@@ -14,9 +14,10 @@ var _ = strings.Compare
 var _ = encoders.StringEncoder{}
 
 type Event struct {
-	name         string
-	timeUnixNano uint64
-	attributes   Attributes
+	name                   string
+	timeUnixNano           uint64
+	attributes             Attributes
+	droppedAttributesCount uint64
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -27,6 +28,7 @@ const (
 	fieldModifiedEventName = uint64(1 << iota)
 	fieldModifiedEventTimeUnixNano
 	fieldModifiedEventAttributes
+	fieldModifiedEventDroppedAttributesCount
 )
 
 // Init must be called once, before the Event is used.
@@ -107,6 +109,57 @@ func (s *Event) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEventAttributes != 0
 }
 
+func (s *Event) DroppedAttributesCount() uint64 {
+	return s.droppedAttributesCount
+}
+
+// SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
+func (s *Event) SetDroppedAttributesCount(v uint64) {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+		s.droppedAttributesCount = v
+		s.markDroppedAttributesCountModified()
+	}
+}
+
+func (s *Event) markDroppedAttributesCountModified() {
+	s.modifiedFields.markModified(fieldModifiedEventDroppedAttributesCount)
+}
+
+// IsDroppedAttributesCountModified returns true the value of DroppedAttributesCount field was modified since
+// Event was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *Event) IsDroppedAttributesCountModified() bool {
+	return s.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0
+}
+
+func (s *Event) markUnmodifiedRecursively() {
+
+	if s.IsNameModified() {
+	}
+
+	if s.IsTimeUnixNanoModified() {
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsDroppedAttributesCountModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Event) Clone() Event {
+	return Event{
+		name:                   s.name,
+		timeUnixNano:           s.timeUnixNano,
+		attributes:             s.attributes.Clone(),
+		droppedAttributesCount: s.droppedAttributesCount,
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Event) byteSize() uint {
@@ -118,6 +171,7 @@ func copyEvent(dst *Event, src *Event) {
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -143,6 +197,9 @@ func (e *Event) IsEqual(val *Event) bool {
 		return false
 	}
 	if !e.attributes.IsEqual(&val.attributes) {
+		return false
+	}
+	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
 		return false
 	}
 
@@ -175,6 +232,9 @@ func CmpEvent(left, right *Event) int {
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
+		return c
+	}
 
 	return 0
 }
@@ -190,9 +250,10 @@ type EventEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder         encoders.StringEncoder
-	timeUnixNanoEncoder encoders.Uint64Encoder
-	attributesEncoder   AttributesEncoder
+	nameEncoder                   encoders.StringEncoder
+	timeUnixNanoEncoder           encoders.Uint64Encoder
+	attributesEncoder             AttributesEncoder
+	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -216,7 +277,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 3
+		e.fieldCount = 4
 		e.keepFieldMask = ^uint64(0)
 	}
 
@@ -238,6 +299,12 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
+	if e.fieldCount <= 3 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -249,6 +316,7 @@ func (e *EventEncoder) Reset() {
 	e.nameEncoder.Reset()
 	e.timeUnixNanoEncoder.Reset()
 	e.attributesEncoder.Reset()
+	e.droppedAttributesCountEncoder.Reset()
 }
 
 // Encode encodes val into buf
@@ -264,7 +332,8 @@ func (e *EventEncoder) Encode(val *Event) {
 		fieldMask =
 			fieldModifiedEventName |
 				fieldModifiedEventTimeUnixNano |
-				fieldModifiedEventAttributes | 0
+				fieldModifiedEventAttributes |
+				fieldModifiedEventDroppedAttributesCount | 0
 	}
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
@@ -288,6 +357,11 @@ func (e *EventEncoder) Encode(val *Event) {
 	if fieldMask&fieldModifiedEventAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+	}
+
+	if fieldMask&fieldModifiedEventDroppedAttributesCount != 0 {
+		// Encode DroppedAttributesCount
+		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
 	}
 
 	// Account written bits in the limiter.
@@ -315,6 +389,10 @@ func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		return // Attributes and subsequent fields are skipped.
 	}
 	e.attributesEncoder.CollectColumns(columnSet.At(2))
+	if e.fieldCount <= 3 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(3))
 }
 
 // EventDecoder implements decoding of Event
@@ -325,9 +403,10 @@ type EventDecoder struct {
 	lastVal    Event
 	fieldCount uint
 
-	nameDecoder         encoders.StringDecoder
-	timeUnixNanoDecoder encoders.Uint64Decoder
-	attributesDecoder   AttributesDecoder
+	nameDecoder                   encoders.StringDecoder
+	timeUnixNanoDecoder           encoders.Uint64Decoder
+	attributesDecoder             AttributesDecoder
+	droppedAttributesCountDecoder encoders.Uint64Decoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -344,7 +423,7 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 		d.fieldCount = uint(len(overrideSchema.Fields))
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 3
+		d.fieldCount = 4
 	}
 
 	d.column = columns.Column()
@@ -375,6 +454,13 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 3 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	err = d.droppedAttributesCountDecoder.Init(columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -399,12 +485,17 @@ func (d *EventDecoder) Continue() {
 		return // Attributes and subsequent fields are skipped.
 	}
 	d.attributesDecoder.Continue()
+	if d.fieldCount <= 3 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	d.droppedAttributesCountDecoder.Continue()
 }
 
 func (d *EventDecoder) Reset() {
 	d.nameDecoder.Reset()
 	d.timeUnixNanoDecoder.Reset()
 	d.attributesDecoder.Reset()
+	d.droppedAttributesCountDecoder.Reset()
 }
 
 func (d *EventDecoder) Decode(dstPtr *Event) error {
@@ -434,6 +525,14 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 {
 		// Field is changed and is present, decode it.
 		err = d.attributesDecoder.Decode(&val.attributes)
+		if err != nil {
+			return err
+		}
+	}
+
+	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 {
+		// Field is changed and is present, decode it.
+		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}

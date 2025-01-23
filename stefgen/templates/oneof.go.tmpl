@@ -89,15 +89,12 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type
 {{end}}
 {{ end }}
 
-{{if .DictName}}
-func (s *{{ .StructName }}) Clone() *{{.StructName}} {
-	return &{{ .StructName }}{
+func (s *{{ .StructName }}) Clone() {{.StructName}} {
+	return {{ .StructName }}{
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
 }
-
-{{ end }}
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
@@ -139,6 +136,17 @@ func (s* {{.StructName}}) markUnmodified() {
 	s.{{.name}}.markUnmodified()
 	{{- end}}
 	{{- end }}
+}
+
+func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
+    switch s.typ {
+    {{- range .Fields}}
+        case {{ $.StructName }}Type{{.Name}}:
+        {{- if not .Type.IsPrimitive}}
+            s.{{.name}}.markUnmodifiedRecursively()
+        {{- end}}
+    {{- end}}
+    }
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

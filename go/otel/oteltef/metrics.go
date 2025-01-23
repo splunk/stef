@@ -133,6 +133,46 @@ func (s *Metrics) IsPointModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsPoint != 0
 }
 
+func (s *Metrics) markUnmodifiedRecursively() {
+
+	if s.IsEnvelopeModified() {
+		s.envelope.markUnmodifiedRecursively()
+	}
+
+	if s.IsMetricModified() {
+		s.metric.markUnmodifiedRecursively()
+	}
+
+	if s.IsResourceModified() {
+		s.resource.markUnmodifiedRecursively()
+	}
+
+	if s.IsScopeModified() {
+		s.scope.markUnmodifiedRecursively()
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsPointModified() {
+		s.point.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Metrics) Clone() Metrics {
+	return Metrics{
+		envelope:   s.envelope.Clone(),
+		metric:     s.metric.Clone(),
+		resource:   s.resource.Clone(),
+		scope:      s.scope.Clone(),
+		attributes: s.attributes.Clone(),
+		point:      s.point.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Metrics) byteSize() uint {

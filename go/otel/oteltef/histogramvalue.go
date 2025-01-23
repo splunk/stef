@@ -212,6 +212,37 @@ func (s *HistogramValue) IsBucketCountsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedHistogramValueBucketCounts != 0
 }
 
+func (s *HistogramValue) markUnmodifiedRecursively() {
+
+	if s.IsCountModified() {
+	}
+
+	if s.IsSumModified() {
+	}
+
+	if s.IsMinModified() {
+	}
+
+	if s.IsMaxModified() {
+	}
+
+	if s.IsBucketCountsModified() {
+		s.bucketCounts.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *HistogramValue) Clone() HistogramValue {
+	return HistogramValue{
+		count:        s.count,
+		sum:          s.sum,
+		min:          s.min,
+		max:          s.max,
+		bucketCounts: s.bucketCounts.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *HistogramValue) byteSize() uint {

@@ -92,6 +92,24 @@ func (s *SpanStatus) IsCodeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatusCode != 0
 }
 
+func (s *SpanStatus) markUnmodifiedRecursively() {
+
+	if s.IsMessageModified() {
+	}
+
+	if s.IsCodeModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *SpanStatus) Clone() SpanStatus {
+	return SpanStatus{
+		message: s.message,
+		code:    s.code,
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *SpanStatus) byteSize() uint {

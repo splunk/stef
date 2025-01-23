@@ -121,15 +121,23 @@ func (s *{{ $.StructName }}) Is{{.Name}}Modified() bool {
 }
 {{ end }}
 
-{{if .DictName}}
-func (s *{{ .StructName }}) Clone() *{{.StructName}} {
-	return &{{ .StructName }}{
+func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
+{{ range .Fields }}
+    if s.Is{{.Name}}Modified() {
+        {{- if not .Type.IsPrimitive}}
+        s.{{.name}}.markUnmodifiedRecursively()
+        {{- end}}
+    }
+{{ end }}
+    s.modifiedFields.mask = 0
+}
+
+func (s *{{ .StructName }}) Clone() {{if .DictName}}*{{end}}{{.StructName}} {
+	return {{if .DictName}}&{{end}}{{ .StructName }}{
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
 }
-
-{{ end }}
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
@@ -342,9 +350,9 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
         newLen := e.buf.BitCount()
 		e.limiter.AddFrameBits(newLen-oldLen)
 
-		// Mark all fields non-modified so that next Encode() correctly
+		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-        val.modifiedFields.mask = 0
+        val.markUnmodifiedRecursively()
 		return
 	}
 
