@@ -1,5 +1,8 @@
 GO=$(shell which go)
+
 BENCH_COUNT ?= 6
+CI_BENCHMARKS=STEF\|/STEF
+
 MASTER_BRANCH ?= main
 REF_NAME ?= $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
 SHELL := /bin/bash
@@ -34,7 +37,7 @@ bench-stat-cli:
 
 .PHONY: bench-run
 bench-run:
-	@set -o pipefail && $(GO) test -test.benchmem -bench=. -count=$(BENCH_COUNT) -run=^a  ./... | tee bench-$(REF_NAME).txt
+	@set -o pipefail && $(GO) test -test.benchmem -bench=$(CI_BENCHMARKS) -count=$(BENCH_COUNT) -run=^a  ./... | tee bench-$(REF_NAME).txt
 
 .PHONY: bench-stat-diff
 bench-stat-diff: bench-stat-cli

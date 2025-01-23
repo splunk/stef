@@ -77,7 +77,7 @@ func TestCopy(t *testing.T) {
 	}
 }
 
-func BenchmarkReadTEF(b *testing.B) {
+func BenchmarkReadSTEF(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/hipstershop.tefz")
 	require.NoError(b, err)
 
@@ -135,7 +135,7 @@ func BenchmarkReadTEF(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/point")
 }
 
-func BenchmarkReadTEFZ(b *testing.B) {
+func BenchmarkReadSTEFZ(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/hipstershop.tefz")
 	require.NoError(b, err)
 
@@ -163,7 +163,7 @@ func BenchmarkReadTEFZ(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/point")
 }
 
-func BenchmarkReadTEFZWriteTEF(b *testing.B) {
+func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/hipstershop.tefz")
 	require.NoError(b, err)
 
