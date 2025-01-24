@@ -1,16 +1,30 @@
 package schema
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"sort"
 )
 
-// Schema is a TEF schema description in JSON serializable form.
+// Schema is a STEF schema description.
 type Schema struct {
 	PackageName string               `json:"package,omitempty"`
 	Structs     map[string]*Struct   `json:"structs"`
 	Multimaps   map[string]*Multimap `json:"multimaps"`
 	MainStruct  string               `json:"main"`
 }
+
+const (
+	MaxStructOrMultimapCount = 256
+	MaxStructFieldCount      = 256
+)
+
+var (
+	errStructOrMultimapCountLimit = errors.New("struct or multimap count limit exceeded")
+	errStructFieldCountLimit      = errors.New("struct field count limit exceeded")
+)
 
 type Compatibility int
 
@@ -95,7 +109,7 @@ func (d *Schema) compatibleStruct(
 	for i := range oldStruc.Fields {
 		newField := newStruct.Fields[i]
 		oldField := oldStruc.Fields[i]
-		if err := isCompatibleField(name, i, newField, oldField); err != nil {
+		if err := isCompatibleField(name, i, &newField, &oldField); err != nil {
 			return CompatibilityIncompatible, err
 		}
 	}
@@ -209,6 +223,147 @@ func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
 	return &out, nil
 }
 
+func writeString(str string, dst *bytes.Buffer) error {
+	var b []byte
+	b = binary.AppendUvarint(b, uint64(len(str)))
+	b = append(b, str...)
+	_, err := dst.Write(b)
+	return err
+}
+
+const MaxStringLen = 256
+
+var errStringTooLong = errors.New("string too long")
+
+func readString(src *bytes.Buffer) (string, error) {
+	l, err := binary.ReadUvarint(src)
+	if err != nil {
+		return "", err
+	}
+	if l > MaxStringLen {
+		return "", errStringTooLong
+	}
+
+	b := make([]byte, l)
+	_, err = src.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func writeUvarint(v uint64, dst *bytes.Buffer) error {
+	var b []byte
+	b = binary.AppendUvarint(b, v)
+	_, err := dst.Write(b)
+	return err
+}
+
+/*
+Binary serialization format:
+
+Schema {
+	MainStruct:    String
+	StructCount:   U64
+	*Struct:       Struct
+	MultimapCount: U64
+	*Multimap:     Multimap
+}
+*/
+
+// Serialize the schema to binary format.
+func (d *Schema) Serialize(dst *bytes.Buffer) error {
+	if err := writeString(d.MainStruct, dst); err != nil {
+		return nil
+	}
+
+	if err := writeUvarint(uint64(len(d.Structs)), dst); err != nil {
+		return err
+	}
+
+	// Sort for deterministic serialization.
+	var structs []string
+	for name := range d.Structs {
+		structs = append(structs, name)
+	}
+	sort.Strings(structs)
+
+	for _, name := range structs {
+		str := d.Structs[name]
+		if err := str.serialize(name, dst); err != nil {
+			return nil
+		}
+	}
+
+	if err := writeUvarint(uint64(len(d.Multimaps)), dst); err != nil {
+		return err
+	}
+
+	var multimaps []string
+	for name := range d.Multimaps {
+		multimaps = append(multimaps, name)
+	}
+	sort.Strings(structs)
+
+	for _, name := range multimaps {
+		mm := d.Multimaps[name]
+		if err := mm.serialize(name, dst); err != nil {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// Deserialize the schema from binary format.
+func (d *Schema) Deserialize(src *bytes.Buffer) error {
+	var err error
+	d.MainStruct, err = readString(src)
+	if err != nil {
+		return err
+	}
+
+	count, err := binary.ReadUvarint(src)
+	if err != nil {
+		return err
+	}
+
+	if count > MaxStructOrMultimapCount {
+		return errStructOrMultimapCountLimit
+	}
+
+	d.Structs = make(map[string]*Struct, count)
+	for i := 0; i < int(count); i++ {
+		var str Struct
+		if err := str.deserialize(src); err != nil {
+			return err
+		}
+		d.Structs[str.Name] = &str
+		str.Name = ""
+	}
+
+	count, err = binary.ReadUvarint(src)
+	if err != nil {
+		return err
+	}
+
+	if count > MaxStructOrMultimapCount {
+		return errStructOrMultimapCountLimit
+	}
+
+	d.Multimaps = make(map[string]*Multimap, count)
+	for i := 0; i < int(count); i++ {
+		var mm Multimap
+		if err := mm.deserialize(src); err != nil {
+			return err
+		}
+		d.Multimaps[mm.Name] = &mm
+		mm.Name = ""
+	}
+
+	return nil
+}
+
 func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
 	if fieldType.Struct != "" {
 		if err := d.copyPrunedStruct(fieldType.Struct, dst); err != nil {
@@ -241,7 +396,7 @@ func (d *Schema) copyPrunedStruct(strucName string, dst *Schema) error {
 		OneOf:    srcStruc.OneOf,
 		DictName: srcStruc.DictName,
 		IsRoot:   srcStruc.IsRoot,
-		Fields:   make([]*StructField, len(srcStruc.Fields)),
+		Fields:   make([]StructField, len(srcStruc.Fields)),
 	}
 	dst.Structs[strucName] = dstStruc
 
@@ -284,11 +439,11 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 }
 
 type Struct struct {
-	Name     string         `json:"name,omitempty"`
-	OneOf    bool           `json:"oneof,omitempty"`
-	DictName string         `json:"dict,omitempty"`
-	IsRoot   bool           `json:"root,omitempty"`
-	Fields   []*StructField `json:"fields"`
+	Name     string        `json:"name,omitempty"`
+	OneOf    bool          `json:"oneof,omitempty"`
+	DictName string        `json:"dict,omitempty"`
+	IsRoot   bool          `json:"root,omitempty"`
+	Fields   []StructField `json:"fields"`
 }
 
 func (s *Struct) minify() {
@@ -296,9 +451,110 @@ func (s *Struct) minify() {
 	// recording as the containing map element key.
 	s.Name = ""
 
-	for _, field := range s.Fields {
-		field.minify()
+	for i := range s.Fields {
+		s.Fields[i].minify()
 	}
+}
+
+/*
+Binary serialization format:
+
+Struct {
+	Flag: 8
+	Name: String
+	/DictName: String/
+	FieldCount: U64
+	*Field: FieldType
+}
+*/
+
+type structFlag byte
+
+const (
+	structFlagIsRoot structFlag = 1 << iota
+	structFlagOneOf
+	structFlagHasDict
+)
+
+func (s *Struct) serialize(name string, dst *bytes.Buffer) error {
+	var flags structFlag
+	if s.IsRoot {
+		flags |= structFlagIsRoot
+	}
+	if s.OneOf {
+		flags |= structFlagOneOf
+	}
+	if s.DictName != "" {
+		flags |= structFlagHasDict
+	}
+	if err := dst.WriteByte(byte(flags)); err != nil {
+		return err
+	}
+	if err := writeString(name, dst); err != nil {
+		return err
+	}
+	if s.DictName != "" {
+		if err := writeString(s.DictName, dst); err != nil {
+			return err
+		}
+	}
+
+	if err := writeUvarint(uint64(len(s.Fields)), dst); err != nil {
+		return err
+	}
+
+	for _, field := range s.Fields {
+		if err := field.serialize(dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Struct) deserialize(buf *bytes.Buffer) error {
+	f, err := buf.ReadByte()
+	if err != nil {
+		return err
+	}
+	flags := structFlag(f)
+
+	if flags&structFlagIsRoot != 0 {
+		s.IsRoot = true
+	}
+	if flags&structFlagOneOf != 0 {
+		s.OneOf = true
+	}
+
+	s.Name, err = readString(buf)
+	if err != nil {
+		return err
+	}
+
+	if flags&structFlagHasDict != 0 {
+		s.DictName, err = readString(buf)
+		if err != nil {
+			return err
+		}
+	}
+
+	count, err := binary.ReadUvarint(buf)
+	if err != nil {
+		return err
+	}
+
+	if count > MaxStructFieldCount {
+		return errStructFieldCountLimit
+	}
+
+	s.Fields = make([]StructField, count)
+	for i := range s.Fields {
+		if err := s.Fields[i].deserialize(buf); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type StructField struct {
@@ -310,6 +566,16 @@ type StructField struct {
 func (f *StructField) minify() {
 	// Name is not needed to identify wire format.
 	f.Name = ""
+}
+
+func (f *StructField) serialize(buf *bytes.Buffer) error {
+	return f.FieldType.serialize(buf, f.Optional)
+}
+
+func (f *StructField) deserialize(buf *bytes.Buffer) error {
+	var err error
+	f.Optional, err = f.FieldType.deserialize(buf)
+	return err
 }
 
 type PrimitiveFieldType int
@@ -331,11 +597,150 @@ type FieldType struct {
 	DictName  string              `json:"dict,omitempty"`
 }
 
+type TypeDescr byte
+
+const (
+	TypeDescrArray TypeDescr = TypeDescr(iota + 10)
+	TypeDescrStruct
+	TypeDescrMultimap
+	TypeDescrTypeMask = 0b001111
+	TypeDescrOptional = 0b010000
+	TypeDescrHasDict  = 0b100000
+)
+
+/*
+Binary serialization format:
+
+FieldType {
+	TypeDescr: 8
+	/ElemType: FieldType/
+	/StructName: String/
+	/MultimapName: String/
+	/DictName: String/
+}
+*/
+
+func (f *FieldType) serialize(buf *bytes.Buffer, optional bool) error {
+	var typeDescr TypeDescr
+
+	// Bits 0-3 - type: 0-5 = primitive type
+	//                  6-9 = reserved
+	//                  10 = array
+	//                  11 = struct
+	//                  12 = multimap
+	//                  13-15 = reserved
+	// Bit 4 - optional
+	// Bit 5 - has dict.
+	// But 6-7 - reserved.
+
+	if f.Primitive != nil {
+		typeDescr = TypeDescr(*f.Primitive)
+	} else if f.Array != nil {
+		typeDescr = TypeDescrArray
+	} else if f.Struct != "" {
+		typeDescr = TypeDescrStruct
+	} else if f.MultiMap != "" {
+		typeDescr = TypeDescrMultimap
+	} else {
+		panic("unknown field type")
+	}
+
+	if optional {
+		typeDescr |= TypeDescrOptional
+	}
+
+	if f.DictName != "" {
+		typeDescr |= TypeDescrHasDict
+	}
+
+	if err := buf.WriteByte(byte(typeDescr)); err != nil {
+		return err
+	}
+
+	if f.Array != nil {
+		return f.Array.serialize(buf, false)
+	} else if f.Struct != "" {
+		if err := writeString(f.Struct, buf); err != nil {
+			return err
+		}
+	} else if f.MultiMap != "" {
+		if err := writeString(f.MultiMap, buf); err != nil {
+			return err
+		}
+	}
+
+	if f.DictName != "" {
+		if err := writeString(f.DictName, buf); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (f *FieldType) deserialize(buf *bytes.Buffer) (optional bool, err error) {
+	td, err := buf.ReadByte()
+	if err != nil {
+		return false, err
+	}
+	typeDescr := TypeDescr(td)
+
+	optional = typeDescr&TypeDescrOptional != 0
+	typ := typeDescr & TypeDescrTypeMask
+	switch typ {
+	case TypeDescrArray:
+		var elemType FieldType
+		_, err = elemType.deserialize(buf)
+		if err != nil {
+			return false, err
+		}
+		f.Array = &elemType
+
+	case TypeDescrStruct:
+		f.Struct, err = readString(buf)
+		if err != nil {
+			return false, err
+		}
+
+	case TypeDescrMultimap:
+		f.MultiMap, err = readString(buf)
+		if err != nil {
+			return false, err
+		}
+
+	default:
+		if byte(typ) <= byte(PrimitiveTypeBytes) {
+			p := PrimitiveFieldType(typ)
+			f.Primitive = &p
+		} else {
+			return false, errors.New("unknown type")
+		}
+	}
+
+	if typeDescr&TypeDescrHasDict != 0 {
+		f.DictName, err = readString(buf)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return optional, nil
+}
+
 type MultimapField struct {
 	Type FieldType `json:"type"`
 }
 
 func (f *MultimapField) minify() {
+}
+
+func (f *MultimapField) serialize(buf *bytes.Buffer) error {
+	return f.Type.serialize(buf, false)
+}
+
+func (f *MultimapField) deserialize(buf *bytes.Buffer) error {
+	_, err := f.Type.deserialize(buf)
+	return err
 }
 
 type Multimap struct {
@@ -348,4 +753,37 @@ func (m *Multimap) minify() {
 	m.Name = ""
 	m.Key.minify()
 	m.Value.minify()
+}
+
+/*
+Binary serialization format:
+
+Multimap {
+	Name: String
+	Key: FieldType
+	Value: FieldType
+}
+*/
+
+func (m *Multimap) serialize(name string, buf *bytes.Buffer) error {
+	if err := writeString(name, buf); err != nil {
+		return err
+	}
+	if err := m.Key.serialize(buf); err != nil {
+		return err
+	}
+	return m.Value.serialize(buf)
+}
+
+func (m *Multimap) deserialize(buf *bytes.Buffer) error {
+	var err error
+	m.Name, err = readString(buf)
+	if err != nil {
+		return err
+	}
+
+	if err := m.Key.deserialize(buf); err != nil {
+		return err
+	}
+	return m.Value.deserialize(buf)
 }

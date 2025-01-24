@@ -1,6 +1,7 @@
 package {{ .PackageName }}
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -205,12 +206,11 @@ func (w *{{.StructName}}Writer) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchema{{.StructName}} = `{{.Schema}}`
+const wireSchema{{.StructName}} = {{printf "%q" .Schema}}
 
 func {{.StructName}}WireSchema() (*schema.Schema, error) {
 	var d schema.Schema
-	err := json.Unmarshal([]byte(wireSchema{{.StructName}}), &d)
-	if err != nil {
+	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
 		return nil, err
 	}
 	return &d,nil

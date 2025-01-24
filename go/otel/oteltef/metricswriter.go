@@ -2,6 +2,7 @@
 package oteltef
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -206,12 +207,11 @@ func (w *MetricsWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaMetrics = `{"structs":{"AnyValue":{"oneof":true,"fields":[{"primitive":4,"dict":"AnyValueString","name":"String"},{"primitive":3,"name":"Bool"},{"primitive":0,"name":"Int64"},{"primitive":2,"name":"Float64"},{"array":{"struct":"AnyValue"},"name":"Array"},{"multimap":"KeyValueList","name":"KVList"},{"primitive":5,"name":"Bytes"}]},"Envelope":{"fields":[{"multimap":"EnvelopeAttributes","name":"Attributes"}]},"Exemplar":{"fields":[{"primitive":1,"name":"Timestamp"},{"struct":"ExemplarValue","name":"Value"},{"primitive":5,"dict":"Span","name":"SpanID"},{"primitive":5,"dict":"Trace","name":"TraceID"},{"multimap":"Attributes","name":"FilteredAttributes"}]},"ExemplarValue":{"oneof":true,"fields":[{"primitive":0,"name":"Int64"},{"primitive":2,"name":"Float64"}]},"HistogramValue":{"fields":[{"primitive":0,"name":"Count"},{"primitive":2,"name":"Sum","optional":true},{"primitive":2,"name":"Min","optional":true},{"primitive":2,"name":"Max","optional":true},{"array":{"primitive":0},"name":"BucketCounts"}]},"Metric":{"dict":"Metric","fields":[{"primitive":4,"dict":"MetricName","name":"Name"},{"primitive":4,"dict":"MetricDescription","name":"Description"},{"primitive":4,"dict":"MetricUnit","name":"Unit"},{"primitive":1,"name":"Type"},{"multimap":"Attributes","name":"Metadata"},{"array":{"primitive":2},"name":"HistogramBounds"},{"primitive":1,"name":"AggregationTemporality"},{"primitive":3,"name":"Monotonic"}]},"Metrics":{"root":true,"fields":[{"struct":"Envelope","name":"Envelope"},{"struct":"Metric","name":"Metric"},{"struct":"Resource","name":"Resource"},{"struct":"Scope","name":"Scope"},{"multimap":"Attributes","name":"Attributes"},{"struct":"Point","name":"Point"}]},"Point":{"fields":[{"primitive":1,"name":"StartTimestamp"},{"primitive":1,"name":"Timestamp"},{"struct":"PointValue","name":"Value"},{"array":{"struct":"Exemplar"},"name":"Exemplars"}]},"PointValue":{"oneof":true,"fields":[{"primitive":0,"name":"Int64"},{"primitive":2,"name":"Float64"},{"struct":"HistogramValue","name":"Histogram"}]},"Resource":{"dict":"Resource","fields":[{"primitive":4,"dict":"SchemaURL","name":"SchemaURL"},{"multimap":"Attributes","name":"Attributes"}]},"Scope":{"dict":"Scope","fields":[{"primitive":4,"dict":"ScopeName","name":"Name"},{"primitive":4,"dict":"ScopeVersion","name":"Version"},{"primitive":4,"dict":"SchemaURL","name":"SchemaURL"},{"multimap":"Attributes","name":"Attributes"}]}},"multimaps":{"Attributes":{"key":{"type":{"primitive":4,"dict":"AttributeKey"}},"value":{"type":{"struct":"AnyValue"}}},"EnvelopeAttributes":{"key":{"type":{"primitive":4}},"value":{"type":{"primitive":5}}},"KeyValueList":{"key":{"type":{"primitive":4}},"value":{"type":{"struct":"AnyValue"}}}},"main":"Metrics"}`
+const wireSchemaMetrics = "\aMetrics\v\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\bExemplar\x05\x01\v\rExemplarValue%\x04Span%\x05Trace\f\nAttributes\x02\rExemplarValue\x02\x00\x02\x00\x0eHistogramValue\x05\x00\x12\x12\x12\n\x00\x04\x06Metric\x06Metric\b$\nMetricName$\x11MetricDescription$\nMetricUnit\x01\f\nAttributes\n\x02\x01\x03\x01\aMetrics\x06\v\bEnvelope\v\x06Metric\v\bResource\v\x05Scope\f\nAttributes\v\x05Point\x00\x05Point\x04\x01\x01\v\nPointValue\n\v\bExemplar\x02\nPointValue\x03\x00\x02\v\x0eHistogramValue\x04\bResource\bResource\x02$\tSchemaURL\f\nAttributes\x04\x05Scope\x05Scope\x04$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x03\fKeyValueList\x04\v\bAnyValue\x12EnvelopeAttributes\x04\x05\nAttributes$\fAttributeKey\v\bAnyValue"
 
 func MetricsWireSchema() (*schema.Schema, error) {
 	var d schema.Schema
-	err := json.Unmarshal([]byte(wireSchemaMetrics), &d)
-	if err != nil {
+	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
 		return nil, err
 	}
 	return &d, nil

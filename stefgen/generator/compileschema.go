@@ -187,8 +187,8 @@ func structWireToGen(src *schema.Struct) *genStructDef {
 		Dict:   src.DictName,
 	}
 
-	for _, field := range src.Fields {
-		dst.Fields = append(dst.Fields, structFieldWireToAst(field))
+	for i := range src.Fields {
+		dst.Fields = append(dst.Fields, structFieldWireToAst(&src.Fields[i]))
 	}
 	return dst
 }

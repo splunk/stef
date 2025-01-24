@@ -2,6 +2,7 @@
 package oteltef
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -206,12 +207,11 @@ func (w *SpansWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaSpans = `{"structs":{"AnyValue":{"oneof":true,"fields":[{"primitive":4,"dict":"AnyValueString","name":"String"},{"primitive":3,"name":"Bool"},{"primitive":0,"name":"Int64"},{"primitive":2,"name":"Float64"},{"array":{"struct":"AnyValue"},"name":"Array"},{"multimap":"KeyValueList","name":"KVList"},{"primitive":5,"name":"Bytes"}]},"Envelope":{"fields":[{"multimap":"EnvelopeAttributes","name":"Attributes"}]},"Event":{"fields":[{"primitive":4,"dict":"SpanEventName","name":"Name"},{"primitive":1,"name":"TimeUnixNano"},{"multimap":"Attributes","name":"Attributes"}]},"Link":{"fields":[{"primitive":5,"name":"TraceID"},{"primitive":5,"name":"SpanID"},{"primitive":4,"name":"TraceState"},{"primitive":1,"name":"Flags"},{"multimap":"Attributes","name":"Attributes"}]},"Resource":{"dict":"Resource","fields":[{"primitive":4,"dict":"SchemaURL","name":"SchemaURL"},{"multimap":"Attributes","name":"Attributes"}]},"Scope":{"dict":"Scope","fields":[{"primitive":4,"dict":"ScopeName","name":"Name"},{"primitive":4,"dict":"ScopeVersion","name":"Version"},{"primitive":4,"dict":"SchemaURL","name":"SchemaURL"},{"multimap":"Attributes","name":"Attributes"}]},"Span":{"fields":[{"primitive":5,"name":"TraceID"},{"primitive":5,"name":"SpanID"},{"primitive":4,"name":"TraceState"},{"primitive":5,"name":"ParentSpanID"},{"primitive":1,"name":"Flags"},{"primitive":4,"dict":"SpanName","name":"Name"},{"primitive":1,"name":"Kind"},{"primitive":1,"name":"StartTimeUnixNano"},{"primitive":1,"name":"EndTimeUnixNano"},{"multimap":"Attributes","name":"Attributes"},{"array":{"struct":"Event"},"name":"Events"},{"array":{"struct":"Link"},"name":"Links"},{"struct":"SpanStatus","name":"Status"}]},"SpanStatus":{"fields":[{"primitive":4,"name":"Message"},{"primitive":1,"name":"Code"}]},"Spans":{"root":true,"fields":[{"struct":"Envelope","name":"Envelope"},{"struct":"Resource","name":"Resource"},{"struct":"Scope","name":"Scope"},{"struct":"Span","name":"Span"}]}},"multimaps":{"Attributes":{"key":{"type":{"primitive":4,"dict":"AttributeKey"}},"value":{"type":{"struct":"AnyValue"}}},"EnvelopeAttributes":{"key":{"type":{"primitive":4}},"value":{"type":{"primitive":5}}},"KeyValueList":{"key":{"type":{"primitive":4}},"value":{"type":{"struct":"AnyValue"}}}},"main":"Spans"}`
+const wireSchemaSpans = "\x05Spans\t\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\x05Event\x03$\rSpanEventName\x01\f\nAttributes\x00\x04Link\x05\x05\x05\x04\x01\f\nAttributes\x04\bResource\bResource\x02$\tSchemaURL\f\nAttributes\x04\x05Scope\x05Scope\x04$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x00\x04Span\r\x05\x05\x04\x05\x01$\bSpanName\x01\x01\x01\f\nAttributes\n\v\x05Event\n\v\x04Link\v\nSpanStatus\x00\nSpanStatus\x02\x04\x01\x01\x05Spans\x04\v\bEnvelope\v\bResource\v\x05Scope\v\x04Span\x03\x12EnvelopeAttributes\x04\x05\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue"
 
 func SpansWireSchema() (*schema.Schema, error) {
 	var d schema.Schema
-	err := json.Unmarshal([]byte(wireSchemaSpans), &d)
-	if err != nil {
+	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchemaSpans))); err != nil {
 		return nil, err
 	}
 	return &d, nil
