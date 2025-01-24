@@ -58,7 +58,7 @@ func (f *SpansReader) Header() *pkg.FixedHeader {
 	return &f.base.FixedHeader
 }
 
-func (f *SpansReader) UserData() map[string]any {
+func (f *SpansReader) UserData() map[string]string {
 	return f.base.VarHeader.UserData
 }
 

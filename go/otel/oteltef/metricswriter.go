@@ -4,7 +4,6 @@ package oteltef
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
@@ -98,15 +97,14 @@ func (w *MetricsWriter) writeVarHeader() error {
 	hdr := pkg.VarHeader{}
 	if w.opts.IncludeDescriptor {
 		if w.opts.Schema != nil {
-			descr, err := json.Marshal(w.opts.Schema)
+			var buf bytes.Buffer
+			err := w.opts.Schema.Serialize(&buf)
 			if err != nil {
 				return fmt.Errorf("could not marshal schema: %w", err)
 			}
-			msg := json.RawMessage(descr)
-			hdr.Schema = &msg
+			hdr.SchemaWireBytes = buf.Bytes()
 		} else {
-			msg := json.RawMessage(wireSchemaMetrics)
-			hdr.Schema = &msg
+			hdr.SchemaWireBytes = []byte(wireSchemaMetrics)
 		}
 	}
 
@@ -114,13 +112,14 @@ func (w *MetricsWriter) writeVarHeader() error {
 		hdr.UserData = w.opts.UserData
 	}
 
-	hdrBytes, err := json.Marshal(hdr)
+	var buf bytes.Buffer
+	err := hdr.Serialize(&buf)
 	if err != nil {
 		return err
 	}
 
 	// Write to the frame
-	_, err = w.frameEncoder.Write(hdrBytes)
+	_, err = w.frameEncoder.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -207,7 +206,7 @@ func (w *MetricsWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaMetrics = "\aMetrics\v\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\bExemplar\x05\x01\v\rExemplarValue%\x04Span%\x05Trace\f\nAttributes\x02\rExemplarValue\x02\x00\x02\x00\x0eHistogramValue\x05\x00\x12\x12\x12\n\x00\x04\x06Metric\x06Metric\b$\nMetricName$\x11MetricDescription$\nMetricUnit\x01\f\nAttributes\n\x02\x01\x03\x01\aMetrics\x06\v\bEnvelope\v\x06Metric\v\bResource\v\x05Scope\f\nAttributes\v\x05Point\x00\x05Point\x04\x01\x01\v\nPointValue\n\v\bExemplar\x02\nPointValue\x03\x00\x02\v\x0eHistogramValue\x04\bResource\bResource\x03$\tSchemaURL\f\nAttributes\x01\x04\x05Scope\x05Scope\x05$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x01\x03\x12EnvelopeAttributes\x04\x05\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue"
+const wireSchemaMetrics = "\aMetrics\v\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\bExemplar\x05\x01\v\rExemplarValue%\x04Span%\x05Trace\f\nAttributes\x02\rExemplarValue\x02\x00\x02\x00\x0eHistogramValue\x05\x00\x12\x12\x12\n\x00\x04\x06Metric\x06Metric\b$\nMetricName$\x11MetricDescription$\nMetricUnit\x01\f\nAttributes\n\x02\x01\x03\x01\aMetrics\x06\v\bEnvelope\v\x06Metric\v\bResource\v\x05Scope\f\nAttributes\v\x05Point\x00\x05Point\x04\x01\x01\v\nPointValue\n\v\bExemplar\x02\nPointValue\x03\x00\x02\v\x0eHistogramValue\x04\bResource\bResource\x03$\tSchemaURL\f\nAttributes\x01\x04\x05Scope\x05Scope\x05$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x01\x03\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue\x12EnvelopeAttributes\x04\x05"
 
 func MetricsWireSchema() (*schema.Schema, error) {
 	var d schema.Schema

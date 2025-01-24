@@ -2,8 +2,8 @@ package pkg
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -98,14 +98,16 @@ func (r *BaseReader) ReadVarHeader(ownSchema *schema.Schema) error {
 	}
 	hdrBytes = hdrBytes[:n]
 
-	err = json.Unmarshal(hdrBytes, &r.VarHeader)
+	buf := bytes.NewBuffer(hdrBytes)
+	err = r.VarHeader.Deserialize(buf)
 	if err != nil {
 		return err
 	}
 
-	if r.VarHeader.Schema != nil {
+	if len(r.VarHeader.SchemaWireBytes) != 0 {
+		buf = bytes.NewBuffer(r.VarHeader.SchemaWireBytes)
 		r.Schema = &schema.Schema{}
-		err = json.Unmarshal(*r.VarHeader.Schema, r.Schema)
+		err = r.Schema.Deserialize(buf)
 		if err != nil {
 			return err
 		}

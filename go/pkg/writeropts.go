@@ -72,7 +72,7 @@ type WriterOptions struct {
 	Schema *schema.Schema
 
 	// UserData is optional user-defined data that will be stored in the header.
-	UserData map[string]any
+	UserData map[string]string
 }
 
 // DefaultMaxFrameSize is the default maximum size of a frame.
