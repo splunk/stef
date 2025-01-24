@@ -253,7 +253,7 @@ func BenchmarkReaderReadMany(b *testing.B) {
 }
 */
 
-func BenchmarkReaderRead(b *testing.B) {
+func BenchmarkSTEFReaderRead(b *testing.B) {
 	generator := &generators.File{
 		FilePath: "testdata/hipstershop.pb.zst",
 	}
@@ -297,7 +297,7 @@ func BenchmarkReaderRead(b *testing.B) {
 
 var multipartFiles = []string{"oteldemo-with-histogram.otlp", "astronomyshop.pb"}
 
-func BenchmarkSerializeMultipart(b *testing.B) {
+func BenchmarkSTEFSerializeMultipart(b *testing.B) {
 	for _, file := range multipartFiles {
 		parts, err := testutils.ReadMultipartOTLPFile("testdata/" + file + ".zst")
 		require.NoError(b, err)
@@ -337,7 +337,7 @@ func BenchmarkSerializeMultipart(b *testing.B) {
 	}
 }
 
-func BenchmarkDeserializeMultipart(b *testing.B) {
+func BenchmarkSTEFDeserializeMultipart(b *testing.B) {
 	for _, file := range multipartFiles {
 		parts, err := testutils.ReadMultipartOTLPFile("testdata/" + file + ".zst")
 		require.NoError(b, err)
