@@ -15,10 +15,21 @@ default:
 	cd otelcol && make
 	cd benchmarks && make
 
+.PHONY: all
 all:
 	cd stefgen && make all
 	cd go/pkg && make all
 	cd go/grpc && make all
+	cd go/otel && make all
+	cd go/pdata && make all
+	cd otelcol && make all
+	cd benchmarks && make all
+
+.PHONY: build-ci
+build-ci:
+	cd stefgen && make all
+	cd go/pkg && make all
+	cd go/grpc && make
 	cd go/otel && make all
 	cd go/pdata && make all
 	cd otelcol && make all
