@@ -1,0 +1,467 @@
+{
+  "package": "oteltef",
+  "structs": {
+    "AnyValue": {
+      "name": "AnyValue",
+      "oneof": true,
+      "fields": [
+        {
+          "primitive": 4,
+          "dict": "AnyValueString",
+          "name": "String"
+        },
+        {
+          "primitive": 3,
+          "name": "Bool"
+        },
+        {
+          "primitive": 0,
+          "name": "Int64"
+        },
+        {
+          "primitive": 2,
+          "name": "Float64"
+        },
+        {
+          "array": {
+            "struct": "AnyValue"
+          },
+          "name": "Array",
+          "recursive": true
+        },
+        {
+          "multimap": "KeyValueList",
+          "name": "KVList",
+          "recursive": true
+        },
+        {
+          "primitive": 5,
+          "name": "Bytes"
+        }
+      ]
+    },
+    "Envelope": {
+      "name": "Envelope",
+      "fields": [
+        {
+          "multimap": "EnvelopeAttributes",
+          "name": "Attributes"
+        }
+      ]
+    },
+    "Exemplar": {
+      "name": "Exemplar",
+      "fields": [
+        {
+          "primitive": 1,
+          "name": "Timestamp"
+        },
+        {
+          "struct": "ExemplarValue",
+          "name": "Value"
+        },
+        {
+          "primitive": 5,
+          "dict": "Span",
+          "name": "SpanID"
+        },
+        {
+          "primitive": 5,
+          "dict": "Trace",
+          "name": "TraceID"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "FilteredAttributes"
+        }
+      ]
+    },
+    "ExemplarValue": {
+      "name": "ExemplarValue",
+      "oneof": true,
+      "fields": [
+        {
+          "primitive": 0,
+          "name": "Int64"
+        },
+        {
+          "primitive": 2,
+          "name": "Float64"
+        }
+      ]
+    },
+    "HistogramValue": {
+      "name": "HistogramValue",
+      "fields": [
+        {
+          "primitive": 0,
+          "name": "Count"
+        },
+        {
+          "primitive": 2,
+          "name": "Sum",
+          "optional": true
+        },
+        {
+          "primitive": 2,
+          "name": "Min",
+          "optional": true
+        },
+        {
+          "primitive": 2,
+          "name": "Max",
+          "optional": true
+        },
+        {
+          "array": {
+            "primitive": 0
+          },
+          "name": "BucketCounts"
+        }
+      ]
+    },
+    "Metric": {
+      "name": "Metric",
+      "dict": "Metric",
+      "fields": [
+        {
+          "primitive": 4,
+          "dict": "MetricName",
+          "name": "Name"
+        },
+        {
+          "primitive": 4,
+          "dict": "MetricDescription",
+          "name": "Description"
+        },
+        {
+          "primitive": 4,
+          "dict": "MetricUnit",
+          "name": "Unit"
+        },
+        {
+          "primitive": 1,
+          "name": "Type"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Metadata"
+        },
+        {
+          "array": {
+            "primitive": 2
+          },
+          "name": "HistogramBounds"
+        },
+        {
+          "primitive": 1,
+          "name": "AggregationTemporality"
+        },
+        {
+          "primitive": 3,
+          "name": "Monotonic"
+        }
+      ]
+    },
+    "Point": {
+      "name": "Point",
+      "fields": [
+        {
+          "primitive": 1,
+          "name": "StartTimestamp"
+        },
+        {
+          "primitive": 1,
+          "name": "Timestamp"
+        },
+        {
+          "struct": "PointValue",
+          "name": "Value"
+        },
+        {
+          "array": {
+            "struct": "Exemplar"
+          },
+          "name": "Exemplars"
+        }
+      ]
+    },
+    "PointValue": {
+      "name": "PointValue",
+      "oneof": true,
+      "fields": [
+        {
+          "primitive": 0,
+          "name": "Int64"
+        },
+        {
+          "primitive": 2,
+          "name": "Float64"
+        },
+        {
+          "struct": "HistogramValue",
+          "name": "Histogram"
+        }
+      ]
+    },
+    "Metrics": {
+      "name": "Metrics",
+      "root": true,
+      "fields": [
+        {
+          "struct": "Envelope",
+          "name": "Envelope"
+        },
+        {
+          "struct": "Metric",
+          "name": "Metric"
+        },
+        {
+          "struct": "Resource",
+          "name": "Resource"
+        },
+        {
+          "struct": "Scope",
+          "name": "Scope"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        },
+        {
+          "struct": "Point",
+          "name": "Point"
+        }
+      ]
+    },
+    "Resource": {
+      "name": "Resource",
+      "dict": "Resource",
+      "fields": [
+        {
+          "primitive": 4,
+          "dict": "SchemaURL",
+          "name": "SchemaURL"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        }
+      ]
+    },
+    "Scope": {
+      "name": "Scope",
+      "dict": "Scope",
+      "fields": [
+        {
+          "primitive": 4,
+          "dict": "ScopeName",
+          "name": "Name"
+        },
+        {
+          "primitive": 4,
+          "dict": "ScopeVersion",
+          "name": "Version"
+        },
+        {
+          "primitive": 4,
+          "dict": "SchemaURL",
+          "name": "SchemaURL"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        }
+      ]
+    },
+
+    "Span": {
+      "name": "Span",
+      "fields": [
+        {
+          "primitive": 5,
+          "name": "TraceID"
+        },
+        {
+          "primitive": 5,
+          "name": "SpanID"
+        },
+        {
+          "primitive": 4,
+          "name": "TraceState"
+        },
+        {
+          "primitive": 5,
+          "name": "ParentSpanID"
+        },
+        {
+          "primitive": 1,
+          "name": "Flags"
+        },
+        {
+          "primitive": 4,
+          "dict": "SpanName",
+          "name": "Name"
+        },
+        {
+          "primitive": 1,
+          "name": "Kind"
+        },
+        {
+          "primitive": 1,
+          "name": "StartTimeUnixNano"
+        },
+        {
+          "primitive": 1,
+          "name": "EndTimeUnixNano"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        },
+        {
+          "array": {
+            "struct": "Event"
+          },
+          "name": "Events"
+        },
+        {
+          "array": {
+            "struct": "Link"
+          },
+          "name": "Links"
+        },
+        {
+          "struct": "SpanStatus",
+          "name": "Status"
+        }
+      ]
+    },
+
+    "Link": {
+      "name": "Link",
+      "fields": [
+        {
+          "primitive": 5,
+          "name": "TraceID"
+        },
+        {
+          "primitive": 5,
+          "name": "SpanID"
+        },
+        {
+          "primitive": 4,
+          "name": "TraceState"
+        },
+        {
+          "primitive": 1,
+          "name": "Flags"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        }
+      ]
+    },
+
+    "Event": {
+      "name": "Event",
+      "fields": [
+        {
+          "primitive": 4,
+          "dict": "SpanEventName",
+          "name": "Name"
+        },
+        {
+          "primitive": 1,
+          "name": "TimeUnixNano"
+        },
+        {
+          "multimap": "Attributes",
+          "name": "Attributes"
+        }
+      ]
+    },
+
+    "SpanStatus": {
+      "name": "SpanStatus",
+      "fields": [
+        {
+          "primitive": 4,
+          "name": "Message"
+        },
+        {
+          "primitive": 1,
+          "name": "Code"
+        }
+      ]
+    },
+
+    "Spans": {
+      "name": "Spans",
+      "root": true,
+      "fields": [
+        {
+          "struct": "Envelope",
+          "name": "Envelope"
+        },
+        {
+          "struct": "Resource",
+          "name": "Resource"
+        },
+        {
+          "struct": "Scope",
+          "name": "Scope"
+        },
+        {
+          "struct": "Span",
+          "name": "Span"
+        }
+      ]
+    }
+  },
+  "multimaps": {
+    "Attributes": {
+      "name": "Attributes",
+      "key": {
+        "type": {
+          "primitive": 4,
+          "dict": "AttributeKey"
+        }
+      },
+      "value": {
+        "type": {
+          "struct": "AnyValue"
+        }
+      }
+    },
+    "EnvelopeAttributes": {
+      "name": "EnvelopeAttributes",
+      "key": {
+        "type": {
+          "primitive": 4
+        }
+      },
+      "value": {
+        "type": {
+          "primitive": 5
+        }
+      }
+    },
+    "KeyValueList": {
+      "name": "KeyValueList",
+      "key": {
+        "type": {
+          "primitive": 4
+        }
+      },
+      "value": {
+        "type": {
+          "struct": "AnyValue"
+        },
+        "recursive": true
+      }
+    }
+  },
+  "main": "Metrics"
+}

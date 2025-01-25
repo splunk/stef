@@ -36,27 +36,89 @@ const (
 	CompatibilityIncompatible
 )
 
+type compatMapping struct {
+	// Struct name mapping. Key is old name, value is new name.
+	structNames map[string]string
+
+	// Multimap name mapping. Key is old name, value is new name.
+	multimapNames map[string]string
+}
+
+func (m *compatMapping) traverse(old *Schema, new *Schema) {
+	m.structNames[old.MainStruct] = new.MainStruct
+	m.traverseStruct(old, new, old.MainStruct)
+}
+
+func (m *compatMapping) traverseStruct(old *Schema, new *Schema, oldStructName string) {
+	oldStr := old.Structs[oldStructName]
+	newStr := new.Structs[m.structNames[oldStructName]]
+	if newStr == nil {
+		return
+	}
+
+	fieldCount := min(len(oldStr.Fields), len(newStr.Fields))
+	for i := 0; i < fieldCount; i++ {
+		oldField := oldStr.Fields[i]
+		m.traverseField(old, new, &oldField.FieldType, &newStr.Fields[i].FieldType)
+	}
+}
+
+func (m *compatMapping) traverseMultimap(old *Schema, new *Schema, oldMultiMapName string) {
+	oldMultimap := old.Multimaps[oldMultiMapName]
+	newMultimap := new.Multimaps[m.multimapNames[oldMultiMapName]]
+	if newMultimap == nil {
+		return
+	}
+
+	m.traverseField(old, new, &oldMultimap.Key.Type, &newMultimap.Key.Type)
+	m.traverseField(old, new, &oldMultimap.Value.Type, &newMultimap.Value.Type)
+}
+
+func (m *compatMapping) traverseField(old *Schema, new *Schema, oldField, newField *FieldType) {
+	if oldField.Struct != "" {
+		if _, exists := m.structNames[oldField.Struct]; !exists {
+			m.structNames[oldField.Struct] = newField.Struct
+			m.traverseStruct(old, new, oldField.Struct)
+		}
+	} else if oldField.MultiMap != "" {
+		if _, exists := m.multimapNames[oldField.MultiMap]; !exists {
+			m.multimapNames[oldField.MultiMap] = newField.MultiMap
+			m.traverseMultimap(old, new, oldField.MultiMap)
+		}
+	} else if oldField.Array != nil {
+		m.traverseField(old, new, oldField.Array, oldField.Array)
+	}
+}
+
 // Compatible checks backward compatibility of this schema with oldSchema.
 // If the schemas are incompatible returns CompatibilityIncompatible and an error.
 func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
-	if d.MainStruct != oldSchema.MainStruct {
-		return CompatibilityIncompatible,
-			fmt.Errorf(
-				"mismatched main structure names (old=%s, new=%s)",
-				oldSchema.MainStruct, d.MainStruct,
-			)
+
+	compat := compatMapping{
+		structNames:   map[string]string{},
+		multimapNames: map[string]string{},
 	}
+	compat.structNames[oldSchema.MainStruct] = d.MainStruct
+
+	compat.traverse(oldSchema, d)
 
 	// Exact compatibility is only possible if the number of structs is exactly the same.
 	exact := len(d.Structs) == len(oldSchema.Structs)
 
-	for name, oldStruc := range oldSchema.Structs {
-		newStruc, ok := d.Structs[name]
+	for oldName, newName := range compat.structNames {
+		oldStruc, ok := oldSchema.Structs[oldName]
+		if !ok {
+			panic("compat struct is invalid")
+		}
+		newStruc, ok := d.Structs[newName]
 		if !ok {
 			return CompatibilityIncompatible,
-				fmt.Errorf("struct %s does not exist in new schema", name)
+				fmt.Errorf(
+					"new struct %s is expected to correspond to old struct %s, but does not exist in new schema",
+					newName, oldName,
+				)
 		}
-		comp, err := d.compatibleStruct(name, newStruc, oldStruc)
+		comp, err := d.compatibleStruct(compat, newStruc, oldStruc)
 		if err != nil {
 			return CompatibilityIncompatible, err
 		}
@@ -65,13 +127,20 @@ func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
 		}
 	}
 
-	for name, oldMap := range oldSchema.Multimaps {
-		newMap, ok := d.Multimaps[name]
+	for oldName, newName := range compat.multimapNames {
+		oldMap, ok := oldSchema.Multimaps[oldName]
+		if !ok {
+			panic("compat struct is invalid")
+		}
+		newMap, ok := d.Multimaps[newName]
 		if !ok {
 			return CompatibilityIncompatible,
-				fmt.Errorf("multimap %s does not exist in new schema", name)
+				fmt.Errorf(
+					"new multimap %s is expected to correspond to old multimap %s, but does not exist in new schema",
+					newName, oldName,
+				)
 		}
-		comp, err := d.compatibleMultimap(name, newMap, oldMap)
+		comp, err := d.compatibleMultimap(compat, oldName, newMap, oldMap)
 		if err != nil {
 			return CompatibilityIncompatible, err
 		}
@@ -88,30 +157,37 @@ func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
 }
 
 func (d *Schema) compatibleStruct(
-	name string, newStruct *Struct, oldStruc *Struct,
+	compat compatMapping,
+	newStruct *Struct, oldStruct *Struct,
 ) (Compatibility, error) {
-	if len(newStruct.Fields) < len(oldStruc.Fields) {
-		return CompatibilityIncompatible, fmt.Errorf("new struct %s has fewer fields than old struct", name)
-	}
-
-	if newStruct.OneOf != oldStruc.OneOf {
-		return CompatibilityIncompatible, fmt.Errorf("new struct %s has different oneof flag than theold struct", name)
-	}
-
-	if newStruct.DictName != oldStruc.DictName {
+	if len(newStruct.Fields) < len(oldStruct.Fields) {
 		return CompatibilityIncompatible, fmt.Errorf(
-			"new struct %s dictionary name is %s, old struct dictionary name is %s",
-			name, newStruct.DictName, oldStruc.DictName,
+			"new struct %s has fewer fields than old struct %s",
+			newStruct.Name, oldStruct.Name,
+		)
+	}
+
+	if newStruct.OneOf != oldStruct.OneOf {
+		return CompatibilityIncompatible, fmt.Errorf(
+			"new struct %s has different oneof flag than the old struct %s",
+			newStruct.Name, oldStruct.Name,
+		)
+	}
+
+	if newStruct.DictName != oldStruct.DictName {
+		return CompatibilityIncompatible, fmt.Errorf(
+			"new struct %s dictionary name is %s, old struct %s dictionary name is %s",
+			newStruct.Name, newStruct.DictName, oldStruct.Name, oldStruct.DictName,
 		)
 	}
 
 	// Exact compatibility is only possible if the number of fields is exactly the same.
-	exact := len(newStruct.Fields) == len(oldStruc.Fields)
+	exact := len(newStruct.Fields) == len(oldStruct.Fields)
 
-	for i := range oldStruc.Fields {
-		newField := newStruct.Fields[i]
-		oldField := oldStruc.Fields[i]
-		if err := isCompatibleField(name, i, &newField, &oldField); err != nil {
+	for i := range oldStruct.Fields {
+		newField := &newStruct.Fields[i]
+		oldField := &oldStruct.Fields[i]
+		if err := isCompatibleField(compat, oldStruct.Name, i, newField, oldField); err != nil {
 			return CompatibilityIncompatible, err
 		}
 	}
@@ -124,13 +200,14 @@ func (d *Schema) compatibleStruct(
 }
 
 func (d *Schema) compatibleMultimap(
+	compat compatMapping,
 	name string, newMap *Multimap, oldMap *Multimap,
 ) (Compatibility, error) {
-	if !isCompatibleFieldType(&newMap.Key.Type, &oldMap.Key.Type) {
+	if !isCompatibleFieldType(compat, &newMap.Key.Type, &oldMap.Key.Type) {
 		return CompatibilityIncompatible,
 			fmt.Errorf("multimap %s key type does not match", name)
 	}
-	if !isCompatibleFieldType(&newMap.Value.Type, &oldMap.Value.Type) {
+	if !isCompatibleFieldType(compat, &newMap.Value.Type, &oldMap.Value.Type) {
 		return CompatibilityIncompatible,
 			fmt.Errorf("multimap %s value type does not match", name)
 	}
@@ -138,19 +215,20 @@ func (d *Schema) compatibleMultimap(
 }
 
 func isCompatibleField(
-	structName string, fieldIndex int, newField *StructField, oldField *StructField,
+	compat compatMapping,
+	oldStructName string, fieldIndex int, newField *StructField, oldField *StructField,
 ) error {
 	if newField.Optional != oldField.Optional {
 		return fmt.Errorf(
-			"field %d in new struct %s has different optional flag than the old struct",
-			fieldIndex, structName,
+			"field %d in new struct %s has different optional flag than in the old struct %s",
+			fieldIndex, compat.structNames[oldStructName], oldStructName,
 		)
 	}
 
-	if !isCompatibleFieldType(&newField.FieldType, &oldField.FieldType) {
+	if !isCompatibleFieldType(compat, &newField.FieldType, &oldField.FieldType) {
 		return fmt.Errorf(
-			"field %d in new struct %s has a different type than the old struct",
-			fieldIndex, structName,
+			"field %d in new struct %s has a different type than in the old struct %s",
+			fieldIndex, compat.structNames[oldStructName], oldStructName,
 		)
 	}
 
@@ -158,6 +236,7 @@ func isCompatibleField(
 }
 
 func isCompatibleFieldType(
+	compat compatMapping,
 	newField *FieldType, oldField *FieldType,
 ) bool {
 	if (newField.Primitive == nil) != (oldField.Primitive == nil) {
@@ -175,16 +254,16 @@ func isCompatibleFieldType(
 	}
 
 	if newField.Array != nil {
-		if !isCompatibleFieldType(newField.Array, oldField.Array) {
+		if !isCompatibleFieldType(compat, newField.Array, oldField.Array) {
 			return false
 		}
 	}
 
-	if newField.Struct != oldField.Struct {
+	if newField.Struct != compat.structNames[oldField.Struct] {
 		return false
 	}
 
-	if newField.MultiMap != oldField.MultiMap {
+	if newField.MultiMap != compat.multimapNames[oldField.MultiMap] {
 		return false
 	}
 
@@ -305,7 +384,7 @@ func (d *Schema) Deserialize(src *bytes.Buffer) error {
 			return err
 		}
 		d.Structs[str.Name] = &str
-		str.Name = ""
+		//str.Name = ""
 	}
 
 	count, err = binary.ReadUvarint(src)
@@ -324,7 +403,7 @@ func (d *Schema) Deserialize(src *bytes.Buffer) error {
 			return err
 		}
 		d.Multimaps[mm.Name] = &mm
-		mm.Name = ""
+		//mm.Name = ""
 	}
 
 	return nil
@@ -359,6 +438,7 @@ func (d *Schema) copyPrunedStruct(strucName string, dst *Schema) error {
 	}
 
 	dstStruc := &Struct{
+		Name:     srcStruc.Name,
 		OneOf:    srcStruc.OneOf,
 		DictName: srcStruc.DictName,
 		IsRoot:   srcStruc.IsRoot,
@@ -388,6 +468,7 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 	}
 
 	dstMultimap := &Multimap{
+		Name:  srcMultiMap.Name,
 		Key:   srcMultiMap.Key,
 		Value: srcMultiMap.Value,
 	}
@@ -415,7 +496,7 @@ type Struct struct {
 func (s *Struct) minify() {
 	// Name is not needed to identify wire format. It is already
 	// recording as the containing map element key.
-	s.Name = ""
+	//s.Name = ""
 
 	for i := range s.Fields {
 		s.Fields[i].minify()
@@ -716,7 +797,7 @@ type Multimap struct {
 }
 
 func (m *Multimap) minify() {
-	m.Name = ""
+	//m.Name = ""
 	m.Key.minify()
 	m.Value.minify()
 }
