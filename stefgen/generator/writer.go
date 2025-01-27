@@ -1,7 +1,7 @@
 package generator
 
 import (
-	"encoding/json"
+	"bytes"
 	"strings"
 )
 
@@ -24,13 +24,13 @@ func (g *Generator) oWriter(str *genStructDef) error {
 
 	fileName := strings.ToLower(str.Name) + "writer"
 
-	wireJson, err := json.Marshal(wireSchema)
-	if err != nil {
+	var wireBin bytes.Buffer
+	if err := wireSchema.Serialize(&wireBin); err != nil {
 		return err
 	}
 
 	data := map[string]any{
-		"Schema":     string(wireJson),
+		"Schema":     string(wireBin.Bytes()),
 		"StructName": str.Name,
 	}
 	if err := g.oTemplate("writer.go.tmpl", fileName+".go", data); err != nil {
