@@ -228,6 +228,37 @@ func (s *Metric) IsMonotonicModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricMonotonic != 0
 }
 
+func (s *Metric) markUnmodifiedRecursively() {
+
+	if s.IsNameModified() {
+	}
+
+	if s.IsDescriptionModified() {
+	}
+
+	if s.IsUnitModified() {
+	}
+
+	if s.IsTypeModified() {
+	}
+
+	if s.IsMetadataModified() {
+		s.metadata.markUnmodifiedRecursively()
+	}
+
+	if s.IsHistogramBoundsModified() {
+		s.histogramBounds.markUnmodifiedRecursively()
+	}
+
+	if s.IsAggregationTemporalityModified() {
+	}
+
+	if s.IsMonotonicModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
 func (s *Metric) Clone() *Metric {
 	return &Metric{
 		name:                   s.name,
@@ -503,9 +534,9 @@ func (e *MetricEncoder) Encode(val *Metric) {
 		newLen := e.buf.BitCount()
 		e.limiter.AddFrameBits(newLen - oldLen)
 
-		// Mark all fields non-modified so that next Encode() correctly
+		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.modifiedFields.mask = 0
+		val.markUnmodifiedRecursively()
 		return
 	}
 

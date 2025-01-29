@@ -59,6 +59,13 @@ func (e *EventArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *EventArray) markUnmodifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markUnmodifiedRecursively()
+	}
+
+}
+
 func copyEventArray(dst *EventArray, src *EventArray) {
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))

@@ -75,6 +75,14 @@ func (e* {{.ArrayName}}) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
+{{if not .ElemType.IsPrimitive -}}
+	for i:=0; i < len(e.elems); i++ {
+		e.elems[i].markUnmodifiedRecursively()
+	}
+{{end}}
+}
+
 func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
     {{- if .ElemType.MustClone}}
 	if len(dst.elems)!=len(src.elems) {

@@ -38,11 +38,13 @@ type Otlp2Tef struct {
 func (o *Otlp2Tef) ResourceSorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapSorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
 func (o *Otlp2Tef) ResourceUnsorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapUnsorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
 func (o *Otlp2Tef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
@@ -50,6 +52,7 @@ func (o *Otlp2Tef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationSc
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
 	o.MapSorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
 func (o *Otlp2Tef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
@@ -57,6 +60,7 @@ func (o *Otlp2Tef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.Instrumentation
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
 	o.MapUnsorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
 func (o *Otlp2Tef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {

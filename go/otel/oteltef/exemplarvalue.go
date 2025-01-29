@@ -90,6 +90,13 @@ func (s *ExemplarValue) SetFloat64(v float64) {
 	}
 }
 
+func (s *ExemplarValue) Clone() ExemplarValue {
+	return ExemplarValue{
+		int64:   s.int64,
+		float64: s.float64,
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *ExemplarValue) byteSize() uint {
@@ -117,6 +124,13 @@ func (s *ExemplarValue) markParentModified() {
 }
 
 func (s *ExemplarValue) markUnmodified() {
+}
+
+func (s *ExemplarValue) markUnmodifiedRecursively() {
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+	case ExemplarValueTypeFloat64:
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

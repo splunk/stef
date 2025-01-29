@@ -128,6 +128,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Tef)
 	dst.SetKind(uint64(src.Kind()))
 	dst.SetTraceState(src.TraceState().AsRaw())
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 
 	dst.Status().SetCode(uint64(src.Status().Code()))
 	dst.Status().SetMessage(src.Status().Message())
@@ -145,6 +146,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Tef)
 
 func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2Tef) {
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 	dst.SetFlags(uint64(src.Flags()))
 	dst.SetTraceState(src.TraceState().AsRaw())
 	dst.SetTraceID(pkg.Bytes(src.TraceID().String()))
@@ -155,4 +157,5 @@ func event2event(src ptrace.SpanEvent, dst *oteltef.Event, otlp2tef *otlptools.O
 	dst.SetName(src.Name())
 	dst.SetTimeUnixNano(uint64(src.Timestamp()))
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
+	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }

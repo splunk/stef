@@ -99,6 +99,14 @@ func (s *PointValue) Histogram() *HistogramValue {
 	return &s.histogram
 }
 
+func (s *PointValue) Clone() PointValue {
+	return PointValue{
+		int64:     s.int64,
+		float64:   s.float64,
+		histogram: s.histogram.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *PointValue) byteSize() uint {
@@ -129,6 +137,15 @@ func (s *PointValue) markParentModified() {
 
 func (s *PointValue) markUnmodified() {
 	s.histogram.markUnmodified()
+}
+
+func (s *PointValue) markUnmodifiedRecursively() {
+	switch s.typ {
+	case PointValueTypeInt64:
+	case PointValueTypeFloat64:
+	case PointValueTypeHistogram:
+		s.histogram.markUnmodifiedRecursively()
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

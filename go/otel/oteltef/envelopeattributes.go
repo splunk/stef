@@ -85,6 +85,11 @@ func (m *EnvelopeAttributes) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m *EnvelopeAttributes) markUnmodifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+	}
+}
+
 func (m *EnvelopeAttributes) Append(k string, v pkg.Bytes) {
 	m.elems = append(m.elems, EnvelopeAttributesElem{key: k, value: v})
 	m.markModified()

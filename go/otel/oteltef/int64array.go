@@ -69,6 +69,10 @@ func (e *Int64Array) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *Int64Array) markUnmodifiedRecursively() {
+
+}
+
 func copyInt64Array(dst *Int64Array, src *Int64Array) {
 	if len(dst.elems) != len(src.elems) {
 		n := min(len(dst.elems), len(src.elems))

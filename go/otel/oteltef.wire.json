@@ -246,6 +246,10 @@
         {
           "multimap": "Attributes",
           "name": "Attributes"
+        },
+        {
+          "name": "DroppedAttributesCount",
+          "primitive": 1
         }
       ]
     },
@@ -271,6 +275,10 @@
         {
           "multimap": "Attributes",
           "name": "Attributes"
+        },
+        {
+          "name": "DroppedAttributesCount",
+          "primitive": 1
         }
       ]
     },
@@ -320,6 +328,10 @@
           "name": "Attributes"
         },
         {
+          "name": "DroppedAttributesCount",
+          "primitive": 1
+        },
+        {
           "array": {
             "struct": "Event"
           },
@@ -360,6 +372,10 @@
         {
           "multimap": "Attributes",
           "name": "Attributes"
+        },
+        {
+          "name": "DroppedAttributesCount",
+          "primitive": 1
         }
       ]
     },
@@ -379,6 +395,10 @@
         {
           "multimap": "Attributes",
           "name": "Attributes"
+        },
+        {
+          "name": "DroppedAttributesCount",
+          "primitive": 1
         }
       ]
     },

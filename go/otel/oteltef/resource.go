@@ -16,8 +16,9 @@ var _ = strings.Compare
 var _ = encoders.StringEncoder{}
 
 type Resource struct {
-	schemaURL  string
-	attributes Attributes
+	schemaURL              string
+	attributes             Attributes
+	droppedAttributesCount uint64
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -27,6 +28,7 @@ type Resource struct {
 const (
 	fieldModifiedResourceSchemaURL = uint64(1 << iota)
 	fieldModifiedResourceAttributes
+	fieldModifiedResourceDroppedAttributesCount
 )
 
 // Init must be called once, before the Resource is used.
@@ -83,10 +85,50 @@ func (s *Resource) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedResourceAttributes != 0
 }
 
+func (s *Resource) DroppedAttributesCount() uint64 {
+	return s.droppedAttributesCount
+}
+
+// SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
+func (s *Resource) SetDroppedAttributesCount(v uint64) {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+		s.droppedAttributesCount = v
+		s.markDroppedAttributesCountModified()
+	}
+}
+
+func (s *Resource) markDroppedAttributesCountModified() {
+	s.modifiedFields.markModified(fieldModifiedResourceDroppedAttributesCount)
+}
+
+// IsDroppedAttributesCountModified returns true the value of DroppedAttributesCount field was modified since
+// Resource was created, encoded or decoded. If the field is modified
+// it will be encoded by the next Write() operation. If the field is decoded by the
+// next Read() operation the modified flag will be set.
+func (s *Resource) IsDroppedAttributesCountModified() bool {
+	return s.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0
+}
+
+func (s *Resource) markUnmodifiedRecursively() {
+
+	if s.IsSchemaURLModified() {
+	}
+
+	if s.IsAttributesModified() {
+		s.attributes.markUnmodifiedRecursively()
+	}
+
+	if s.IsDroppedAttributesCountModified() {
+	}
+
+	s.modifiedFields.mask = 0
+}
+
 func (s *Resource) Clone() *Resource {
 	return &Resource{
-		schemaURL:  s.schemaURL,
-		attributes: s.attributes.Clone(),
+		schemaURL:              s.schemaURL,
+		attributes:             s.attributes.Clone(),
+		droppedAttributesCount: s.droppedAttributesCount,
 	}
 }
 
@@ -100,6 +142,7 @@ func (s *Resource) byteSize() uint {
 func copyResource(dst *Resource, src *Resource) {
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -122,6 +165,9 @@ func (e *Resource) IsEqual(val *Resource) bool {
 		return false
 	}
 	if !e.attributes.IsEqual(&val.attributes) {
+		return false
+	}
+	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
 		return false
 	}
 
@@ -151,6 +197,9 @@ func CmpResource(left, right *Resource) int {
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
+		return c
+	}
 
 	return 0
 }
@@ -166,8 +215,9 @@ type ResourceEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	schemaURLEncoder  encoders.StringEncoder
-	attributesEncoder AttributesEncoder
+	schemaURLEncoder              encoders.StringEncoder
+	attributesEncoder             AttributesEncoder
+	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	dict *ResourceEncoderDict
 
@@ -216,7 +266,7 @@ func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 2
+		e.fieldCount = 3
 		e.keepFieldMask = ^uint64(0)
 	}
 
@@ -232,6 +282,12 @@ func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
 		return err
 	}
+	if e.fieldCount <= 2 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -242,6 +298,7 @@ func (e *ResourceEncoder) Reset() {
 	e.forceModifiedFields = true
 	e.schemaURLEncoder.Reset()
 	e.attributesEncoder.Reset()
+	e.droppedAttributesCountEncoder.Reset()
 }
 
 // Encode encodes val into buf
@@ -261,9 +318,9 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 		newLen := e.buf.BitCount()
 		e.limiter.AddFrameBits(newLen - oldLen)
 
-		// Mark all fields non-modified so that next Encode() correctly
+		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.modifiedFields.mask = 0
+		val.markUnmodifiedRecursively()
 		return
 	}
 
@@ -284,7 +341,8 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	if e.forceModifiedFields {
 		fieldMask =
 			fieldModifiedResourceSchemaURL |
-				fieldModifiedResourceAttributes | 0
+				fieldModifiedResourceAttributes |
+				fieldModifiedResourceDroppedAttributesCount | 0
 	}
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
@@ -303,6 +361,11 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	if fieldMask&fieldModifiedResourceAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+	}
+
+	if fieldMask&fieldModifiedResourceDroppedAttributesCount != 0 {
+		// Encode DroppedAttributesCount
+		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
 	}
 
 	// Account written bits in the limiter.
@@ -326,6 +389,10 @@ func (e *ResourceEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		return // Attributes and subsequent fields are skipped.
 	}
 	e.attributesEncoder.CollectColumns(columnSet.At(1))
+	if e.fieldCount <= 2 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(2))
 }
 
 // ResourceDecoder implements decoding of Resource
@@ -336,8 +403,9 @@ type ResourceDecoder struct {
 	lastVal    Resource
 	fieldCount uint
 
-	schemaURLDecoder  encoders.StringDecoder
-	attributesDecoder AttributesDecoder
+	schemaURLDecoder              encoders.StringDecoder
+	attributesDecoder             AttributesDecoder
+	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ResourceDecoderDict
 }
@@ -356,7 +424,7 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 		d.fieldCount = uint(len(overrideSchema.Fields))
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 2
+		d.fieldCount = 3
 	}
 
 	d.column = columns.Column()
@@ -381,6 +449,13 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 2 {
+		return nil // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	err = d.droppedAttributesCountDecoder.Init(columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -401,11 +476,16 @@ func (d *ResourceDecoder) Continue() {
 		return // Attributes and subsequent fields are skipped.
 	}
 	d.attributesDecoder.Continue()
+	if d.fieldCount <= 2 {
+		return // DroppedAttributesCount and subsequent fields are skipped.
+	}
+	d.droppedAttributesCountDecoder.Continue()
 }
 
 func (d *ResourceDecoder) Reset() {
 	d.schemaURLDecoder.Reset()
 	d.attributesDecoder.Reset()
+	d.droppedAttributesCountDecoder.Reset()
 }
 
 func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
@@ -446,6 +526,14 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 {
 		// Field is changed and is present, decode it.
 		err = d.attributesDecoder.Decode(&val.attributes)
+		if err != nil {
+			return err
+		}
+	}
+
+	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 {
+		// Field is changed and is present, decode it.
+		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}

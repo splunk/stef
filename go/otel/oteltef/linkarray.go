@@ -59,6 +59,13 @@ func (e *LinkArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *LinkArray) markUnmodifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markUnmodifiedRecursively()
+	}
+
+}
+
 func copyLinkArray(dst *LinkArray, src *LinkArray) {
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))

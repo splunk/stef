@@ -86,6 +86,12 @@ func (m *KeyValueList) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m *KeyValueList) markUnmodifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+		m.elems[i].value.markUnmodifiedRecursively()
+	}
+}
+
 // SetKey sets the key of the element at index i.
 func (m *KeyValueList) SetKey(i int, k string) {
 	if m.elems[i].key != k {

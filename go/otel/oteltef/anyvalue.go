@@ -159,6 +159,18 @@ func (s *AnyValue) SetBytes(v pkg.Bytes) {
 	}
 }
 
+func (s *AnyValue) Clone() AnyValue {
+	return AnyValue{
+		string:  s.string,
+		bool:    s.bool,
+		int64:   s.int64,
+		float64: s.float64,
+		array:   s.array.Clone(),
+		kVList:  s.kVList.Clone(),
+		bytes:   s.bytes,
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *AnyValue) byteSize() uint {
@@ -198,6 +210,20 @@ func (s *AnyValue) markParentModified() {
 func (s *AnyValue) markUnmodified() {
 	s.array.markUnmodified()
 	s.kVList.markUnmodified()
+}
+
+func (s *AnyValue) markUnmodifiedRecursively() {
+	switch s.typ {
+	case AnyValueTypeString:
+	case AnyValueTypeBool:
+	case AnyValueTypeInt64:
+	case AnyValueTypeFloat64:
+	case AnyValueTypeArray:
+		s.array.markUnmodifiedRecursively()
+	case AnyValueTypeKVList:
+		s.kVList.markUnmodifiedRecursively()
+	case AnyValueTypeBytes:
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

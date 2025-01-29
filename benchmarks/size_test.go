@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -87,6 +89,14 @@ func TestTracesMultipart(t *testing.T) {
 			}
 		}
 	}
+}
+
+func replaceExt(fname string, ext string) string {
+	idx := strings.Index(fname, ".")
+	if idx > 0 {
+		return fname[:idx] + ext
+	}
+	return fname
 }
 
 func TestMetricsSize(t *testing.T) {
@@ -184,10 +194,14 @@ func TestMetricsSize(t *testing.T) {
 				log.Fatal(err)
 			}
 
-			//if enc, ok := encoding.(*stef.STEFEncoding); ok {
-			//	fname := "testdata/" + dataVariation.generator.GetName() + "." + strings.ToLower(enc.Name())
-			//	os.WriteFile(fname, bodyBytes, 0644)
-			//}
+			if enc, ok := encoding.(*stef.STEFEncoding); ok {
+				// Write STEF file if it does not exist
+				fname := "testdata/" + replaceExt(dataVariation.generator.GetName(), "."+strings.ToLower(enc.Name()))
+				_, err = os.Stat(fname)
+				if err != nil {
+					os.WriteFile(fname, bodyBytes, 0644)
+				}
+			}
 
 			zstdedBytes := testutils.CompressZstd(bodyBytes)
 

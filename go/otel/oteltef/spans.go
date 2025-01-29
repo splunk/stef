@@ -102,6 +102,36 @@ func (s *Spans) IsSpanModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpansSpan != 0
 }
 
+func (s *Spans) markUnmodifiedRecursively() {
+
+	if s.IsEnvelopeModified() {
+		s.envelope.markUnmodifiedRecursively()
+	}
+
+	if s.IsResourceModified() {
+		s.resource.markUnmodifiedRecursively()
+	}
+
+	if s.IsScopeModified() {
+		s.scope.markUnmodifiedRecursively()
+	}
+
+	if s.IsSpanModified() {
+		s.span.markUnmodifiedRecursively()
+	}
+
+	s.modifiedFields.mask = 0
+}
+
+func (s *Spans) Clone() Spans {
+	return Spans{
+		envelope: s.envelope.Clone(),
+		resource: s.resource.Clone(),
+		scope:    s.scope.Clone(),
+		span:     s.span.Clone(),
+	}
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *Spans) byteSize() uint {
