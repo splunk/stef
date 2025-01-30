@@ -5,17 +5,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
-
-	"github.com/splunk/stef/go/pkg/internal"
 )
+
+type StructIndex uint
+type MultimapIndex uint
 
 // Schema is a STEF schema description.
 type Schema struct {
-	PackageName string               `json:"package,omitempty"`
-	Structs     map[string]*Struct   `json:"structs"`
-	Multimaps   map[string]*Multimap `json:"multimaps"`
-	MainStruct  string               `json:"main"`
+	Structs    []Struct
+	Multimaps  []Multimap
+	MainStruct StructIndex
 }
 
 const (
@@ -38,10 +37,10 @@ const (
 
 type compatMapping struct {
 	// Struct name mapping. Key is old name, value is new name.
-	structNames map[string]string
+	structNames map[StructIndex]StructIndex
 
 	// Multimap name mapping. Key is old name, value is new name.
-	multimapNames map[string]string
+	multimapNames map[MultimapIndex]MultimapIndex
 }
 
 func (m *compatMapping) traverse(old *Schema, new *Schema) {
@@ -49,12 +48,13 @@ func (m *compatMapping) traverse(old *Schema, new *Schema) {
 	m.traverseStruct(old, new, old.MainStruct)
 }
 
-func (m *compatMapping) traverseStruct(old *Schema, new *Schema, oldStructName string) {
+func (m *compatMapping) traverseStruct(old *Schema, new *Schema, oldStructName StructIndex) {
 	oldStr := old.Structs[oldStructName]
-	newStr := new.Structs[m.structNames[oldStructName]]
-	if newStr == nil {
+	newName, exists := m.structNames[oldStructName]
+	if !exists {
 		return
 	}
+	newStr := new.Structs[newName]
 
 	fieldCount := min(len(oldStr.Fields), len(newStr.Fields))
 	for i := 0; i < fieldCount; i++ {
@@ -63,24 +63,25 @@ func (m *compatMapping) traverseStruct(old *Schema, new *Schema, oldStructName s
 	}
 }
 
-func (m *compatMapping) traverseMultimap(old *Schema, new *Schema, oldMultiMapName string) {
+func (m *compatMapping) traverseMultimap(old *Schema, new *Schema, oldMultiMapName MultimapIndex) {
 	oldMultimap := old.Multimaps[oldMultiMapName]
-	newMultimap := new.Multimaps[m.multimapNames[oldMultiMapName]]
-	if newMultimap == nil {
+	newName, exists := m.multimapNames[oldMultiMapName]
+	if !exists {
 		return
 	}
+	newMultimap := new.Multimaps[newName]
 
 	m.traverseField(old, new, &oldMultimap.Key.Type, &newMultimap.Key.Type)
 	m.traverseField(old, new, &oldMultimap.Value.Type, &newMultimap.Value.Type)
 }
 
 func (m *compatMapping) traverseField(old *Schema, new *Schema, oldField, newField *FieldType) {
-	if oldField.Struct != "" {
+	if oldField.Struct != 0 {
 		if _, exists := m.structNames[oldField.Struct]; !exists {
 			m.structNames[oldField.Struct] = newField.Struct
 			m.traverseStruct(old, new, oldField.Struct)
 		}
-	} else if oldField.MultiMap != "" {
+	} else if oldField.MultiMap != 0 {
 		if _, exists := m.multimapNames[oldField.MultiMap]; !exists {
 			m.multimapNames[oldField.MultiMap] = newField.MultiMap
 			m.traverseMultimap(old, new, oldField.MultiMap)
@@ -95,8 +96,8 @@ func (m *compatMapping) traverseField(old *Schema, new *Schema, oldField, newFie
 func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
 
 	compat := compatMapping{
-		structNames:   map[string]string{},
-		multimapNames: map[string]string{},
+		structNames:   map[StructIndex]StructIndex{},
+		multimapNames: map[MultimapIndex]MultimapIndex{},
 	}
 	compat.structNames[oldSchema.MainStruct] = d.MainStruct
 
@@ -106,19 +107,19 @@ func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
 	exact := len(d.Structs) == len(oldSchema.Structs)
 
 	for oldName, newName := range compat.structNames {
-		oldStruc, ok := oldSchema.Structs[oldName]
-		if !ok {
-			panic("compat struct is invalid")
-		}
-		newStruc, ok := d.Structs[newName]
-		if !ok {
-			return CompatibilityIncompatible,
-				fmt.Errorf(
-					"new struct %s is expected to correspond to old struct %s, but does not exist in new schema",
-					newName, oldName,
-				)
-		}
-		comp, err := d.compatibleStruct(compat, newStruc, oldStruc)
+		oldStruc := oldSchema.Structs[oldName]
+		//if !ok {
+		//	panic("compat struct is invalid")
+		//}
+		newStruc := d.Structs[newName]
+		//if !ok {
+		//	return CompatibilityIncompatible,
+		//		fmt.Errorf(
+		//			"new struct %s is expected to correspond to old struct %s, but does not exist in new schema",
+		//			newName, oldName,
+		//		)
+		//}
+		comp, err := d.compatibleStruct(compat, &newStruc, &oldStruc)
 		if err != nil {
 			return CompatibilityIncompatible, err
 		}
@@ -128,19 +129,19 @@ func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
 	}
 
 	for oldName, newName := range compat.multimapNames {
-		oldMap, ok := oldSchema.Multimaps[oldName]
-		if !ok {
-			panic("compat struct is invalid")
-		}
-		newMap, ok := d.Multimaps[newName]
-		if !ok {
-			return CompatibilityIncompatible,
-				fmt.Errorf(
-					"new multimap %s is expected to correspond to old multimap %s, but does not exist in new schema",
-					newName, oldName,
-				)
-		}
-		comp, err := d.compatibleMultimap(compat, oldName, newMap, oldMap)
+		oldMap := oldSchema.Multimaps[oldName]
+		//if !ok {
+		//	panic("compat struct is invalid")
+		//}
+		newMap := d.Multimaps[newName]
+		//if !ok {
+		//	return CompatibilityIncompatible,
+		//		fmt.Errorf(
+		//			"new multimap %s is expected to correspond to old multimap %s, but does not exist in new schema",
+		//			newName, oldName,
+		//		)
+		//}
+		comp, err := d.compatibleMultimap(compat, oldName, &newMap, &oldMap)
 		if err != nil {
 			return CompatibilityIncompatible, err
 		}
@@ -201,7 +202,7 @@ func (d *Schema) compatibleStruct(
 
 func (d *Schema) compatibleMultimap(
 	compat compatMapping,
-	name string, newMap *Multimap, oldMap *Multimap,
+	name MultimapIndex, newMap *Multimap, oldMap *Multimap,
 ) (Compatibility, error) {
 	if !isCompatibleFieldType(compat, &newMap.Key.Type, &oldMap.Key.Type) {
 		return CompatibilityIncompatible,
@@ -216,7 +217,7 @@ func (d *Schema) compatibleMultimap(
 
 func isCompatibleField(
 	compat compatMapping,
-	oldStructName string, fieldIndex int, newField *StructField, oldField *StructField,
+	oldStructName StructIndex, fieldIndex int, newField *StructField, oldField *StructField,
 ) error {
 	if newField.Optional != oldField.Optional {
 		return fmt.Errorf(
@@ -267,9 +268,9 @@ func isCompatibleFieldType(
 		return false
 	}
 
-	if newField.DictName != oldField.DictName {
-		return false
-	}
+	//if newField.DictName != oldField.DictName {
+	//	return false
+	//}
 
 	return true
 }
@@ -278,7 +279,7 @@ func isCompatibleFieldType(
 // Typically, Minify is used before the schema is serialized and sent over network
 // to avoid unnecessary overhead.
 func (d *Schema) Minify() {
-	d.PackageName = ""
+	//d.PackageName = ""
 	for _, struc := range d.Structs {
 		struc.minify()
 	}
@@ -291,10 +292,10 @@ func (d *Schema) Minify() {
 // PrunedForRoot produces a pruned copy of the schema that includes the specified root
 // struct and parts of schema reachable from that root. Unreachable parts of the schema
 // are excluded.
-func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
+func (d *Schema) PrunedForRoot(rootStructName StructIndex) (*Schema, error) {
 	out := Schema{
-		Structs:    map[string]*Struct{},
-		Multimaps:  map[string]*Multimap{},
+		Structs:    []Struct{},
+		Multimaps:  []Multimap{},
 		MainStruct: rootStructName,
 	}
 	if err := d.copyPrunedStruct(rootStructName, &out); err != nil {
@@ -318,7 +319,7 @@ Schema {
 
 // Serialize the schema to binary format.
 func (d *Schema) Serialize(dst *bytes.Buffer) error {
-	if err := internal.WriteString(d.MainStruct, dst); err != nil {
+	if err := internal.writeUvarint(uint64(d.MainStruct), dst); err != nil {
 		return nil
 	}
 
@@ -326,33 +327,20 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 		return err
 	}
 
-	// Sort for deterministic serialization.
-	var structs []string
-	for name := range d.Structs {
-		structs = append(structs, name)
-	}
-	sort.Strings(structs)
-
-	for _, name := range structs {
-		str := d.Structs[name]
-		if err := str.serialize(name, dst); err != nil {
+	for i := range d.Structs {
+		str := d.Structs[i]
+		if err := str.serialize(dst); err != nil {
 			return nil
 		}
 	}
 
-	if err := internal.WriteUvarint(uint64(len(d.Multimaps)), dst); err != nil {
+	if err := internal.writeUvarint(uint64(len(d.Multimaps)), dst); err != nil {
 		return err
 	}
 
-	var multimaps []string
-	for name := range d.Multimaps {
-		multimaps = append(multimaps, name)
-	}
-	sort.Strings(structs)
-
-	for _, name := range multimaps {
-		mm := d.Multimaps[name]
-		if err := mm.serialize(name, dst); err != nil {
+	for i := range d.Multimaps {
+		mm := d.Multimaps[i]
+		if err := mm.serialize(dst); err != nil {
 			return nil
 		}
 	}
@@ -363,7 +351,7 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 // Deserialize the schema from binary format.
 func (d *Schema) Deserialize(src *bytes.Buffer) error {
 	var err error
-	d.MainStruct, err = internal.ReadString(src)
+	d.MainStruct, err = binary.ReadUvarint(src)
 	if err != nil {
 		return err
 	}
@@ -396,7 +384,7 @@ func (d *Schema) Deserialize(src *bytes.Buffer) error {
 		return errStructOrMultimapCountLimit
 	}
 
-	d.Multimaps = make(map[string]*Multimap, count)
+	d.Multimaps = make([]Multimap, count)
 	for i := 0; i < int(count); i++ {
 		var mm Multimap
 		if err := mm.deserialize(src); err != nil {
@@ -426,7 +414,7 @@ func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
 	return nil
 }
 
-func (d *Schema) copyPrunedStruct(strucName string, dst *Schema) error {
+func (d *Schema) copyPrunedStruct(strucName StructIndex, dst *Schema) error {
 	if dst.Structs[strucName] != nil {
 		// already copied
 		return nil
@@ -486,11 +474,13 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 }
 
 type Struct struct {
-	Name     string        `json:"name,omitempty"`
-	OneOf    bool          `json:"oneof,omitempty"`
-	DictName string        `json:"dict,omitempty"`
-	IsRoot   bool          `json:"root,omitempty"`
-	Fields   []StructField `json:"fields"`
+	//Name     string        `json:"name,omitempty"`
+	Name  StructIndex
+	OneOf bool
+	//HasDict bool
+	DictName string
+	IsRoot   bool
+	Fields   []StructField
 }
 
 func (s *Struct) minify() {
@@ -523,7 +513,7 @@ const (
 	structFlagHasDict
 )
 
-func (s *Struct) serialize(name string, dst *bytes.Buffer) error {
+func (s *Struct) serialize(dst *bytes.Buffer) error {
 	var flags structFlag
 	if s.IsRoot {
 		flags |= structFlagIsRoot
@@ -537,7 +527,7 @@ func (s *Struct) serialize(name string, dst *bytes.Buffer) error {
 	if err := dst.WriteByte(byte(flags)); err != nil {
 		return err
 	}
-	if err := internal.WriteString(name, dst); err != nil {
+	if err := writeUvarint(uint64(s.Name), dst); err != nil {
 		return err
 	}
 	if s.DictName != "" {
@@ -606,13 +596,13 @@ func (s *Struct) deserialize(buf *bytes.Buffer) error {
 
 type StructField struct {
 	FieldType
-	Name     string `json:"name,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
+	//Name     string `json:"name,omitempty"`
+	Optional bool `json:"optional,omitempty"`
 }
 
 func (f *StructField) minify() {
 	// Name is not needed to identify wire format.
-	f.Name = ""
+	//f.Name = ""
 }
 
 func (f *StructField) serialize(buf *bytes.Buffer) error {
@@ -637,11 +627,11 @@ const (
 )
 
 type FieldType struct {
-	Primitive *PrimitiveFieldType `json:"primitive,omitempty"`
-	Array     *FieldType          `json:"array,omitempty"`
-	Struct    string              `json:"struct,omitempty"`
-	MultiMap  string              `json:"multimap,omitempty"`
-	DictName  string              `json:"dict,omitempty"`
+	Primitive *PrimitiveFieldType
+	Array     *FieldType
+	Struct    StructIndex
+	MultiMap  MultimapIndex
+	//DictName  string              `json:"dict,omitempty"`
 }
 
 type TypeDescr byte
@@ -775,7 +765,7 @@ func (f *FieldType) deserialize(buf *bytes.Buffer) (optional bool, err error) {
 }
 
 type MultimapField struct {
-	Type FieldType `json:"type"`
+	Type FieldType
 }
 
 func (f *MultimapField) minify() {
@@ -791,9 +781,9 @@ func (f *MultimapField) deserialize(buf *bytes.Buffer) error {
 }
 
 type Multimap struct {
-	Name  string        `json:"name,omitempty"`
-	Key   MultimapField `json:"key"`
-	Value MultimapField `json:"value"`
+	Name  MultimapIndex
+	Key   MultimapField
+	Value MultimapField
 }
 
 func (m *Multimap) minify() {
@@ -812,8 +802,8 @@ Multimap {
 }
 */
 
-func (m *Multimap) serialize(name string, buf *bytes.Buffer) error {
-	if err := internal.WriteString(name, buf); err != nil {
+func (m *Multimap) serialize(buf *bytes.Buffer) error {
+	if err := writeUvarint(uint64(m.Name), buf); err != nil {
 		return err
 	}
 	if err := m.Key.serialize(buf); err != nil {
