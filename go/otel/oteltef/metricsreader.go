@@ -58,7 +58,7 @@ func (f *MetricsReader) Header() *pkg.FixedHeader {
 	return &f.base.FixedHeader
 }
 
-func (f *MetricsReader) UserData() map[string]any {
+func (f *MetricsReader) UserData() map[string]string {
 	return f.base.VarHeader.UserData
 }
 

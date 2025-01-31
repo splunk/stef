@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+
+	"github.com/splunk/stef/go/pkg/internal"
 )
 
 // Schema is a STEF schema description.
@@ -223,42 +225,6 @@ func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
 	return &out, nil
 }
 
-func writeString(str string, dst *bytes.Buffer) error {
-	var b []byte
-	b = binary.AppendUvarint(b, uint64(len(str)))
-	b = append(b, str...)
-	_, err := dst.Write(b)
-	return err
-}
-
-const MaxStringLen = 256
-
-var errStringTooLong = errors.New("string too long")
-
-func readString(src *bytes.Buffer) (string, error) {
-	l, err := binary.ReadUvarint(src)
-	if err != nil {
-		return "", err
-	}
-	if l > MaxStringLen {
-		return "", errStringTooLong
-	}
-
-	b := make([]byte, l)
-	_, err = src.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}
-
-func writeUvarint(v uint64, dst *bytes.Buffer) error {
-	var b []byte
-	b = binary.AppendUvarint(b, v)
-	_, err := dst.Write(b)
-	return err
-}
-
 /*
 Binary serialization format:
 
@@ -273,11 +239,11 @@ Schema {
 
 // Serialize the schema to binary format.
 func (d *Schema) Serialize(dst *bytes.Buffer) error {
-	if err := writeString(d.MainStruct, dst); err != nil {
+	if err := internal.WriteString(d.MainStruct, dst); err != nil {
 		return nil
 	}
 
-	if err := writeUvarint(uint64(len(d.Structs)), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(len(d.Structs)), dst); err != nil {
 		return err
 	}
 
@@ -295,7 +261,7 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 		}
 	}
 
-	if err := writeUvarint(uint64(len(d.Multimaps)), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(len(d.Multimaps)), dst); err != nil {
 		return err
 	}
 
@@ -318,7 +284,7 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 // Deserialize the schema from binary format.
 func (d *Schema) Deserialize(src *bytes.Buffer) error {
 	var err error
-	d.MainStruct, err = readString(src)
+	d.MainStruct, err = internal.ReadString(src)
 	if err != nil {
 		return err
 	}
@@ -490,16 +456,16 @@ func (s *Struct) serialize(name string, dst *bytes.Buffer) error {
 	if err := dst.WriteByte(byte(flags)); err != nil {
 		return err
 	}
-	if err := writeString(name, dst); err != nil {
+	if err := internal.WriteString(name, dst); err != nil {
 		return err
 	}
 	if s.DictName != "" {
-		if err := writeString(s.DictName, dst); err != nil {
+		if err := internal.WriteString(s.DictName, dst); err != nil {
 			return err
 		}
 	}
 
-	if err := writeUvarint(uint64(len(s.Fields)), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(len(s.Fields)), dst); err != nil {
 		return err
 	}
 
@@ -526,13 +492,13 @@ func (s *Struct) deserialize(buf *bytes.Buffer) error {
 		s.OneOf = true
 	}
 
-	s.Name, err = readString(buf)
+	s.Name, err = internal.ReadString(buf)
 	if err != nil {
 		return err
 	}
 
 	if flags&structFlagHasDict != 0 {
-		s.DictName, err = readString(buf)
+		s.DictName, err = internal.ReadString(buf)
 		if err != nil {
 			return err
 		}
@@ -660,17 +626,17 @@ func (f *FieldType) serialize(buf *bytes.Buffer, optional bool) error {
 	if f.Array != nil {
 		return f.Array.serialize(buf, false)
 	} else if f.Struct != "" {
-		if err := writeString(f.Struct, buf); err != nil {
+		if err := internal.WriteString(f.Struct, buf); err != nil {
 			return err
 		}
 	} else if f.MultiMap != "" {
-		if err := writeString(f.MultiMap, buf); err != nil {
+		if err := internal.WriteString(f.MultiMap, buf); err != nil {
 			return err
 		}
 	}
 
 	if f.DictName != "" {
-		if err := writeString(f.DictName, buf); err != nil {
+		if err := internal.WriteString(f.DictName, buf); err != nil {
 			return err
 		}
 	}
@@ -697,13 +663,13 @@ func (f *FieldType) deserialize(buf *bytes.Buffer) (optional bool, err error) {
 		f.Array = &elemType
 
 	case TypeDescrStruct:
-		f.Struct, err = readString(buf)
+		f.Struct, err = internal.ReadString(buf)
 		if err != nil {
 			return false, err
 		}
 
 	case TypeDescrMultimap:
-		f.MultiMap, err = readString(buf)
+		f.MultiMap, err = internal.ReadString(buf)
 		if err != nil {
 			return false, err
 		}
@@ -718,7 +684,7 @@ func (f *FieldType) deserialize(buf *bytes.Buffer) (optional bool, err error) {
 	}
 
 	if typeDescr&TypeDescrHasDict != 0 {
-		f.DictName, err = readString(buf)
+		f.DictName, err = internal.ReadString(buf)
 		if err != nil {
 			return false, err
 		}
@@ -766,7 +732,7 @@ Multimap {
 */
 
 func (m *Multimap) serialize(name string, buf *bytes.Buffer) error {
-	if err := writeString(name, buf); err != nil {
+	if err := internal.WriteString(name, buf); err != nil {
 		return err
 	}
 	if err := m.Key.serialize(buf); err != nil {
@@ -777,7 +743,7 @@ func (m *Multimap) serialize(name string, buf *bytes.Buffer) error {
 
 func (m *Multimap) deserialize(buf *bytes.Buffer) error {
 	var err error
-	m.Name, err = readString(buf)
+	m.Name, err = internal.ReadString(buf)
 	if err != nil {
 		return err
 	}

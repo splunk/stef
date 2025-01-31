@@ -4,7 +4,6 @@ package oteltef
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
@@ -98,15 +97,14 @@ func (w *SpansWriter) writeVarHeader() error {
 	hdr := pkg.VarHeader{}
 	if w.opts.IncludeDescriptor {
 		if w.opts.Schema != nil {
-			descr, err := json.Marshal(w.opts.Schema)
+			var buf bytes.Buffer
+			err := w.opts.Schema.Serialize(&buf)
 			if err != nil {
 				return fmt.Errorf("could not marshal schema: %w", err)
 			}
-			msg := json.RawMessage(descr)
-			hdr.Schema = &msg
+			hdr.SchemaWireBytes = buf.Bytes()
 		} else {
-			msg := json.RawMessage(wireSchemaSpans)
-			hdr.Schema = &msg
+			hdr.SchemaWireBytes = []byte(wireSchemaSpans)
 		}
 	}
 
@@ -114,13 +112,14 @@ func (w *SpansWriter) writeVarHeader() error {
 		hdr.UserData = w.opts.UserData
 	}
 
-	hdrBytes, err := json.Marshal(hdr)
+	var buf bytes.Buffer
+	err := hdr.Serialize(&buf)
 	if err != nil {
 		return err
 	}
 
 	// Write to the frame
-	_, err = w.frameEncoder.Write(hdrBytes)
+	_, err = w.frameEncoder.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}

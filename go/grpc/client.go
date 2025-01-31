@@ -1,8 +1,8 @@
 package stefgrpc
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -155,7 +155,8 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 
 	// Unmarshal server schema.
 	var serverSchema schema.Schema
-	err = json.Unmarshal(capabilities.Capabilities.SchemaJson, &serverSchema)
+	buf := bytes.NewBuffer(capabilities.Capabilities.Schema)
+	err = serverSchema.Deserialize(buf)
 	if err != nil {
 		return nil, opts, fmt.Errorf("failed to unmarshal capabilities schema: %w", err)
 	}

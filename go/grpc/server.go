@@ -1,8 +1,8 @@
 package stefgrpc
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -152,7 +152,8 @@ func NewStreamServer(settings ServerSettings) *StreamServer {
 }
 
 func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) error {
-	schemaJSON, err := json.Marshal(s.serverSchema)
+	var schemaBytes bytes.Buffer
+	err := s.serverSchema.Serialize(&schemaBytes)
 	if err != nil {
 		return fmt.Errorf("could not marshal server schema: %w", err)
 	}
@@ -162,7 +163,7 @@ func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) er
 		Message: &stef_proto.STEFServerMessage_Capabilities{
 			Capabilities: &stef_proto.STEFDestinationCapabilities{
 				DictionaryLimits: &stef_proto.STEFDictionaryLimits{MaxDictBytes: s.maxDictBytes},
-				SchemaJson:       schemaJSON,
+				Schema:           schemaBytes.Bytes(),
 			},
 		},
 	}

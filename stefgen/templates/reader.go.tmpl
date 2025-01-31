@@ -57,7 +57,7 @@ func (f *{{.StructName}}Reader) Header() *pkg.FixedHeader {
 	return &f.base.FixedHeader
 }
 
-func (f *{{.StructName}}Reader) UserData() map[string]any {
+func (f *{{.StructName}}Reader) UserData() map[string]string {
 	return f.base.VarHeader.UserData
 }
 

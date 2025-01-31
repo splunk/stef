@@ -35,8 +35,8 @@ message STEFDestinationCapabilities {
   // dictionary_limits of the destination. The client MUST honor the limits.
   STEFDictionaryLimits dictionary_limits = 1;
 
-  // schema_json is the STEF schema supported by the destination. The schema description
-  // is in JSON format.
+  // schema is the STEF schema supported by the destination. The schema description
+  // is in binary format defined by STEF spec.
   // Upon receiving this schema description from the destination the client has 4
   // possibilities:
   // 1. The schema matches client's schema exactly. The client can send its STEF data as is.
@@ -49,7 +49,7 @@ message STEFDestinationCapabilities {
   // 4. The schema is incompatible with client's schema (neither an exact match, nor a
   //    subset or superset). The client and the destination are incompatible and cannot
   //    communicate. The client MUST close the stream, further communication is not possible.
-  bytes schema_json = 2;
+  bytes schema = 2;
 }
 
 // DictionaryLimits defines the limits of the recipient. Once any of the limits
