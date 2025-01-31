@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -133,6 +134,17 @@ func TestGrpcWriteRead(t *testing.T) {
 		t.Error("Timed out waiting for records")
 	}
 
+	// Close connection so that client's next sending fails.
 	conn.Close()
 	grpcServer.Stop()
+
+	// Write a record.
+	err = writer.Write()
+	require.NoError(t, err)
+
+	// Try to send the data.
+	err = writer.Flush()
+
+	// Make sure we see the expected error.
+	require.True(t, errors.Is(err, stefgrpc.SendError{}))
 }

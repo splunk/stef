@@ -36,6 +36,32 @@ type Client struct {
 	cancelFunc context.CancelFunc
 }
 
+// SendError will be returned by Client's sending functions. It may get wrapped by
+// STEF writers, but can be checked via errors.Is(err, stefgrpc.SendError{})
+// and is useful for distinguishing gRPC connection (sending) errors that are
+// transient and can be retried, from STEF encoding errors which are permanent and
+// should not be retried.
+type SendError struct {
+	err error
+}
+
+var _ error = (*SendError)(nil)
+
+func (e SendError) Error() string {
+	return "stefgrpc write error: " + e.err.Error()
+}
+
+func (e SendError) Unwrap() error { return e.err }
+
+func (e SendError) Is(target error) bool {
+	switch target.(type) {
+	case SendError:
+		return true
+	default:
+		return false
+	}
+}
+
 type grpcWriter struct {
 	stream  stef_proto.STEFDestination_StreamClient
 	request stef_proto.STEFClientMessage
@@ -50,7 +76,10 @@ func (w *grpcWriter) WriteChunk(header []byte, content []byte) error {
 
 	// TODO: split the chunk into multiple messages if it is too big to fit in one gRPC message.
 
-	return w.stream.Send(&w.request)
+	if err := w.stream.Send(&w.request); err != nil {
+		return SendError{err: err}
+	}
+	return nil
 }
 
 var ErrServerInvalidResponse = errors.New("invalid server response")
