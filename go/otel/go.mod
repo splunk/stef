@@ -1,6 +1,8 @@
 module github.com/splunk/stef/go/otel
 
-go 1.23.2
+go 1.22.7
+
+toolchain go1.23.2
 
 require (
 	github.com/splunk/stef/go/grpc v0.0.1
