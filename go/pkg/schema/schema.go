@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/splunk/stef/go/pkg/internal"
 )
 
 type StructIndex uint
@@ -319,7 +321,7 @@ Schema {
 
 // Serialize the schema to binary format.
 func (d *Schema) Serialize(dst *bytes.Buffer) error {
-	if err := internal.writeUvarint(uint64(d.MainStruct), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(d.MainStruct), dst); err != nil {
 		return nil
 	}
 
@@ -334,7 +336,7 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 		}
 	}
 
-	if err := internal.writeUvarint(uint64(len(d.Multimaps)), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(len(d.Multimaps)), dst); err != nil {
 		return err
 	}
 
@@ -351,10 +353,11 @@ func (d *Schema) Serialize(dst *bytes.Buffer) error {
 // Deserialize the schema from binary format.
 func (d *Schema) Deserialize(src *bytes.Buffer) error {
 	var err error
-	d.MainStruct, err = binary.ReadUvarint(src)
+	v, err := binary.ReadUvarint(src)
 	if err != nil {
 		return err
 	}
+	d.MainStruct = StructIndex(v)
 
 	count, err := binary.ReadUvarint(src)
 	if err != nil {
@@ -365,13 +368,13 @@ func (d *Schema) Deserialize(src *bytes.Buffer) error {
 		return errStructOrMultimapCountLimit
 	}
 
-	d.Structs = make(map[string]*Struct, count)
+	d.Structs = make([]Struct, count)
 	for i := 0; i < int(count); i++ {
 		var str Struct
 		if err := str.deserialize(src); err != nil {
 			return err
 		}
-		d.Structs[str.Name] = &str
+		d.Structs[str.Name] = str
 		//str.Name = ""
 	}
 
@@ -390,7 +393,7 @@ func (d *Schema) Deserialize(src *bytes.Buffer) error {
 		if err := mm.deserialize(src); err != nil {
 			return err
 		}
-		d.Multimaps[mm.Name] = &mm
+		d.Multimaps[mm.Name] = mm
 		//mm.Name = ""
 	}
 
