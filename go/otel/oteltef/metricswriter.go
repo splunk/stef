@@ -208,8 +208,8 @@ func (w *MetricsWriter) Flush() error {
 
 const wireSchemaMetrics = "\aMetrics\v\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\bExemplar\x05\x01\v\rExemplarValue%\x04Span%\x05Trace\f\nAttributes\x02\rExemplarValue\x02\x00\x02\x00\x0eHistogramValue\x05\x00\x12\x12\x12\n\x00\x04\x06Metric\x06Metric\b$\nMetricName$\x11MetricDescription$\nMetricUnit\x01\f\nAttributes\n\x02\x01\x03\x01\aMetrics\x06\v\bEnvelope\v\x06Metric\v\bResource\v\x05Scope\f\nAttributes\v\x05Point\x00\x05Point\x04\x01\x01\v\nPointValue\n\v\bExemplar\x02\nPointValue\x03\x00\x02\v\x0eHistogramValue\x04\bResource\bResource\x03$\tSchemaURL\f\nAttributes\x01\x04\x05Scope\x05Scope\x05$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x01\x03\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue\x12EnvelopeAttributes\x04\x05"
 
-func MetricsWireSchema() (*schema.Schema, error) {
-	var d schema.Schema
+func MetricsWireSchema() (*schema.WireSchema, error) {
+	var d schema.WireSchema
 	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
 		return nil, err
 	}

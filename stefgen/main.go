@@ -22,7 +22,7 @@ func main() {
 		panic(err)
 	}
 
-	var wireSchema schema.Schema
+	var wireSchema schema.WireSchema
 	err = json.Unmarshal(wireJson, &wireSchema)
 	if err != nil {
 		panic(err)

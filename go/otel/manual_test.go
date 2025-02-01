@@ -284,7 +284,7 @@ func TestAnyValue(t *testing.T) {
 	}
 }
 
-func writeReadRecord(t *testing.T, withSchema *schema.Schema) *oteltef.Metrics {
+func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metrics {
 	buf := &countingChunkWriter{}
 	writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{Schema: withSchema})
 	require.NoError(t, err)

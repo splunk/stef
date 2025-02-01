@@ -17,12 +17,17 @@ func (g *Generator) oWriters() error {
 }
 
 func (g *Generator) oWriter(str *genStructDef) error {
-	wireSchema, err := g.schema.PrunedForRoot(str.Name)
+	fileName := strings.ToLower(str.Name) + "writer"
+
+	prunedSchema, err := g.schema.PrunedForRoot(str.Name)
 	if err != nil {
 		return err
 	}
 
-	fileName := strings.ToLower(str.Name) + "writer"
+	wireSchema, err := prunedSchema.ToWire()
+	if err != nil {
+		return err
+	}
 
 	var wireBin bytes.Buffer
 	if err := wireSchema.Serialize(&wireBin); err != nil {

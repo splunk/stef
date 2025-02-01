@@ -12,7 +12,7 @@ type WriterState struct {
 
 	// OverrideSchema is set if encoding should perform a translation into the target
 	// schema. The specified schema must be compatible with endoders' schema.
-	OverrideSchema *schema.Schema
+	OverrideSchema *schema.WireSchema
 
 	// Dictionaries
 	AnyValueString    encoders.StringEncoderDict
@@ -104,7 +104,7 @@ func (d *WriterState) Reset() {
 type ReaderState struct {
 	// OverrideSchema is set if decoding should perform a translation from specfied
 	// schema. OverrideSchema must be compatible with decoders' schema.
-	OverrideSchema *schema.Schema
+	OverrideSchema *schema.WireSchema
 
 	// Dictionaries
 	AnyValueString    encoders.StringDecoderDict
@@ -151,7 +151,7 @@ type ReaderState struct {
 	SpansDecoder              *SpansDecoder
 }
 
-func (d *ReaderState) Init(overrideSchema *schema.Schema) {
+func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 	d.OverrideSchema = overrideSchema
 	d.AnyValueString.Init()
 	d.AttributeKey.Init()

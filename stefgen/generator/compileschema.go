@@ -6,7 +6,7 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-func compileSchema(src *schema.Schema) (*genSchema, error) {
+func compileSchema(src *schema.JsonSchema) (*genSchema, error) {
 	dst := &genSchema{
 		PackageName: src.PackageName,
 		Structs:     map[string]*genStructDef{},
@@ -164,7 +164,7 @@ func (s *genSchema) resolveRefs() error {
 	return nil
 }
 
-func multimapWireToGen(src *schema.Multimap) *genMapDef {
+func multimapWireToGen(src *schema.JsonMultimap) *genMapDef {
 	return &genMapDef{
 		Name:  src.Name,
 		Key:   multimapFieldWireToAst(src.Key),
@@ -172,14 +172,14 @@ func multimapWireToGen(src *schema.Multimap) *genMapDef {
 	}
 }
 
-func multimapFieldWireToAst(src schema.MultimapField) genMapFieldDef {
+func multimapFieldWireToAst(src schema.JsonMultimapField) genMapFieldDef {
 	return genMapFieldDef{
 		Type: typeWireToGen(src.Type),
 		//Recursive: src.Recursive,
 	}
 }
 
-func structWireToGen(src *schema.Struct) *genStructDef {
+func structWireToGen(src *schema.JsonStruct) *genStructDef {
 	dst := &genStructDef{
 		Name:   src.Name,
 		OneOf:  src.OneOf,
@@ -193,19 +193,19 @@ func structWireToGen(src *schema.Struct) *genStructDef {
 	return dst
 }
 
-func structFieldWireToAst(src *schema.StructField) *genStructFieldDef {
+func structFieldWireToAst(src *schema.JsonStructField) *genStructFieldDef {
 	dst := &genStructFieldDef{
 		Name:     src.Name,
 		Optional: src.Optional,
 		//Recursive: src.Recursive,
 	}
 
-	dst.Type = typeWireToGen(src.FieldType)
+	dst.Type = typeWireToGen(src.JsonFieldType)
 
 	return dst
 }
 
-func typeWireToGen(src schema.FieldType) genFieldTypeRef {
+func typeWireToGen(src schema.JsonFieldType) genFieldTypeRef {
 	if src.Primitive != nil {
 		return &genPrimitiveTypeRef{
 			Type: *src.Primitive,

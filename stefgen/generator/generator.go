@@ -22,13 +22,13 @@ type Generator struct {
 	outBuf  *bytes.Buffer
 	lastErr error
 
-	schema         *schema.Schema
+	schema         *schema.JsonSchema
 	compiledSchema *genSchema
 
 	fileName string
 }
 
-func (g *Generator) GenFile(schema *schema.Schema) error {
+func (g *Generator) GenFile(schema *schema.JsonSchema) error {
 	var err error
 	g.compiledSchema, err = compileSchema(schema)
 	if err != nil {
