@@ -11,11 +11,14 @@ const (
 )
 
 type compatMapping struct {
-	// WireStruct name mapping. Key is old name, value is new name.
+	// Struct mapping. Key is old index, value is new index.
 	structIdxs map[StructIndex]StructIndex
 
-	// WireMultimap name mapping. Key is old name, value is new name.
+	// Multimap mapping. Key is old index, value is new index.
 	multimapIdxs map[MultimapIndex]MultimapIndex
+
+	// Dict mapping. Key is old index, value is new index.
+	dictIdxs map[DictIndex]DictIndex
 }
 
 func (d *WireSchema) Struct(idx StructIndex) WireStruct {
@@ -38,6 +41,10 @@ func (m *compatMapping) traverseStruct(old *WireSchema, new *WireSchema, oldStru
 		return
 	}
 	newStr := new.Struct(newIdx)
+
+	if oldStr.DictIdx != DictNone {
+		m.dictIdxs[oldStr.DictIdx] = newStr.DictIdx
+	}
 
 	fieldCount := min(len(oldStr.Fields), len(newStr.Fields))
 	for i := 0; i < fieldCount; i++ {
@@ -72,6 +79,10 @@ func (m *compatMapping) traverseField(old *WireSchema, new *WireSchema, oldField
 	} else if oldField.Array != nil {
 		m.traverseField(old, new, oldField.Array, oldField.Array)
 	}
+
+	if oldField.DictIdx != DictNone {
+		m.dictIdxs[oldField.DictIdx] = newField.DictIdx
+	}
 }
 
 // Compatible checks backward compatibility of this schema with oldSchema.
@@ -81,6 +92,7 @@ func (d *WireSchema) Compatible(oldSchema *WireSchema) (Compatibility, error) {
 	compat := compatMapping{
 		structIdxs:   map[StructIndex]StructIndex{},
 		multimapIdxs: map[MultimapIndex]MultimapIndex{},
+		dictIdxs:     map[DictIndex]DictIndex{},
 	}
 	compat.structIdxs[oldSchema.MainStruct] = d.MainStruct
 
@@ -158,7 +170,7 @@ func (d *WireSchema) compatibleStruct(
 		)
 	}
 
-	if newStruct.DictIdx != oldStruct.DictIdx {
+	if newStruct.DictIdx != compat.dictIdxs[oldStruct.DictIdx] {
 		return CompatibilityIncompatible, fmt.Errorf(
 			"new struct %v dictionary is %v, old struct %v dictionary is %v",
 			newStruct.Idx, newStruct.DictIdx, oldStruct.Idx, oldStruct.DictIdx,
@@ -251,9 +263,9 @@ func isCompatibleFieldType(
 		return false
 	}
 
-	//if newField.DictName != oldField.DictName {
-	//	return false
-	//}
+	if newField.DictIdx != compat.dictIdxs[oldField.DictIdx] {
+		return false
+	}
 
 	return true
 }

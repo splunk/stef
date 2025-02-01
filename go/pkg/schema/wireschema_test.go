@@ -449,7 +449,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *JsonSchema, str *JsonStruc
 	if r.Intn(10) == 0 {
 		field := JsonStructField{
 			JsonFieldType: JsonFieldType{},
-			//Name:      fmt.Sprintf("Field#%d", len(str.Fields)+1),
+			Name:          fmt.Sprintf("Field#%d", len(str.Fields)+1),
 		}
 
 		p := PrimitiveTypeString
@@ -553,6 +553,8 @@ func TestSchemaExpand(t *testing.T) {
 
 	orig := &JsonSchema{}
 	err = json.Unmarshal(schemaJson, &orig)
+	require.NoError(t, err)
+	orig, err = orig.PrunedForRoot(orig.MainStruct)
 	require.NoError(t, err)
 
 	r := rand.New(rand.NewSource(42))
