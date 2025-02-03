@@ -206,12 +206,12 @@ func (w *MetricsWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaMetrics = "\aMetrics\v\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\bExemplar\x05\x01\v\rExemplarValue%\x04Span%\x05Trace\f\nAttributes\x02\rExemplarValue\x02\x00\x02\x00\x0eHistogramValue\x05\x00\x12\x12\x12\n\x00\x04\x06Metric\x06Metric\b$\nMetricName$\x11MetricDescription$\nMetricUnit\x01\f\nAttributes\n\x02\x01\x03\x01\aMetrics\x06\v\bEnvelope\v\x06Metric\v\bResource\v\x05Scope\f\nAttributes\v\x05Point\x00\x05Point\x04\x01\x01\v\nPointValue\n\v\bExemplar\x02\nPointValue\x03\x00\x02\v\x0eHistogramValue\x04\bResource\bResource\x03$\tSchemaURL\f\nAttributes\x01\x04\x05Scope\x05Scope\x05$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x01\x03\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue\x12EnvelopeAttributes\x04\x05"
+const wireSchemaMetrics = "\v\bAnyValue\a\bEnvelope\x01\bExemplar\x05\rExemplarValue\x02\x0eHistogramValue\x05\x06Metric\b\aMetrics\x06\x05Point\x04\nPointValue\x03\bResource\x03\x05Scope\x05"
 
-func MetricsWireSchema() (*schema.Schema, error) {
-	var d schema.Schema
-	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
-		return nil, err
+func MetricsWireSchema() (schema.WireSchema, error) {
+	var w schema.WireSchema
+	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
+		return w, err
 	}
-	return &d, nil
+	return w, nil
 }

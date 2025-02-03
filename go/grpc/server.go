@@ -124,7 +124,7 @@ type StreamServer struct {
 	stef_proto.UnimplementedSTEFDestinationServer
 
 	logger       types.Logger
-	serverSchema *schema.Schema
+	serverSchema *schema.WireSchema
 	maxDictBytes uint64
 	onStream     func(reader GrpcReader, ackFunc func(sequenceId uint64) error) error
 }
@@ -133,7 +133,7 @@ var _ stef_proto.STEFDestinationServer = (*StreamServer)(nil)
 
 type ServerSettings struct {
 	Logger       types.Logger
-	ServerSchema *schema.Schema
+	ServerSchema *schema.WireSchema
 	MaxDictBytes uint64
 	OnStream     func(reader GrpcReader, ackFunc func(sequenceId uint64) error) error
 }

@@ -227,13 +227,13 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["PointValue"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("PointValue")
+		if !ok {
 			return fmt.Errorf("cannot find oneof in override schema: %s", "PointValue")
 		}
 
 		// Number of fields in the target schema.
-		e.fieldCount = uint(len(overrideSchema.Fields))
+		e.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
 		e.fieldCount = 3
@@ -345,13 +345,13 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	state.PointValueDecoder = d
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["PointValue"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("PointValue")
+		if !ok {
 			return fmt.Errorf("cannot find oneof in override schema: %s", "PointValue")
 		}
 
 		// Number of fields in the target schema.
-		d.fieldCount = uint(len(overrideSchema.Fields))
+		d.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
 		d.fieldCount = 3

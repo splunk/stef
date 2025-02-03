@@ -41,7 +41,7 @@ func TestGrpcWriteRead(t *testing.T) {
 
 	recordsReceivedAndVerified := make(chan struct{})
 	serverSettings := stefgrpc.ServerSettings{
-		ServerSchema: schema,
+		ServerSchema: &schema,
 		OnStream: func(source stefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
 			reader, err := oteltef.NewMetricsReader(source)
 			require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestGrpcWriteRead(t *testing.T) {
 
 	clientSettings := stefgrpc.ClientSettings{
 		GrpcClient:   grpcClient,
-		ClientSchema: schema,
+		ClientSchema: &schema,
 		Callbacks:    callbacks,
 	}
 	client := stefgrpc.NewClient(clientSettings)

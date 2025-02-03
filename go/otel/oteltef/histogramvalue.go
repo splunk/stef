@@ -370,13 +370,13 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["HistogramValue"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("HistogramValue")
+		if !ok {
 			return fmt.Errorf("cannot find struct in override schema: %s", "HistogramValue")
 		}
 
 		// Number of fields in the target schema.
-		e.fieldCount = uint(len(overrideSchema.Fields))
+		e.fieldCount = fieldCount
 
 		// Set that many 1 bits in the keepFieldMask. All fields with higher number
 		// will be skipped when encoding.
@@ -544,13 +544,13 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	state.HistogramValueDecoder = d
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["HistogramValue"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("HistogramValue")
+		if !ok {
 			return fmt.Errorf("cannot find struct in override schema: %s", "HistogramValue")
 		}
 
 		// Number of fields in the target schema.
-		d.fieldCount = uint(len(overrideSchema.Fields))
+		d.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
 		d.fieldCount = 5

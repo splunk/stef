@@ -617,13 +617,13 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["Span"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("Span")
+		if !ok {
 			return fmt.Errorf("cannot find struct in override schema: %s", "Span")
 		}
 
 		// Number of fields in the target schema.
-		e.fieldCount = uint(len(overrideSchema.Fields))
+		e.fieldCount = fieldCount
 
 		// Set that many 1 bits in the keepFieldMask. All fields with higher number
 		// will be skipped when encoding.
@@ -947,13 +947,13 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	state.SpanDecoder = d
 
 	if state.OverrideSchema != nil {
-		overrideSchema, ok := state.OverrideSchema.Structs["Span"]
-		if !ok || overrideSchema == nil {
+		fieldCount, ok := state.OverrideSchema.FieldCount("Span")
+		if !ok {
 			return fmt.Errorf("cannot find struct in override schema: %s", "Span")
 		}
 
 		// Number of fields in the target schema.
-		d.fieldCount = uint(len(overrideSchema.Fields))
+		d.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
 		d.fieldCount = 14

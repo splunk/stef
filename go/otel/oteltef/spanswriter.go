@@ -206,12 +206,12 @@ func (w *SpansWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaSpans = "\x05Spans\t\x02\bAnyValue\a$\x0eAnyValueString\x03\x00\x02\n\v\bAnyValue\f\fKeyValueList\x05\x00\bEnvelope\x01\f\x12EnvelopeAttributes\x00\x05Event\x04$\rSpanEventName\x01\f\nAttributes\x01\x00\x04Link\x06\x05\x05\x04\x01\f\nAttributes\x01\x04\bResource\bResource\x03$\tSchemaURL\f\nAttributes\x01\x04\x05Scope\x05Scope\x05$\tScopeName$\fScopeVersion$\tSchemaURL\f\nAttributes\x01\x00\x04Span\x0e\x05\x05\x04\x05\x01$\bSpanName\x01\x01\x01\f\nAttributes\x01\n\v\x05Event\n\v\x04Link\v\nSpanStatus\x00\nSpanStatus\x02\x04\x01\x01\x05Spans\x04\v\bEnvelope\v\bResource\v\x05Scope\v\x04Span\x03\x12EnvelopeAttributes\x04\x05\nAttributes$\fAttributeKey\v\bAnyValue\fKeyValueList\x04\v\bAnyValue"
+const wireSchemaSpans = "\t\bAnyValue\a\bEnvelope\x01\x05Event\x04\x04Link\x06\bResource\x03\x05Scope\x05\x04Span\x0e\nSpanStatus\x02\x05Spans\x04"
 
-func SpansWireSchema() (*schema.Schema, error) {
-	var d schema.Schema
-	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchemaSpans))); err != nil {
-		return nil, err
+func SpansWireSchema() (schema.WireSchema, error) {
+	var w schema.WireSchema
+	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaSpans))); err != nil {
+		return w, err
 	}
-	return &d, nil
+	return w, nil
 }

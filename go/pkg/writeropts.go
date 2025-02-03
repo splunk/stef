@@ -69,7 +69,7 @@ type WriterOptions struct {
 	// The schema must be compatible with Writer's native schema otherwise
 	// an error will be returned when attempting to create the Writer.
 	// In nil the Writer will write in its native schema.
-	Schema *schema.Schema
+	Schema *schema.WireSchema
 
 	// UserData is optional user-defined data that will be stored in the header.
 	UserData map[string]string
