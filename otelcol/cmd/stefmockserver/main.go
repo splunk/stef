@@ -86,7 +86,7 @@ func main() {
 
 	settings := tefgrpc.ServerSettings{
 		Logger:       nil,
-		ServerSchema: schema,
+		ServerSchema: &schema,
 		MaxDictBytes: 0,
 		OnStream:     onStream,
 	}

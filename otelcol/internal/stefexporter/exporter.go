@@ -211,7 +211,7 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	settings := tef_grpc.ClientSettings{
 		Logger:       &wrapLogger{s.logger},
 		GrpcClient:   grpcClient,
-		ClientSchema: schema,
+		ClientSchema: &schema,
 		Callbacks: tef_grpc.ClientCallbacks{
 			OnAck: s.onGrpcAck,
 		},

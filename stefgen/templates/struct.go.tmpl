@@ -282,13 +282,13 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
     {{- end}}
 
     if state.OverrideSchema != nil {
-        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
-        if !ok || overrideSchema == nil {
+        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
+        if !ok {
             return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
         }
 
         // Number of fields in the target schema.
-        e.fieldCount = uint(len(overrideSchema.Fields))
+        e.fieldCount = fieldCount
 
         // Set that many 1 bits in the keepFieldMask. All fields with higher number
         // will be skipped when encoding.
@@ -442,13 +442,13 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     state.{{ .StructName }}Decoder = d
 
     if state.OverrideSchema != nil {
-        overrideSchema, ok := state.OverrideSchema.Structs[{{printf "%q" .StructName}}]
-        if !ok || overrideSchema == nil {
+        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
+        if !ok {
             return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
         }
 
         // Number of fields in the target schema.
-        d.fieldCount = uint(len(overrideSchema.Fields))
+        d.fieldCount = fieldCount
     } else {
         // Keep all fields when encoding.
         d.fieldCount = {{len .Fields}}

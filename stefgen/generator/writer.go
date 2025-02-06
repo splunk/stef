@@ -17,10 +17,11 @@ func (g *Generator) oWriters() error {
 }
 
 func (g *Generator) oWriter(str *genStructDef) error {
-	wireSchema, err := g.schema.PrunedForRoot(str.Name)
+	prunedSchema, err := g.schema.PrunedForRoot(str.Name)
 	if err != nil {
 		return err
 	}
+	wireSchema := prunedSchema.ToWire()
 
 	fileName := strings.ToLower(str.Name) + "writer"
 

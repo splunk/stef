@@ -28,7 +28,7 @@ type Client struct {
 	grpcClient   stef_proto.STEFDestinationClient
 	stream       stef_proto.STEFDestination_StreamClient
 	callbacks    ClientCallbacks
-	clientSchema *schema.Schema
+	clientSchema *schema.WireSchema
 	logger       types.Logger
 
 	// Running state
@@ -88,7 +88,7 @@ type ClientSettings struct {
 	Logger types.Logger
 	// gRPC stream to send data over.
 	GrpcClient   stef_proto.STEFDestinationClient
-	ClientSchema *schema.Schema
+	ClientSchema *schema.WireSchema
 	Callbacks    ClientCallbacks
 }
 
@@ -154,7 +154,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	}
 
 	// Unmarshal server schema.
-	var serverSchema schema.Schema
+	var serverSchema schema.WireSchema
 	buf := bytes.NewBuffer(capabilities.Capabilities.Schema)
 	err = serverSchema.Deserialize(buf)
 	if err != nil {

@@ -207,10 +207,10 @@ func (w *{{.StructName}}Writer) Flush() error {
 
 const wireSchema{{.StructName}} = {{printf "%q" .Schema}}
 
-func {{.StructName}}WireSchema() (*schema.Schema, error) {
-	var d schema.Schema
-	if err := d.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
-		return nil, err
+func {{.StructName}}WireSchema() (schema.WireSchema, error) {
+	var w schema.WireSchema
+	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
+		return w, err
 	}
-	return &d,nil
+	return w,nil
 }

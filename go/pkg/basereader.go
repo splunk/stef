@@ -15,7 +15,7 @@ type BaseReader struct {
 
 	FixedHeader FixedHeader
 	VarHeader   VarHeader
-	Schema      *schema.Schema
+	Schema      *schema.WireSchema
 
 	ReadBufs ReadBufs
 
@@ -86,7 +86,7 @@ func (r *BaseReader) ReadFixedHeader() error {
 	return nil
 }
 
-func (r *BaseReader) ReadVarHeader(ownSchema *schema.Schema) error {
+func (r *BaseReader) ReadVarHeader(ownSchema schema.WireSchema) error {
 	if _, err := r.FrameDecoder.Next(); err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (r *BaseReader) ReadVarHeader(ownSchema *schema.Schema) error {
 
 	if len(r.VarHeader.SchemaWireBytes) != 0 {
 		buf = bytes.NewBuffer(r.VarHeader.SchemaWireBytes)
-		r.Schema = &schema.Schema{}
+		r.Schema = &schema.WireSchema{}
 		err = r.Schema.Deserialize(buf)
 		if err != nil {
 			return err

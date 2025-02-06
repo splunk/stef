@@ -284,7 +284,7 @@ func TestAnyValue(t *testing.T) {
 	}
 }
 
-func writeReadRecord(t *testing.T, withSchema *schema.Schema) *oteltef.Metrics {
+func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metrics {
 	buf := &countingChunkWriter{}
 	writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{Schema: withSchema})
 	require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 4.5, readRecord.Point().Value().Float64())
 
 	// Write/read using full, unmodified schema
-	readRecord = writeReadRecord(t, schem)
+	readRecord = writeReadRecord(t, &schem)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	assert.EqualValues(t, 123, readRecord.Point().Timestamp())
@@ -329,15 +329,13 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 4.5, readRecord.Point().Value().Float64())
 
 	// Remove "Monotonic" field (field #8) from "Metric" struct in the schema.
-	metric := schem.Structs["Metric"]
-	metric.Fields = metric.Fields[:7]
+	schem.StructFieldCount["Metric"] = 7
 
 	// Remove "Float64" field (field #2) from "PointValue" oneof struct in the schema.
-	pointValueOneOf := schem.Structs["PointValue"]
-	pointValueOneOf.Fields = pointValueOneOf.Fields[:1]
+	schem.StructFieldCount["PointValue"] = 1
 
 	// Write/read using reduced schema
-	readRecord = writeReadRecord(t, schem)
+	readRecord = writeReadRecord(t, &schem)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	assert.EqualValues(t, 123, readRecord.Point().Timestamp())
@@ -350,11 +348,10 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 0.0, readRecord.Point().Value().Float64())
 
 	// Remove the entire "Point" field (field #6) from "Record" struct in the schema.
-	mainStruct := schem.Structs["Metrics"]
-	mainStruct.Fields = mainStruct.Fields[:5]
+	schem.StructFieldCount["Metrics"] = 5
 
 	// Write/read using reduced schema
-	readRecord = writeReadRecord(t, schem)
+	readRecord = writeReadRecord(t, &schem)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	// All Point fields are default values because Point field was not encoded by Writer.
