@@ -1,7 +1,8 @@
 # STEF (Sequential Tabular Encoding Format)
 
 STEF is a data format and network protocol optimized for small payload size
-and fast serialization. See some [benchmark results here](./benchmarks/results/benchmarks.html).
+and fast serialization. See some
+[benchmark results here](https://splunk.github.io/stef/benchmarks/results/benchmarks.html).
 
 ### Directories
 
