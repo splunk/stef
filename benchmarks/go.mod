@@ -5,6 +5,7 @@ go 1.22.7
 toolchain go1.23.2
 
 require (
+	github.com/go-echarts/go-echarts/v2 v2.5.0
 	github.com/klauspost/compress v1.17.9
 	github.com/open-telemetry/otel-arrow v0.31.0
 	github.com/parquet-go/parquet-go v0.23.0

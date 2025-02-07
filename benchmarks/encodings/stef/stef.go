@@ -92,6 +92,10 @@ func (e *STEFEncoding) Name() string {
 	return str
 }
 
+func (e *STEFEncoding) LongName() string {
+	return e.Name()
+}
+
 func (e *STEFEncoding) StartMultipart(compression string) (encodings.MetricMultipartStream, error) {
 	outputBuf := &pkg.MemChunkWriter{}
 

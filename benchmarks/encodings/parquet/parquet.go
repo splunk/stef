@@ -153,10 +153,13 @@ func (d *Encoding) Decode(b []byte) (any, error) {
 	return nil, nil
 }
 
-func (*Encoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
+func (d *Encoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 	return pmetric.NewMetrics(), nil
 }
 
-func (*Encoding) Name() string {
+func (d *Encoding) Name() string {
 	return "Parquet"
+}
+func (d *Encoding) LongName() string {
+	return d.Name()
 }

@@ -31,6 +31,9 @@ func (*OTLPEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 func (*OTLPEncoding) Name() string {
 	return "OTLP"
 }
+func (*OTLPEncoding) LongName() string {
+	return "Protobuf OTLP"
+}
 
 type otlpMultipart struct {
 	compression string

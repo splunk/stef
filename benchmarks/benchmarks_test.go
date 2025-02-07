@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/benchmarks/encodings"
-	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
 	parquetenc "github.com/splunk/stef/benchmarks/encodings/parquet"
 	"github.com/splunk/stef/benchmarks/encodings/stef"
@@ -26,7 +25,7 @@ var testEncodings = []encodings.MetricEncoding{
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	//&stef.STEFSEncoding{},
 	//&stef.STEFUEncoding{},
-	&otelarrow.OtelArrowEncoding{},
+	//&otelarrow.OtelArrowEncoding{},
 	&parquetenc.Encoding{},
 	//&parquetenc.EncodingZ{},
 }
@@ -46,7 +45,21 @@ var benchmarkDataVariations = []struct {
 	},
 }
 
+var chart = BarOutput{}
+
+func TestMain(m *testing.M) {
+	// call flag.Parse() here if TestMain uses flags
+	chart.Begin()
+	defer chart.End()
+	m.Run()
+}
+
 func BenchmarkSerializeNative(b *testing.B) {
+	chart.BeginSection("Speed Benchmarks")
+
+	chart.BeginChart("Serialization Speed", b)
+	defer chart.EndChart("ns/point", "CPU time to serialize one data point")
+
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
@@ -71,9 +84,10 @@ func BenchmarkSerializeNative(b *testing.B) {
 								testutils.CompressZstd(bodyBytes)
 							}
 						}
-						b.ReportMetric(
+						chart.Record(
+							b,
+							encoding.LongName(),
 							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-							"ns/point",
 						)
 					},
 				)
@@ -84,6 +98,9 @@ func BenchmarkSerializeNative(b *testing.B) {
 }
 
 func BenchmarkDeserializeNative(b *testing.B) {
+	chart.BeginChart("Deserialization Speed", b)
+	defer chart.EndChart("ns/point", "CPU time to deserialize one data point")
+
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
@@ -119,9 +136,10 @@ func BenchmarkDeserializeNative(b *testing.B) {
 								log.Fatal(err)
 							}
 						}
-						b.ReportMetric(
+						chart.Record(
+							b,
+							encoding.LongName(),
 							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-							"ns/point",
 						)
 					},
 				)
@@ -282,7 +300,7 @@ func BenchmarkSTEFReaderRead(b *testing.B) {
 				break
 			}
 			if readRecord == nil {
-				panic("nil record")
+				panic("nil Record")
 			}
 			if err != nil {
 				log.Fatal(err)

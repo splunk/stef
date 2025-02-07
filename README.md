@@ -1,6 +1,7 @@
 # STEF (Sequential Tabular Encoding Format)
 
-To run tests: `make`
+STEF is a data format and network protocol optimized for small payload size
+and fast serialization. See some [benchmark results here](./benchmarks/results/benchmarks.html).
 
 ### Directories
 
