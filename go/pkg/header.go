@@ -9,8 +9,7 @@ import (
 )
 
 type FixedHeader struct {
-	Compression         Compression
-	TimestampMultiplier uint64
+	Compression Compression
 }
 
 type VarHeader struct {

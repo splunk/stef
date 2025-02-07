@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg/schema"
@@ -78,11 +77,6 @@ func (r *BaseReader) ReadFixedHeader() error {
 		return ErrInvalidCompression
 	}
 
-	var n int
-	r.FixedHeader.TimestampMultiplier, n = binary.Uvarint(hdrContent[2:])
-	if n <= 0 {
-		return errors.New("invalid TimestampMultiplier in FixedHeader")
-	}
 	return nil
 }
 

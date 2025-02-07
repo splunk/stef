@@ -10,15 +10,6 @@ type WriterOptions struct {
 	// IncludeDescriptor indicates that the schema descriptor must be written to the file.
 	IncludeDescriptor bool
 
-	// TimestampMultiplier is the multiplier to be used by readers to convert
-	// stored timestamps to nanosecond timestamps. For example a value of 1000
-	// means timestamps are stored in microsecond precision.
-	//
-	// The Writer will NOT perform any timestamp scaling operations. The timestamp
-	// values provided via WritePoint() calls will be written as is.
-	// TODO: remove from fixed header and allow adding custom fields like this.
-	TimestampMultiplier uint64
-
 	// Compression to use for frame content.
 	// CompressionNone disables the compression.
 	// CompressionZstd uses zstd compression for frame content.
