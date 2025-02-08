@@ -26,10 +26,8 @@ type WriterState struct {
 	Scope             ScopeEncoderDict
 	ScopeName         encoders.StringEncoderDict
 	ScopeVersion      encoders.StringEncoderDict
-	Span              encoders.BytesEncoderDict
 	SpanEventName     encoders.StringEncoderDict
 	SpanName          encoders.StringEncoderDict
-	Trace             encoders.BytesEncoderDict
 
 	// Encoders
 	AnyValueEncoder           *AnyValueEncoder
@@ -75,10 +73,8 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
 	d.Scope.Init(&d.limiter)
 	d.ScopeName.Init(&d.limiter)
 	d.ScopeVersion.Init(&d.limiter)
-	d.Span.Init(&d.limiter)
 	d.SpanEventName.Init(&d.limiter)
 	d.SpanName.Init(&d.limiter)
-	d.Trace.Init(&d.limiter)
 
 }
 
@@ -95,10 +91,8 @@ func (d *WriterState) Reset() {
 	d.Scope.Reset()
 	d.ScopeName.Reset()
 	d.ScopeVersion.Reset()
-	d.Span.Reset()
 	d.SpanEventName.Reset()
 	d.SpanName.Reset()
-	d.Trace.Reset()
 }
 
 type ReaderState struct {
@@ -118,10 +112,8 @@ type ReaderState struct {
 	Scope             ScopeDecoderDict
 	ScopeName         encoders.StringDecoderDict
 	ScopeVersion      encoders.StringDecoderDict
-	Span              encoders.BytesDecoderDict
 	SpanEventName     encoders.StringDecoderDict
 	SpanName          encoders.StringDecoderDict
-	Trace             encoders.BytesDecoderDict
 
 	// Decoders
 	AnyValueDecoder           *AnyValueDecoder
@@ -164,8 +156,6 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 	d.Scope.Init()
 	d.ScopeName.Init()
 	d.ScopeVersion.Init()
-	d.Span.Init()
 	d.SpanEventName.Init()
 	d.SpanName.Init()
-	d.Trace.Init()
 }
