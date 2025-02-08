@@ -24,14 +24,10 @@ func TestConvertTEFFromToOTLP(t *testing.T) {
 		withSizePrefix bool
 	}{
 		{
-			file:           "testdata/oteldemo-with-histogram.otlp.zst",
-			withSizePrefix: true,
+			file: "testdata/hipstershop-otelmetrics.zst",
 		},
 		{
-			file: "testdata/hipstershop.pb.zst",
-		},
-		{
-			file:           "testdata/astronomyshop.pb.zst",
+			file:           "testdata/astronomy-otelmetrics.zst",
 			withSizePrefix: true,
 		},
 	}
@@ -96,9 +92,8 @@ func toBytes(t *testing.T, data pmetric.Metrics) []byte {
 
 func TestTEFMultiPart(t *testing.T) {
 	var testInputOtlpFiles = []string{
-		"testdata/oteldemo-with-histogram.otlp.zst",
-		"testdata/astronomyshop.pb.zst",
-		"testdata/hostandcollectormetrics.pb.zst",
+		"testdata/astronomy-otelmetrics.zst",
+		"testdata/hostandcollector-otelmetrics.zst",
 	}
 
 	//stefEncoding := stef.STEFEncoding{}

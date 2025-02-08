@@ -23,11 +23,7 @@ import (
 var testEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
-	//&stef.STEFSEncoding{},
-	//&stef.STEFUEncoding{},
-	//&otelarrow.OtelArrowEncoding{},
 	&parquetenc.Encoding{},
-	//&parquetenc.EncodingZ{},
 }
 
 var benchmarkDataVariations = []struct {
@@ -40,7 +36,7 @@ var benchmarkDataVariations = []struct {
 	//},
 	{
 		generator: &generators.File{
-			FilePath: "testdata/hipstershop.pb.zst",
+			FilePath: "testdata/hipstershop-otelmetrics.zst",
 		},
 	},
 }
@@ -64,7 +60,7 @@ func BenchmarkSerializeNative(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollectormetrics.pb.zst" &&
+				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
 					// Skip due to bug in Arrow encoding
 					continue
@@ -105,7 +101,7 @@ func BenchmarkDeserializeNative(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollectormetrics.pb.zst" &&
+				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
 					// Skip due to bug in Arrow encoding
 					continue
@@ -154,7 +150,7 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollectormetrics.pb.zst" &&
+				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
 					// Skip due to bug in Arrow encoding
 					continue
@@ -191,7 +187,7 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollectormetrics.pb.zst" &&
+				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
 					// Skip due to bug in Arrow encoding
 					continue
@@ -237,7 +233,7 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 /* Need to rewrite this to use TEF.ReadMany() API when it becomes available.
 func BenchmarkReaderReadMany(b *testing.B) {
 	generator := &generators.File{
-		FilePath: "testdata/hipstershop.pb.zst",
+		FilePath: "testdata/hipstershop-otelmetrics.zst",
 	}
 
 	encoding := stef.STEFEncoding{}
@@ -273,7 +269,7 @@ func BenchmarkReaderReadMany(b *testing.B) {
 
 func BenchmarkSTEFReaderRead(b *testing.B) {
 	generator := &generators.File{
-		FilePath: "testdata/hipstershop.pb.zst",
+		FilePath: "testdata/hipstershop-otelmetrics.zst",
 	}
 
 	encoding := stef.STEFEncoding{}
@@ -300,7 +296,7 @@ func BenchmarkSTEFReaderRead(b *testing.B) {
 				break
 			}
 			if readRecord == nil {
-				panic("nil Record")
+				panic("nil record")
 			}
 			if err != nil {
 				log.Fatal(err)
@@ -313,7 +309,7 @@ func BenchmarkSTEFReaderRead(b *testing.B) {
 	)
 }
 
-var multipartFiles = []string{"oteldemo-with-histogram.otlp", "astronomyshop.pb"}
+var multipartFiles = []string{"astronomy-otelmetrics"}
 
 func BenchmarkSTEFSerializeMultipart(b *testing.B) {
 	for _, file := range multipartFiles {
