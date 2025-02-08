@@ -11,9 +11,9 @@ import (
 
 func TestSpansWriterWrite(t *testing.T) {
 	cw := &pkg.MemChunkWriter{}
-	tef, err := NewSpansWriter(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
+	stef, err := NewSpansWriter(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
 	require.NoError(t, err)
 
-	err = tef.Write()
+	err = stef.Write()
 	require.NoError(t, err)
 }

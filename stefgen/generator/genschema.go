@@ -7,7 +7,7 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-// genSchema is a TEF schema description in form that is useful for generation.
+// genSchema is a STEF schema description in form that is useful for generation.
 type genSchema struct {
 	PackageName string
 	Structs     map[string]*genStructDef

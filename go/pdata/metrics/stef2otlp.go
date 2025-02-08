@@ -11,11 +11,11 @@ import (
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 )
 
-type TEFToOTLPUnsorted struct {
-	internal.BaseTEFToOTLP
+type STEFToOTLPUnsorted struct {
+	internal.BaseSTEFToOTLP
 }
 
-func (c *TEFToOTLPUnsorted) Convert(reader *oteltef.MetricsReader) (pmetric.Metrics, error) {
+func (c *STEFToOTLPUnsorted) Convert(reader *oteltef.MetricsReader) (pmetric.Metrics, error) {
 	var resourceMetrics pmetric.ResourceMetrics
 	var scopeMetrics pmetric.ScopeMetrics
 	var metric pmetric.Metric

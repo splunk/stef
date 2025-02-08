@@ -172,7 +172,7 @@ func (s *stefExporter) flusher() {
 			err := s.remoteWriter.Flush()
 			s.writeMutex.Unlock()
 			if err != nil {
-				log.Printf("Cannot send TEF data: %v\n", err)
+				log.Printf("Cannot send STEF data: %v\n", err)
 			}
 		case <-s.stopped:
 			return

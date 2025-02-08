@@ -15,7 +15,7 @@ import (
 )
 
 type grpcMsgSource interface {
-	// RecvMsg receives a TEF/gRPC message containing TEF bytes.
+	// RecvMsg receives a STEF/gRPC message containing STEF bytes.
 	RecvMsg() (tefBytes []byte, isEndOfChunk bool, err error)
 }
 

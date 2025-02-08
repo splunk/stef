@@ -31,23 +31,23 @@ type elem struct {
 	val pcommon.Value
 }
 
-type Otlp2Tef struct {
+type Otlp2Stef struct {
 	attrElems []elem
 }
 
-func (o *Otlp2Tef) ResourceSorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
+func (o *Otlp2Stef) ResourceSorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapSorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Tef) ResourceUnsorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
+func (o *Otlp2Stef) ResourceUnsorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapUnsorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Tef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
+func (o *Otlp2Stef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
@@ -55,7 +55,7 @@ func (o *Otlp2Tef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationSc
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Tef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
+func (o *Otlp2Stef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
@@ -63,7 +63,7 @@ func (o *Otlp2Tef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.Instrumentation
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Tef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {
+func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {
 	o.attrElems = pkg.EnsureLen(o.attrElems, m.Len())
 	i := 0
 	m.Range(
@@ -87,7 +87,7 @@ func (o *Otlp2Tef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {
 	}
 }
 
-func (o *Otlp2Tef) MapUnsorted(m pcommon.Map, out *oteltef.Attributes) {
+func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *oteltef.Attributes) {
 	out.EnsureLen(m.Len())
 	i := 0
 	m.Range(

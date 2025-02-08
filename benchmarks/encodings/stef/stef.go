@@ -76,7 +76,7 @@ func (*STEFEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), err
 	}
 
-	converter := otlpconvert.TEFToOTLPUnsorted{}
+	converter := otlpconvert.STEFToOTLPUnsorted{}
 	metrics, err := converter.Convert(reader)
 	if err != nil {
 		return pmetric.NewMetrics(), err

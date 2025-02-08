@@ -12,12 +12,12 @@ import (
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
 
-type BaseOTLPToTEF struct {
+type BaseOTLPToSTEF struct {
 	TempAttrs oteltef.Attributes
-	Otlp2tef  otlptools.Otlp2Tef
+	Otlp2tef  otlptools.Otlp2Stef
 }
 
-func (c *BaseOTLPToTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
+func (c *BaseOTLPToSTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
@@ -31,7 +31,7 @@ func (c *BaseOTLPToTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.Numb
 	}
 }
 
-func (c *BaseOTLPToTEF) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric.ExemplarSlice) {
+func (c *BaseOTLPToSTEF) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric.ExemplarSlice) {
 	dst.EnsureLen(src.Len())
 
 	for i := 0; i < src.Len(); i++ {
@@ -61,7 +61,7 @@ func (c *BaseOTLPToTEF) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric
 	}
 }
 
-func (c *BaseOTLPToTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.HistogramDataPoint) error {
+func (c *BaseOTLPToSTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.HistogramDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 

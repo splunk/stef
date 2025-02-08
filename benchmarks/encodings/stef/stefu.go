@@ -14,7 +14,7 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings"
 )
 
-// STEFUEncoding is unsorted TEF format.
+// STEFUEncoding is unsorted STEF format.
 type STEFUEncoding struct {
 	Opts pkg.WriterOptions
 }
@@ -32,7 +32,7 @@ func (d *STEFUEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 		return nil, err
 	}
 
-	converter := otlpconvert.OtlpToTEFUnsorted{}
+	converter := otlpconvert.OtlpToSTEFUnsorted{}
 	err = converter.WriteMetrics(metrics, writer)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (*STEFUEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), err
 	}
 
-	converter := otlpconvert.TEFToOTLPUnsorted{}
+	converter := otlpconvert.STEFToOTLPUnsorted{}
 	metrics, err := converter.Convert(reader)
 	if err != nil {
 		return pmetric.NewMetrics(), err
@@ -118,7 +118,7 @@ type stefuMultipart struct {
 }
 
 func (s *stefuMultipart) AppendPart(part pmetric.Metrics) error {
-	converter := otlpconvert.OtlpToTEFUnsorted{}
+	converter := otlpconvert.OtlpToSTEFUnsorted{}
 	err := converter.WriteMetrics(part, s.writer)
 	if err != nil {
 		return err

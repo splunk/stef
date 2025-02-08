@@ -17,19 +17,19 @@ import (
 
 type SortedTree struct {
 	//encoder  anyvalue.Encoder
-	otlp2tef otlptools.Otlp2Tef
+	otlp2tef otlptools.Otlp2Stef
 	byMetric *b.Tree[*oteltef.Metric, *ByMetric]
 }
 
 type ByMetric struct {
 	//encoder    *anyvalue.Encoder
-	otlp2tef   *otlptools.Otlp2Tef
+	otlp2tef   *otlptools.Otlp2Stef
 	byResource *b.Tree[*oteltef.Resource, *ByResource]
 }
 
 type ByResource struct {
 	//encoder  *anyvalue.Encoder
-	otlp2tef *otlptools.Otlp2Tef
+	otlp2tef *otlptools.Otlp2Stef
 	byScope  *b.Tree[*oteltef.Scope, *ByScope]
 }
 
@@ -104,7 +104,7 @@ func (s *SortedTree) ByMetric(
 
 func metric2metric(
 	metric pmetric.Metric, metricType oteltef.MetricType, flags oteltef.MetricFlags, histogramBounds []float64,
-	otlp2tef *otlptools.Otlp2Tef,
+	otlp2tef *otlptools.Otlp2Stef,
 ) *oteltef.Metric {
 
 	var dst oteltef.Metric

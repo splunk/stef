@@ -14,7 +14,7 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings"
 )
 
-// STEFSEncoding is a partially (fast) sorted TEF format.
+// STEFSEncoding is a partially (fast) sorted STEF format.
 type STEFSEncoding struct {
 	Opts   pkg.WriterOptions
 	sorter otlpconvert.PDataSorter
@@ -35,7 +35,7 @@ func (d *STEFSEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 		return nil, err
 	}
 
-	converter := otlpconvert.OtlpToTEFUnsorted{}
+	converter := otlpconvert.OtlpToSTEFUnsorted{}
 	err = converter.WriteMetrics(metrics, writer)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (*STEFSEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), err
 	}
 
-	converter := otlpconvert.TEFToOTLPUnsorted{}
+	converter := otlpconvert.STEFToOTLPUnsorted{}
 	metrics, err := converter.Convert(reader)
 	if err != nil {
 		return pmetric.NewMetrics(), err
@@ -124,7 +124,7 @@ type stefsMultipart struct {
 func (m *stefsMultipart) AppendPart(part pmetric.Metrics) error {
 	m.sorter.SortMetrics(part, false)
 	//otlpconvert2.NormalizeMetrics(part)
-	converter := otlpconvert.OtlpToTEFUnsorted{}
+	converter := otlpconvert.OtlpToSTEFUnsorted{}
 	err := converter.WriteMetrics(part, m.writer)
 	if err != nil {
 		return err

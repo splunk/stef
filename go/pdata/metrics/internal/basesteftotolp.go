@@ -8,10 +8,10 @@ import (
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
 
-type BaseTEFToOTLP struct {
+type BaseSTEFToOTLP struct {
 }
 
-func (s *BaseTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.NumberDataPoint) error {
+func (s *BaseSTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.NumberDataPoint) error {
 	dst.SetStartTimestamp(pcommon.Timestamp(src.StartTimestamp()))
 	dst.SetTimestamp(pcommon.Timestamp(src.Timestamp()))
 
@@ -33,7 +33,7 @@ func (s *BaseTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.Numbe
 	return nil
 }
 
-func (c *BaseTEFToOTLP) ConvertExemplar(src *oteltef.Exemplar, dst pmetric.Exemplar) error {
+func (c *BaseSTEFToOTLP) ConvertExemplar(src *oteltef.Exemplar, dst pmetric.Exemplar) error {
 	dst.SetTimestamp(pcommon.Timestamp(src.Timestamp()))
 	switch src.Value().Type() {
 	case oteltef.ExemplarValueTypeInt64:
@@ -56,7 +56,7 @@ func (c *BaseTEFToOTLP) ConvertExemplar(src *oteltef.Exemplar, dst pmetric.Exemp
 	return nil
 }
 
-func (s *BaseTEFToOTLP) AppendOTLPPoint(
+func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 	srcMetric *oteltef.Metric, srcAttrs *oteltef.Attributes, srcPoint *oteltef.Point, dstMetric pmetric.Metric,
 ) error {
 	otlpAttrs := pcommon.NewMap()
@@ -107,7 +107,7 @@ func aggregationTemporalityToOtlp(flags oteltef.MetricFlags) pmetric.Aggregation
 	}
 }
 
-func (c *BaseTEFToOTLP) convertHistogramPoint(
+func (c *BaseSTEFToOTLP) convertHistogramPoint(
 	srcMetric *oteltef.Metric, srcPoint *oteltef.Point, dstPoint pmetric.HistogramDataPoint,
 ) error {
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
