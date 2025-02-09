@@ -108,7 +108,6 @@ func (g *Generator) oStartFile(fileName string) error {
 
 func (g *Generator) oTemplate(templateName, outputFileName string, data map[string]any) error {
 	data["PackageName"] = g.compiledSchema.PackageName
-	data["MainStructName"] = g.compiledSchema.MainStruct
 
 	if err := g.oStartFile(outputFileName); err != nil {
 		return err

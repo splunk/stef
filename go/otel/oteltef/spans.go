@@ -422,7 +422,7 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
+	d.lastVal.Init()
 	d.lastValPtr = &d.lastVal
 
 	var err error

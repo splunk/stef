@@ -11,7 +11,6 @@ func compileSchema(src *schema.Schema) (*genSchema, error) {
 		PackageName: src.PackageName,
 		Structs:     map[string]*genStructDef{},
 		Multimaps:   map[string]*genMapDef{},
-		MainStruct:  src.MainStruct,
 	}
 
 	for name, struc := range src.Structs {
@@ -26,8 +25,12 @@ func compileSchema(src *schema.Schema) (*genSchema, error) {
 		return nil, err
 	}
 
-	stack := recurseStack{asMap: map[string]bool{}}
-	computeRecursiveStruct(dst.Structs[dst.MainStruct], &stack)
+	for _, struc := range dst.Structs {
+		if struc.IsRoot {
+			stack := recurseStack{asMap: map[string]bool{}}
+			computeRecursiveStruct(struc, &stack)
+		}
+	}
 
 	return dst, nil
 }
