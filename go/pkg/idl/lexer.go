@@ -9,15 +9,27 @@ import (
 )
 
 type Lexer struct {
-	input      *bufio.Reader
-	token      Token
-	nextRune   rune
-	isEOF      bool
-	isError    bool
-	errMsg     string
-	pos        uint
+	input *bufio.Reader
+	token Token
+
+	nextRune  rune
+	prevWasCR bool
+
+	isEOF   bool
+	isError bool
+	errMsg  string
+
+	curPos  Pos
+	prevPos Pos
+
 	identRunes []rune
 	ident      string
+}
+
+type Pos struct {
+	ByteOfs uint
+	Line    uint
+	Col     uint
 }
 
 type Token uint
@@ -98,6 +110,11 @@ var keywordsReverse = func() map[Token]string {
 func NewLexer(input io.Reader) *Lexer {
 	return &Lexer{
 		input: bufio.NewReader(input),
+		curPos: Pos{
+			ByteOfs: 0,
+			Line:    1,
+			Col:     1,
+		},
 	}
 }
 
@@ -111,6 +128,8 @@ func (l *Lexer) Token() Token {
 }
 
 func (l *Lexer) Next() {
+	l.prevPos = l.curPos
+
 	l.skipWhiteSpace()
 
 	if l.isEOF {
@@ -147,7 +166,26 @@ func (l *Lexer) Next() {
 }
 
 func (l *Lexer) skipWhiteSpace() {
-	for !l.isEOF && !l.isError && unicode.IsSpace(l.nextRune) {
+	for !l.isEOF && !l.isError {
+		if unicode.IsSpace(l.nextRune) {
+			l.getNextRune()
+		} else if l.nextRune == '/' {
+			l.skipComment()
+		} else {
+			break
+		}
+	}
+}
+
+func (l *Lexer) skipComment() {
+	l.getNextRune()
+	if l.isEOF || l.isError || l.nextRune != '/' {
+		l.token = tError
+		l.errMsg = "expected start of comment"
+		return
+	}
+
+	for !l.isEOF && !l.isError && l.nextRune != '\r' && l.nextRune != '\n' {
 		l.getNextRune()
 	}
 }
@@ -164,7 +202,24 @@ func (l *Lexer) getNextRune() {
 		return
 	}
 	l.nextRune = nextRune
-	l.pos += uint(size)
+	l.curPos.ByteOfs += uint(size)
+	l.curPos.Col++
+
+	const cCR = '\r'
+	const cLF = '\n'
+	if l.nextRune == cCR {
+		l.curPos.Line++
+		l.curPos.Col = 1
+		l.prevWasCR = true
+	} else if l.nextRune == cLF {
+		if !l.prevWasCR {
+			l.curPos.Line++
+			l.curPos.Col = 1
+		}
+		l.prevWasCR = false
+	} else {
+		l.prevWasCR = false
+	}
 }
 
 func (l *Lexer) lexIdent() Token {
@@ -194,4 +249,8 @@ func (l *Lexer) lexIdent() Token {
 
 func (l *Lexer) Ident() string {
 	return l.ident
+}
+
+func (l *Lexer) TokenStartPos() Pos {
+	return l.prevPos
 }

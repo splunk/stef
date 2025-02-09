@@ -1,19 +1,31 @@
 package idl
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 type Parser struct {
-	lexer  *Lexer
-	schema *schema.Schema
+	lexer    *Lexer
+	schema   *schema.Schema
+	fileName string
 }
 
-func NewParser(l *Lexer) *Parser {
-	p := &Parser{}
+type Error struct {
+	Msg      string
+	Filename string
+	Pos      Pos
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("%s:%d:%d: %s", e.Filename, e.Pos.Line, e.Pos.Col, e.Msg)
+}
+
+var _ error = (*Error)(nil)
+
+func NewParser(l *Lexer, fileName string) *Parser {
+	p := &Parser{fileName: fileName}
 	p.lexer = l
 	p.schema = &schema.Schema{}
 	l.Start()
@@ -136,7 +148,11 @@ func (p *Parser) multimap() error {
 }
 
 func (p *Parser) error(msg string) error {
-	return errors.New(msg)
+	return &Error{
+		Msg:      msg,
+		Filename: p.fileName,
+		Pos:      p.lexer.TokenStartPos(),
+	}
 }
 
 func (p *Parser) structModifiers(str *schema.Struct) error {
@@ -185,7 +201,7 @@ func (p *Parser) dictModifier() (string, error) {
 
 func (p *Parser) eat(token Token) error {
 	if p.lexer.Token() != token {
-		return fmt.Errorf("expected %s but got %s", token, p.lexer.Token())
+		return p.error(fmt.Sprintf("expected %s but got %s", token, p.lexer.Token()))
 	}
 	p.lexer.Next()
 	return nil

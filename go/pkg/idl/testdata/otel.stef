@@ -1,3 +1,8 @@
+// This is Otel/STEF schema: a representation of OpenTelemetry data model
+// as STEF records. Data model is virtually a direct mapping from OpenTelemetry
+// Protobuf IDL for metrics and traces, see: https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto
+// TODO: add Logs and Profiles.
+
 package oteltef
 
 multimap Attributes {
@@ -16,11 +21,13 @@ multimap KeyValueList {
 }
 
 struct Resource dict(Resource) {
+  // All SchemaURL fields use the same (shared) dict.
   SchemaURL string dict(SchemaURL)
   Attributes Attributes
   DroppedAttributesCount uint64
 }
 
+// Point represents a metric data point.
 struct Point {
   StartTimestamp uint64
   Timestamp uint64
@@ -49,6 +56,7 @@ oneof PointValue {
   Int64 int64
   Float64 float64
   Histogram HistogramValue
+  // TODO: Add Summary and Exponential Histogram value support.
 }
 
 struct Metric dict(Metric) {
@@ -141,4 +149,3 @@ oneof ExemplarValue {
   Int64 int64
   Float64 float64
 }
-
