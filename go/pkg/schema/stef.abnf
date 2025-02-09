@@ -1,10 +1,10 @@
 ; Validated by https://author-tools.ietf.org/abnf
 
-schema = struct oneof multimap
+schema = MAYBELWSP 1*(struct / oneof / multimap) MAYBELWSP
 
 ; struct rules
 
-struct = "struct" struct-name *struct-modifier "{" struct-body "}"
+struct = "struct" WSP struct-name ; WSP *struct-modifier LWSP "{" LWSP struct-body LWSP "}"
 
 struct-name = identifier
 
@@ -12,11 +12,11 @@ identifier = ALPHA *(ALPHA / DIGIT)
 
 struct-modifier = dict-modifier / "main"
 
-dict-modifier = "(" identifier ")"
+dict-modifier = "dict(" identifier ")"
 
-struct-body = 1*struct-field
+struct-body = 1*(struct-field LWSP)
 
-struct-field = identifier field-type [struct-field-modifier]
+struct-field = identifier WSP field-type [WSP struct-field-modifier]
 
 struct-field-modifier = dict-modifier / optional-modifier
 
@@ -24,27 +24,27 @@ optional-modifier = "optional"
 
 ; oneof rules
 
-oneof = "oneof" oneof-name "{" oneof-body "}"
+oneof = "oneof" WSP oneof-name WSP "{" LWSP oneof-body LWSP "}"
 
 oneof-name = identifier
 
-oneof-body = 1*oneof-field
+oneof-body = 1*(oneof-field LWSP)
 
-oneof-field = identifier field-type [oneof-field-modifier]
+oneof-field = identifier WSP field-type [WSP oneof-field-modifier]
 
 oneof-field-modifier = dict-modifier
 
 ; multimap rules
 
-multimap = "multimap" multimap-name "{" multimap-body "}"
+multimap = "multimap" WSP multimap-name WSP "{" LWSP multimap-body LWSP "}"
 
 multimap-name = identifier
 
-multimap-body = multimap-key multimap-value
+multimap-body = multimap-key LWSP multimap-value
 
-multimap-key = "Key" field-type [multimap-field-modifier]
+multimap-key = "Key" WSP field-type [WSP multimap-field-modifier]
 
-multimap-value = "Value" field-type [multimap-field-modifier]
+multimap-value = "Value" WSP field-type [WSP multimap-field-modifier]
 
 multimap-field-modifier = dict-modifier
 
@@ -58,8 +58,4 @@ builtin-type = "bool" / "int64" / "float64" / "string" / "bytes"
 
 userdefined-type = identifier
 
-; core rules
-
-ALPHA =  %x41-5A / %x61-7A   ; A-Z / a-z
-
-DIGIT =  %x30-39    ; 0-9
+MAYBELWSP = *(CR / LF / SP / HTAB)
