@@ -20,12 +20,12 @@ func TestParser(t *testing.T) {
 	err = parser.Parse()
 	require.NoError(t, err)
 
-	jsonBytes, err := os.ReadFile("testdata/otel.wire.json")
+	jsonBytes, err := os.ReadFile("testdata/oteltef.wire.json")
 	require.NoError(t, err)
 
 	var schem schema.Schema
 	err = json.Unmarshal(jsonBytes, &schem)
 	require.NoError(t, err)
 
-	require.EqualValues(t, schem, parser.Schema())
+	require.EqualValues(t, &schem, parser.Schema())
 }

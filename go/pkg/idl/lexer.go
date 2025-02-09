@@ -3,6 +3,7 @@ package idl
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"unicode"
 )
@@ -13,6 +14,7 @@ type Lexer struct {
 	nextRune   rune
 	isEOF      bool
 	isError    bool
+	errMsg     string
 	pos        uint
 	identRunes []rune
 	ident      string
@@ -24,6 +26,7 @@ const (
 	tError Token = iota
 	tEOF
 
+	tPackage
 	tIdent
 
 	tStruct
@@ -38,6 +41,7 @@ const (
 
 	tBool
 	tInt64
+	tUint64
 	tFloat64
 	tString
 	tBytes
@@ -66,6 +70,7 @@ func (t Token) String() string {
 }
 
 var keywords = map[string]Token{
+	"package":  tPackage,
 	"struct":   tStruct,
 	"oneof":    tOneof,
 	"multimap": tMultimap,
@@ -76,6 +81,7 @@ var keywords = map[string]Token{
 	"value":    tValue,
 	"bool":     tBool,
 	"int64":    tInt64,
+	"uint64":   tUint64,
 	"float64":  tFloat64,
 	"string":   tString,
 	"bytes":    tBytes,
@@ -105,14 +111,14 @@ func (l *Lexer) Token() Token {
 }
 
 func (l *Lexer) Next() {
+	l.skipWhiteSpace()
+
 	if l.isEOF {
 		l.token = tEOF
 		return
-	}
-
-	l.skipWhiteSpace()
-	if l.isError {
+	} else if l.isError {
 		l.token = tError
+		l.isError = false
 		return
 	}
 
@@ -129,13 +135,13 @@ func (l *Lexer) Next() {
 		l.token = tRBrace
 	case tLBrace:
 		l.token = tLBrace
-
 	default:
 		if unicode.IsLetter(l.nextRune) {
 			l.lexIdent()
 			return
 		}
 		l.token = tError
+		l.errMsg = fmt.Sprintf("invalid character: %c", l.nextRune)
 	}
 	l.getNextRune()
 }
@@ -149,9 +155,11 @@ func (l *Lexer) skipWhiteSpace() {
 func (l *Lexer) getNextRune() {
 	nextRune, size, err := l.input.ReadRune()
 	if err != nil {
-		l.isError = true
 		if errors.Is(err, io.EOF) {
 			l.isEOF = true
+		} else {
+			l.isError = true
+			l.errMsg = fmt.Sprintf("invalid character")
 		}
 		return
 	}

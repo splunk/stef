@@ -14,12 +14,12 @@ func TestLexer(t *testing.T) {
 	tokens := []Token{tStruct, tIdent, tLBrace, tRBrace, tEOF}
 	i := 0
 	for {
-		l.Next()
 		token := l.Token()
 		assert.Equal(t, tokens[i], token, i)
 		i++
 		if token == tEOF {
 			break
 		}
+		l.Next()
 	}
 }

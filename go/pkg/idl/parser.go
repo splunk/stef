@@ -30,6 +30,10 @@ func (p *Parser) Parse() error {
 		Multimaps: map[string]*schema.Multimap{},
 	}
 
+	if err := p.packag(); err != nil {
+		return err
+	}
+
 	for {
 		var err error
 		switch p.lexer.Token() {
@@ -49,7 +53,7 @@ func (p *Parser) Parse() error {
 			break
 		}
 	}
-	return nil
+	return p.resolveFieldTypes()
 }
 
 func (p *Parser) struc() (*schema.Struct, error) {
@@ -151,9 +155,11 @@ func (p *Parser) structModifiers(str *schema.Struct) error {
 func (p *Parser) structModifier(str *schema.Struct) (error, bool) {
 	switch p.lexer.Token() {
 	case tDict:
-		if dictName, err := p.dictModifier(); err != nil {
-			str.DictName = dictName
+		dictName, err := p.dictModifier()
+		if err != nil {
+			return err, false
 		}
+		str.DictName = dictName
 	case tRoot:
 		str.IsRoot = true
 		p.lexer.Next()
@@ -200,12 +206,13 @@ func (p *Parser) structFields(str *schema.Struct) error {
 
 func (p *Parser) structField(str *schema.Struct) (error, bool) {
 	if p.lexer.Token() != tIdent {
-		return p.error("field name expected"), false
+		return nil, false
 	}
-	p.lexer.Next()
 
 	str.Fields = append(str.Fields, schema.StructField{Name: p.lexer.Ident()})
 	field := &str.Fields[len(str.Fields)-1]
+
+	p.lexer.Next()
 
 	if err := p.fieldType(&field.FieldType); err != nil {
 		return err, false
@@ -240,6 +247,10 @@ func (p *Parser) fieldType(field *schema.FieldType) error {
 
 	case tInt64:
 		v := schema.PrimitiveTypeInt64
+		ft.Primitive = &v
+
+	case tUint64:
+		v := schema.PrimitiveTypeUint64
 		ft.Primitive = &v
 
 	case tFloat64:
@@ -287,12 +298,15 @@ func (p *Parser) structFieldModifiers(field *schema.StructField) error {
 func (p *Parser) structFieldModifier(field *schema.StructField) (error, bool) {
 	switch p.lexer.Token() {
 	case tDict:
-		if dictName, err := p.dictModifier(); err != nil {
-			field.DictName = dictName
+		dictName, err := p.dictModifier()
+		if err != nil {
+			return err, false
 		}
+		field.DictName = dictName
 		return nil, true
 	case tOptional:
 		field.Optional = true
+		p.lexer.Next()
 		return nil, true
 	}
 	return nil, false
@@ -311,5 +325,48 @@ func (p *Parser) multimapField(field *schema.MultimapField) error {
 		field.Type.DictName = dictName
 	}
 
+	return nil
+}
+
+func (p *Parser) resolveFieldTypes() error {
+	for _, v := range p.schema.Structs {
+		for i := range v.Fields {
+			field := &v.Fields[i]
+			if err := p.resolveFieldType(&field.FieldType); err != nil {
+				return err
+			}
+		}
+	}
+	for _, v := range p.schema.Multimaps {
+		if err := p.resolveFieldType(&v.Key.Type); err != nil {
+			return err
+		}
+		if err := p.resolveFieldType(&v.Value.Type); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Parser) resolveFieldType(fieldType *schema.FieldType) error {
+	if fieldType.Struct != "" {
+		_, ok := p.schema.Multimaps[fieldType.Struct]
+		if ok {
+			fieldType.MultiMap = fieldType.Struct
+			fieldType.Struct = ""
+		}
+	}
+	return nil
+}
+
+func (p *Parser) packag() error {
+	if p.lexer.Token() == tPackage {
+		p.lexer.Next()
+		if p.lexer.Token() != tIdent {
+			return p.error("package name expected")
+		}
+		p.schema.PackageName = p.lexer.Ident()
+		p.lexer.Next()
+	}
 	return nil
 }

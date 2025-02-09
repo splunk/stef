@@ -1,3 +1,5 @@
+package oteltef
+
 multimap Attributes {
   key string dict(AttributeKey)
   value AnyValue
@@ -60,7 +62,7 @@ struct Metric dict(Metric) {
   Monotonic bool
 }
 
-struct Metrics main {
+struct Metrics root {
   Envelope Envelope
   Metric Metric
   Resource Resource
@@ -116,7 +118,7 @@ struct SpanStatus {
   Code uint64
 }
 
-struct Spans {
+struct Spans root {
   Envelope Envelope
   Resource Resource
   Scope Scope
