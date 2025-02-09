@@ -9,7 +9,6 @@ type Schema struct {
 	PackageName string               `json:"package,omitempty"`
 	Structs     map[string]*Struct   `json:"structs"`
 	Multimaps   map[string]*Multimap `json:"multimaps"`
-	MainStruct  string               `json:"main"`
 }
 
 type Compatibility int
@@ -23,14 +22,6 @@ const (
 // Compatible checks backward compatibility of this schema with oldSchema.
 // If the schemas are incompatible returns CompatibilityIncompatible and an error.
 func (d *Schema) Compatible(oldSchema *Schema) (Compatibility, error) {
-	if d.MainStruct != oldSchema.MainStruct {
-		return CompatibilityIncompatible,
-			fmt.Errorf(
-				"mismatched main structure names (old=%s, new=%s)",
-				oldSchema.MainStruct, d.MainStruct,
-			)
-	}
-
 	// Exact compatibility is only possible if the number of structs is exactly the same.
 	exact := len(d.Structs) == len(oldSchema.Structs)
 
@@ -184,9 +175,8 @@ func isCompatibleFieldType(
 // are excluded.
 func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
 	out := Schema{
-		Structs:    map[string]*Struct{},
-		Multimaps:  map[string]*Multimap{},
-		MainStruct: rootStructName,
+		Structs:   map[string]*Struct{},
+		Multimaps: map[string]*Multimap{},
 	}
 	if err := d.copyPrunedStruct(rootStructName, &out); err != nil {
 		return nil, err
