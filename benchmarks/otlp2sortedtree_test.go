@@ -16,7 +16,7 @@ import (
 /*
 func TestTreeConverter(t *testing.T) {
 	source := generators.File{
-		FilePath: "testdata/hipstershop.pb.zst",
+		FilePath: "testdata/hipstershop-otelmetrics.zst",
 	}
 	otlpData := source.Generate()
 
@@ -106,7 +106,7 @@ func mapContains[K any](searchFor, inTree *b.Tree[K, bool]) bool {
 }
 
 func TestConvertFromOTLP(t *testing.T) {
-	otlpData, err := testutils.ReadOTLPFile("testdata/oteldemo-with-histogram.otlp.zst", true)
+	otlpData, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst", false)
 	require.NoError(t, err)
 
 	converter := otlpconvert.NewOtlpToSortedTree()

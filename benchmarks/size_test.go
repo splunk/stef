@@ -27,7 +27,7 @@ import (
 func TestTracesMultipart(t *testing.T) {
 	u := ptrace.ProtoUnmarshaler{}
 
-	fileNames := []string{"testdata/astronomy-traces.pb.zst", "testdata/hipstershop_traces.pb.zst"}
+	fileNames := []string{"testdata/astronomy-oteltraces.zst", "testdata/hipstershop-oteltraces.zst"}
 
 	for _, fileName := range fileNames {
 		fmt.Println("======= " + fileName)
@@ -109,62 +109,32 @@ func TestMetricsSize(t *testing.T) {
 	}{
 		{
 			generator: &generators.File{
-				FilePath:      "testdata/oteldemo-with-histogram.otlp.zst",
+				FilePath:      "testdata/astronomy-otelmetrics.zst",
 				MultipartFile: true,
 			},
 		},
 		{
 			generator: &generators.File{
-				FilePath:      "testdata/astronomyshop.pb.zst",
-				MultipartFile: true,
+				FilePath: "testdata/hipstershop-otelmetrics.zst",
 			},
 		},
 		{
 			generator: &generators.File{
-				FilePath: "testdata/hipstershop.pb.zst",
-			},
-		},
-		{
-			generator: &generators.File{
-				FilePath:  "testdata/hipstershop.pb.zst",
+				FilePath:  "testdata/hipstershop-otelmetrics.zst",
 				BatchSize: 1,
 			},
 		},
 		{
 			generator: &generators.File{
-				FilePath:      "testdata/hostandcollectormetrics.pb.zst",
+				FilePath:      "testdata/hostandcollector-otelmetrics.zst",
 				MultipartFile: true,
 			},
 		},
 		{
 			generator: &generators.File{
-				FilePath:      "testdata/hostandcollectormetrics.pb.zst",
+				FilePath:      "testdata/hostandcollector-otelmetrics.zst",
 				MultipartFile: true,
 				BatchSize:     1,
-			},
-		},
-		{
-			generator: &generators.Random{
-				Name:                    "Int64/1DP/1000TS",
-				TimeseriesCount:         1000,
-				DatapointsPerTimeseries: 1,
-				IncludeInt64:            true,
-			},
-		},
-		{
-			generator: &generators.Random{
-				Name:                    "Int64/10DP/100TS",
-				TimeseriesCount:         100,
-				DatapointsPerTimeseries: 10,
-				IncludeInt64:            true,
-			},
-		},
-		{
-			generator: &generators.Random{
-				Name:                    "Int64/100DP/10TS",
-				TimeseriesCount:         10,
-				DatapointsPerTimeseries: 100,
-				IncludeInt64:            true,
 			},
 		},
 	}
@@ -186,7 +156,7 @@ func TestMetricsSize(t *testing.T) {
 		}
 
 		for _, encoding := range testEncodings {
-			if (dataVariation.generator.GetName() == "astronomyshop.pb.zst") &&
+			if (dataVariation.generator.GetName() == "astronomy-otelmetrics.zst") &&
 				encoding.Name() == "Otel ARROW" {
 				// Skip due to bug in Arrow encoding
 				continue
@@ -205,11 +175,15 @@ func TestMetricsSize(t *testing.T) {
 			}
 
 			if enc, ok := encoding.(*stef.STEFEncoding); ok {
-				// Write STEF file if it does not exist
-				fname := "testdata/" + replaceExt(dataVariation.generator.GetName(), "."+strings.ToLower(enc.Name()))
-				_, err = os.Stat(fname)
-				if err != nil {
-					os.WriteFile(fname, bodyBytes, 0644)
+				if enc.Opts.Compression == pkg.CompressionZstd {
+					// Write STEF file if it does not exist
+					fname := "testdata/" + replaceExt(
+						dataVariation.generator.GetName(), "."+strings.ToLower(enc.Name()),
+					)
+					_, err = os.Stat(fname)
+					if err != nil {
+						os.WriteFile(fname, bodyBytes, 0644)
+					}
 				}
 			}
 
@@ -269,22 +243,16 @@ func TestMetricsMultipart(t *testing.T) {
 		name string
 	}{
 		{
-			name: "oteldemo-with-histogram.otlp",
+			name: "hostandcollector-otelmetrics",
 		},
 		{
-			name: "hostandcollectormetrics.pb",
-		},
-		{
-			name: "astronomyshop.pb",
+			name: "astronomy-otelmetrics",
 		},
 	}
 
 	testMultipartEncodings := []encodings.MetricMultipartEncoding{
 		&otlp.OTLPEncoding{},
 		&stef.STEFEncoding{},
-		//&stef.STEFUEncoding{},
-		//&otelarrow.OtelArrowEncoding{},
-		//&stef.STEFSEncoding{},
 	}
 
 	compressions := []string{"none", "zstd"}
@@ -340,8 +308,8 @@ func TestMetricsMultipart(t *testing.T) {
 	}
 }
 
-func TestTEFVeryShortFrames(t *testing.T) {
-	input, err := testutils.ReadOTLPFile("testdata/oteldemo-with-histogram.otlp.zst", true)
+func TestSTEFVeryShortFrames(t *testing.T) {
+	input, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst", false)
 	require.NoError(t, err)
 
 	compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}
@@ -375,14 +343,14 @@ func TestTEFVeryShortFrames(t *testing.T) {
 				require.NoError(t, err)
 			}
 		}
-		fmt.Printf("Compression:        %v\n", tefCompression2str(compression))
+		fmt.Printf("Compression:        %v\n", stefCompression2str(compression))
 		fmt.Printf("Long frames total:  %7d bytes\n", len(tefBytes))
 		fmt.Printf("Short frames total: %7d bytes\n", len(shortFrameBuf.Bytes()))
 		fmt.Printf("Increase ratio:     %.2fx\n", float64(len(shortFrameBuf.Bytes()))/float64(len(tefBytes)))
 	}
 }
 
-func tefCompression2str(compression pkg.Compression) any {
+func stefCompression2str(compression pkg.Compression) any {
 	switch compression {
 	case pkg.CompressionNone:
 		return "none"
