@@ -46,3 +46,7 @@ bench-stat-diff: bench-stat-cli
 .PHONY: bench-stat
 bench-stat: bench-stat-cli
 	benchstat bench-$(REF_NAME).txt
+
+.PHONY: update-charts
+update-charts:
+	go test -run TestMetricsSize\|TestMetricsMultipart -bench alizeNative

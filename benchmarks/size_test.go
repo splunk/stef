@@ -9,11 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/splunk/stef/benchmarks/encodings"
-	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
@@ -170,11 +171,20 @@ func TestMetricsSize(t *testing.T) {
 
 	fmt.Println("===== Encoded sizes")
 
+	chart.BeginSection("Size Benchmarks - One Large Batch")
+
 	for _, dataVariation := range dataVariations {
 		fmt.Printf("%-36s", dataVariation.generator.GetName())
 		fmt.Println("    Uncompressed           Zstd Compressed")
 		fmt.Printf("%-36s", "")
 		fmt.Println(" Bytes Ratio By/pt        Bytes Ratio By/pt")
+
+		wantChart := strings.HasSuffix(dataVariation.generator.GetName(), ".zst")
+
+		if wantChart {
+			chart.BeginChart("Dataset: "+dataVariation.generator.GetName(), t)
+		}
+
 		for _, encoding := range testEncodings {
 			if (dataVariation.generator.GetName() == "astronomyshop.pb.zst") &&
 				encoding.Name() == "Otel ARROW" {
@@ -237,7 +247,19 @@ func TestMetricsSize(t *testing.T) {
 				zstdedRatioStr,
 				float64(zstdedSize)/float64(pointCount),
 			)
+
+			if wantChart {
+				chart.Record(nil, encoding.LongName(), float64(zstdedSize))
+			}
 		}
+
+		if wantChart {
+			chart.EndChart(
+				"Bytes", "Compressed size in bytes (zstd)",
+				charts.WithColorsOpts(opts.Colors{"#92C5F9"}),
+			)
+		}
+
 		fmt.Println("")
 	}
 }
@@ -261,14 +283,18 @@ func TestMetricsMultipart(t *testing.T) {
 		&otlp.OTLPEncoding{},
 		&stef.STEFEncoding{},
 		//&stef.STEFUEncoding{},
-		&otelarrow.OtelArrowEncoding{},
+		//&otelarrow.OtelArrowEncoding{},
 		//&stef.STEFSEncoding{},
 	}
 
 	compressions := []string{"none", "zstd"}
 
+	chart.BeginSection("Size Benchmarks - Many Batches, Multipart")
+
 	for _, compression := range compressions {
 		for _, dataset := range datasets {
+			chart.BeginChart("Dataset: "+dataset.name, t)
+
 			fmt.Printf("%-30s %4v %9v %4v\n", dataset.name, "Comp", "Bytes", "Ratio")
 
 			firstSize := 0
@@ -302,7 +328,14 @@ func TestMetricsMultipart(t *testing.T) {
 				if firstSize == 0 {
 					firstSize = curSize
 				}
+
+				chart.Record(nil, encoding.LongName(), float64(curSize))
 			}
+
+			chart.EndChart(
+				"Bytes", "Size in bytes, compression="+compression,
+				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
+			)
 		}
 	}
 }
