@@ -13,7 +13,7 @@ import (
 )
 
 type OtlpToSortedTree struct {
-	internal.BaseOTLPToTEF
+	internal.BaseOTLPToSTEF
 	recordCount         int
 	emptyDataPointCount int
 	//encoder             anyvalue.Encoder

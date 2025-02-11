@@ -12,12 +12,12 @@ import (
 
 type PdataToSTEFTraces struct {
 	tempAttrs oteltef.Attributes
-	otlp2tef  otlptools.Otlp2Tef
+	otlp2stef otlptools.Otlp2Stef
 	Sorted    bool
 }
 
 func (d *PdataToSTEFTraces) WriteTraces(src ptrace.Traces, writer *oteltef.SpansWriter) error {
-	otlp2tef := &d.otlp2tef
+	otlp2stef := &d.otlp2stef
 
 	if d.Sorted {
 		src.ResourceSpans().Sort(
@@ -44,7 +44,7 @@ func (d *PdataToSTEFTraces) WriteTraces(src ptrace.Traces, writer *oteltef.Spans
 
 	for i := 0; i < src.ResourceSpans().Len(); i++ {
 		rmm := src.ResourceSpans().At(i)
-		otlp2tef.ResourceUnsorted(writer.Record.Resource(), rmm.Resource(), rmm.SchemaUrl())
+		otlp2stef.ResourceUnsorted(writer.Record.Resource(), rmm.Resource(), rmm.SchemaUrl())
 
 		if d.Sorted {
 			rmm.ScopeSpans().Sort(
@@ -71,7 +71,7 @@ func (d *PdataToSTEFTraces) WriteTraces(src ptrace.Traces, writer *oteltef.Spans
 
 		for j := 0; j < rmm.ScopeSpans().Len(); j++ {
 			smm := rmm.ScopeSpans().At(j)
-			otlp2tef.ScopeUnsorted(writer.Record.Scope(), smm.Scope(), smm.SchemaUrl())
+			otlp2stef.ScopeUnsorted(writer.Record.Scope(), smm.Scope(), smm.SchemaUrl())
 
 			if d.Sorted {
 				sortSpans(smm.Spans())
@@ -79,7 +79,7 @@ func (d *PdataToSTEFTraces) WriteTraces(src ptrace.Traces, writer *oteltef.Spans
 
 			for k := 0; k < smm.Spans().Len(); k++ {
 				m := smm.Spans().At(k)
-				span2span(m, writer.Record.Span(), otlp2tef)
+				span2span(m, writer.Record.Span(), otlp2stef)
 				if err := writer.Write(); err != nil {
 					return err
 				}
@@ -117,7 +117,7 @@ func sortSpans(spans ptrace.SpanSlice) {
 	)
 }
 
-func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Tef) {
+func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef) {
 	dst.SetTraceID(pkg.Bytes(src.TraceID().String()))
 	dst.SetSpanID(pkg.Bytes(src.SpanID().String()))
 	dst.SetParentSpanID(pkg.Bytes(src.ParentSpanID().String()))
@@ -144,7 +144,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Tef)
 	}
 }
 
-func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2Tef) {
+func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2Stef) {
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 	dst.SetFlags(uint64(src.Flags()))
@@ -153,7 +153,7 @@ func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2
 	dst.SetSpanID(pkg.Bytes(src.SpanID().String()))
 }
 
-func event2event(src ptrace.SpanEvent, dst *oteltef.Event, otlp2tef *otlptools.Otlp2Tef) {
+func event2event(src ptrace.SpanEvent, dst *oteltef.Event, otlp2tef *otlptools.Otlp2Stef) {
 	dst.SetName(src.Name())
 	dst.SetTimeUnixNano(uint64(src.Timestamp()))
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())

@@ -169,7 +169,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 
 	case schema.CompatibilitySuperset:
 		// ServerStream schema is superset of client schema. The client MUST specify its schema
-		// in the TEF header.
+		// in the STEF header.
 		opts.IncludeDescriptor = true
 		opts.Schema = c.clientSchema
 

@@ -30,11 +30,11 @@ type mockMetricDestServer struct {
 }
 
 func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
-	log.Printf("Incoming TEF/gRPC connection.\n")
+	log.Printf("Incoming STEF/gRPC connection.\n")
 
 	reader, err := oteltef.NewMetricsReader(grpcReader)
 	if err != nil {
-		log.Printf("Cannot decode data on incoming TEF/gRPC connection: %v.\n", err)
+		log.Printf("Cannot decode data on incoming STEF/gRPC connection: %v.\n", err)
 		return err
 	}
 
@@ -43,7 +43,7 @@ func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) err
 	for {
 		_, err := reader.Read()
 		if err != nil {
-			log.Printf("Cannot read from TEF/gRPC connection: %v.\n", err)
+			log.Printf("Cannot read from STEF/gRPC connection: %v.\n", err)
 			return err
 		}
 

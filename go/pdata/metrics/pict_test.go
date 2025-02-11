@@ -44,7 +44,7 @@ func TestConvertFromToOTLP(t *testing.T) {
 		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 		require.NoError(t, err)
 
-		toOtlp := NewTefToSortedTree()
+		toOtlp := NewSTEFToSortedTree()
 		sortedByResource, err := toOtlp.FromTef(reader)
 		require.NoError(t, err)
 

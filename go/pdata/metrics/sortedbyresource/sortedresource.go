@@ -13,7 +13,7 @@ import (
 )
 
 type SortedTree struct {
-	internal.BaseTEFToOTLP
+	internal.BaseSTEFToOTLP
 	byResource *b.Tree[*oteltef.Resource, *ByResource]
 }
 

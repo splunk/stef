@@ -230,7 +230,7 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 	b.ReportAllocs()
 }
 
-/* Need to rewrite this to use TEF.ReadMany() API when it becomes available.
+/* Need to rewrite this to use STEF.ReadMany() API when it becomes available.
 func BenchmarkReaderReadMany(b *testing.B) {
 	generator := &generators.File{
 		FilePath: "testdata/hipstershop-otelmetrics.zst",

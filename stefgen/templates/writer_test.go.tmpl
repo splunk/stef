@@ -10,9 +10,9 @@ import (
 
 func Test{{.StructName}}WriterWrite(t* testing.T) {
 	cw := &pkg.MemChunkWriter{}
-	tef, err := New{{.StructName}}Writer(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
+	stef, err := New{{.StructName}}Writer(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
 	require.NoError(t, err)
 
-	err = tef.Write()
+	err = stef.Write()
 	require.NoError(t, err)
 }

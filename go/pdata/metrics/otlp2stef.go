@@ -10,8 +10,8 @@ import (
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 )
 
-type OtlpToTEFUnsorted struct {
-	internal.BaseOTLPToTEF
+type OtlpToSTEFUnsorted struct {
+	internal.BaseOTLPToSTEF
 }
 
 func convertTemporality(temporality pmetric.AggregationTemporality) oteltef.MetricFlags {
@@ -44,27 +44,27 @@ func metricType(typ pmetric.MetricType) oteltef.MetricType {
 func metric2metric(
 	src pmetric.Metric, // histogramBounds []float64,
 	dst *oteltef.Metric,
-	otlp2tef *otlptools.Otlp2Tef,
+	otlp2stef *otlptools.Otlp2Stef,
 ) {
-	otlp2tef.MapUnsorted(src.Metadata(), dst.Metadata())
+	otlp2stef.MapUnsorted(src.Metadata(), dst.Metadata())
 	dst.SetName(src.Name())
 	dst.SetDescription(src.Description())
 	dst.SetUnit(src.Unit())
 	dst.SetType(uint64(metricType(src.Type())))
 }
 
-func (d *OtlpToTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
-	otlp2tef := &otlptools.Otlp2Tef{}
+func (d *OtlpToSTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
+	otlp2stef := &otlptools.Otlp2Stef{}
 	for i := 0; i < src.ResourceMetrics().Len(); i++ {
 		rmm := src.ResourceMetrics().At(i)
-		otlp2tef.ResourceUnsorted(writer.Record.Resource(), rmm.Resource(), rmm.SchemaUrl())
+		otlp2stef.ResourceUnsorted(writer.Record.Resource(), rmm.Resource(), rmm.SchemaUrl())
 
 		for j := 0; j < rmm.ScopeMetrics().Len(); j++ {
 			smm := rmm.ScopeMetrics().At(j)
-			otlp2tef.ScopeUnsorted(writer.Record.Scope(), smm.Scope(), smm.SchemaUrl())
+			otlp2stef.ScopeUnsorted(writer.Record.Scope(), smm.Scope(), smm.SchemaUrl())
 			for k := 0; k < smm.Metrics().Len(); k++ {
 				m := smm.Metrics().At(k)
-				metric2metric(m, writer.Record.Metric(), otlp2tef)
+				metric2metric(m, writer.Record.Metric(), otlp2stef)
 				var err error
 				switch m.Type() {
 				case pmetric.MetricTypeGauge:
@@ -88,7 +88,7 @@ func (d *OtlpToTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.Me
 	return nil
 }
 
-func (d *OtlpToTEFUnsorted) writeNumeric(writer *oteltef.MetricsWriter, src pmetric.NumberDataPointSlice) error {
+func (d *OtlpToSTEFUnsorted) writeNumeric(writer *oteltef.MetricsWriter, src pmetric.NumberDataPointSlice) error {
 	for i := 0; i < src.Len(); i++ {
 		srcPoint := src.At(i)
 		dstPoint := writer.Record.Point()
@@ -105,7 +105,7 @@ func (d *OtlpToTEFUnsorted) writeNumeric(writer *oteltef.MetricsWriter, src pmet
 	return nil
 }
 
-func (d *OtlpToTEFUnsorted) writeHistogram(writer *oteltef.MetricsWriter, src pmetric.HistogramDataPointSlice) error {
+func (d *OtlpToSTEFUnsorted) writeHistogram(writer *oteltef.MetricsWriter, src pmetric.HistogramDataPointSlice) error {
 	for i := 0; i < src.Len(); i++ {
 		src := src.At(i)
 		dst := writer.Record.Point()

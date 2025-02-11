@@ -8,14 +8,14 @@ import (
 	"github.com/splunk/stef/go/pdata/metrics/sortedbyresource"
 )
 
-type TefToSortedTree struct {
+type STEFToSortedTree struct {
 }
 
-func NewTefToSortedTree() *TefToSortedTree {
-	return &TefToSortedTree{}
+func NewSTEFToSortedTree() *STEFToSortedTree {
+	return &STEFToSortedTree{}
 }
 
-func (c *TefToSortedTree) FromTef(reader *oteltef.MetricsReader) (*sortedbyresource.SortedTree, error) {
+func (c *STEFToSortedTree) FromTef(reader *oteltef.MetricsReader) (*sortedbyresource.SortedTree, error) {
 	sm := sortedbyresource.NewSortedByResource()
 
 	i := 0

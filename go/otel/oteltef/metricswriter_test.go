@@ -11,9 +11,9 @@ import (
 
 func TestMetricsWriterWrite(t *testing.T) {
 	cw := &pkg.MemChunkWriter{}
-	tef, err := NewMetricsWriter(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
+	stef, err := NewMetricsWriter(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
 	require.NoError(t, err)
 
-	err = tef.Write()
+	err = stef.Write()
 	require.NoError(t, err)
 }

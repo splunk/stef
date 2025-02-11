@@ -19,7 +19,7 @@ import (
 var InputPath = ""
 
 func main() {
-	flag.StringVar(&InputPath, "input", InputPath, "Input TEF `file` path. Required.")
+	flag.StringVar(&InputPath, "input", InputPath, "Input STEF `file` path. Required.")
 	flag.StringVar(&cmd.CpuProfileFileName, "cpuprofile", "", "Write cpu profile to `file`.")
 	// Parse the flag
 	flag.Parse()
