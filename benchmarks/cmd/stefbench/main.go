@@ -93,8 +93,7 @@ func writeBench(inputFilePath string) {
 	outputBuf := &pkg.MemChunkWriter{}
 	writer, err := oteltef.NewMetricsWriter(
 		outputBuf, pkg.WriterOptions{
-			Compression:         reader.Header().Compression,
-			TimestampMultiplier: reader.Header().TimestampMultiplier,
+			Compression: reader.Header().Compression,
 		},
 	)
 	if err != nil {

@@ -79,8 +79,6 @@ func (f *MetricsWriter) writeFixedHeader() error {
 	flags := byte(f.opts.Compression) & pkg.HdrFlagsCompressionMethod
 
 	hdrTail = append(hdrTail, flags)
-
-	hdrTail = binary.AppendUvarint(hdrTail, f.opts.TimestampMultiplier)
 	hdrTailSize := uint64(len(hdrTail))
 
 	var hdrFull []byte
