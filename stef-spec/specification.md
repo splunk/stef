@@ -705,9 +705,6 @@ This encoding is used when the current instance of the MultiMap has exactly the 
 as the previous instance of the MultiMap. In that case the keys are not encoded at all 
 and only values that differ from the previous instance's corresponding value are encoded.
 
-The encoding can be used if the number of key-value pairs in the MultiMap is less than 
-or equal to 63.
-
 The encoder compares the values of this instance of the MultiMap with the values of 
 the previous instance, key-by-key. For all values at index i bit number i is set in a 
 value `ChangedKeys`. After all values are iterated `ChangedKeysShifted` is computed 
@@ -723,6 +720,11 @@ MultiMap {
 
 All values that are different in this instance are then written to the value child 
 column. Nothing is written to the key child column.
+
+Value-only encoding can be used if the number of key-value pairs in the MultiMap is 
+less than or equal to 62. If the MultiMap has more than 62 key-value pairs then
+[Full MultiMap Encoding](#full-multimap-encoding) is always used even if the MultiMap
+has the same keys as the previous instance.
 
 ### String Codec
 

@@ -227,7 +227,7 @@ func (e *KeyValueListEncoder) Encode(list *KeyValueList) (changed bool) {
 		return changed
 	}
 
-	if list.isSameKeys(&e.lastVal) {
+	if list.isSameKeys(&e.lastVal) && len(e.lastVal.elems) < 63 {
 		changed = e.encodeValuesOnly(list)
 	} else {
 		e.encodeFull(list)

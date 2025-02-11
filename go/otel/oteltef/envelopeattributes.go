@@ -232,7 +232,7 @@ func (e *EnvelopeAttributesEncoder) Encode(list *EnvelopeAttributes) (changed bo
 		return changed
 	}
 
-	if list.isSameKeys(&e.lastVal) {
+	if list.isSameKeys(&e.lastVal) && len(e.lastVal.elems) < 63 {
 		changed = e.encodeValuesOnly(list)
 	} else {
 		e.encodeFull(list)

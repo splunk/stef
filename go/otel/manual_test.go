@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -358,4 +359,49 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 0, readRecord.Point().Timestamp())
 	assert.EqualValues(t, oteltef.PointValueTypeNone, readRecord.Point().Value().Type())
 	assert.EqualValues(t, 0.0, readRecord.Point().Value().Float64())
+}
+
+func TestLargeMultimap(t *testing.T) {
+	buf := &countingChunkWriter{}
+	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
+	require.NoError(t, err)
+
+	attrs := w.Record.Attributes()
+
+	// Test multimap with more than 62 pairs. This is called a "large" multimap.
+	const attrCount = 100
+	attrs.EnsureLen(attrCount)
+	for i := 0; i < attrCount; i++ {
+		attrs.SetKey(i, strconv.Itoa(i))
+		attrs.At(i).Value().SetInt64(int64(i))
+	}
+	attrs1Copy := attrs.Clone()
+	err = w.Write()
+	require.NoError(t, err)
+
+	// Modify one key. This normally would result in differential encoding
+	// but since the multimap is large it will use full encoding. This is
+	// precisely the case that this test verifies.
+	attrs.At(0).Value().SetString("abc")
+	attrs2Copy := attrs.Clone()
+	err = w.Write()
+	require.NoError(t, err)
+
+	err = w.Flush()
+	require.NoError(t, err)
+
+	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+	require.NoError(t, err)
+
+	readRecord, err := reader.Read()
+	require.NoError(t, err)
+	require.NotNil(t, readRecord)
+
+	require.True(t, readRecord.Attributes().IsEqual(&attrs1Copy))
+
+	readRecord, err = reader.Read()
+	require.NoError(t, err)
+	require.NotNil(t, readRecord)
+
+	require.True(t, readRecord.Attributes().IsEqual(&attrs2Copy))
 }
