@@ -325,13 +325,13 @@ func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	if e.fieldCount <= 2 {
 		return nil // SpanID and subsequent fields are skipped.
 	}
-	if err := e.spanIDEncoder.Init(&state.Span, e.limiter, columns.AddSubColumn()); err != nil {
+	if err := e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
 	if e.fieldCount <= 3 {
 		return nil // TraceID and subsequent fields are skipped.
 	}
-	if err := e.traceIDEncoder.Init(&state.Trace, e.limiter, columns.AddSubColumn()); err != nil {
+	if err := e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
 	if e.fieldCount <= 4 {
@@ -497,14 +497,14 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 2 {
 		return nil // SpanID and subsequent fields are skipped.
 	}
-	err = d.spanIDDecoder.Init(&state.Span, columns.AddSubColumn())
+	err = d.spanIDDecoder.Init(nil, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // TraceID and subsequent fields are skipped.
 	}
-	err = d.traceIDDecoder.Init(&state.Trace, columns.AddSubColumn())
+	err = d.traceIDDecoder.Init(nil, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
