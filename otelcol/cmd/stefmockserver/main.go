@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -38,35 +39,50 @@ func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) err
 		return err
 	}
 
-	acksSent := 0
-	lackAckSent := time.Now()
+	done := make(chan struct{})
+	defer close(done)
+
+	var lastReadRecord atomic.Uint64
+	go func() {
+		t := time.NewTicker(100 * time.Millisecond)
+		var acksSent uint64
+		var lastAcked uint64
+		for {
+			select {
+			case <-t.C:
+				readRecordCount := lastReadRecord.Load()
+				if readRecordCount > lastAcked {
+					lastAcked = readRecordCount
+					err = ackFunc(lastAcked)
+					if err != nil {
+						log.Fatalf("Error acking STEF gRPC connection: %v\n", err)
+						return
+					}
+					acksSent++
+				}
+				stats := grpcReader.Stats()
+				fmt.Printf(
+					"Records: %v, Messages: %v, Bytes: %v, Bytes/point: %.2f, Acks: %v, Last ACKID: %v  \r",
+					readRecordCount,
+					stats.MessagesReceived,
+					stats.BytesReceived,
+					float64(stats.BytesReceived)/float64(readRecordCount),
+					acksSent,
+					lastAcked,
+				)
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	for {
 		_, err := reader.Read()
 		if err != nil {
 			log.Printf("Cannot read from STEF/gRPC connection: %v.\n", err)
 			return err
 		}
-
-		if time.Since(lackAckSent) > 100*time.Millisecond {
-			err := ackFunc(reader.RecordCount())
-			if err != nil {
-				return err
-			}
-			acksSent++
-			lackAckSent = time.Now()
-		}
-
-		stats := grpcReader.Stats()
-		fmt.Printf(
-			//"Sequence Id: %v, Messages: %v, Points: %v, Bytes: %v, Acks: %v\t\t\r",
-			"Records: %v, Messages: %v, Bytes: %v, Bytes/point: %.2f, Acks: %v\t\t\r",
-			reader.RecordCount(),
-			stats.MessagesReceived,
-			//reader.Stats().Datapoints,
-			stats.BytesReceived,
-			float64(stats.BytesReceived)/float64(reader.RecordCount()),
-			acksSent,
-		)
+		lastReadRecord.Store(reader.RecordCount())
 	}
 }
 
@@ -76,8 +92,10 @@ func main() {
 	flag.IntVar(&ListenPort, "port", 4320, "The server listening port")
 	flag.Parse()
 
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
 	grpcServer, listener, serverPort := newGrpcServer(ListenPort)
-	fmt.Printf("Listening for STEF/gRPC on port %d\n", serverPort)
+	log.Printf("Listening for STEF/gRPC on port %d\n", serverPort)
 
 	schema, err := oteltef.MetricsWireSchema()
 	if err != nil {
