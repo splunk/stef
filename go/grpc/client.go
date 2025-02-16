@@ -113,6 +113,8 @@ func NewClient(settings ClientSettings) *Client {
 }
 
 func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOptions, error) {
+	c.logger.Debugf(context.Background(), "Begin connecting (client=%p)", c)
+
 	opts := pkg.WriterOptions{
 		FrameRestartFlags: pkg.RestartDictionaries,
 	}
@@ -215,6 +217,8 @@ func (c *Client) Disconnect(ctx context.Context) error {
 func (c *Client) receive() {
 	defer close(c.waitCh)
 
+	c.logger.Debugf(context.Background(), "Begin receiving acks (client=%p)", c)
+
 	for {
 		resp, err := c.stream.Recv()
 		if err != nil {
@@ -222,7 +226,7 @@ func (c *Client) receive() {
 				c.callbacks.OnDisconnect(nil)
 				return
 			}
-			c.logger.Errorf(context.Background(), "Error receiving acks: %v", err)
+			c.logger.Errorf(context.Background(), "Error receiving acks: %v (client=%p)", err, c)
 			c.callbacks.OnDisconnect(err)
 			return
 		}
