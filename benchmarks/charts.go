@@ -18,6 +18,7 @@ type BarOutput struct {
 	title   string
 	file    *os.File
 	results map[string]float64
+	enabled bool
 }
 
 func (c *BarOutput) BeginChart(title string, t testing.TB) {
@@ -27,6 +28,10 @@ func (c *BarOutput) BeginChart(title string, t testing.TB) {
 }
 
 func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...charts.GlobalOpts) {
+	if !c.enabled {
+		return
+	}
+
 	var xAxis []string
 	for label := range c.results {
 		xAxis = append(xAxis, label)
@@ -93,6 +98,11 @@ func (c *BarOutput) Record(b *testing.B, encoding string, val float64) {
 }
 
 func (c *BarOutput) Begin() {
+	if os.Getenv("UPDATE_BENCH_HTML") == "" {
+		return
+	}
+	c.enabled = true
+
 	output, err := os.Create("results/benchmarks.html")
 	if err != nil {
 		panic(err)
@@ -117,6 +127,10 @@ func (c *BarOutput) Begin() {
 }
 
 func (c *BarOutput) End() {
+	if !c.enabled {
+		return
+	}
+
 	_, err := c.file.WriteString(`</body></html>`)
 	if err != nil {
 		panic(err)
@@ -129,6 +143,10 @@ func (c *BarOutput) End() {
 }
 
 func (c *BarOutput) BeginSection(s string) {
+	if !c.enabled {
+		return
+	}
+
 	_, err := c.file.WriteString(fmt.Sprintf("<div/><h2>%s</h2>\n", s))
 	if err != nil {
 		panic(err)
