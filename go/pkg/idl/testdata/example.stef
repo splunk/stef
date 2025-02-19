@@ -1,0 +1,38 @@
+// Records of events that happened with books. This is the main record struct.
+struct BookRecords root {
+    Book Book       // Which book the event is about.
+    Event BookEvent // The event that happened.
+}
+
+struct Book {
+    Title string                     // The title of the book.
+    PublishedOn Date                 // When was it published.
+    Publisher string dict(Publisher) // Publishers name, encoded with a dict.
+    Authors []Person                 // Zero or more authors of the book.
+}
+
+// BookEvent describes either a checkout or a checkin event.
+oneof BookEvent {
+    Checkout CheckoutEvent
+    Checkin CheckinEvent
+}
+
+struct CheckoutEvent {
+    Date Date     // when was it checked out
+    Person Person // who checked out the book.
+}
+
+struct CheckinEvent {
+    Date Date
+    DamageValue float64 optional // Amount of damage assessed for the book.
+}
+
+struct Person {
+    Name string
+}
+
+struct Date {
+    Year uint64
+    Month uint64
+    Day uint64
+}

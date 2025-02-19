@@ -169,8 +169,8 @@ oneof PointValue {
 }
 
 multimap Attributes {
-    Key string
-    Value string
+    key string
+    value string
 }
 ```
 
@@ -271,8 +271,8 @@ above `Measurement` example by the following tree:
 root Measurement
  |- MetricName string
  |- Attributes Attributes
- |   |- Key string
- |   |- Value string
+ |   |- key string
+ |   |- value string
  |- Timestamp uint64
  |- Value PointValue
      |- Int64 int64
@@ -313,8 +313,8 @@ oneof PointValue {
 }
 
 multimap Attributes {
-    Key string
-    Value AnyValue
+    key string
+    value AnyValue
 }
 
 oneof AnyValue {
@@ -324,8 +324,8 @@ oneof AnyValue {
 }
 
 multimap KVList {
-    Key string
-    Value AnyValue
+    key string
+    value AnyValue
 }
 ```
 
@@ -336,13 +336,13 @@ and KVList mutually refer to each other. The corresponding schema tree looks lik
 root Measurement
  |- MetricName string
  |- Attributes Attributes
- |   |- Key string
- |   |- Value AnyValue   
+ |   |- key string
+ |   |- value AnyValue   
  |       |- String string
  |       |- Array []AnyValue      <--- loop detected here, backtrack. Non-primitive leaf.
  |       |- KVList KVList
- |           |- Key string 
- |           |- Value AnyValue    <--- loop detected here, backtrack. Non-primitive leaf.
+ |           |- key string 
+ |           |- value AnyValue    <--- loop detected here, backtrack. Non-primitive leaf.
  |- Timestamp uint64
  |- Value PointValue
      |- Int64 int64
@@ -365,7 +365,7 @@ Secondly, because the schema allows recursive types a record may contain more th
 value associated with the same node in the schema tree. Consider the following `AnyValue`:
 
 ```
-AnyValue = { KVList = { Key = "abc", Value = { AnyValue = { String = "xyx" } } } }
+AnyValue = { KVList = { key = "abc", value = { AnyValue = { String = "xyx" } } } }
 ```
 
 Represented as a tree this AnyValue can be laid out as:
@@ -373,7 +373,7 @@ Represented as a tree this AnyValue can be laid out as:
 ```
 AnyValue
  |- KVList
-     |- Key = "abc"   
+     |- key = "abc"   
      |- Value
          |- AnyValue
              |- String = "xyz"
@@ -523,13 +523,13 @@ Tree                         Column     Codec Type
 root Measurement                1        struct
  |- MetricName string           2        string
  |- Attributes Attributes       3        multimap
- |   |- Key string              4        string
- |   |- Value AnyValue          5        oneof    
+ |   |- key string              4        string
+ |   |- value AnyValue          5        oneof    
  |       |- String string       6        string   
  |       |- Array []AnyValue    7        array    
  |       |- KVList KVList       8        multimap                       
- |           |- Key string      9        string                         
- |           |- Value AnyValue  10       oneof                
+ |           |- key string      9        string                         
+ |           |- value AnyValue  10       oneof                
  |- Timestamp uint64            11       uint64
  |- Value PointValue            12       oneof
      |- Int64 int64             13       int64
