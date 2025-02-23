@@ -31,7 +31,7 @@ func TestWriterDictLimit(t *testing.T) {
 	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{MaxTotalDictSize: 2000})
 	require.NoError(t, err)
 
-	// Header is the first chunk.
+	// Fixed header is chunk 1, var header is chunk 2.
 	assert.EqualValues(t, 2, buf.chunkCount)
 
 	w.Record.Metric().SetName("cpu.utilization")
@@ -39,22 +39,29 @@ func TestWriterDictLimit(t *testing.T) {
 	err = w.Write()
 	require.NoError(t, err)
 
-	// Metric too small to trigger a new frame, so it is still chunk 1.
+	// Metric too small to trigger a new frame, so it is still chunk 2.
 	assert.EqualValues(t, 2, buf.chunkCount)
 
-	w.Record.Resource().SetSchemaURL(strings.Repeat("s", 2000))
+	schemaUrl1 := strings.Repeat("s", 2000)
+	w.Record.Resource().SetSchemaURL(schemaUrl1)
 	err = w.Write()
 	require.NoError(t, err)
 
-	// Resource was large enough to trigger a new frame, so it is chunk 2.
+	// Resource was large enough to trigger dictionary limit and result in
+	// a new frame, so it is chunk 2.
 	assert.EqualValues(t, 3, buf.chunkCount)
 
-	w.Record.Resource().SetSchemaURL("small")
+	schemaUrl2 := "small"
+	w.Record.Resource().SetSchemaURL(schemaUrl2)
 	err = w.Write()
 	require.NoError(t, err)
 
-	// Scope is not large enough to trigger a new frame.
+	// Record is not large enough to trigger a new frame.
 	assert.EqualValues(t, 3, buf.chunkCount)
+
+	// Write the same record again to use dictionary encoding.
+	err = w.Write()
+	require.NoError(t, err)
 
 	err = w.Flush()
 	require.NoError(t, err)
@@ -68,10 +75,22 @@ func TestWriterDictLimit(t *testing.T) {
 	readRecord, err := reader.Read()
 	require.NoError(t, err)
 	require.NotNil(t, readRecord)
+	assert.EqualValues(t, "cpu.utilization", readRecord.Metric().Name())
 
 	readRecord, err = reader.Read()
 	require.NoError(t, err)
 	require.NotNil(t, readRecord)
+	assert.EqualValues(t, schemaUrl1, readRecord.Resource().SchemaURL())
+
+	readRecord, err = reader.Read()
+	require.NoError(t, err)
+	require.NotNil(t, readRecord)
+	assert.EqualValues(t, schemaUrl2, readRecord.Resource().SchemaURL())
+
+	readRecord, err = reader.Read()
+	require.NoError(t, err)
+	require.NotNil(t, readRecord)
+	assert.EqualValues(t, schemaUrl2, readRecord.Resource().SchemaURL())
 }
 
 func TestWriterFrameLimit(t *testing.T) {

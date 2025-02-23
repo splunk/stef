@@ -115,9 +115,7 @@ func NewClient(settings ClientSettings) *Client {
 func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOptions, error) {
 	c.logger.Debugf(context.Background(), "Begin connecting (client=%p)", c)
 
-	opts := pkg.WriterOptions{
-		FrameRestartFlags: pkg.RestartDictionaries,
-	}
+	opts := pkg.WriterOptions{}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	c.cancelFunc = cancelFunc

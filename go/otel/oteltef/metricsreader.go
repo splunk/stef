@@ -79,9 +79,17 @@ func (r *MetricsReader) RecordCount() uint64 {
 }
 
 func (r *MetricsReader) nextFrame() error {
-	if err := r.base.NextFrame(); err != nil {
+	frameFlags, err := r.base.NextFrame()
+	if err != nil {
 		return err
 	}
+
+	if frameFlags&pkg.RestartDictionaries != 0 {
+		// The frame that has just started indicates that the dictionaries
+		// must be restarted. Reset all dictionaries.
+		r.state.ResetDicts()
+	}
+
 	r.decoder.Continue()
 	return nil
 }

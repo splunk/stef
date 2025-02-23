@@ -924,3 +924,9 @@ func (d *MetricDecoderDict) Init() {
 	d.dict = d.dict[:0]
 	d.dict = append(d.dict, nil) // nil Metric is RefNum 0
 }
+
+// Reset the dictionary to initial state. Used when a frame is
+// started with RestartDictionaries flag.
+func (d *MetricDecoderDict) Reset() {
+	d.Init()
+}

@@ -63,3 +63,11 @@ func (d* ReaderState) Init(overrideSchema *schema.WireSchema) {
  	d.{{.DictName}}.Init()
     {{end -}}
 }
+
+// ResetDicts resets all dictionaries to initial state. Used when a frame is
+// started with RestartDictionaries flag.
+func (d* ReaderState) ResetDicts() {
+    {{range .Dicts -}}
+    d.{{.DictName}}.Reset()
+    {{end -}}
+}

@@ -79,14 +79,17 @@ type StringDecoderDict struct {
 func (d *StringDecoderDict) Init() {
 }
 
+func (d *StringDecoderDict) Reset() {
+	d.dict = d.dict[:0]
+}
+
 var ErrInvalidRefNum = errors.New("invalid RefNum, out of dictionary range")
 
 func (d *StringDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
 }
 
-func (d *StringDecoder) Reset() {
-}
+func (d *StringDecoder) Reset() {}
 
 func (d *StringDecoder) Decode(dst *string) error {
 	varint, err := d.buf.ReadVarint()
