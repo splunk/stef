@@ -113,24 +113,20 @@ func (r *BaseReader) ReadVarHeader(ownSchema schema.WireSchema) error {
 	return nil
 }
 
-func (r *BaseReader) NextFrame() error {
-	frameFlag, err := r.FrameDecoder.Next()
-	_ = frameFlag
+func (r *BaseReader) NextFrame() (FrameFlags, error) {
+	frameFlags, err := r.FrameDecoder.Next()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	//if frameFlag&pkg.RestartDictionaries != 0 {
-	//	r.restartDictionaries()
-	//}
 
 	r.FrameRecordCount, err = binary.ReadUvarint(&r.FrameDecoder)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := r.ReadBufs.ReadFrom(&r.FrameDecoder); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return frameFlags, nil
 }

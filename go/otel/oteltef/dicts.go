@@ -159,3 +159,21 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 	d.SpanEventName.Init()
 	d.SpanName.Init()
 }
+
+// ResetDicts resets all dictionaries to initial state. Used when a frame is
+// started with RestartDictionaries flag.
+func (d *ReaderState) ResetDicts() {
+	d.AnyValueString.Reset()
+	d.AttributeKey.Reset()
+	d.Metric.Reset()
+	d.MetricDescription.Reset()
+	d.MetricName.Reset()
+	d.MetricUnit.Reset()
+	d.Resource.Reset()
+	d.SchemaURL.Reset()
+	d.Scope.Reset()
+	d.ScopeName.Reset()
+	d.ScopeVersion.Reset()
+	d.SpanEventName.Reset()
+	d.SpanName.Reset()
+}

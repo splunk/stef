@@ -29,11 +29,13 @@ type WriterOptions struct {
 
 	// When a frame is restarted these flags define additional behavior.
 	//
-	// RestartDictionaries - the dictionaries will be cleared. The frames will
+	// RestartDictionaries - the dictionaries will be cleared. All new frames will
 	//   start with new dictionaries. Can be used to limit the size of the
-	//   dictionaries that the recipients must keep in memory.
+	//   dictionaries that the recipients must keep in memory. Note that the
+	//   frames always restart dictionaries regardless of MaxTotalDictSize setting.
 	//
 	// RestartCompression - the compression stream is started anew.
+	//   All new frames will start with a new compressor state.
 	//   Can be used to make the frames within a file skipable. Each new
 	//   frame's compression streams starts with a new state of encoder.
 	//   If this flag is unspecified the state of the compression encoder
@@ -50,6 +52,8 @@ type WriterOptions struct {
 	// during encoding process. When this limit is reached the Writer will
 	// reset the dictionaries and will start a new Frame with RestartDictionaries
 	// frame flag set.
+	// Note that when the limit is reached the dictionaries will be reset regardless
+	// of the value in RestartDictionaries bit in FrameRestartFlags.
 	//
 	// The Writer's total byte size calculation is approximate.
 	// It is expected that the real memory usage by dictionaries may somewhat
