@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -318,6 +319,48 @@ func CmpAnyValue(left, right *AnyValue) int {
 	}
 
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *AnyValue) mutateRandom(random *rand.Rand) {
+	const fieldCount = 7
+	typeChanged := false
+	if random.IntN(10) == 0 {
+		s.SetType(AnyValueType(random.IntN(fieldCount + 1)))
+		typeChanged = true
+	}
+
+	switch s.typ {
+	case AnyValueTypeString:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetString(pkg.StringRandom(random))
+		}
+	case AnyValueTypeBool:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetBool(pkg.BoolRandom(random))
+		}
+	case AnyValueTypeInt64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetInt64(pkg.Int64Random(random))
+		}
+	case AnyValueTypeFloat64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetFloat64(pkg.Float64Random(random))
+		}
+	case AnyValueTypeArray:
+		if typeChanged || random.IntN(2) == 0 {
+			s.array.mutateRandom(random)
+		}
+	case AnyValueTypeKVList:
+		if typeChanged || random.IntN(2) == 0 {
+			s.kVList.mutateRandom(random)
+		}
+	case AnyValueTypeBytes:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetBytes(pkg.BytesRandom(random))
+		}
+	}
 }
 
 // AnyValueEncoder implements encoding of AnyValue

@@ -2,6 +2,8 @@
 package oteltef
 
 import (
+	"math/rand/v2"
+
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
@@ -145,6 +147,24 @@ func CmpEventArray(left, right *EventArray) int {
 		}
 	}
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (a *EventArray) mutateRandom(random *rand.Rand) {
+	if random.IntN(20) == 0 {
+		a.EnsureLen(a.Len() + 1)
+	}
+	if random.IntN(20) == 0 && a.Len() > 0 {
+		a.EnsureLen(a.Len() - 1)
+	}
+
+	for i := range a.elems {
+		_ = i
+		if random.IntN(2*len(a.elems)) == 0 {
+			a.elems[i].mutateRandom(random)
+		}
+	}
 }
 
 type EventArrayEncoder struct {

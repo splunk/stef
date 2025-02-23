@@ -1,6 +1,10 @@
 package pkg
 
-import "strings"
+import (
+	"math/rand/v2"
+	"strconv"
+	"strings"
+)
 
 // Bytes is a sequence of immutable bytes.
 type Bytes string
@@ -71,4 +75,28 @@ func StringEqual(left, right string) bool {
 
 func BytesEqual(left, right Bytes) bool {
 	return left == right
+}
+
+func Uint64Random(random *rand.Rand) uint64 {
+	return random.Uint64()
+}
+
+func Int64Random(random *rand.Rand) int64 {
+	return random.Int64()
+}
+
+func BoolRandom(random *rand.Rand) bool {
+	return random.IntN(2) == 0
+}
+
+func Float64Random(random *rand.Rand) float64 {
+	return random.Float64()
+}
+
+func StringRandom(random *rand.Rand) string {
+	return strconv.Itoa(random.IntN(10))
+}
+
+func BytesRandom(random *rand.Rand) Bytes {
+	return Bytes(StringRandom(random))
 }
