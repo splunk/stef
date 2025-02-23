@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -404,4 +405,91 @@ func TestLargeMultimap(t *testing.T) {
 	require.NotNil(t, readRecord)
 
 	require.True(t, readRecord.Attributes().IsEqual(&attrs2Copy))
+}
+
+func genRecords() (records []oteltef.Metrics) {
+	const recCount = 4000
+	random := rand.New(rand.NewSource(0))
+	var record oteltef.Metrics
+	record.Init()
+
+	g := attrGenerator{r: random}
+
+	for i := 0; i < recCount; i++ {
+		if random.Intn(10) == 0 {
+			record.Metric().SetName(strconv.Itoa(random.Intn(10)))
+		}
+		if random.Intn(11) == 0 {
+			record.Metric().SetMonotonic(random.Intn(10) == 0)
+		}
+		if random.Intn(12) == 0 {
+			record.Metric().SetType(uint64(random.Intn(4)))
+		}
+		if random.Intn(5) == 0 {
+			record.Resource().SetSchemaURL(strconv.Itoa(random.Intn(3)))
+			if random.Intn(12) == 0 {
+				mapToTef(g.genAttr(), record.Resource().Attributes())
+			}
+		}
+		if random.Intn(6) == 0 {
+			record.Scope().SetSchemaURL(strconv.Itoa(random.Intn(2)))
+			if random.Intn(11) == 0 {
+				mapToTef(g.genAttr(), record.Scope().Attributes())
+			}
+		}
+		if random.Intn(15) == 0 {
+			mapToTef(g.genAttr(), record.Attributes())
+		}
+		records = append(records, record.Clone())
+	}
+
+	return records
+}
+
+func TestWriteRead(t *testing.T) {
+	buf := &countingChunkWriter{}
+
+	opts := []pkg.WriterOptions{
+		{},
+		{
+			Compression: pkg.CompressionZstd,
+		},
+		{
+			MaxUncompressedFrameByteSize: 500,
+		},
+		{
+			MaxTotalDictSize: 500,
+		},
+		{
+			Compression:                  pkg.CompressionZstd,
+			MaxUncompressedFrameByteSize: 500,
+			MaxTotalDictSize:             500,
+		},
+	}
+
+	for _, opt := range opts {
+		writer, err := oteltef.NewMetricsWriter(buf, opt)
+		require.NoError(t, err)
+
+		records := genRecords()
+		for i := 0; i < len(records); i++ {
+			writer.Record.CopyFrom(&records[i])
+			err = writer.Write()
+			require.NoError(t, err)
+		}
+		err = writer.Flush()
+		require.NoError(t, err)
+
+		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+		require.NoError(t, err)
+
+		for i := 0; i < len(records); i++ {
+			readRecord, err := reader.Read()
+			require.NoError(t, err, i)
+			require.NotNil(t, readRecord, i)
+			require.True(t, readRecord.IsEqual(&records[i]), i)
+		}
+		_, err = reader.Read()
+		require.Error(t, io.EOF)
+	}
 }
