@@ -97,7 +97,6 @@ func TestSchemaSelfCompatible(t *testing.T) {
 			Structs: map[string]*Struct{
 				"Root": {Name: "Root"},
 			},
-			MainStruct: "Root",
 		},
 		{
 			PackageName: "pkg",
@@ -119,7 +118,6 @@ func TestSchemaSelfCompatible(t *testing.T) {
 					Value: MultimapField{Type: FieldType{Primitive: &p}},
 				},
 			},
-			MainStruct: "Root",
 		},
 	}
 
@@ -155,8 +153,7 @@ func TestSchemaSuperset(t *testing.T) {
 						},
 					},
 				},
-				Multimaps:  nil,
-				MainStruct: "Root",
+				Multimaps: nil,
 			},
 			new: &Schema{
 				PackageName: "def",
@@ -179,8 +176,7 @@ func TestSchemaSuperset(t *testing.T) {
 						},
 					},
 				},
-				Multimaps:  nil,
-				MainStruct: "Root",
+				Multimaps: nil,
 			},
 		},
 		{
@@ -253,7 +249,6 @@ func TestSchemaSuperset(t *testing.T) {
 						Value: MultimapField{Type: FieldType{Primitive: &primitiveTypeString}},
 					},
 				},
-				MainStruct: "Root",
 			},
 			new: &Schema{
 				PackageName: "def",
@@ -347,7 +342,6 @@ func TestSchemaSuperset(t *testing.T) {
 						Value: MultimapField{Type: FieldType{Primitive: &primitiveTypeString}},
 					},
 				},
-				MainStruct: "Root2",
 			},
 		},
 	}
@@ -392,8 +386,7 @@ func TestSchemaIncompatible(t *testing.T) {
 						},
 					},
 				},
-				Multimaps:  nil,
-				MainStruct: "Root",
+				Multimaps: nil,
 			},
 			new: &Schema{
 				PackageName: "def",
@@ -410,7 +403,6 @@ func TestSchemaIncompatible(t *testing.T) {
 						},
 					},
 				},
-				MainStruct: "Root",
 			},
 			err: "struct Root has fewer fields in new schema (1 vs 2)",
 		},
@@ -428,7 +420,7 @@ func TestSchemaIncompatible(t *testing.T) {
 }
 
 func expandSchema(t *testing.T, r *rand.Rand, orig *Schema) (cpy *Schema) {
-	cpy, err := orig.PrunedForRoot(orig.MainStruct)
+	cpy, err := orig.PrunedForRoot("Metrics")
 	require.NoError(t, err)
 	for {
 		for _, str := range cpy.Structs {
@@ -509,7 +501,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 }
 
 func shrinkSchema(t *testing.T, r *rand.Rand, orig *Schema) (cpy *Schema) {
-	cpy, err := orig.PrunedForRoot(orig.MainStruct)
+	cpy, err := orig.PrunedForRoot("Metrics")
 	require.NoError(t, err)
 	for {
 		for _, str := range cpy.Structs {
@@ -548,7 +540,7 @@ func TestSchemaExpand(t *testing.T) {
 	orig := &Schema{}
 	err = json.Unmarshal(schemaJson, &orig)
 	require.NoError(t, err)
-	orig, err = orig.PrunedForRoot(orig.MainStruct)
+	orig, err = orig.PrunedForRoot("Metrics")
 	require.NoError(t, err)
 
 	r := rand.New(rand.NewSource(42))

@@ -12,7 +12,6 @@ type genSchema struct {
 	PackageName string
 	Structs     map[string]*genStructDef
 	Multimaps   map[string]*genMapDef
-	MainStruct  string
 }
 
 func (s *genSchema) SchemaStr() string {
@@ -30,8 +29,8 @@ func (s *genSchema) SchemaStr() string {
 			str += "struct"
 		}
 		str += " " + struc.Name
-		if struc.Name == s.MainStruct {
-			str += " main"
+		if struc.IsRoot {
+			str += " root"
 		}
 		if struc.Dict != "" {
 			str += " dict(" + struc.Dict + ")"

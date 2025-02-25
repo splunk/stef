@@ -74,7 +74,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		"Fields":             fields,
 		"DictName":           str.Dict,
 		"Type":               str,
-		"IsMainStruct":       str.Name == g.compiledSchema.MainStruct,
+		"IsMainStruct":       str.IsRoot,
 		"OptionalFieldCount": optionalFieldIndex,
 	}
 
