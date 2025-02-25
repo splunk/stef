@@ -451,8 +451,6 @@ func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 }
 
 func (e *AnyValueEncoder) Reset() {
-	// Since we are resetting the state of encoder make sure the next Encode()
-	// call forcedly writes all fields and does not attempt to skip.
 	e.prevType = 0
 	e.stringEncoder.Reset()
 	e.boolEncoder.Reset()

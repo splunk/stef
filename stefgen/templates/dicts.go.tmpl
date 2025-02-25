@@ -34,7 +34,7 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
     {{end}}
 }
 
-func (d *WriterState) Reset() {
+func (d *WriterState) ResetDicts() {
     d.limiter.ResetDict()
     {{range .Dicts -}}
     d.{{.DictName}}.Reset()

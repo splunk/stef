@@ -260,6 +260,7 @@ func (d *LinkArrayDecoder) Continue() {
 }
 
 func (d *LinkArrayDecoder) Reset() {
+	d.prevLen = 0
 	d.decoder.Reset()
 }
 

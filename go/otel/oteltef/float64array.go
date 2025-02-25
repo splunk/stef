@@ -260,6 +260,7 @@ func (d *Float64ArrayDecoder) Continue() {
 }
 
 func (d *Float64ArrayDecoder) Reset() {
+	d.prevLen = 0
 	d.decoder.Reset()
 }
 

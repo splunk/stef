@@ -137,16 +137,25 @@ func (w *SpansWriter) Write() error {
 	w.encoder.Encode(&w.Record)
 	w.frameRecordCount++
 
-	if w.state.limiter.DictLimitReached() {
-		if err := w.resetDicts(); err != nil {
-			return err
-		}
-		nextFrameFlags := w.opts.FrameRestartFlags | pkg.RestartDictionaries
-		if err := w.restartFrame(nextFrameFlags); err != nil {
-			return err
-		}
-	} else if w.state.limiter.FrameLimitReached() {
-		nextFrameFlags := w.opts.FrameRestartFlags
+	nextFrameFlags := w.opts.FrameRestartFlags
+	restartFrame := false
+	if w.state.limiter.DictLimitReached() || (nextFrameFlags&pkg.RestartDictionaries != 0) {
+		w.state.ResetDicts()
+		nextFrameFlags = w.opts.FrameRestartFlags | pkg.RestartDictionaries
+		restartFrame = true
+	}
+
+	if nextFrameFlags&pkg.RestartCodecs != 0 {
+		w.encoder.Reset()
+		nextFrameFlags = w.opts.FrameRestartFlags | pkg.RestartCodecs
+		restartFrame = true
+	}
+
+	if w.state.limiter.FrameLimitReached() {
+		restartFrame = true
+	}
+
+	if restartFrame {
 		if err := w.restartFrame(nextFrameFlags); err != nil {
 			return err
 		}
@@ -159,14 +168,6 @@ func (w *SpansWriter) Write() error {
 
 func (w *SpansWriter) RecordCount() uint64 {
 	return w.recordCount
-}
-
-func (w *SpansWriter) resetDicts() error {
-	// Reset all state so that the content that follows is not dependent on
-	// preceding content.
-	w.state.Reset()
-	w.encoder.Reset()
-	return nil
 }
 
 func (w *SpansWriter) restartFrame(nextFrameFlags pkg.FrameFlags) error {

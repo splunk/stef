@@ -258,8 +258,6 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 }
 
 func (e *ExemplarValueEncoder) Reset() {
-	// Since we are resetting the state of encoder make sure the next Encode()
-	// call forcedly writes all fields and does not attempt to skip.
 	e.prevType = 0
 	e.int64Encoder.Reset()
 	e.float64Encoder.Reset()

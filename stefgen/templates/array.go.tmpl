@@ -357,7 +357,10 @@ func (d *{{ .ArrayName }}Decoder) Continue() {
 }
 
 func (d *{{ .ArrayName }}Decoder) Reset() {
+	d.prevLen = 0
+	{{- if not .Recursive}}
 	d.decoder.Reset()
+	{{- end}}
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
