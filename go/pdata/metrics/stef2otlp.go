@@ -9,6 +9,7 @@ import (
 	"github.com/splunk/stef/go/otel/oteltef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 	"github.com/splunk/stef/go/pdata/metrics/internal"
+	"github.com/splunk/stef/go/pkg"
 )
 
 type STEFToOTLPUnsorted struct {
@@ -60,6 +61,63 @@ func (c *STEFToOTLPUnsorted) Convert(reader *oteltef.MetricsReader) (pmetric.Met
 		}
 
 		modified = false
+	}
+
+	return metrics, nil
+}
+
+func (c *STEFToOTLPUnsorted) ConvertTillAvailable(reader *oteltef.MetricsReader) (pmetric.Metrics, error) {
+	var resourceMetrics pmetric.ResourceMetrics
+	var scopeMetrics pmetric.ScopeMetrics
+	var metric pmetric.Metric
+
+	metrics := pmetric.NewMetrics()
+
+	record, err := reader.Read()
+	if err != nil {
+		return metrics, err
+	}
+
+	modified := true
+	for {
+		if modified || record.IsResourceModified() {
+			modified = true
+			resourceMetrics = metrics.ResourceMetrics().AppendEmpty()
+			if err := otlptools.ResourceToOtlp(record.Resource(), resourceMetrics); err != nil {
+				return metrics, err
+			}
+		}
+
+		if modified || record.IsScopeModified() {
+			modified = true
+			scopeMetrics = resourceMetrics.ScopeMetrics().AppendEmpty()
+			if err := otlptools.ScopeToOtlp(record.Scope(), scopeMetrics); err != nil {
+				return metrics, err
+			}
+		}
+
+		if modified || record.IsMetricModified() {
+			metric = scopeMetrics.Metrics().AppendEmpty()
+			if err := otlptools.MetricToOtlp(record.Metric(), metric); err != nil {
+				return metrics, err
+			}
+		}
+
+		err = c.AppendOTLPPoint(record.Metric(), record.Attributes(), record.Point(), metric)
+		if err != nil {
+			return metrics, err
+		}
+
+		modified = false
+
+		err := reader.ReadAvailable()
+		if err != nil {
+			if err == pkg.ErrEndOfFrame {
+				break
+			}
+			return metrics, err
+		}
+		record = &reader.Record
 	}
 
 	return metrics, nil

@@ -10,11 +10,12 @@ import (
 )
 
 type SpansReader struct {
+	Record Spans
+
 	base pkg.BaseReader
 
 	decoder   SpansDecoder
 	state     ReaderState
-	record    Spans
 	recordPtr *Spans
 }
 
@@ -22,8 +23,8 @@ func NewSpansReader(source io.Reader) (*SpansReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &SpansReader{}
 
-	reader.record.Init()
-	reader.recordPtr = &reader.record
+	reader.Record.Init()
+	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {
 		return nil, err
@@ -72,6 +73,19 @@ func (r *SpansReader) Read() (*Spans, error) {
 	r.base.RecordCount++
 	err := r.decoder.Decode(r.recordPtr)
 	return r.recordPtr, err
+}
+
+// ReadAvailable reads a record if one is available in the current frame.
+// The record that was read will be available in the SpansReader.Record field.
+// If there are no more record remaining in the current frame then
+// ErrEndOfFrame is returned.
+func (r *SpansReader) ReadAvailable() error {
+	for r.base.FrameRecordCount == 0 {
+		return pkg.ErrEndOfFrame
+	}
+	r.base.FrameRecordCount--
+	r.base.RecordCount++
+	return r.decoder.Decode(r.recordPtr)
 }
 
 func (r *SpansReader) RecordCount() uint64 {

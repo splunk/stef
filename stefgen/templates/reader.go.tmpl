@@ -9,11 +9,12 @@ import (
 )
 
 type {{.StructName}}Reader struct {
+	Record {{.StructName}}
+
 	base pkg.BaseReader
 
 	decoder {{.StructName}}Decoder
 	state ReaderState
-	record {{.StructName}}
 	recordPtr *{{.StructName}}
 }
 
@@ -21,8 +22,8 @@ func New{{.StructName}}Reader(source io.Reader) (*{{.StructName}}Reader, error) 
 	bufferedSource := bufio.NewReaderSize(source, 64 * 1024)
 	reader := &{{.StructName}}Reader{}
 
-	reader.record.Init()
-	reader.recordPtr = &reader.record
+	reader.Record.Init()
+	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {
 		return nil, err
@@ -71,6 +72,19 @@ func (r *{{.StructName}}Reader) Read() (*{{.StructName}}, error) {
 	r.base.RecordCount++
 	err := r.decoder.Decode(r.recordPtr)
 	return r.recordPtr, err
+}
+
+// ReadAvailable reads a record if one is available in the current frame.
+// The record that was read will be available in the {{.StructName}}Reader.Record field.
+// If there are no more record remaining in the current frame then
+// ErrEndOfFrame is returned.
+func (r *{{.StructName}}Reader) ReadAvailable() error {
+	for r.base.FrameRecordCount == 0 {
+		return pkg.ErrEndOfFrame
+	}
+	r.base.FrameRecordCount--
+	r.base.RecordCount++
+	return r.decoder.Decode(r.recordPtr)
 }
 
 func (r *{{.StructName}}Reader) RecordCount() uint64 {

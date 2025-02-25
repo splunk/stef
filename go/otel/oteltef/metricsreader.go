@@ -10,11 +10,12 @@ import (
 )
 
 type MetricsReader struct {
+	Record Metrics
+
 	base pkg.BaseReader
 
 	decoder   MetricsDecoder
 	state     ReaderState
-	record    Metrics
 	recordPtr *Metrics
 }
 
@@ -22,8 +23,8 @@ func NewMetricsReader(source io.Reader) (*MetricsReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &MetricsReader{}
 
-	reader.record.Init()
-	reader.recordPtr = &reader.record
+	reader.Record.Init()
+	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {
 		return nil, err
@@ -72,6 +73,19 @@ func (r *MetricsReader) Read() (*Metrics, error) {
 	r.base.RecordCount++
 	err := r.decoder.Decode(r.recordPtr)
 	return r.recordPtr, err
+}
+
+// ReadAvailable reads a record if one is available in the current frame.
+// The record that was read will be available in the MetricsReader.Record field.
+// If there are no more record remaining in the current frame then
+// ErrEndOfFrame is returned.
+func (r *MetricsReader) ReadAvailable() error {
+	for r.base.FrameRecordCount == 0 {
+		return pkg.ErrEndOfFrame
+	}
+	r.base.FrameRecordCount--
+	r.base.RecordCount++
+	return r.decoder.Decode(r.recordPtr)
 }
 
 func (r *MetricsReader) RecordCount() uint64 {
