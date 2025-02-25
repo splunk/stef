@@ -2,6 +2,7 @@
 package oteltef
 
 import (
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"unsafe"
@@ -178,6 +179,27 @@ func CmpAttributes(left, right *Attributes) int {
 		}
 	}
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (m *Attributes) mutateRandom(random *rand.Rand) {
+	if random.IntN(20) == 0 {
+		m.EnsureLen(m.Len() + 1)
+	}
+	if random.IntN(20) == 0 && m.Len() > 0 {
+		m.EnsureLen(m.Len() - 1)
+	}
+
+	for i := range m.elems {
+		_ = i
+		if random.IntN(4*len(m.elems)) == 0 {
+			m.SetKey(i, pkg.StringRandom(random))
+		}
+		if random.IntN(4*len(m.elems)) == 0 {
+			m.elems[i].value.mutateRandom(random)
+		}
+	}
 }
 
 type AttributesEncoder struct {

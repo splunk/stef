@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"testing"
@@ -249,20 +249,20 @@ type attrGenerator struct {
 
 func (g *attrGenerator) randKey() string {
 	keys := []string{"", "abc", "def"}
-	return keys[g.r.Intn(len(keys))]
+	return keys[g.r.IntN(len(keys))]
 }
 
 func (g *attrGenerator) genAttr() map[string]any {
 	m := map[string]any{}
 
-	ln := g.r.Intn(2)
+	ln := g.r.IntN(2)
 	for i := 0; i < ln; i++ {
 		vals := []string{"", "foo", "bar"}
 		var val any
-		switch g.r.Intn(3) {
+		switch g.r.IntN(3) {
 		case 0:
 		case 1:
-			val = vals[g.r.Intn(len(vals))]
+			val = vals[g.r.IntN(len(vals))]
 		case 2:
 			val = g.genAttr()
 		}
@@ -276,7 +276,7 @@ func TestAnyValue(t *testing.T) {
 	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 	require.NoError(t, err)
 
-	g := attrGenerator{r: rand.New(rand.NewSource(0))}
+	g := attrGenerator{r: rand.New(rand.NewPCG(0, 0))}
 	var writeAttrs []map[string]any
 	for i := 0; i < 10000; i++ {
 		writeAttrs = append(writeAttrs, g.genAttr())

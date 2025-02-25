@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -185,6 +186,28 @@ func CmpExemplarValue(left, right *ExemplarValue) int {
 	}
 
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *ExemplarValue) mutateRandom(random *rand.Rand) {
+	const fieldCount = 2
+	typeChanged := false
+	if random.IntN(10) == 0 {
+		s.SetType(ExemplarValueType(random.IntN(fieldCount + 1)))
+		typeChanged = true
+	}
+
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetInt64(pkg.Int64Random(random))
+		}
+	case ExemplarValueTypeFloat64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetFloat64(pkg.Float64Random(random))
+		}
+	}
 }
 
 // ExemplarValueEncoder implements encoding of ExemplarValue

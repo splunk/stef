@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -285,6 +286,27 @@ func (s *HistogramValue) markParentModified() {
 func (s *HistogramValue) markUnmodified() {
 	s.modifiedFields.markUnmodified()
 	s.bucketCounts.markUnmodified()
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *HistogramValue) mutateRandom(random *rand.Rand) {
+	const fieldCount = 5
+	if random.IntN(fieldCount) == 0 {
+		s.SetCount(pkg.Int64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetSum(pkg.Float64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetMin(pkg.Float64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetMax(pkg.Float64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.bucketCounts.mutateRandom(random)
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

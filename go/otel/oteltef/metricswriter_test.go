@@ -2,18 +2,92 @@
 package oteltef
 
 import (
+	"bytes"
+	"io"
+	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/go/pkg"
 )
 
-func TestMetricsWriterWrite(t *testing.T) {
-	cw := &pkg.MemChunkWriter{}
-	stef, err := NewMetricsWriter(cw, pkg.WriterOptions{MaxTotalDictSize: 100})
-	require.NoError(t, err)
+// genMetricsRecords generates a number of records pseudo-randomly
+// using the supplied Rand generator. Generated records will be always
+// the same for the same input state of Rand generator.
+func genMetricsRecords(random *rand.Rand) (records []Metrics) {
+	const recCount = 1000
+	var record Metrics
+	record.Init()
 
-	err = stef.Write()
-	require.NoError(t, err)
+	records = make([]Metrics, recCount)
+	for i := 0; i < recCount; i++ {
+		record.mutateRandom(random)
+		records[i].Init()
+		records[i].CopyFrom(&record)
+	}
+
+	return records
+}
+
+func TestMetricsWriteRead(t *testing.T) {
+	opts := []pkg.WriterOptions{
+		{},
+		{
+			Compression: pkg.CompressionZstd,
+		},
+		{
+			MaxUncompressedFrameByteSize: 500,
+		},
+		{
+			// Disable due to bug with dicts. Enable after https://github.com/splunk/stef/pull/44
+			// MaxTotalDictSize: 500,
+		},
+		{
+			Compression:                  pkg.CompressionZstd,
+			MaxUncompressedFrameByteSize: 500,
+			// Disable due to bug with dicts. Enable after https://github.com/splunk/stef/pull/44
+			// MaxTotalDictSize: 500,
+		},
+	}
+
+	// Choose a seed (non-pseudo) randomly. We will print the seed
+	// on failure for easy reproduction.
+	seed1 := uint64(time.Now().UnixNano())
+	random := rand.New(rand.NewPCG(seed1, 0))
+
+	for _, opt := range opts {
+		t.Run(
+			"", func(t *testing.T) {
+				buf := &pkg.MemChunkWriter{}
+				writer, err := NewMetricsWriter(buf, opt)
+				require.NoError(t, err, "seed %v", seed1)
+
+				// Generate records pseudo-randomly
+				records := genMetricsRecords(random)
+				// Write the records
+				for i := 0; i < len(records); i++ {
+					writer.Record.CopyFrom(&records[i])
+					err = writer.Write()
+					require.NoError(t, err, "record %d seed %v", i, seed1)
+				}
+				err = writer.Flush()
+				require.NoError(t, err, "seed %v", seed1)
+
+				// Read the records and compare to written.
+				reader, err := NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+				require.NoError(t, err, "seed %v", seed1)
+
+				for i := 0; i < len(records); i++ {
+					readRecord, err := reader.Read()
+					require.NoError(t, err, "record %d seed %v", i, seed1)
+					require.NotNil(t, readRecord, "record %d seed %v", i, seed1)
+					require.True(t, readRecord.IsEqual(&records[i]), "record %d seed %v", i, seed1)
+				}
+				_, err = reader.Read()
+				require.Error(t, io.EOF, seed1)
+			},
+		)
+	}
 }

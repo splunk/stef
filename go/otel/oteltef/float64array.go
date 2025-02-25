@@ -2,6 +2,8 @@
 package oteltef
 
 import (
+	"math/rand/v2"
+
 	"slices"
 
 	"unsafe"
@@ -157,6 +159,28 @@ func CmpFloat64Array(left, right *Float64Array) int {
 		}
 	}
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (a *Float64Array) mutateRandom(random *rand.Rand) {
+	if random.IntN(20) == 0 {
+		a.EnsureLen(a.Len() + 1)
+	}
+	if random.IntN(20) == 0 && a.Len() > 0 {
+		a.EnsureLen(a.Len() - 1)
+	}
+
+	for i := range a.elems {
+		_ = i
+		if random.IntN(2*len(a.elems)) == 0 {
+			v := pkg.Float64Random(random)
+			if a.elems[i] != v {
+				a.elems[i] = v
+				a.markModified()
+			}
+		}
+	}
 }
 
 type Float64ArrayEncoder struct {

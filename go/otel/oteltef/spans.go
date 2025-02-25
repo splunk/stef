@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -161,6 +162,24 @@ func (s *Spans) markUnmodified() {
 	s.resource.markUnmodified()
 	s.scope.markUnmodified()
 	s.span.markUnmodified()
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *Spans) mutateRandom(random *rand.Rand) {
+	const fieldCount = 4
+	if random.IntN(fieldCount) == 0 {
+		s.envelope.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.resource.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.scope.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.span.mutateRandom(random)
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
