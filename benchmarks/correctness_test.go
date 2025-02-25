@@ -96,7 +96,6 @@ func TestTEFMultiPart(t *testing.T) {
 		"testdata/hostandcollector-otelmetrics.zst",
 	}
 
-	//stefEncoding := stef.STEFEncoding{}
 	tefEncoding := stef.STEFEncoding{}
 
 	for _, inputFile := range testInputOtlpFiles {
@@ -106,46 +105,27 @@ func TestTEFMultiPart(t *testing.T) {
 				parts, err := testutils.ReadMultipartOTLPFile(inputFile)
 				require.NoError(t, err)
 
-				//stefStream, err := stefEncoding.StartMultipart("")
-				//require.NoError(t, err)
-
 				tefStream, err := tefEncoding.StartMultipart("")
 				require.NoError(t, err)
 
 				for _, part := range parts {
-					//err = stefStream.AppendPart(part)
-					//require.NoError(t, err)
 					err = tefStream.AppendPart(part)
 					require.NoError(t, err)
 				}
-				//stefBytes, err := stefStream.FinishStream()
-				//require.NoError(t, err)
 
 				tefBytes, err := tefStream.FinishStream()
 				require.NoError(t, err)
-
-				//stefReader, err := metrics.NewReader(bytes.NewBuffer(stefBytes))
-				//require.NoError(t, err)
 
 				tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 				require.NoError(t, err)
 
 				i := 0
 				for {
-					//stefRec, err := stefReader.Read()
-					//stefRec = stefRec
-					//if err == io.EOF {
-					//	break
-					//}
-					//require.NoError(t, err)
-
-					tefRec, err := tefReader.Read()
+					err := tefReader.Read(pkg.ReadOptions{})
 					if err == io.EOF {
 						break
 					}
 					require.NoError(t, err, i)
-					require.NotNil(t, tefRec, i)
-					//oteltef.EqualRecord(t, stefRec, tefRec)
 					i++
 				}
 			},

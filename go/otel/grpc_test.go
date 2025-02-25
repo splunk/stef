@@ -49,9 +49,9 @@ func TestGrpcWriteRead(t *testing.T) {
 			require.NoError(t, err)
 
 			// Read and verify that received records match what was sent.
-			record, err := reader.Read()
+			err = reader.Read(pkg.ReadOptions{})
 			require.NoError(t, err)
-			require.EqualValues(t, "abc", record.Metric().Name())
+			require.EqualValues(t, "abc", reader.Record.Metric().Name())
 
 			// Send acknowledgment to the client.
 			err = ackFunc(reader.RecordCount())
@@ -181,9 +181,9 @@ func TestDictReset(t *testing.T) {
 
 			// Read and verify that received records match what was sent.
 			for i, metricName := range metricNames {
-				record, err := reader.Read()
+				err := reader.Read(pkg.ReadOptions{})
 				require.NoError(t, err)
-				assert.EqualValues(t, metricName, record.Metric().Name(), i)
+				assert.EqualValues(t, metricName, reader.Record.Metric().Name(), i)
 			}
 
 			// Send acknowledgment to the client.

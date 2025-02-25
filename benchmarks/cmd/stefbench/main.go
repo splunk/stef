@@ -61,8 +61,7 @@ func readBench(inputFilePath string) {
 	recordCount := 0
 	start := time.Now()
 	for {
-		record, err := reader.Read()
-		record = record
+		err := reader.Read(pkg.ReadOptions{})
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -108,13 +107,14 @@ func writeBench(inputFilePath string) {
 	recordCount := 0
 	start := time.Now()
 	for {
-		record, err := reader.Read()
+		err = reader.Read(pkg.ReadOptions{})
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			log.Fatalf("Error reading from %s: %v", inputFilePath, err)
 		}
+		record := &reader.Record
 
 		if record.IsEnvelopeModified() {
 			writer.Record.Envelope().CopyFrom(record.Envelope())

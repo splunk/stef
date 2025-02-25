@@ -84,12 +84,12 @@ func TestSpansWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
-					readRecord, err := reader.Read()
+					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
-					require.NotNil(t, readRecord, "record %d seed %v", i, seed1)
-					require.True(t, readRecord.IsEqual(&records[i]), "record %d seed %v", i, seed1)
+					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)
+					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed1)
 				}
-				_, err = reader.Read()
+				err = reader.Read(pkg.ReadOptions{})
 				require.Error(t, io.EOF, seed1)
 			},
 		)

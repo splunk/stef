@@ -57,12 +57,9 @@ func (d *STEFSEncoding) Decode(b []byte) (any, error) {
 	}
 
 	for {
-		readRecord, err := r.Read()
+		err := r.Read(pkg.ReadOptions{})
 		if err == io.EOF {
 			break
-		}
-		if readRecord == nil {
-			panic("nil record")
 		}
 		if err != nil {
 			return nil, err
