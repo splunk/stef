@@ -67,6 +67,14 @@ func (f *MetricsReader) UserData() map[string]string {
 // Read the next record. After Read() returns successfully the record
 // will be accessible in MetricsReader.Record field.
 //
+// If ReadOptions.TillEndOfFrame=true and end of the current
+// frame is reached Read() will return pkg.ErrEndOfFrame. Calling Read()
+// after that with ReadOptions.TillEndOfFrame=false will correctly load
+// the next frame (if any) and read the next record from the frame.
+// The very first Read() must use ReadOptions.TillEndOfFrame=false
+// otherwise pkg.ErrEndOfFrame will be returned since no frames are
+// initially loaded in the Reader. See more details in pkg.ReadOptions.
+//
 // If Read() encounters a decoding error one of the pkg.Err values will
 // be returned.
 // If underlying source io.Reader returns any error then Read() will
@@ -78,6 +86,9 @@ func (f *MetricsReader) UserData() map[string]string {
 // (assuming io.Reader returns io.EOF itself).
 func (r *MetricsReader) Read(opts pkg.ReadOptions) error {
 	for r.base.FrameRecordCount == 0 {
+		if opts.TillEndOfFrame {
+			return pkg.ErrEndOfFrame
+		}
 		if err := r.nextFrame(); err != nil {
 			return err
 		}
