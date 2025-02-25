@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -469,6 +470,54 @@ func (s *Span) markUnmodified() {
 	s.events.markUnmodified()
 	s.links.markUnmodified()
 	s.status.markUnmodified()
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *Span) mutateRandom(random *rand.Rand) {
+	const fieldCount = 14
+	if random.IntN(fieldCount) == 0 {
+		s.SetTraceID(pkg.BytesRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetSpanID(pkg.BytesRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetTraceState(pkg.StringRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetParentSpanID(pkg.BytesRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetFlags(pkg.Uint64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetName(pkg.StringRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetKind(pkg.Uint64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetStartTimeUnixNano(pkg.Uint64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetEndTimeUnixNano(pkg.Uint64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.attributes.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetDroppedAttributesCount(pkg.Uint64Random(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.events.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.links.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.status.mutateRandom(random)
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

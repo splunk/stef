@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -93,6 +94,15 @@ func (s *Envelope) markParentModified() {
 func (s *Envelope) markUnmodified() {
 	s.modifiedFields.markUnmodified()
 	s.attributes.markUnmodified()
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *Envelope) mutateRandom(random *rand.Rand) {
+	const fieldCount = 1
+	if random.IntN(fieldCount) == 0 {
+		s.attributes.mutateRandom(random)
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

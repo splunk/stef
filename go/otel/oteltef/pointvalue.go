@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -208,6 +209,32 @@ func CmpPointValue(left, right *PointValue) int {
 	}
 
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *PointValue) mutateRandom(random *rand.Rand) {
+	const fieldCount = 3
+	typeChanged := false
+	if random.IntN(10) == 0 {
+		s.SetType(PointValueType(random.IntN(fieldCount + 1)))
+		typeChanged = true
+	}
+
+	switch s.typ {
+	case PointValueTypeInt64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetInt64(pkg.Int64Random(random))
+		}
+	case PointValueTypeFloat64:
+		if typeChanged || random.IntN(2) == 0 {
+			s.SetFloat64(pkg.Float64Random(random))
+		}
+	case PointValueTypeHistogram:
+		if typeChanged || random.IntN(2) == 0 {
+			s.histogram.mutateRandom(random)
+		}
+	}
 }
 
 // PointValueEncoder implements encoding of PointValue

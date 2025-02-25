@@ -3,6 +3,7 @@ package {{ .PackageName }}
 
 import (
     "strings"
+    "math/rand/v2"
     "unsafe"
 	"slices"
 
@@ -265,6 +266,35 @@ func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
         }
     }
     return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (m *{{ .MultimapName }}) mutateRandom(random *rand.Rand) {
+	if random.IntN(20)==0 {
+		m.EnsureLen(m.Len()+1)
+	}
+	if random.IntN(20)==0 && m.Len()>0 {
+		m.EnsureLen(m.Len()-1)
+	}
+
+	for i := range m.elems {
+		_ = i
+		if random.IntN(4*len(m.elems))==0 {
+		{{- if not .Key.Type.IsPrimitive }}
+			m.elems[i].key.mutateRandom(random)
+		{{- else }}
+			m.SetKey(i, {{ .Key.Type.RandomFunc }}(random))
+		{{- end}}
+		}
+		if random.IntN(4*len(m.elems))==0 {
+		{{- if not .Value.Type.IsPrimitive }}
+			m.elems[i].value.mutateRandom(random)
+		{{- else }}
+			m.SetValue(i, {{ .Value.Type.RandomFunc }}(random))
+		{{- end}}
+		}
+	}
 }
 
 type {{ .MultimapName }}Encoder struct {

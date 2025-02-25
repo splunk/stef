@@ -2,6 +2,7 @@ package {{ .PackageName }}
 
 import (
     "fmt"
+    "math/rand/v2"
     "strings"
 	"unsafe"
 
@@ -205,6 +206,30 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
     }
 
     return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
+    const fieldCount = {{len .Fields}}
+    typeChanged := false
+    if random.IntN(10)==0 {
+        s.SetType({{$.StructName }}Type(random.IntN(fieldCount+1)))
+        typeChanged = true
+    }
+
+    switch s.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if typeChanged || random.IntN(2)==0 {
+        {{- if not .Type.IsPrimitive }}
+            s.{{.name}}.mutateRandom(random)
+        {{- else }}
+            s.Set{{.Name}}({{ .Type.RandomFunc }}(random))
+        {{- end}}
+        }
+    {{- end }}
+    }
 }
 
 // {{ .StructName }}Encoder implements encoding of {{ .StructName }}

@@ -1,6 +1,7 @@
 package {{ .PackageName }}
 
 import (
+	"math/rand/v2"
 	{{if not .ElemType.MustClone}}
 	"slices"
 	{{end}}
@@ -201,6 +202,32 @@ func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {
 		}
 	}
 	return 0
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
+	if random.IntN(20)==0 {
+		a.EnsureLen(a.Len()+1)
+	}
+	if random.IntN(20)==0 && a.Len()>0 {
+		a.EnsureLen(a.Len()-1)
+	}
+
+	for i := range a.elems {
+		_ = i
+		if random.IntN(2*len(a.elems))==0 {
+		{{- if not .ElemType.IsPrimitive }}
+			a.elems[i].mutateRandom(random)
+		{{- else}}
+			v := {{ .ElemType.RandomFunc }}(random)
+			if a.elems[i] != v {
+				a.elems[i] = v
+				a.markModified()
+			}
+		{{- end}}
+		}
+	}
 }
 
 type {{ .ArrayName }}Encoder struct {

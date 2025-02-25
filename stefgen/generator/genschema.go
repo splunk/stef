@@ -205,6 +205,25 @@ func (r *genPrimitiveTypeRef) EqualFunc() string {
 	}
 }
 
+func (r *genPrimitiveTypeRef) RandomFunc() string {
+	switch r.Type {
+	case schema.PrimitiveTypeUint64:
+		return "pkg.Uint64Random"
+	case schema.PrimitiveTypeInt64:
+		return "pkg.Int64Random"
+	case schema.PrimitiveTypeFloat64:
+		return "pkg.Float64Random"
+	case schema.PrimitiveTypeBool:
+		return "pkg.BoolRandom"
+	case schema.PrimitiveTypeString:
+		return "pkg.StringRandom"
+	case schema.PrimitiveTypeBytes:
+		return "pkg.BytesRandom"
+	default:
+		panic(fmt.Sprintf("unknown type %v", r.Type))
+	}
+}
+
 func (r *genPrimitiveTypeRef) CompareFunc() string {
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:

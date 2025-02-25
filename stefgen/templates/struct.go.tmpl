@@ -1,7 +1,8 @@
 package {{ .PackageName }}
 
 import (
-"fmt"
+    "fmt"
+    "math/rand/v2"
     "strings"
 	"unsafe"
 
@@ -184,6 +185,21 @@ func (s* {{.StructName}}) markUnmodified() {
 	s.{{.name}}.markUnmodified()
 	{{- end}}
 	{{- end }}
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
+    const fieldCount = {{len .Fields}}
+{{- range .Fields }}
+    if random.IntN(fieldCount)==0 {
+    {{- if not .Type.IsPrimitive }}
+        s.{{.name}}.mutateRandom(random)
+    {{- else }}
+        s.Set{{.Name}}({{ .Type.RandomFunc }}(random))
+    {{- end}}
+    }
+{{- end }}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

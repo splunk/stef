@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"unsafe"
 
@@ -157,6 +158,21 @@ func (s *Resource) markParentModified() {
 func (s *Resource) markUnmodified() {
 	s.modifiedFields.markUnmodified()
 	s.attributes.markUnmodified()
+}
+
+// mutateRandom mutates fields in a random, deterministic manner using
+// random parameter as a deterministic generator.
+func (s *Resource) mutateRandom(random *rand.Rand) {
+	const fieldCount = 3
+	if random.IntN(fieldCount) == 0 {
+		s.SetSchemaURL(pkg.StringRandom(random))
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.attributes.mutateRandom(random)
+	}
+	if random.IntN(fieldCount) == 0 {
+		s.SetDroppedAttributesCount(pkg.Uint64Random(random))
+	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
