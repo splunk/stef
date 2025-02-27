@@ -42,6 +42,13 @@ type WriterOptions struct {
 	//   carries over through the frames, which makes impossible to skip
 	//   frames and start decompressing from the next frame.
 	//   This flag has effect only if Compression!=CompressionNone.
+	//
+	// RestartEncoders - the encoder's state will be cleared. All new frames will
+	//   start with initial state of encoders.
+	//
+	// A combination of RestartDictionaries|RestartCompression|RestartEncoders flags
+	// ensures that a frame is readable and decodable on its own, without the need
+	// to read any preceding frames.
 	FrameRestartFlags FrameFlags
 
 	// MaxTotalDictSize is the maximum total byte size of all dictionaries.

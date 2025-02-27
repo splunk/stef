@@ -260,6 +260,7 @@ func (d *ExemplarArrayDecoder) Continue() {
 }
 
 func (d *ExemplarArrayDecoder) Reset() {
+	d.prevLen = 0
 	d.decoder.Reset()
 }
 

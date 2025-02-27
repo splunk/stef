@@ -432,7 +432,8 @@ Frame structure is used to represent either a VarHeader or a Data Frame.
 Frame {
     RestartDictionaries: 1
     RestartCompression: 1
-    Random: 6
+    RestartCodecs: 1
+    Random: 5
     UncompressedSize: U64
     /CompressedSize: U64/
     Content: ..
@@ -449,6 +450,9 @@ anew from this frame's Content. Reader's state of compression decoder MUST be
 reset when this bit is set. If this bit is unset the state of the compression encoder
 carries over through the Content field of frames. This bit has effect only if Flags
 field in the Header specifies a compression.
+
+RestartCodecs indicates that the state of encoders/decoders is cleared and started
+anew from this frame's Content.
 
 The UncompressedSize size field specifies the total size in bytes of the frame Content
 in uncompressed form. If no compression is used the UncompressedSize field is

@@ -312,9 +312,7 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 }
 
 func (e *{{ .StructName }}Encoder) Reset() {
-	// Since we are resetting the state of encoder make sure the next Encode()
-	// call forcedly writes all fields and does not attempt to skip.
-	e.prevType = 0
+    e.prevType = 0
     {{- range .Fields}}
     e.{{.name}}Encoder.Reset()
     {{- end}}

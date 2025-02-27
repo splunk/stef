@@ -78,7 +78,7 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
 
 }
 
-func (d *WriterState) Reset() {
+func (d *WriterState) ResetDicts() {
 	d.limiter.ResetDict()
 	d.AnyValueString.Reset()
 	d.AttributeKey.Reset()

@@ -260,6 +260,7 @@ func (d *EventArrayDecoder) Continue() {
 }
 
 func (d *EventArrayDecoder) Reset() {
+	d.prevLen = 0
 	d.decoder.Reset()
 }
 

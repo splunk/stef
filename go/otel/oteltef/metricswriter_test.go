@@ -34,21 +34,25 @@ func genMetricsRecords(random *rand.Rand) (records []Metrics) {
 func TestMetricsWriteRead(t *testing.T) {
 	opts := []pkg.WriterOptions{
 		{},
-		{
-			Compression: pkg.CompressionZstd,
-		},
-		{
-			MaxUncompressedFrameByteSize: 500,
-		},
-		{
-			// Disable due to bug with dicts. Enable after https://github.com/splunk/stef/pull/44
-			// MaxTotalDictSize: 500,
-		},
+		{Compression: pkg.CompressionZstd},
+		{MaxUncompressedFrameByteSize: 500},
+		{MaxTotalDictSize: 500},
 		{
 			Compression:                  pkg.CompressionZstd,
 			MaxUncompressedFrameByteSize: 500,
-			// Disable due to bug with dicts. Enable after https://github.com/splunk/stef/pull/44
-			// MaxTotalDictSize: 500,
+			MaxTotalDictSize:             500,
+		},
+		{FrameRestartFlags: pkg.RestartDictionaries},
+		{FrameRestartFlags: pkg.RestartCodecs},
+		{FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs},
+		{FrameRestartFlags: pkg.RestartCompression, Compression: pkg.CompressionZstd},
+		{
+			FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs | pkg.RestartCompression,
+			Compression:       pkg.CompressionZstd,
+		},
+		{
+			FrameRestartFlags:            pkg.RestartCodecs,
+			MaxUncompressedFrameByteSize: 500,
 		},
 	}
 

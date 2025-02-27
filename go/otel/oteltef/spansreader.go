@@ -90,6 +90,12 @@ func (r *SpansReader) nextFrame() error {
 		r.state.ResetDicts()
 	}
 
+	if frameFlags&pkg.RestartCodecs != 0 {
+		// The frame that has just started indicates that the decoders
+		// must be restarted.
+		r.decoder.Reset()
+	}
+
 	r.decoder.Continue()
 	return nil
 }

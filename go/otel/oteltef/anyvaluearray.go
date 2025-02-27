@@ -249,7 +249,7 @@ func (d *AnyValueArrayDecoder) Continue() {
 }
 
 func (d *AnyValueArrayDecoder) Reset() {
-	d.decoder.Reset()
+	d.prevLen = 0
 }
 
 func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
