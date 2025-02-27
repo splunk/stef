@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"unicode"
 )
 
@@ -23,8 +24,9 @@ type Lexer struct {
 	curPos  Pos
 	prevPos Pos
 
-	identRunes []rune
+	tokenRunes []rune
 	ident      string
+	uintNumber uint64
 }
 
 // Pos indicates a position in the input stream.
@@ -46,6 +48,7 @@ const (
 	tStruct
 	tOneof
 	tMultimap
+	tEnum
 
 	tOptional
 	tRoot
@@ -60,6 +63,9 @@ const (
 	tString
 	tBytes
 
+	tIntNumber
+
+	tAssign   = '='
 	tLBracket = '['
 	tRBracket = ']'
 	tLParen   = '('
@@ -88,6 +94,7 @@ var keywords = map[string]Token{
 	"struct":   tStruct,
 	"oneof":    tOneof,
 	"multimap": tMultimap,
+	"enum":     tEnum,
 	"optional": tOptional,
 	"root":     tRoot,
 	"dict":     tDict,
@@ -151,6 +158,8 @@ func (l *Lexer) Next() {
 	}
 
 	switch l.nextRune {
+	case tAssign:
+		l.token = tAssign
 	case tLParen:
 		l.token = tLParen
 	case tRParen:
@@ -167,6 +176,10 @@ func (l *Lexer) Next() {
 		if unicode.IsLetter(l.nextRune) {
 			// This is a letter. It must a start of an identifier or keyword.
 			l.readIdentOrKeyword()
+			return
+		} else if isDigit(l.nextRune) {
+			// This is a digit. It must be a number.
+			l.readUint64Number()
 			return
 		}
 		l.token = tError
@@ -234,12 +247,12 @@ func (l *Lexer) readNextRune() {
 }
 
 func (l *Lexer) readIdentOrKeyword() Token {
-	l.identRunes = l.identRunes[:0]
+	l.tokenRunes = l.tokenRunes[:0]
 
 	// The first character is already read. Subsequent characters must be
 	// letters, digits or underscore.
 	for (unicode.IsLetter(l.nextRune) || unicode.IsDigit(l.nextRune) || l.nextRune == '_') && !l.isError {
-		l.identRunes = append(l.identRunes, l.nextRune)
+		l.tokenRunes = append(l.tokenRunes, l.nextRune)
 		l.readNextRune()
 		if l.isEOF {
 			break
@@ -250,7 +263,7 @@ func (l *Lexer) readIdentOrKeyword() Token {
 		}
 	}
 
-	l.ident = string(l.identRunes)
+	l.ident = string(l.tokenRunes)
 
 	// Check if it is a keyword.
 	if token, ok := keywords[l.ident]; ok {
@@ -272,4 +285,49 @@ func (l *Lexer) Ident() string {
 // token after Next() call.
 func (l *Lexer) TokenStartPos() Pos {
 	return l.prevPos
+}
+
+func (l *Lexer) Uint64Number() uint64 {
+	return l.uintNumber
+}
+
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
+func isNumberContinuation(r rune) bool {
+	return isDigit(r) || r == '_' || r == 'b' || r == 'x' || r == 'o' || r == 'B' || r == 'X' || r == 'O'
+}
+
+func (l *Lexer) readUint64Number() {
+	l.tokenRunes = l.tokenRunes[:0]
+
+	// The first character is already read.
+
+	for {
+		if l.isError {
+			l.token = tError
+			return
+		}
+		l.tokenRunes = append(l.tokenRunes, l.nextRune)
+		l.readNextRune()
+		if l.isEOF || !isNumberContinuation(l.nextRune) {
+			break
+		}
+	}
+
+	// This correctly parses decimal, hexadecimal, octal and binary numbers.
+	val, err := strconv.ParseUint(string(l.tokenRunes), 0, 64)
+	if err != nil {
+		l.token = tError
+		l.errMsg = fmt.Sprintf("invalid number: %s", string(l.tokenRunes))
+		return
+	}
+
+	l.uintNumber = val
+	l.token = tIntNumber
+}
+
+func (l *Lexer) ErrMsg() string {
+	return l.errMsg
 }
