@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"log"
 	"os"
+	"path"
 
-	"github.com/splunk/stef/go/pkg/schema"
-
+	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/stefgen/generator"
 )
 
@@ -17,23 +17,23 @@ func main() {
 		os.Exit(-1)
 	}
 
-	wireJson, err := os.ReadFile(os.Args[1])
+	fileName := os.Args[1]
+	schemaContent, err := os.ReadFile(fileName)
 	if err != nil {
 		panic(err)
 	}
 
-	var wireSchema schema.Schema
-	err = json.Unmarshal(wireJson, &wireSchema)
+	lexer := idl.NewLexer(bytes.NewBuffer(schemaContent))
+	parser := idl.NewParser(lexer, path.Base(fileName))
+	err = parser.Parse()
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
-
-	//schemaAst := schema.compileSchema(&wireSchema)
-	//schemaAst.resolveRefs()
+	wireSchema := parser.Schema()
 
 	fmt.Println("Generating code...")
 	g := generator.Generator{OutputDir: wireSchema.PackageName}
-	err = g.GenFile(&wireSchema)
+	err = g.GenFile(wireSchema)
 	if err != nil {
 		log.Fatalln(err)
 	}
