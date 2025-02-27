@@ -10,4 +10,4 @@ build:
 
 generate:
 	cd ../../stefgen && make build
-	../../stefgen/bin/stefgen oteltef.wire.json
+	../../stefgen/bin/stefgen otel.stef
