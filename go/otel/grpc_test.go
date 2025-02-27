@@ -44,24 +44,26 @@ func TestGrpcWriteRead(t *testing.T) {
 	recordsReceivedAndVerified := make(chan struct{})
 	serverSettings := stefgrpc.ServerSettings{
 		ServerSchema: &schema,
-		OnStream: func(source stefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
-			reader, err := oteltef.NewMetricsReader(source)
-			require.NoError(t, err)
+		Callbacks: stefgrpc.Callbacks{
+			OnStream: func(source stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
+				reader, err := oteltef.NewMetricsReader(source)
+				require.NoError(t, err)
 
-			// Read and verify that received records match what was sent.
-			err = reader.Read(pkg.ReadOptions{})
-			require.NoError(t, err)
-			require.EqualValues(t, "abc", reader.Record.Metric().Name())
+				// Read and verify that received records match what was sent.
+				err = reader.Read(pkg.ReadOptions{})
+				require.NoError(t, err)
+				require.EqualValues(t, "abc", reader.Record.Metric().Name())
 
-			// Send acknowledgment to the client.
-			err = ackFunc(reader.RecordCount())
-			if err != nil {
-				log.Printf("Error sending ack record id to server: %v", err)
-			}
+				// Send acknowledgment to the client.
+				err = stream.SendDataResponse(&stef_proto.STEFDataResponse{AckRecordId: reader.RecordCount()})
+				if err != nil {
+					log.Printf("Error sending ack record id to server: %v", err)
+				}
 
-			// Signal that verification is done.
-			close(recordsReceivedAndVerified)
-			return nil
+				// Signal that verification is done.
+				close(recordsReceivedAndVerified)
+				return nil
+			},
 		},
 	}
 
@@ -175,26 +177,28 @@ func TestDictReset(t *testing.T) {
 	serverSettings := stefgrpc.ServerSettings{
 		MaxDictBytes: uint64(2*nameLen + 500), // Fit 2 elems, 3rd is over limit.
 		ServerSchema: &schema,
-		OnStream: func(source stefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
-			reader, err := oteltef.NewMetricsReader(source)
-			require.NoError(t, err)
-
-			// Read and verify that received records match what was sent.
-			for i, metricName := range metricNames {
-				err := reader.Read(pkg.ReadOptions{})
+		Callbacks: stefgrpc.Callbacks{
+			OnStream: func(source stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
+				reader, err := oteltef.NewMetricsReader(source)
 				require.NoError(t, err)
-				assert.EqualValues(t, metricName, reader.Record.Metric().Name(), i)
-			}
 
-			// Send acknowledgment to the client.
-			err = ackFunc(reader.RecordCount())
-			if err != nil {
-				log.Printf("Error sending ack record id to server: %v", err)
-			}
+				// Read and verify that received records match what was sent.
+				for i, metricName := range metricNames {
+					err := reader.Read(pkg.ReadOptions{})
+					require.NoError(t, err)
+					assert.EqualValues(t, metricName, reader.Record.Metric().Name(), i)
+				}
 
-			// Signal that verification is done.
-			close(recordsReceivedAndVerified)
-			return nil
+				// Send acknowledgment to the client.
+				err = stream.SendDataResponse(&stef_proto.STEFDataResponse{AckRecordId: reader.RecordCount()})
+				if err != nil {
+					log.Printf("Error sending ack record id to server: %v", err)
+				}
+
+				// Signal that verification is done.
+				close(recordsReceivedAndVerified)
+				return nil
+			},
 		},
 	}
 

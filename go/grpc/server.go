@@ -15,8 +15,8 @@ import (
 )
 
 type grpcMsgSource interface {
-	// RecvMsg receives a STEF/gRPC message containing STEF bytes.
-	RecvMsg() (tefBytes []byte, isEndOfChunk bool, err error)
+	// recvMsg receives a STEF/gRPC message containing STEF bytes.
+	recvMsg() (tefBytes []byte, isEndOfChunk bool, err error)
 }
 
 type GrpcReader interface {
@@ -43,7 +43,7 @@ var _ io.Reader = (*chunkAssembler)(nil)
 func (g *chunkAssembler) recvMsg() (chunkBytes []byte, err error) {
 	var chunkBuf []byte
 	for {
-		bytes, isEndOfChunk, err := g.source.RecvMsg()
+		bytes, isEndOfChunk, err := g.source.recvMsg()
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func newChunkAssembler(source grpcMsgSource) GrpcReader {
 type grpcChunkSource struct {
 	serverStream     stef_proto.STEFDestination_StreamServer
 	message          stef_proto.STEFServerMessage
-	response         stef_proto.STEFDataResponse
+	serverResponse   *stef_proto.STEFServerMessage_Response
 	messagesReceived uint64
 }
 
@@ -99,13 +99,15 @@ func newGrpcChunkSource(serverStream stef_proto.STEFDestination_StreamServer) *g
 	s := &grpcChunkSource{
 		serverStream: serverStream,
 	}
+	s.serverResponse = &stef_proto.STEFServerMessage_Response{}
 	s.message = stef_proto.STEFServerMessage{
-		Message: &stef_proto.STEFServerMessage_Response{Response: &s.response},
+		Message: s.serverResponse,
 	}
+
 	return s
 }
 
-func (r *grpcChunkSource) RecvMsg() (tefBytes []byte, isEndOfChunk bool, err error) {
+func (r *grpcChunkSource) recvMsg() (tefBytes []byte, isEndOfChunk bool, err error) {
 	response, err := r.serverStream.Recv()
 	if err != nil {
 		return nil, false, err
@@ -114,9 +116,8 @@ func (r *grpcChunkSource) RecvMsg() (tefBytes []byte, isEndOfChunk bool, err err
 	return response.StefBytes, response.IsEndOfChunk, nil
 }
 
-func (r *grpcChunkSource) AckRecordId(recordId uint64) error {
-	// Acknowledge receipt.
-	r.response.AckRecordId = recordId
+func (r *grpcChunkSource) SendDataResponse(response *stef_proto.STEFDataResponse) error {
+	r.serverResponse.Response = response
 	return r.serverStream.Send(&r.message)
 }
 
@@ -126,29 +127,57 @@ type StreamServer struct {
 	logger       types.Logger
 	serverSchema *schema.WireSchema
 	maxDictBytes uint64
-	onStream     func(reader GrpcReader, ackFunc func(sequenceId uint64) error) error
+	callbacks    Callbacks
 }
 
 var _ stef_proto.STEFDestinationServer = (*StreamServer)(nil)
+
+// Callbacks is a set of callbacks that StreamServer calls.
+type Callbacks struct {
+	// OnStream is called when a new stream is opened to the server.
+	// The reader is ready to be passed as an input to a STEF reader.
+	// If the callback returns an error, the stream will be closed.
+	// If the callback is nil, the default behavior is to close the stream immediately.
+	OnStream func(reader GrpcReader, stream STEFStream) error
+}
+
+func defaultOnStream(GrpcReader, STEFStream) error {
+	return nil
+}
+
+// SetDefaults ensures that callbacks that are not initialized by the
+// user are set to default functions.
+func (c *Callbacks) SetDefaults() {
+	if c.OnStream == nil {
+		c.OnStream = defaultOnStream
+	}
+}
+
+// STEFStream represents a STEF-over-gRPC stream.
+type STEFStream interface {
+	// SendDataResponse sends a response to the client. Must not be called concurrently.
+	SendDataResponse(response *stef_proto.STEFDataResponse) error
+}
 
 type ServerSettings struct {
 	Logger       types.Logger
 	ServerSchema *schema.WireSchema
 	MaxDictBytes uint64
-	OnStream     func(reader GrpcReader, ackFunc func(sequenceId uint64) error) error
+	Callbacks    Callbacks
 }
 
 func NewStreamServer(settings ServerSettings) *StreamServer {
 	if settings.Logger == nil {
 		settings.Logger = internal.NopLogger{}
 	}
-	//settings.ServerSchema.Minify()
-	return &StreamServer{
+	s := &StreamServer{
 		logger:       settings.Logger,
 		serverSchema: settings.ServerSchema,
 		maxDictBytes: settings.MaxDictBytes,
-		onStream:     settings.OnStream,
+		callbacks:    settings.Callbacks,
 	}
+	s.callbacks.SetDefaults()
+	return s
 }
 
 func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) error {
@@ -175,5 +204,5 @@ func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) er
 
 	grpcStream := newGrpcChunkSource(server)
 	reader := newChunkAssembler(grpcStream)
-	return s.onStream(reader, grpcStream.AckRecordId)
+	return s.callbacks.OnStream(reader, grpcStream)
 }
