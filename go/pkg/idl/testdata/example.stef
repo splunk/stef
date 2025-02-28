@@ -8,7 +8,16 @@ struct Book {
     Title string                     // The title of the book.
     PublishedOn Date                 // When was it published.
     Publisher string dict(Publisher) // Publishers name, encoded with a dict.
+    Category Category
     Authors []Person                 // Zero or more authors of the book.
+}
+
+enum Category {
+    Fiction = 1
+    NonFiction = 2
+    HexMystery = 0x3
+    OctalMystery = 0o4
+    BinaryMystery = 0b101
 }
 
 // BookEvent describes either a checkout or a checkin event.

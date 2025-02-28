@@ -44,6 +44,22 @@ func TestParserErrors(t *testing.T) {
 			input: "package abc\nstruct MyStruct {\nField []struct",
 			err:   "test.stef:3:10: type specifier expected after []",
 		},
+		{
+			input: "package abc\nstruct MyStruct {\nField UnknownType }",
+			err:   "test.stef:3:20: unknown type: UnknownType",
+		},
+		{
+			input: "package abc oneof A {} struct A {}",
+			err:   "test.stef:1:31: duplicate top-level identifier: A",
+		},
+		{
+			input: "package abc enum {}",
+			err:   "test.stef:1:18: enum name expected",
+		},
+		{
+			input: "package abc enum Enum { Value = }",
+			err:   "test.stef:1:33: enum field value expected",
+		},
 	}
 
 	for _, test := range tests {
@@ -79,7 +95,11 @@ func TestParserOtelSTEF(t *testing.T) {
 	jsonBytes, err := os.ReadFile("testdata/oteltef.wire.json")
 	require.NoError(t, err)
 
-	var schem schema.Schema
+	schem := schema.Schema{
+		Structs:   map[string]*schema.Struct{},
+		Multimaps: map[string]*schema.Multimap{},
+		Enums:     map[string]*schema.Enum{},
+	}
 	err = json.Unmarshal(jsonBytes, &schem)
 	require.NoError(t, err)
 

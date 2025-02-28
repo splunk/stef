@@ -48,6 +48,7 @@ func (p *Parser) Parse() error {
 	p.schema = &schema.Schema{
 		Structs:   map[string]*schema.Struct{},
 		Multimaps: map[string]*schema.Multimap{},
+		Enums:     map[string]*schema.Enum{},
 	}
 
 	if err := p.parsePackage(); err != nil {
@@ -63,6 +64,8 @@ func (p *Parser) Parse() error {
 			err = p.parseOneof()
 		case tMultimap:
 			err = p.parseMultimap()
+		case tEnum:
+			err = p.parseEnum()
 		default:
 			return p.error("expected struct, oneof or multimap")
 		}
@@ -76,6 +79,10 @@ func (p *Parser) Parse() error {
 	return p.resolveFieldTypes()
 }
 
+func (p *Parser) isTopLevelNameUsed(name string) bool {
+	return p.schema.Structs[name] != nil || p.schema.Multimaps[name] != nil || p.schema.Enums[name] != nil
+}
+
 func (p *Parser) parseStruct() (*schema.Struct, error) {
 	p.lexer.Next() // skip "struct"
 
@@ -83,6 +90,11 @@ func (p *Parser) parseStruct() (*schema.Struct, error) {
 		return nil, p.error("struct name expected")
 	}
 	structName := p.lexer.Ident()
+
+	if p.isTopLevelNameUsed(structName) {
+		return nil, p.error("duplicate top-level identifier: " + structName)
+	}
+
 	p.lexer.Next()
 
 	str := &schema.Struct{
@@ -126,6 +138,11 @@ func (p *Parser) parseMultimap() error {
 		return p.error("multimap name expected")
 	}
 	multimapName := p.lexer.Ident()
+
+	if p.isTopLevelNameUsed(multimapName) {
+		return p.error("duplicate top-level identifier: " + multimapName)
+	}
+
 	p.lexer.Next()
 
 	mm := &schema.Multimap{
@@ -387,11 +404,36 @@ func (p *Parser) resolveFieldTypes() error {
 }
 
 func (p *Parser) resolveFieldType(fieldType *schema.FieldType) error {
-	if fieldType.Struct != "" {
-		_, ok := p.schema.Multimaps[fieldType.Struct]
-		if ok {
-			fieldType.MultiMap = fieldType.Struct
+	typeName := fieldType.Struct
+	if typeName != "" {
+		matches := 0
+		_, isStruct := p.schema.Structs[typeName]
+		if isStruct {
+			matches++
+		}
+
+		_, isMultimap := p.schema.Multimaps[typeName]
+		if isMultimap {
+			fieldType.MultiMap = typeName
 			fieldType.Struct = ""
+			matches++
+		}
+
+		_, isEnum := p.schema.Enums[typeName]
+		if isEnum {
+			// All enums are uint64.
+			t := schema.PrimitiveTypeUint64
+			fieldType.Primitive = &t
+			fieldType.Enum = typeName
+			fieldType.Struct = ""
+			matches++
+		}
+
+		if matches == 0 {
+			return p.error("unknown type: " + typeName)
+		}
+		if matches > 1 {
+			return p.error("ambiguous type: " + typeName)
 		}
 	}
 	return nil
@@ -408,4 +450,79 @@ func (p *Parser) parsePackage() error {
 		p.lexer.Next()
 	}
 	return nil
+}
+
+func (p *Parser) parseEnum() error {
+	p.lexer.Next() // skip "enum"
+
+	if p.lexer.Token() != tIdent {
+		return p.error("enum name expected")
+	}
+	enumName := p.lexer.Ident()
+
+	if p.isTopLevelNameUsed(enumName) {
+		return p.error("duplicate top-level identifier: " + enumName)
+	}
+
+	p.lexer.Next()
+
+	enum := &schema.Enum{
+		Name: enumName,
+	}
+	p.schema.Enums[enum.Name] = enum
+
+	if err := p.eat(tLBrace); err != nil {
+		return err
+	}
+
+	if err := p.parseEnumFields(enum); err != nil {
+		return err
+	}
+
+	if err := p.eat(tRBrace); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *Parser) parseEnumFields(enum *schema.Enum) error {
+	for {
+		err, ok := p.parseEnumField(enum)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			break
+		}
+	}
+	return nil
+}
+
+func (p *Parser) parseEnumField(enum *schema.Enum) (error, bool) {
+	if p.lexer.Token() != tIdent {
+		return nil, false
+	}
+
+	enum.Fields = append(enum.Fields, schema.EnumField{Name: p.lexer.Ident()})
+	field := &enum.Fields[len(enum.Fields)-1]
+
+	p.lexer.Next() // skip field name
+
+	if err := p.eat(tAssign); err != nil {
+		return err, false
+	}
+
+	if p.lexer.Token() != tIntNumber {
+		errMsg := "enum field value expected"
+		if p.lexer.Token() == tError {
+			errMsg += ": " + p.lexer.ErrMsg()
+		}
+		return p.error(errMsg), false
+	}
+
+	field.Value = p.lexer.Uint64Number()
+	p.lexer.Next()
+
+	return nil, true
 }

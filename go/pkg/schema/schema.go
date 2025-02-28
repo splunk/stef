@@ -9,6 +9,7 @@ type Schema struct {
 	PackageName string               `json:"package,omitempty"`
 	Structs     map[string]*Struct   `json:"structs"`
 	Multimaps   map[string]*Multimap `json:"multimaps"`
+	Enums       map[string]*Enum
 }
 
 type Compatibility int
@@ -301,7 +302,8 @@ type FieldType struct {
 	Array     *FieldType          `json:"array,omitempty"`
 	Struct    string              `json:"struct,omitempty"`
 	MultiMap  string              `json:"multimap,omitempty"`
-	DictName  string              `json:"dict,omitempty"`
+	Enum      string
+	DictName  string `json:"dict,omitempty"`
 }
 
 type MultimapField struct {
@@ -312,4 +314,14 @@ type Multimap struct {
 	Name  string        `json:"name,omitempty"`
 	Key   MultimapField `json:"key"`
 	Value MultimapField `json:"value"`
+}
+
+type Enum struct {
+	Name   string
+	Fields []EnumField
+}
+
+type EnumField struct {
+	Name  string
+	Value uint64
 }
