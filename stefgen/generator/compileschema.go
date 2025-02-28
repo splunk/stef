@@ -11,6 +11,7 @@ func compileSchema(src *schema.Schema) (*genSchema, error) {
 		PackageName: src.PackageName,
 		Structs:     map[string]*genStructDef{},
 		Multimaps:   map[string]*genMapDef{},
+		Enums:       map[string]*genEnumDef{},
 	}
 
 	for name, struc := range src.Structs {
@@ -19,6 +20,10 @@ func compileSchema(src *schema.Schema) (*genSchema, error) {
 
 	for name, multimap := range src.Multimaps {
 		dst.Multimaps[name] = multimapWireToGen(multimap)
+	}
+
+	for name, enum := range src.Enums {
+		dst.Enums[name] = enumSchemaToGen(enum)
 	}
 
 	if err := dst.resolveRefs(); err != nil {
@@ -200,7 +205,6 @@ func structFieldWireToAst(src *schema.StructField) *genStructFieldDef {
 	dst := &genStructFieldDef{
 		Name:     src.Name,
 		Optional: src.Optional,
-		//Recursive: src.Recursive,
 	}
 
 	dst.Type = typeWireToGen(src.FieldType)
@@ -213,6 +217,7 @@ func typeWireToGen(src schema.FieldType) genFieldTypeRef {
 		return &genPrimitiveTypeRef{
 			Type: *src.Primitive,
 			Dict: src.DictName,
+			Enum: src.Enum,
 		}
 	}
 
@@ -235,4 +240,22 @@ func typeWireToGen(src schema.FieldType) genFieldTypeRef {
 	}
 
 	panic("unknown field type")
+}
+
+func enumSchemaToGen(src *schema.Enum) *genEnumDef {
+	dst := &genEnumDef{
+		Name: src.Name,
+	}
+	for i := range src.Fields {
+		dst.Fields = append(dst.Fields, enumFieldSchemaToGen(&src.Fields[i]))
+	}
+	return dst
+}
+
+func enumFieldSchemaToGen(src *schema.EnumField) *genEnumFieldDef {
+	dst := &genEnumFieldDef{
+		Name:  src.Name,
+		Value: src.Value,
+	}
+	return dst
 }

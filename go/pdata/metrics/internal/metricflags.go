@@ -1,15 +1,4 @@
-package oteltef
-
-type MetricType uint
-
-const (
-	Gauge MetricType = iota
-	Sum
-	Histogram
-	ExpHistogram
-	Summary
-	MetricTypeLimit
-)
+package internal
 
 // MetricFlags is a bitmask
 type MetricFlags uint
@@ -21,11 +10,3 @@ const (
 	MetricTemporalityDelta       MetricFlags = 0b010
 	MetricTemporalityCumulative  MetricFlags = 0b100
 )
-
-//type HistogramFieldPresenceMask int64
-//
-//const (
-//	HistogramHasSum = HistogramFieldPresenceMask(1 << iota)
-//	HistogramHasMin
-//	HistogramHasMax
-//)

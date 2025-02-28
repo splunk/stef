@@ -18,7 +18,7 @@ var _ = encoders.StringEncoder{}
 
 type {{ .StructName }} struct {
     {{ range .Fields }}
-    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.GoQualifiedType }}
+    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.Storage }}
     {{- end }}
 
     // modifiedFields keeps track of which fields are modified.
@@ -66,7 +66,7 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
 
     {{ range .Fields }}
     {{- if .Type.Flags.StoreByPtr}}
-    s.{{.name}} = &{{ .Type.GoQualifiedType }}{}
+    s.{{.name}} = &{{ .Type.Storage }}{}
     {{- end }}
 	{{- if not .Type.IsPrimitive }}
     s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
@@ -75,16 +75,20 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
 }
 
 {{ range .Fields }}
-func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.GoQualifiedType}} {
-	return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
+{{- if .Type.IsPrimitive}}
+	return {{.Type.ToExported (print "s." .name)}}
+{{- else}}
+    return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+{{- end}}
 }
 
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value of {{.Name}} field.
-func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.GoQualifiedType}}) {
-    if !{{ .Type.EqualFunc }}({{if and .PassByPointer (not .IsStructType)}}&{{end}}s.{{.name}}, v)
+func (s *{{ $.StructName }}) Set{{.Name}}(v {{.Type.Exported}}) {
+    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}})
         {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
-		s.{{.name}} = v
+		s.{{.name}} = {{.Type.ToStorage "v"}}
         s.mark{{.Name}}Modified()
         {{- if .Optional}}
 		s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
@@ -158,12 +162,12 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- else}}
 	{{- if .Optional}}
 	if src.Has{{.Name}}() {
-		dst.Set{{.Name}}(src.{{.name}})
+		dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
 	} else {
 		dst.Unset{{.Name}}()
 	}
 	{{else}}
-    dst.Set{{.Name}}(src.{{.name}})
+    dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
     {{- end}}
     {{- end}}
     {{- end}}
@@ -196,7 +200,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
     {{- if not .Type.IsPrimitive }}
         s.{{.name}}.mutateRandom(random)
     {{- else }}
-        s.Set{{.Name}}({{ .Type.RandomFunc }}(random))
+        s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc "(random)")}})
     {{- end}}
     }
 {{- end }}

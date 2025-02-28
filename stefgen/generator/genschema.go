@@ -12,6 +12,7 @@ type genSchema struct {
 	PackageName string
 	Structs     map[string]*genStructDef
 	Multimaps   map[string]*genMapDef
+	Enums       map[string]*genEnumDef
 }
 
 func (s *genSchema) SchemaStr() string {
@@ -66,12 +67,12 @@ func (a *genStructFieldDef) SetRecursive() {
 }
 
 type TypeFlags struct {
-	// PassByPtr indicates that the value of this type is passed by pointer to GoQualifiedType()
+	// PassByPtr indicates that the value of this type is passed by pointer to Exported()
 	// when it is a function parameter or when it is returned by a function.
 	PassByPtr bool
 
 	// StoreByPtr indicates that struct fields of the value of this type is stored as a
-	// pointer to GoQualifiedType(). If this is false that the fields are simply of GoQualifiedType().
+	// pointer to Exported(). If this is false that the fields are simply of Exported().
 	StoreByPtr bool
 
 	// TakePtr is true a pointer must be taken of the field to pass it as a parameter.
@@ -82,8 +83,18 @@ type genFieldTypeRef interface {
 	TypeName() string
 	IsPrimitive() bool
 
-	// GoQualifiedType is the fully qualified Go type for this field type.
-	GoQualifiedType() string
+	// Exported is the fully qualified exported (public) Go type.
+	Exported() string
+
+	// Storage is the underlying storage type.
+	Storage() string
+
+	// ToExported converts argument to exported type if necessary.
+	ToExported(arg string) string
+
+	// ToStorage converts argument to storage type if necessary.
+	ToStorage(arg string) string
+
 	EncoderType() string
 	EqualFunc() string
 	CompareFunc() string
@@ -99,6 +110,7 @@ type genFieldTypeRef interface {
 type genPrimitiveTypeRef struct {
 	Type schema.PrimitiveFieldType
 	Dict string
+	Enum string
 }
 
 func (r *genPrimitiveTypeRef) IsPrimitive() bool {
@@ -125,7 +137,42 @@ func (r *genPrimitiveTypeRef) DictName() string {
 	return r.Dict
 }
 
-func (r *genPrimitiveTypeRef) GoQualifiedType() string {
+// Storage returns the underlying type of fields.
+func (r *genPrimitiveTypeRef) Storage() string {
+	if r.Type == schema.PrimitiveTypeBytes {
+		return "pkg.Bytes"
+	}
+	return r.TypeName()
+}
+
+// ToStorage converts the argument to the underlying type
+// if the underlying type is different than the exported type.
+// If the types are the same, no conversion is performed.
+func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
+	if r.Enum != "" {
+		return r.Storage() + "(" + arg + ")"
+	}
+	return arg
+}
+
+// ToExported converts the argument to the exported type
+// if the underlying storage type is different than the exported type.
+// If the types are the same, no conversion is performed.
+func (r *genPrimitiveTypeRef) ToExported(arg string) string {
+	if r.Enum != "" {
+		return r.Enum + "(" + arg + ")"
+	}
+	return arg
+}
+
+// Exported returns the fully qualified Go type for this field type
+// that will be used for exported setters/getters.
+// The underlying storage type may be different (e.g. if it is an Enum)
+// and is available via Storage().
+func (r *genPrimitiveTypeRef) Exported() string {
+	if r.Enum != "" {
+		return r.Enum
+	}
 	if r.Type == schema.PrimitiveTypeBytes {
 		return "pkg.Bytes"
 	}
@@ -314,8 +361,20 @@ func (r *genStructTypeRef) DictGoType() string {
 	return r.DictName()
 }
 
-func (r *genStructTypeRef) GoQualifiedType() string {
+func (r *genStructTypeRef) Exported() string {
 	return r.TypeName()
+}
+
+func (r *genStructTypeRef) Storage() string {
+	return r.TypeName()
+}
+
+func (r *genStructTypeRef) ToExported(arg string) string {
+	return arg
+}
+
+func (r *genStructTypeRef) ToStorage(arg string) string {
+	return arg
 }
 
 func (r *genStructTypeRef) TypeName() string {
@@ -382,8 +441,20 @@ func (r *genArrayTypeRef) DictGoType() string {
 	return ""
 }
 
-func (r *genArrayTypeRef) GoQualifiedType() string {
+func (r *genArrayTypeRef) Exported() string {
 	return r.TypeName()
+}
+
+func (r *genArrayTypeRef) Storage() string {
+	return r.TypeName()
+}
+
+func (r *genArrayTypeRef) ToExported(arg string) string {
+	return r.ToExported(arg)
+}
+
+func (r *genArrayTypeRef) ToStorage(arg string) string {
+	return r.ToStorage(arg)
 }
 
 func (r *genArrayTypeRef) TypeName() string {
@@ -430,8 +501,20 @@ func (r *genMultimapTypeRef) DictGoType() string {
 	return ""
 }
 
-func (r *genMultimapTypeRef) GoQualifiedType() string {
+func (r *genMultimapTypeRef) Exported() string {
 	return r.TypeName()
+}
+
+func (r *genMultimapTypeRef) Storage() string {
+	return r.TypeName()
+}
+
+func (r *genMultimapTypeRef) ToExported(arg string) string {
+	return arg
+}
+
+func (r *genMultimapTypeRef) ToStorage(arg string) string {
+	return arg
 }
 
 func (r *genMultimapTypeRef) TypeName() string {
@@ -466,4 +549,14 @@ func (r *genMultimapTypeRef) Flags() TypeFlags {
 		StoreByPtr: false,
 		TakePtr:    true,
 	}
+}
+
+type genEnumDef struct {
+	Name   string
+	Fields []*genEnumFieldDef
+}
+
+type genEnumFieldDef struct {
+	Name  string
+	Value uint64
 }

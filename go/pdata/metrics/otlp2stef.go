@@ -14,14 +14,14 @@ type OtlpToSTEFUnsorted struct {
 	internal.BaseOTLPToSTEF
 }
 
-func convertTemporality(temporality pmetric.AggregationTemporality) oteltef.MetricFlags {
+func convertTemporality(temporality pmetric.AggregationTemporality) internal.MetricFlags {
 	switch temporality {
 	case pmetric.AggregationTemporalityCumulative:
-		return oteltef.MetricTemporalityCumulative
+		return internal.MetricTemporalityCumulative
 	case pmetric.AggregationTemporalityDelta:
-		return oteltef.MetricTemporalityDelta
+		return internal.MetricTemporalityDelta
 	case pmetric.AggregationTemporalityUnspecified:
-		return oteltef.MetricTemporalityUnspecified
+		return internal.MetricTemporalityUnspecified
 	default:
 		panic("unhandled default case")
 	}
@@ -30,11 +30,11 @@ func convertTemporality(temporality pmetric.AggregationTemporality) oteltef.Metr
 func metricType(typ pmetric.MetricType) oteltef.MetricType {
 	switch typ {
 	case pmetric.MetricTypeGauge:
-		return oteltef.Gauge
+		return oteltef.MetricTypeGauge
 	case pmetric.MetricTypeSum:
-		return oteltef.Sum
+		return oteltef.MetricTypeSum
 	case pmetric.MetricTypeHistogram:
-		return oteltef.Histogram
+		return oteltef.MetricTypeHistogram
 	default:
 		log.Fatalf("Unsupported value type: %v", typ)
 	}
@@ -50,7 +50,7 @@ func metric2metric(
 	dst.SetName(src.Name())
 	dst.SetDescription(src.Description())
 	dst.SetUnit(src.Unit())
-	dst.SetType(uint64(metricType(src.Type())))
+	dst.SetType(metricType(src.Type()))
 }
 
 func (d *OtlpToSTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {

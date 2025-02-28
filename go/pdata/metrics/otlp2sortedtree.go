@@ -58,19 +58,19 @@ func (c *OtlpToSortedTree) FromOtlp(rms pmetric.ResourceMetricsSlice) (*sortedby
 	return sm, nil
 }
 
-func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality) oteltef.MetricFlags {
-	var flags oteltef.MetricFlags
+func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality) internal.MetricFlags {
+	var flags internal.MetricFlags
 	if monotonic {
-		flags |= oteltef.MetricMonotonic
+		flags |= internal.MetricMonotonic
 	}
 
 	switch temporality {
 	case pmetric.AggregationTemporalityDelta:
-		flags |= oteltef.MetricTemporalityDelta
+		flags |= internal.MetricTemporalityDelta
 	case pmetric.AggregationTemporalityCumulative:
-		flags |= oteltef.MetricTemporalityCumulative
+		flags |= internal.MetricTemporalityCumulative
 	case pmetric.AggregationTemporalityUnspecified:
-		flags |= oteltef.MetricTemporalityUnspecified
+		flags |= internal.MetricTemporalityUnspecified
 	default:
 		panic("Unknown temporality value")
 	}
@@ -83,7 +83,7 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 	sms pmetric.ScopeMetrics,
 	metric pmetric.Metric,
 	srcPoints pmetric.NumberDataPointSlice,
-	flags oteltef.MetricFlags,
+	flags internal.MetricFlags,
 ) {
 	var metricType oteltef.MetricType
 	var byMetric *sortedbymetric.ByMetric
@@ -127,9 +127,9 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
 	switch metric.Type() {
 	case pmetric.MetricTypeGauge:
-		return oteltef.Gauge
+		return oteltef.MetricTypeGauge
 	case pmetric.MetricTypeSum:
-		return oteltef.Sum
+		return oteltef.MetricTypeSum
 	default:
 		log.Fatalf("Unsupported value type: %v", metric.Type())
 	}
@@ -153,7 +153,7 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 
 		c.recordCount++
 
-		byMetric = sm.ByMetric(metric, oteltef.Histogram, flags, srcPoint.ExplicitBounds().AsRaw())
+		byMetric = sm.ByMetric(metric, oteltef.MetricTypeHistogram, flags, srcPoint.ExplicitBounds().AsRaw())
 		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
 		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)

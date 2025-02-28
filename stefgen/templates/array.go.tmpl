@@ -15,7 +15,7 @@ var _ = encoders.StringEncoder{}
 
 // {{ .ArrayName }} is a variable size array.
 type {{ .ArrayName }} struct {
-	elems []{{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}
+	elems []{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit uint64
@@ -52,7 +52,7 @@ func (e *{{.ArrayName}}) byteSize() uint {
 // CopyFromSlice copies from a slice into this array. The length
 // of the array will be equal to the length of slice and elements of
 // the array will be assigned from elements of the slice.
-func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.GoQualifiedType}}) {
+func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.Exported}}) {
 	if !slices.Equal(e.elems, src) {
 		e.elems = pkg.EnsureLen(e.elems, len(src))
 		copy(e.elems, src)
@@ -63,8 +63,8 @@ func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.GoQualifiedType}}) {
 {{end}}
 
 // Append a new element at the end of the array.
-func (e* {{.ArrayName}}) Append(val {{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}) {
-	e.elems = append(e.elems, val)
+func (e* {{.ArrayName}}) Append(val {{if .IsStructType}}*{{end}}{{.ElemType.Exported}}) {
+	e.elems = append(e.elems, {{.ElemType.ToStorage "val"}})
 	e.markModified()
 }
 
@@ -92,7 +92,7 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	}
 	if len(src.elems)>0 {
 		// Allocate all elements at once.
-		elems := make([]{{.ElemType.GoQualifiedType}}, len(src.elems))
+		elems := make([]{{.ElemType.Storage}}, len(src.elems))
 		for i := range src.elems {
 			{{if not .ElemType.IsPrimitive -}}
 			// Init the element.
@@ -140,8 +140,8 @@ func (e *{{.ArrayName}}) Len() int {
 }
 
 // At returns element at index i.
-func (m *{{.ArrayName}}) At(i int) {{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}} {
-	return m.elems[i]
+func (m *{{.ArrayName}}) At(i int) {{if .IsStructType}}*{{end}}{{.ElemType.Exported}} {
+	return {{.ElemType.ToExported "m.elems[i]"}}
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -150,12 +150,12 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Grow the array
-		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.GoQualifiedType}}, newLen-oldLen)...)
+		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
 		e.markModified()
 		{{- if .IsStructType}}
 		// Initialize newlly added elements.
 		for ; oldLen<newLen; oldLen++ {
-			e.elems[oldLen] = new({{.ElemType.GoQualifiedType}})
+			e.elems[oldLen] = new({{.ElemType.Storage}})
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
 		}
 		{{- end}}
@@ -236,7 +236,7 @@ type {{ .ArrayName }}Encoder struct {
 	encoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Encoder
 	prevLen int
 	state* WriterState
-	lastVal {{.ElemType.GoQualifiedType}}
+	lastVal {{.ElemType.Storage}}
 }
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
@@ -309,8 +309,8 @@ type {{ .ArrayName }}Decoder struct {
 	column *pkg.ReadableColumn
 	decoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Decoder
 	prevLen int
-	lastVal {{.ElemType.GoQualifiedType}}
-	lastValPtr *{{.ElemType.GoQualifiedType}}
+	lastVal {{.ElemType.Storage}}
+	lastValPtr *{{.ElemType.Storage}}
 }
 
 // Init is called once in the lifetime of the stream.
