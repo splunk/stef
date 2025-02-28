@@ -13,6 +13,7 @@ import (
 	tefgrpc "github.com/splunk/stef/go/grpc"
 	"github.com/splunk/stef/go/grpc/stef_proto"
 	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/pkg"
 )
 
 func newGrpcServer(port int) (*grpc.Server, net.Listener, int) {
@@ -77,7 +78,7 @@ func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) err
 	}()
 
 	for {
-		_, err := reader.Read()
+		err = reader.Read(pkg.ReadOptions{})
 		if err != nil {
 			log.Printf("Cannot read from STEF/gRPC connection: %v.\n", err)
 			return err

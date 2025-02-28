@@ -40,7 +40,7 @@ func TestCopy(t *testing.T) {
 
 		recCount := 0
 		for {
-			readRec, err := tefReader.Read()
+			err := tefReader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
 			}
@@ -50,7 +50,7 @@ func TestCopy(t *testing.T) {
 				_ = recCount
 			}
 
-			copyModified(&tefWriter.Record, readRec)
+			copyModified(&tefWriter.Record, &tefReader.Record)
 
 			err = tefWriter.Write()
 			require.NoError(t, err)
@@ -89,18 +89,15 @@ func BenchmarkReadSTEF(b *testing.B) {
 
 	recCount := 0
 	for {
-		readRec, err := tefSrc.Read()
+		err := tefSrc.Read(pkg.ReadOptions{})
 		if err == io.EOF {
 			break
-		}
-		if readRec == nil {
-			panic("nil record")
 		}
 		if err != nil {
 			panic(err)
 		}
 
-		copyModified(&tefWriter.Record, readRec)
+		copyModified(&tefWriter.Record, &tefSrc.Record)
 
 		err = tefWriter.Write()
 		if err != nil {
@@ -121,8 +118,7 @@ func BenchmarkReadSTEF(b *testing.B) {
 		}
 
 		for i := 0; i < recCount; i++ {
-			tefRec, err := reader.Read()
-			_ = tefRec
+			err := reader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
 			}
@@ -148,8 +144,7 @@ func BenchmarkReadSTEFZ(b *testing.B) {
 
 		recCount = 0
 		for {
-			tefRec, err := reader.Read()
-			_ = tefRec
+			err := reader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
 			}
@@ -182,24 +177,15 @@ func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
 
 		recCount = 0
 		for {
-			readRec, err := tefReader.Read()
+			err := tefReader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
-			}
-			if err == io.EOF {
-				break
-			}
-			if err == io.EOF {
-				break
-			}
-			if readRec == nil {
-				panic("nil record")
 			}
 			if err != nil {
 				panic(err)
 			}
 
-			copyModified(&tefWriter.Record, readRec)
+			copyModified(&tefWriter.Record, &tefReader.Record)
 
 			err = tefWriter.Write()
 			if err != nil {

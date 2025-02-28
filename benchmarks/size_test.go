@@ -327,12 +327,12 @@ func TestSTEFVeryShortFrames(t *testing.T) {
 		require.NoError(t, err)
 
 		for {
-			readRecord, err := tefReader.Read()
+			err := tefReader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
 			}
 
-			tefWriter.Record.CopyFrom(readRecord)
+			tefWriter.Record.CopyFrom(&tefReader.Record)
 
 			err = tefWriter.Write()
 			if err != nil {

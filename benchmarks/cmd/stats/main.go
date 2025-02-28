@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/benchmarks/cmd"
 )
@@ -141,13 +142,14 @@ func CollectRecordStats(reader *oteltef.MetricsReader, fileStats *MetricsStats) 
 	}
 
 	for {
-		record, err := reader.Read()
+		err := reader.Read(pkg.ReadOptions{})
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
+		record := &reader.Record
 
 		fileStats.DatapointCount++
 		fileStats.UniqueMetricNames[string(record.Metric().Name())] = true

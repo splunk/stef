@@ -9,6 +9,7 @@ import (
 	"github.com/splunk/stef/go/otel/oteltef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 	"github.com/splunk/stef/go/pdata/metrics/internal"
+	"github.com/splunk/stef/go/pkg"
 )
 
 type STEFToOTLPUnsorted struct {
@@ -23,13 +24,14 @@ func (c *STEFToOTLPUnsorted) Convert(reader *oteltef.MetricsReader) (pmetric.Met
 	metrics := pmetric.NewMetrics()
 	modified := true
 	for {
-		record, err := reader.Read()
+		err := reader.Read(pkg.ReadOptions{})
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			return metrics, err
 		}
+		record := &reader.Record
 
 		if modified || record.IsResourceModified() {
 			modified = true

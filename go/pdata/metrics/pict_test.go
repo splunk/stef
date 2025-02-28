@@ -99,11 +99,10 @@ func FuzzReader(f *testing.F) {
 				return
 			}
 			for {
-				record, err := reader.Read()
+				err = reader.Read(pkg.ReadOptions{})
 				if err != nil {
 					break
 				}
-				require.NotNil(t, record)
 			}
 		},
 	)

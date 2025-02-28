@@ -291,12 +291,9 @@ func BenchmarkSTEFReaderRead(b *testing.B) {
 		}
 
 		for {
-			readRecord, err := reader.Read()
+			err := reader.Read(pkg.ReadOptions{})
 			if err == io.EOF {
 				break
-			}
-			if readRecord == nil {
-				panic("nil record")
 			}
 			if err != nil {
 				log.Fatal(err)

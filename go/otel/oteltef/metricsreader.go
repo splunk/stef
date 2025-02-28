@@ -10,11 +10,13 @@ import (
 )
 
 type MetricsReader struct {
-	base pkg.BaseReader
+	// Record contains the record that was just read by the last Read() operation.
+	// Do not modify this field externally. The next Read() will overwrite the Record.
+	Record Metrics
 
+	base      pkg.BaseReader
 	decoder   MetricsDecoder
 	state     ReaderState
-	record    Metrics
 	recordPtr *Metrics
 }
 
@@ -22,8 +24,8 @@ func NewMetricsReader(source io.Reader) (*MetricsReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &MetricsReader{}
 
-	reader.record.Init()
-	reader.recordPtr = &reader.record
+	reader.Record.Init()
+	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {
 		return nil, err
@@ -62,16 +64,27 @@ func (f *MetricsReader) UserData() map[string]string {
 	return f.base.VarHeader.UserData
 }
 
-func (r *MetricsReader) Read() (*Metrics, error) {
+// Read the next record. After Read() returns successfully the record
+// will be accessible in MetricsReader.Record field.
+//
+// If Read() encounters a decoding error one of the pkg.Err values will
+// be returned.
+// If underlying source io.Reader returns any error then Read() will
+// either return that error or a decoding error if source io.Reader
+// returned an error prematurely while more data was expected in STEF stream.
+//
+// For well-formed streams that don't encounter decoding errors Read() will
+// return io.EOF once end of the underlying source io.Reader is reached
+// (assuming io.Reader returns io.EOF itself).
+func (r *MetricsReader) Read(opts pkg.ReadOptions) error {
 	for r.base.FrameRecordCount == 0 {
 		if err := r.nextFrame(); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	r.base.FrameRecordCount--
 	r.base.RecordCount++
-	err := r.decoder.Decode(r.recordPtr)
-	return r.recordPtr, err
+	return r.decoder.Decode(r.recordPtr)
 }
 
 func (r *MetricsReader) RecordCount() uint64 {

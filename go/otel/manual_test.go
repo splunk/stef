@@ -72,25 +72,21 @@ func TestWriterDictLimit(t *testing.T) {
 	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
-	readRecord, err := reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
-	assert.EqualValues(t, "cpu.utilization", readRecord.Metric().Name())
+	assert.EqualValues(t, "cpu.utilization", reader.Record.Metric().Name())
 
-	readRecord, err = reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
-	assert.EqualValues(t, schemaUrl1, readRecord.Resource().SchemaURL())
+	assert.EqualValues(t, schemaUrl1, reader.Record.Resource().SchemaURL())
 
-	readRecord, err = reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
-	assert.EqualValues(t, schemaUrl2, readRecord.Resource().SchemaURL())
+	assert.EqualValues(t, schemaUrl2, reader.Record.Resource().SchemaURL())
 
-	readRecord, err = reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
-	assert.EqualValues(t, schemaUrl2, readRecord.Resource().SchemaURL())
+	assert.EqualValues(t, schemaUrl2, reader.Record.Resource().SchemaURL())
 }
 
 func TestWriterFrameLimit(t *testing.T) {
@@ -295,11 +291,10 @@ func TestAnyValue(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < len(writeAttrs); i++ {
-		readRecord, err := reader.Read()
+		err := reader.Read(pkg.ReadOptions{})
 		require.NoError(t, err, i)
-		require.NotNil(t, readRecord, i)
 
-		readAttr := tefToMap(readRecord.Attributes())
+		readAttr := tefToMap(reader.Record.Attributes())
 		require.EqualValues(t, writeAttrs[i], readAttr, i)
 	}
 }
@@ -323,10 +318,10 @@ func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metri
 	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
-	readRecord, err := reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
 
-	return readRecord
+	return &reader.Record
 }
 
 func TestWriteOverrideSchema(t *testing.T) {
@@ -412,15 +407,13 @@ func TestLargeMultimap(t *testing.T) {
 	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
-	readRecord, err := reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
 
-	require.True(t, readRecord.Attributes().IsEqual(&attrs1Copy))
+	require.True(t, reader.Record.Attributes().IsEqual(&attrs1Copy))
 
-	readRecord, err = reader.Read()
+	err = reader.Read(pkg.ReadOptions{})
 	require.NoError(t, err)
-	require.NotNil(t, readRecord)
 
-	require.True(t, readRecord.Attributes().IsEqual(&attrs2Copy))
+	require.True(t, reader.Record.Attributes().IsEqual(&attrs2Copy))
 }
