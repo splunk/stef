@@ -21,7 +21,7 @@ type {{ .StructName }} struct {
     // The current type of the oneof.
 	typ {{$.StructName }}Type
     {{ range .Fields }}
-    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.GoQualifiedType }}
+    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.Storage }}
     {{- end }}
 
     // Pointer to parent's modifiedFields
@@ -41,7 +41,7 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
 
     {{ range .Fields }}
     {{- if .Type.Flags.StoreByPtr}}
-    s.{{.name}} = &{{ .Type.GoQualifiedType }}{}
+    s.{{.name}} = &{{ .Type.Storage }}{}
     {{- end }}
 	{{- if not .Type.IsPrimitive }}
     s.{{.name}}.init(parentModifiedFields, parentModifiedBit)
@@ -74,15 +74,19 @@ func (s *{{ $.StructName }}) SetType(typ {{$.StructName }}Type) {
 {{ range .Fields }}
 // {{.Name}} returns the value if the contained type is currently {{$.StructName }}Type{{.Name}}.
 // The caller must check the type via Type() before attempting to call this function.
-func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.GoQualifiedType}} {
+func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
+{{- if .Type.IsPrimitive}}
+    return {{.Type.ToExported (print "s." .name)}}
+{{- else}}
 	return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+{{- end}}
 }
 
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName }}Type{{.Name}}.
-func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.GoQualifiedType}}) {
-    if !{{ .Type.EqualFunc }}({{if and .PassByPointer (not .IsStructType)}}&{{end}}s.{{.name}}, v) || s.typ!={{$.StructName }}Type{{.Name}} {
-		s.{{.name}} = v
+func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.Exported}}) {
+    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}}) || s.typ!={{$.StructName }}Type{{.Name}} {
+		s.{{.name}} = {{.Type.ToStorage "v"}}
 		s.typ = {{$.StructName }}Type{{.Name}}
         s.markParentModified()
     }
@@ -115,7 +119,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
             {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
             {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         {{- else}}
-        dst.Set{{.Name}}(src.{{.name}})
+        dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
         {{- end}}
     {{- end}}
     }
@@ -225,7 +229,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
         {{- if not .Type.IsPrimitive }}
             s.{{.name}}.mutateRandom(random)
         {{- else }}
-            s.Set{{.Name}}({{ .Type.RandomFunc }}(random))
+            s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc "(random)")}})
         {{- end}}
         }
     {{- end }}

@@ -1,0 +1,9 @@
+package {{ .PackageName }}
+
+type {{.EnumName}} uint64
+
+const (
+    {{ range .Fields }}
+    {{$.EnumName}}{{.Name}} {{$.EnumName}} = {{.Value}}
+    {{- end }}
+)

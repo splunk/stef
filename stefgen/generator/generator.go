@@ -57,6 +57,10 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 		return err
 	}
 
+	if err := g.oEnums(); err != nil {
+		return err
+	}
+
 	if err := g.oWriters(); err != nil {
 		return err
 	}

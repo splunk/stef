@@ -133,14 +133,14 @@ func (s *Metric) IsUnitModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricUnit != 0
 }
 
-func (s *Metric) Type() uint64 {
-	return s.type_
+func (s *Metric) Type() MetricType {
+	return MetricType(s.type_)
 }
 
 // SetType sets the value of Type field.
-func (s *Metric) SetType(v uint64) {
-	if !pkg.Uint64Equal(s.type_, v) {
-		s.type_ = v
+func (s *Metric) SetType(v MetricType) {
+	if !pkg.Uint64Equal(s.type_, uint64(v)) {
+		s.type_ = uint64(v)
 		s.markTypeModified()
 	}
 }
@@ -284,7 +284,7 @@ func copyMetric(dst *Metric, src *Metric) {
 	dst.SetName(src.name)
 	dst.SetDescription(src.description)
 	dst.SetUnit(src.unit)
-	dst.SetType(src.type_)
+	dst.SetType(MetricType(src.type_))
 	copyAttributes(&dst.metadata, &src.metadata)
 	copyFloat64Array(&dst.histogramBounds, &src.histogramBounds)
 	dst.SetAggregationTemporality(src.aggregationTemporality)
@@ -320,7 +320,7 @@ func (s *Metric) mutateRandom(random *rand.Rand) {
 		s.SetUnit(pkg.StringRandom(random))
 	}
 	if random.IntN(fieldCount) == 0 {
-		s.SetType(pkg.Uint64Random(random))
+		s.SetType(MetricType(pkg.Uint64Random(random)))
 	}
 	if random.IntN(fieldCount) == 0 {
 		s.metadata.mutateRandom(random)

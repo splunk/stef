@@ -51,11 +51,11 @@ func MetricToOtlp(metric *oteltef.Metric, out pmetric.Metric) error {
 	}
 
 	switch oteltef.MetricType(metric.Type()) {
-	case oteltef.Gauge:
+	case oteltef.MetricTypeGauge:
 		out.SetEmptyGauge()
-	case oteltef.Sum:
+	case oteltef.MetricTypeSum:
 		out.SetEmptySum()
-	case oteltef.Histogram:
+	case oteltef.MetricTypeHistogram:
 		out.SetEmptyHistogram()
 	default:
 		panic("not implemented")

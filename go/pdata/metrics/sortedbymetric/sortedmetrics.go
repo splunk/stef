@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"modernc.org/b/v2"
 
+	"github.com/splunk/stef/go/pdata/metrics/internal"
 	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/go/otel/oteltef"
@@ -88,7 +89,7 @@ func (s *SortedTree) ToTef(writer *oteltef.MetricsWriter) error {
 }
 
 func (s *SortedTree) ByMetric(
-	metric pmetric.Metric, metricType oteltef.MetricType, flags oteltef.MetricFlags,
+	metric pmetric.Metric, metricType oteltef.MetricType, flags internal.MetricFlags,
 	histogramBounds []float64,
 ) *ByMetric {
 	metr := metric2metric(metric, metricType, flags, histogramBounds, &s.otlp2tef)
@@ -103,7 +104,7 @@ func (s *SortedTree) ByMetric(
 }
 
 func metric2metric(
-	metric pmetric.Metric, metricType oteltef.MetricType, flags oteltef.MetricFlags, histogramBounds []float64,
+	metric pmetric.Metric, metricType oteltef.MetricType, flags internal.MetricFlags, histogramBounds []float64,
 	otlp2tef *otlptools.Otlp2Stef,
 ) *oteltef.Metric {
 
@@ -112,11 +113,11 @@ func metric2metric(
 	dst.SetName(metric.Name())
 	dst.SetDescription(metric.Description())
 	dst.SetUnit(metric.Unit())
-	dst.SetType(uint64(metricType))
+	dst.SetType(metricType)
 	//dst.SetFlags(uint64(flags))
 	dst.HistogramBounds().CopyFromSlice(histogramBounds)
-	dst.SetMonotonic(flags&oteltef.MetricMonotonic != 0)
-	dst.SetAggregationTemporality(uint64(flags & oteltef.MetricTemporalityMask))
+	dst.SetMonotonic(flags&internal.MetricMonotonic != 0)
+	dst.SetAggregationTemporality(uint64(flags & internal.MetricTemporalityMask))
 
 	return &dst
 }

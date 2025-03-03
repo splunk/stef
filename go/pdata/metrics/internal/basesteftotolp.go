@@ -79,14 +79,14 @@ func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 		}
 		otlpAttrs.MoveTo(point.Attributes())
 		dstMetric.Sum().SetIsMonotonic(srcMetric.Monotonic())
-		dstMetric.Sum().SetAggregationTemporality(aggregationTemporalityToOtlp(oteltef.MetricFlags(srcMetric.AggregationTemporality())))
+		dstMetric.Sum().SetAggregationTemporality(aggregationTemporalityToOtlp(MetricFlags(srcMetric.AggregationTemporality())))
 	case pmetric.MetricTypeHistogram:
 		point := dstMetric.Histogram().DataPoints().AppendEmpty()
 		if err := s.convertHistogramPoint(srcMetric, srcPoint, point); err != nil {
 			return err
 		}
 		otlpAttrs.MoveTo(point.Attributes())
-		dstMetric.Histogram().SetAggregationTemporality(aggregationTemporalityToOtlp(oteltef.MetricFlags(srcMetric.AggregationTemporality())))
+		dstMetric.Histogram().SetAggregationTemporality(aggregationTemporalityToOtlp(MetricFlags(srcMetric.AggregationTemporality())))
 	default:
 		panic("not implemented")
 	}
@@ -94,13 +94,13 @@ func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 	return nil
 }
 
-func aggregationTemporalityToOtlp(flags oteltef.MetricFlags) pmetric.AggregationTemporality {
-	switch flags & oteltef.MetricTemporalityMask {
-	case oteltef.MetricTemporalityDelta:
+func aggregationTemporalityToOtlp(flags MetricFlags) pmetric.AggregationTemporality {
+	switch flags & MetricTemporalityMask {
+	case MetricTemporalityDelta:
 		return pmetric.AggregationTemporalityDelta
-	case oteltef.MetricTemporalityCumulative:
+	case MetricTemporalityCumulative:
 		return pmetric.AggregationTemporalityCumulative
-	case oteltef.MetricTemporalityUnspecified:
+	case MetricTemporalityUnspecified:
 		return pmetric.AggregationTemporalityUnspecified
 	default:
 		panic("unexpected metric flags")

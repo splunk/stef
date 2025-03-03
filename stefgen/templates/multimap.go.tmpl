@@ -22,15 +22,15 @@ type {{ .MultimapName }} struct {
 }
 
 type {{ .MultimapName }}Elem struct {
-	key   {{if.Key.Type.Flags.StoreByPtr}}*{{end}}{{.Key.Type.GoQualifiedType}}
-	value {{if.Value.Type.Flags.StoreByPtr}}*{{end}}{{.Value.Type.GoQualifiedType}}
+	key   {{if.Key.Type.Flags.StoreByPtr}}*{{end}}{{.Key.Type.Storage}}
+	value {{if.Value.Type.Flags.StoreByPtr}}*{{end}}{{.Value.Type.Storage}}
 }
 
-func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.GoQualifiedType}} {
+func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
 	return {{if.Key.Type.Flags.PassByPtr}}&{{end}}e.key
 }
 
-func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.GoQualifiedType}} {
+func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}} {
 	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}e.value
 }
 
@@ -64,15 +64,15 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
 		m.elems = pkg.EnsureLen(m.elems, newLen)
 		{{if or .Key.Type.Flags.StoreByPtr .Value.Type.Flags.StoreByPtr}}
 		{{- if .Key.Type.Flags.StoreByPtr}}
-		var	newKeys []{{.Key.Type.GoQualifiedType}}
+		var	newKeys []{{.Key.Type.Storage}}
 		if newLen>m.initedCount {
-			newKeys = make([]{{.Key.Type.GoQualifiedType}},newLen-m.initedCount)
+			newKeys = make([]{{.Key.Type.Storage}},newLen-m.initedCount)
 		}
 		{{- end}}
 		{{- if .Value.Type.Flags.StoreByPtr}}
-		var	newVals []{{.Value.Type.GoQualifiedType}}
+		var	newVals []{{.Value.Type.Storage}}
 		if newLen>m.initedCount {
-			newVals = make([]{{.Value.Type.GoQualifiedType}},newLen-m.initedCount)
+			newVals = make([]{{.Value.Type.Storage}},newLen-m.initedCount)
 		}
 		{{- end}}
 		// Set pointers to elements in the slice and init elements with pointers to the parent struct.
@@ -129,26 +129,26 @@ func (m* {{.MultimapName}}) markUnmodifiedRecursively() {
 
 
 {{if and (not .Key.Type.MustClone) (not .Value.Type.MustClone)}}
-func (m *{{.MultimapName}}) Append(k {{.Key.Type.GoQualifiedType}}, v {{.Value.Type.GoQualifiedType}}) {
-	m.elems = append(m.elems, {{.MultimapName}}Elem{key: k, value: v})
+func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exported}}) {
+	m.elems = append(m.elems, {{.MultimapName}}Elem{key: {{.Key.Type.ToStorage "k"}}, value: {{.Value.Type.ToStorage "v"}}})
 	m.markModified()
 }
 {{end}}
 
 {{if not .Key.Type.MustClone}}
 // SetKey sets the key of the element at index i.
-func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.GoQualifiedType}}) {
-	if m.elems[i].key != k {
-		m.elems[i].key = k
+func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
+	if m.elems[i].key != {{.Key.Type.ToStorage "k"}} {
+		m.elems[i].key = {{.Key.Type.ToStorage "k"}}
 		m.markModified()
 	}
 }
 
 {{if .Value.Type.IsPrimitive}}
 // SetValue sets the value of the element at index i.
-func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.GoQualifiedType}}) {
-	if !{{.Value.Type.EqualFunc}}(m.elems[i].value, v) {
-		m.elems[i].value = v
+func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.Exported}}) {
+	if !{{.Value.Type.EqualFunc}}(m.elems[i].value, {{.Value.Type.ToStorage "v"}}) {
+		m.elems[i].value = {{.Value.Type.ToStorage "v"}}
 		m.markModified()
 	}
 }
