@@ -1,18 +1,17 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package stefexporter // import "github.com/splunk/stef/otelcol/internal/stefexporter"
+package stefexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/stefexporter"
 
 import (
 	"context"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/splunk/stef/otelcol/internal/stefexporter/internal/metadata"
 )
@@ -30,32 +29,26 @@ func NewFactory() exporter.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{}
+	return &Config{
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 15 * time.Second},
+		QueueConfig:   exporterhelper.NewDefaultQueueConfig(),
+		RetryConfig:   configretry.NewDefaultBackOffConfig(),
+	}
 }
 
 func createMetricsExporter(ctx context.Context, set exporter.Settings, config component.Config) (
 	exporter.Metrics, error,
 ) {
 	cfg := config.(*Config)
-	exporterLogger := createLogger(cfg, set.TelemetrySettings.Logger)
-	stefexporter := newStefExporter(exporterLogger, cfg)
+	stefexporter := newStefExporter(set.TelemetrySettings, cfg)
 	return exporterhelper.NewMetrics(
 		ctx, set, config,
-		stefexporter.pushMetrics,
+		stefexporter.exportMetrics,
 		exporterhelper.WithStart(stefexporter.Start),
 		exporterhelper.WithShutdown(stefexporter.Shutdown),
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
+		exporterhelper.WithTimeout(cfg.TimeoutConfig),
+		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithRetry(cfg.RetryConfig),
 	)
-}
-
-func createLogger(cfg *Config, logger *zap.Logger) *zap.Logger {
-	core := zapcore.NewSamplerWithOptions(
-		logger.Core(),
-		1*time.Second,
-		10,
-		5,
-	)
-
-	return zap.New(core)
 }
