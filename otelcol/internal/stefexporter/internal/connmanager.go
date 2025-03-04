@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
 )
 
 type ConnManager struct {
 	logger *zap.Logger
+
+	clock clockwork.Clock
 
 	// Number of connections desirable to maintain.
 	targetConnCount uint
@@ -78,6 +81,7 @@ func NewConnManager(
 ) *ConnManager {
 	return &ConnManager{
 		logger:          logger,
+		clock:           clockwork.NewRealClock(),
 		connCreator:     creator,
 		targetConnCount: targetConnCount,
 		idleConns:       make(chan *ManagedConn, targetConnCount),
@@ -203,7 +207,7 @@ func (c *ConnManager) Release(conn *ManagedConn) {
 	}
 	conn.isAcquired = false
 	conn.needsFlush = true
-	if time.Since(conn.lastFlush) > c.flushPeriod {
+	if c.clock.Since(conn.lastFlush) >= c.flushPeriod {
 		c.flushConns <- conn
 		return
 	}
@@ -241,7 +245,7 @@ func (c *ConnManager) flusher() {
 					c.recreateConns <- conn
 					continue
 				}
-				conn.lastFlush = time.Now()
+				conn.lastFlush = c.clock.Now()
 			}
 			c.idleConns <- conn
 		}
@@ -250,7 +254,7 @@ func (c *ConnManager) flusher() {
 
 // reconnector periodically checks connections and reconnects them if they
 // were connected for more than reconnectPeriod. It will stagger the reconnections
-// to avoid all connections reconnecting at the same time.
+// to avoid all connections reconnecting at the same c.clock.
 func (c *ConnManager) reconnector() {
 	defer func() {
 		c.stoppedCond.Cond.L.Lock()
@@ -260,13 +264,13 @@ func (c *ConnManager) reconnector() {
 	}()
 
 	// Periodically reconnect idle connections.
-	ticker := time.NewTicker(c.reconnectPeriod / time.Duration(c.targetConnCount))
+	ticker := c.clock.NewTicker(c.reconnectPeriod / time.Duration(c.targetConnCount))
 	defer ticker.Stop()
 	for {
 		select {
 		case <-c.stopSignal:
 			return
-		case <-ticker.C:
+		case <-ticker.Chan():
 			// Find an idle connection
 			var conn *ManagedConn
 			select {
@@ -276,7 +280,7 @@ func (c *ConnManager) reconnector() {
 			}
 
 			// Check if it is time to reconnect.
-			if time.Since(conn.startTime) >= c.reconnectPeriod {
+			if c.clock.Since(conn.startTime) >= c.reconnectPeriod {
 				c.curConnCount.Add(-1)
 
 				if conn.needsFlush {
@@ -288,6 +292,9 @@ func (c *ConnManager) reconnector() {
 
 				// Send it for reconnection.
 				c.recreateConns <- conn
+			} else {
+				// Put it back, too soon to reconnect.
+				c.idleConns <- conn
 			}
 		}
 	}
@@ -354,15 +361,18 @@ func (c *ConnManager) createNewConn() {
 		case <-ticker.C:
 		}
 
+		c.logger.Debug("calling Create() connection")
 		conn, err := c.connCreator.Create(ctx)
 		if err != nil {
 			c.logger.Info("Failed to create connection. Will retry.", zap.Error(err))
 			continue
 		}
 
+		now := c.clock.Now()
 		managedConn := &ManagedConn{
 			Conn:      conn,
-			startTime: time.Now(),
+			startTime: now,
+			lastFlush: now,
 		}
 		c.curConnCount.Add(1)
 		c.idleConns <- managedConn
