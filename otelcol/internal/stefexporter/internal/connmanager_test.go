@@ -254,34 +254,35 @@ func TestConnManagerFlush(t *testing.T) {
 	)
 }
 
-//func TestConnManagerReconnector(t *testing.T) {
-//	var conns []*ManagedConn
-//	withFakeTimeCM(
-//		t, func(cm *ConnManager) {
-//			for i := 0; i < connCount; i++ {
-//				conn, err := cm.Acquire(context.Background())
-//				require.NoError(t, err)
-//				require.NotNil(t, conn)
-//				conns = append(conns, conn)
-//			}
-//			for i := 0; i < connCount; i++ {
-//				cm.Release(conns[i])
-//			}
-//
-//			// Advance the clock to trigger reconnects.
-//			cm.clock.(*clockwork.FakeClock).Advance(reconnectPeriod)
-//			for i := 0; i < connCount; i++ {
-//				cm.clock.(*clockwork.FakeClock).Advance(reconnectPeriod)
-//				time.Sleep(500 * time.Millisecond)
-//			}
-//
-//			for _, conn := range conns {
-//				assert.Eventually(
-//					t, func() bool {
-//						return conn.Conn.(*mockConn).Closed()
-//					}, 5*time.Second, time.Millisecond*10,
-//				)
-//			}
-//		},
-//	)
-//}
+func TestConnManagerReconnector(t *testing.T) {
+	connCreator := &mockConnCreator{}
+
+	cm := NewConnManager(
+		zap.NewNop(),
+		connCreator,
+		connCount,
+		flushPeriod,
+		reconnectPeriod,
+	)
+	cm.clock = clockwork.NewFakeClock()
+
+	cm.Start()
+
+	conn, err := cm.Acquire(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	cm.Release(conn)
+
+	assert.Eventually(
+		t, func() bool {
+			// Advance the clock to make sure reconnector progresses.
+			cm.clock.(*clockwork.FakeClock).Advance(reconnectPeriod)
+
+			// This connection should be flushed because Release()
+			// marks it for flushing and reconnector flushes it.
+			return conn.Conn.(*mockConn).Flushed() && conn.Conn.(*mockConn).Closed()
+		}, 5*time.Second, time.Millisecond*10,
+	)
+
+	assert.NoError(t, cm.Stop(context.Background()))
+}

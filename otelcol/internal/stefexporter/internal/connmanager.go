@@ -281,9 +281,8 @@ func (c *ConnManager) reconnector() {
 
 			// Check if it is time to reconnect.
 			if c.clock.Since(conn.startTime) >= c.reconnectPeriod {
-				c.curConnCount.Add(-1)
-
 				if conn.needsFlush {
+					conn.needsFlush = false
 					// Flush it first.
 					if err := conn.Conn.Flush(); err != nil {
 						c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
@@ -315,7 +314,9 @@ func (c *ConnManager) recreator() {
 		case <-c.stopSignal:
 			return
 		case conn := <-c.recreateConns:
-			c.curConnCount.Add(-1)
+			if c.curConnCount.Add(-1) < 0 {
+				panic("negative connection count")
+			}
 			if conn.Conn != nil {
 				// Close the connection.
 				if err := conn.Conn.Close(); err != nil {
