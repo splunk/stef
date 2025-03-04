@@ -39,13 +39,13 @@ func createMetricsExporter(ctx context.Context, set exporter.Settings, config co
 	cfg := config.(*Config)
 	exporterLogger := createLogger(cfg, set.TelemetrySettings.Logger)
 	stefexporter := newStefExporter(exporterLogger, cfg)
-	return exporterhelper.NewMetricsExporter(
+	return exporterhelper.NewMetrics(
 		ctx, set, config,
 		stefexporter.pushMetrics,
 		exporterhelper.WithStart(stefexporter.Start),
 		exporterhelper.WithShutdown(stefexporter.Shutdown),
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 	)
 }
 
