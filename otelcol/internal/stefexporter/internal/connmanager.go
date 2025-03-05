@@ -38,9 +38,9 @@ type ConnManager struct {
 	reconnectPeriod time.Duration
 
 	// Flags to indicate if the goroutines are stopped.
-	flusherStopped     bool
-	reconnectorStopped bool
-	discarderStopped   bool
+	flusherStopped         bool
+	durationLimiterStopped bool
+	discarderStopped       bool
 	// stoppedCond is used to wait until all goroutines are stopped.
 	stoppedCond *CancellableCond
 
@@ -105,7 +105,7 @@ func (c *ConnManager) Start() {
 	}
 
 	go c.flusher()
-	go c.reconnector()
+	go c.durationLimiter()
 	go c.recreator()
 }
 
@@ -119,7 +119,7 @@ func (c *ConnManager) Stop(ctx context.Context) error {
 	// Wait until all goroutines stop
 	err := c.stoppedCond.Wait(
 		ctx, func() bool {
-			return c.flusherStopped && c.reconnectorStopped && c.discarderStopped
+			return c.flusherStopped && c.durationLimiterStopped && c.discarderStopped
 		},
 	)
 	if err != nil {
@@ -252,18 +252,19 @@ func (c *ConnManager) flusher() {
 	}
 }
 
-// reconnector periodically checks connections and reconnects them if they
+// durationLimiter periodically checks connections and reconnects them if they
 // were connected for more than reconnectPeriod. It will stagger the reconnections
 // to avoid all connections reconnecting at the same c.clock.
-func (c *ConnManager) reconnector() {
+func (c *ConnManager) durationLimiter() {
 	defer func() {
 		c.stoppedCond.Cond.L.Lock()
-		c.reconnectorStopped = true
+		c.durationLimiterStopped = true
 		c.stoppedCond.Cond.L.Unlock()
 		c.stoppedCond.Cond.Broadcast()
 	}()
 
-	// Periodically reconnect idle connections.
+	// Each connection will be reconnected at approximately reconnectPeriod interval.
+	// We reconnect one per tick.
 	ticker := c.clock.NewTicker(c.reconnectPeriod / time.Duration(c.targetConnCount))
 	defer ticker.Stop()
 	for {
