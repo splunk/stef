@@ -58,13 +58,14 @@ type ManagedConn struct {
 
 type ConnCreator interface {
 	// Create a new connection. May be called concurrently.
+	// The attempt to create the connection should be cancelled if ctx is done.
 	Create(ctx context.Context) (Conn, error)
 }
 
 type Conn interface {
 	// Close the connection. The connection will be discarded
 	// after this call returns.
-	Close() error
+	Close(ctx context.Context) error
 
 	// Flush the connection. This is typically to send any buffered data.
 	// Will be called periodically (see ConnManager flushPeriod) and
@@ -165,7 +166,7 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 			}
 
 			// And close the connection.
-			if err := conn.Conn.Close(); err != nil {
+			if err := conn.Conn.Close(ctx); err != nil {
 				c.logger.Debug("Failed to close connection", zap.Error(err))
 				errs = append(errs, err)
 				continue
@@ -319,10 +320,12 @@ func (c *ConnManager) recreator() {
 				panic("negative connection count")
 			}
 			if conn.Conn != nil {
+				ctx, cancel := contextFromStopSignal(c.stopSignal)
 				// Close the connection.
-				if err := conn.Conn.Close(); err != nil {
+				if err := conn.Conn.Close(ctx); err != nil {
 					c.logger.Error("Failed to close connection", zap.Error(err))
 				}
+				cancel()
 			}
 			c.createNewConn()
 		}

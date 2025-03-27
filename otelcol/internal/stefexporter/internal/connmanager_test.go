@@ -31,7 +31,7 @@ type mockConn struct {
 	mux     sync.RWMutex
 }
 
-func (m *mockConn) Close() error {
+func (m *mockConn) Close(ctx context.Context) error {
 	m.mux.Lock()
 	m.closed = true
 	m.mux.Unlock()
