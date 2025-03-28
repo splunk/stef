@@ -89,6 +89,17 @@ message STEFDataResponse {
 
   // Record id of STEF data items that the destination was not able to
   // read or validate. If the client retries sending it MUST NOT send the data
-  // with specified record ids again.
-  repeated uint64 bad_data_record_ids = 2;
+  // with specified record ids again. All ids in all specified ranges are bad.
+  // It is expected that all from and to ids in the ranges are smaller or equal
+  // to ack_record_id.
+  // This field is optional. When empty it means there is no bad data,
+  // all data up to ack_record_id was successfully processed.
+  repeated STEFIDRange bad_data_record_id_ranges = 2;
+}
+
+message STEFIDRange {
+  // From ID, inclusive.
+  uint64 from_id = 1;
+  // To ID, inclusive.
+  uint64 to_id = 2;
 }

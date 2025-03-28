@@ -31,7 +31,7 @@ type mockMetricDestServer struct {
 	stef_proto.UnimplementedSTEFDestinationServer
 }
 
-func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
+func onStream(grpcReader tefgrpc.GrpcReader, stream tefgrpc.STEFStream) error {
 	log.Printf("Incoming STEF/gRPC connection.\n")
 
 	reader, err := oteltef.NewMetricsReader(grpcReader)
@@ -54,7 +54,7 @@ func onStream(grpcReader tefgrpc.GrpcReader, ackFunc func(sequenceId uint64) err
 				readRecordCount := lastReadRecord.Load()
 				if readRecordCount > lastAcked {
 					lastAcked = readRecordCount
-					err = ackFunc(lastAcked)
+					err = stream.SendDataResponse(&stef_proto.STEFDataResponse{AckRecordId: lastAcked})
 					if err != nil {
 						log.Fatalf("Error acking STEF gRPC connection: %v\n", err)
 						return
@@ -107,7 +107,7 @@ func main() {
 		Logger:       nil,
 		ServerSchema: &schema,
 		MaxDictBytes: 0,
-		OnStream:     onStream,
+		Callbacks:    tefgrpc.Callbacks{OnStream: onStream},
 	}
 	mockServer := tefgrpc.NewStreamServer(settings)
 	stef_proto.RegisterSTEFDestinationServer(grpcServer, mockServer)

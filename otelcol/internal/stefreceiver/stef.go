@@ -9,12 +9,11 @@ import (
 	"log"
 	"net"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -25,6 +24,7 @@ import (
 	"github.com/splunk/stef/go/grpc/stef_proto"
 	"github.com/splunk/stef/go/otel/oteltef"
 	stefpdatametrics "github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/otelcol/internal/stefreceiver/internal"
 )
 
 // stefReceiver is the type that exposes Metrics reception.
@@ -75,7 +75,7 @@ func (r *stefReceiver) startGRPCServer(host component.Host) error {
 		Logger:       nil,
 		ServerSchema: &schema,
 		MaxDictBytes: 0,
-		OnStream:     r.onStream,
+		Callbacks:    stefgrpc.Callbacks{OnStream: r.onStream},
 	}
 	stefSrv := stefgrpc.NewStreamServer(settings)
 	stef_proto.RegisterSTEFDestinationServer(r.serverGRPC, stefSrv)
@@ -111,7 +111,7 @@ func (r *stefReceiver) Shutdown(ctx context.Context) error {
 	return err
 }
 
-func (r *stefReceiver) onStream(grpcReader stefgrpc.GrpcReader, ackFunc func(sequenceId uint64) error) error {
+func (r *stefReceiver) onStream(grpcReader stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
 	r.settings.Logger.Info("Incoming STEF/gRPC connection.")
 
 	reader, err := oteltef.NewMetricsReader(grpcReader)
@@ -120,68 +120,37 @@ func (r *stefReceiver) onStream(grpcReader stefgrpc.GrpcReader, ackFunc func(seq
 		return err
 	}
 
-	stopAcking := make(chan struct{})
-	defer close(stopAcking)
-
-	type BadData struct {
-		from, to uint64
-	}
-	badDataCh := make(chan BadData)
-
-	var acksError atomic.Value
-	var lastReadRecord atomic.Uint64
-	// Handle acks in a separate goroutine.
-	go func() {
-		t := time.NewTicker(10 * time.Millisecond)
-		var acksSent uint64
-		var lastAcked uint64
-		for {
-			select {
-			case <-badDataCh: // TODO add ability to report bad data back to STEF source (client).
-
-			case <-t.C:
-				readRecordCount := lastReadRecord.Load()
-				if readRecordCount > lastAcked {
-					lastAcked = readRecordCount
-					err = ackFunc(lastAcked)
-					if err != nil {
-						r.settings.Logger.Error("Error acking STEF gRPC connection", zap.Error(err))
-						acksError.Store(err)
-						return
-					}
-					acksSent++
-				}
-				// TODO: get stats from grcpReader and record then in obsReport.
-
-			case <-stopAcking:
-				return
-			}
-		}
-	}()
+	// Create a responder for this stream and run it in a separate goroutine.
+	resp := internal.NewResponder(r.settings.Logger, stream)
+	defer resp.Stop()
+	go resp.Run()
 
 	converter := stefpdatametrics.STEFToOTLPUnsorted{}
 
 	// Read, decode, convert the incoming data and push it to the next consumer.
 	for {
-		if acksError.Load() != nil {
-			// We had problem acking. Can't continue using this connection since
-			// acking is essential for operation.
-			err = acksError.Load().(error)
-			r.settings.Logger.Error("Closing STEF/gRPC connection since acking failed", zap.Error(err))
-			return err
+		respError := resp.LastError()
+		if respError != nil {
+			// We had problem sending responses. Can't continue using this connection since
+			// responding is essential for operation.
+			r.settings.Logger.Error(
+				"Closing STEF/gRPC connection since responding failed",
+				zap.Error(respError),
+			)
+			return respError
 		}
 
 		// Mark the start of the converted batch.
 		fromRecordID := reader.RecordCount()
 
-		// Read and convert records. We use ConvertTillEndOfFrame to make sure it doesn't
+		// Read and convert records. We use ConvertTillEndOfFrame to make sure we are not
 		// blocked in the middle of a batch indefinitely, with lingering data in memory,
 		// neither pushed to pipeline, nor acked.
 		mdata, err := converter.ConvertTillEndOfFrame(reader)
 		if err != nil {
 			st, ok := status.FromError(err)
 			if ok && st.Code() == codes.Canceled {
-				// A regular disconnection case.
+				// A regular disconnection case. The client closed the connection.
 				r.settings.Logger.Debug("STEF/gRPC connection closed", zap.Error(err))
 			} else {
 				r.settings.Logger.Error("Cannot read from STEF/gRPC connection", zap.Error(err))
@@ -200,15 +169,22 @@ func (r *stefReceiver) onStream(grpcReader stefgrpc.GrpcReader, ackFunc func(seq
 				zap.Uint64("toID", toRecordID),
 			)
 
-			// TODO: handle Permanent and non-Permanent errors differently.
-
-			badDataCh <- BadData{
-				from: fromRecordID,
-				to:   toRecordID,
+			if consumererror.IsPermanent(err) {
+				// This is a permanent error. Let the client know and continue receiving data.
+				resp.ScheduleBadDataResponse(
+					internal.BadData{
+						FromID: fromRecordID,
+						ToID:   toRecordID,
+					},
+				)
+			} else {
+				// The next consumer is temporarily unable to process the data.
+				// Close the stream and indicate to client to try again later.
+				return status.New(codes.Unavailable, "try again later").Err()
 			}
 		} else {
-			// Schedule to acknowledge the data.
-			lastReadRecord.Store(toRecordID)
+			// Successfully received and consumed. Acknowledge it.
+			resp.ScheduleAck(toRecordID)
 		}
 	}
 }
