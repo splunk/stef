@@ -26,7 +26,15 @@ type StefConn struct {
 	cancel context.CancelFunc
 
 	mux         sync.RWMutex
-	pendingAcks map[uint64]chan<- uint64
+	pendingAcks map[DataID]chan<- AsyncResult
+}
+
+func NewStefConnCreator(logger *zap.Logger, grpcConn *grpc.ClientConn, compression pkg.Compression) *StefConnCreator {
+	return &StefConnCreator{
+		logger:      logger,
+		grpcConn:    grpcConn,
+		compression: compression,
+	}
 }
 
 // Create a new connection. May be called concurrently.
@@ -42,7 +50,7 @@ func (s *StefConnCreator) Create(ctx context.Context) (Conn, error) {
 	}
 
 	conn := &StefConn{
-		pendingAcks: map[uint64]chan<- uint64{},
+		pendingAcks: map[DataID]chan<- AsyncResult{},
 	}
 
 	settings := stefgrpc.ClientSettings{
@@ -109,11 +117,15 @@ func (s *StefConnCreator) Create(ctx context.Context) (Conn, error) {
 	return conn, nil
 }
 
+func (s *StefConn) Writer() *oteltef.MetricsWriter {
+	return s.writer
+}
+
 // OnAck registers the connection to notify on ackCh when the
 // acknowledgment with the given ackID is received.
-func (s *StefConn) OnAck(ackID uint64, ackCh chan<- uint64) {
+func (s *StefConn) OnAck(ackID uint64, ackCh chan<- AsyncResult) {
 	s.mux.Lock()
-	s.pendingAcks[ackID] = ackCh
+	s.pendingAcks[DataID(ackID)] = ackCh
 	s.mux.Unlock()
 }
 
@@ -121,9 +133,9 @@ func (s *StefConn) onGrpcAck(ackID uint64) error {
 	s.mux.Lock()
 	// Notify all pending acks that have ackID smaller or equal to the received ackID.
 	for pendingAckId, ch := range s.pendingAcks {
-		if pendingAckId <= ackID {
+		if uint64(pendingAckId) <= ackID {
 			delete(s.pendingAcks, pendingAckId)
-			ch <- pendingAckId
+			ch <- AsyncResult{DataID: pendingAckId}
 		}
 	}
 	s.mux.Unlock()
