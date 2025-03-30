@@ -36,7 +36,9 @@ func NewSync2Async(logger *zap.Logger, concurrency int, async Async) *Sync2Async
 	}
 
 	for i := 0; i < concurrency; i++ {
-		s.resultChannelsRing <- make(chan AsyncResult)
+		// We need 1 element in the channel to make sure reporting the results via channel is not
+		// blocked when the recipient of the channel gave up.
+		s.resultChannelsRing <- make(chan AsyncResult, 1)
 	}
 
 	return s
