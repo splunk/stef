@@ -27,8 +27,8 @@ type ConnManager struct {
 
 	// Connection pools. curConnCount connections are either in one
 	// of these pools, or are acquired temporarily.
-	idleConns     chan *ManagedConn // Ready to be acquired.
-	flushConns    chan *ManagedConn // Pending to be flushed.
+	idleConns chan *ManagedConn // Ready to be acquired.
+	//flushConns    chan *ManagedConn // Pending to be flushed.
 	recreateConns chan *ManagedConn // Pending to be recreated.
 
 	// Period to flush connections.
@@ -86,7 +86,7 @@ func NewConnManager(
 		connCreator:     creator,
 		targetConnCount: targetConnCount,
 		idleConns:       make(chan *ManagedConn, targetConnCount),
-		flushConns:      make(chan *ManagedConn, targetConnCount),
+		//flushConns:      make(chan *ManagedConn, targetConnCount),
 		recreateConns:   make(chan *ManagedConn, targetConnCount),
 		flushPeriod:     flushPeriod,
 		reconnectPeriod: reconnectPeriod,
@@ -152,7 +152,7 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case conn = <-c.idleConns:
-		case conn = <-c.flushConns:
+			//case conn = <-c.flushConns:
 		}
 
 		if conn.Conn != nil {
@@ -207,10 +207,16 @@ func (c *ConnManager) Release(conn *ManagedConn) {
 		panic("connection is not acquired")
 	}
 	conn.isAcquired = false
-	conn.needsFlush = true
 	if c.clock.Since(conn.lastFlush) >= c.flushPeriod {
-		c.flushConns <- conn
-		return
+		if err := conn.Conn.Flush(); err != nil {
+			c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
+			c.recreateConns <- conn
+			return
+		}
+		conn.lastFlush = c.clock.Now()
+	} else {
+		// Remember that it needs to be flushed sometime in the future.
+		conn.needsFlush = true
 	}
 	c.idleConns <- conn
 }
@@ -234,21 +240,47 @@ func (c *ConnManager) flusher() {
 		c.stoppedCond.Cond.Broadcast()
 	}()
 
+	ticker := c.clock.NewTicker(c.flushPeriod)
+
 	for {
 		select {
 		case <-c.stopSignal:
 			return
-		case conn := <-c.flushConns:
-			if conn.needsFlush {
-				conn.needsFlush = false
-				if err := conn.Conn.Flush(); err != nil {
-					c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
-					c.recreateConns <- conn
-					continue
+		case <-ticker.Chan():
+		loop:
+			// Flush all idle connections that need flushing.
+			for i := 0; i < len(c.idleConns); i++ {
+				select {
+				// Get one idle conn (if any).
+				case conn := <-c.idleConns:
+					if conn.needsFlush {
+						conn.needsFlush = false
+						if err := conn.Conn.Flush(); err != nil {
+							c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
+							c.recreateConns <- conn
+							continue loop
+						}
+						conn.lastFlush = c.clock.Now()
+					}
+					// Return to idle pool.
+					c.idleConns <- conn
+
+				default:
+					// No more available idle connections.
+					break loop
 				}
-				conn.lastFlush = c.clock.Now()
 			}
-			c.idleConns <- conn
+			//case conn := <-c.flushConns:
+			//	if conn.needsFlush {
+			//		conn.needsFlush = false
+			//		if err := conn.Conn.Flush(); err != nil {
+			//			c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
+			//			c.recreateConns <- conn
+			//			continue
+			//		}
+			//		conn.lastFlush = c.clock.Now()
+			//	}
+			//	c.idleConns <- conn
 		}
 	}
 }

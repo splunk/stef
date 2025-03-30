@@ -57,6 +57,12 @@ func (m *mockConn) Closed() bool {
 	return m.closed
 }
 
+func (m *mockConn) MarkNotFlushed() {
+	m.mux.Lock()
+	m.flushed = false
+	m.mux.Unlock()
+}
+
 const flushPeriod = time.Hour
 const reconnectPeriod = 2 * time.Hour
 
@@ -242,6 +248,8 @@ func TestConnManagerFlush(t *testing.T) {
 		t, testDef{
 			clock: clockwork.NewFakeClock(),
 			test: func(cm *ConnManager) {
+				// First test the scenario where the flush is done immediately
+				// by Release().
 				conn, err := cm.Acquire(context.Background())
 				require.NoError(t, err)
 
@@ -251,6 +259,32 @@ func TestConnManagerFlush(t *testing.T) {
 				// Advance the clock so that Release() trigger flush.
 				cm.clock.(*clockwork.FakeClock).Advance(flushPeriod)
 				cm.Release(conn)
+
+				// Make sure the flush is done.
+				assert.Eventually(
+					t, func() bool {
+						return conn.Conn.(*mockConn).Flushed()
+					},
+					5*time.Second,
+					time.Millisecond*10,
+				)
+
+				// Try one more time, but now with flushing happening after Release()
+				conn, err = cm.Acquire(context.Background())
+				require.NoError(t, err)
+
+				// It is the same connection which was already flushed.
+				// Mark it as not flushed so we can test the subsequent flush.
+				conn.Conn.(*mockConn).MarkNotFlushed()
+
+				// Make sure the flush is not done yet.
+				assert.False(t, conn.Conn.(*mockConn).Flushed())
+
+				// Release the connection first.
+				cm.Release(conn)
+
+				// Advance the clock so that the connection is flush in the background.
+				cm.clock.(*clockwork.FakeClock).Advance(flushPeriod)
 
 				// Make sure the flush is done.
 				assert.Eventually(
