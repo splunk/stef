@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -62,7 +63,7 @@ func TestCreateMetric(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	creationSet := receivertest.NewNopSettings()
+	creationSet := receivertest.NewNopSettings(component.MustNewType("stef"))
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
