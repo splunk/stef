@@ -7,20 +7,39 @@ import (
 	"go.uber.org/zap"
 )
 
-type DataID uint64
-
-type AsyncResult struct {
-	DataID DataID
-	Err    error
-}
-type ResultChan chan AsyncResult
-
+// Async is a function that executes an operation asynchronously.
+// It takes some data and a channel to report the result.
+// It returns a DataID, that will be reported in the resultChan when
+// the operation completes.
 type Async func(
 	ctx context.Context,
 	data any,
 	resultChan ResultChan,
 ) (DataID, error)
 
+// DataID identifies the result of an asynchronous operation.
+// Since Async function can be called repeatedly, the DataID is used to differentiate
+// which of the operations started via Async() call has completed when indicated
+// by the resultChan.
+type DataID uint64
+
+// AsyncResult is the result of an asynchronous operation completion.
+type AsyncResult struct {
+	// DataID is the ID of the data that was processed. This matches the DataID
+	// returned by the Async function.
+	DataID DataID
+
+	// Err is the error that occurred during the processing of the data or nil
+	// if the operation completed successfully.
+	Err error
+}
+
+// ResultChan is a channel used to report the result of an asynchronous
+// operation completion.
+type ResultChan chan AsyncResult
+
+// Sync2Async is an API converter that allows an asynchronous implementation
+// of a function (Async) to be called synchronously.
 type Sync2Async struct {
 	logger             *zap.Logger
 	async              Async
@@ -28,6 +47,10 @@ type Sync2Async struct {
 	resultChannelsRing chan chan AsyncResult
 }
 
+// NewSync2Async creates a new Sync2Async instance.
+// concurrency is the number of concurrent async calls that can be in flight.
+// If more than concurrency Sync() calls are made, the caller will block until
+// one of the async calls completes and returns a result.
 func NewSync2Async(logger *zap.Logger, concurrency int, async Async) *Sync2Async {
 	s := &Sync2Async{
 		logger:             logger,
@@ -44,6 +67,19 @@ func NewSync2Async(logger *zap.Logger, concurrency int, async Async) *Sync2Async
 	return s
 }
 
+// Sync performs a synchronous operation. It will trigger the execution of the
+// provided Async operation with supplied data and will block until the async
+// operation completes (until the resultChan receives a result).
+//
+// If the number of calls to Sync() exceeds the concurrency limit, the caller will block
+// until one of the previous calls completes. This means that even if the number of
+// executing Sync() calls exceeds concurrency limit, the number of Async calls
+// will never exceed the concurrency limit.
+//
+// Cancelling the ctx will cause the async operation to be abandoned and error
+// to be returned. The ctx is also passed to the Async function.
+// If ctx is cancelled before the async operation is started (e.g. due to being
+// blocked on concurrency limit) then an error will be returned.
 func (s *Sync2Async) Sync(ctx context.Context, data any) error {
 	// Choose an resultChan. We are simply doing round-robin here, every Sync()
 	var resultChan chan AsyncResult
@@ -60,11 +96,9 @@ func (s *Sync2Async) Sync(ctx context.Context, data any) error {
 	if err != nil {
 		return err
 	}
-	//fmt.Printf("Wait Ack %04d\n", dataID)
 
 	select {
 	case result := <-resultChan:
-		//fmt.Printf("Got  Ack %04d\n", id)
 		if result.DataID != dataID {
 			// Received ack on the wrong data item. This should normally not happen and indicates a bug somewhere.
 			s.logger.Error(

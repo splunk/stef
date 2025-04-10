@@ -11,15 +11,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// ConnManager manages a pool of connections.
+// It is responsible for creating connections, reconnecting when needed,
+// flushing connections, ensuring each connection is used exclusively
+// by one user at a time.
+//
+// In order to use the connections use Acquire, Release and DiscardAndClose methods.
 type ConnManager struct {
 	logger *zap.Logger
 
+	// clock is used for mocking the clock for testing purposes.
+	// Outside of tests it is a real clock.
 	clock clockwork.Clock
 
 	// Number of connections desirable to maintain.
 	targetConnCount uint
 
-	// Number of current connections, in all pools or acquired.
+	// Number of current connections, collectively in all pools or acquired.
 	curConnCount atomic.Int64
 
 	// ConnCreator is used to create new connections.
@@ -27,27 +35,30 @@ type ConnManager struct {
 
 	// Connection pools. curConnCount connections are either in one
 	// of these pools, or are acquired temporarily.
-	idleConns chan *ManagedConn // Ready to be acquired.
-	//flushConns    chan *ManagedConn // Pending to be flushed.
+	idleConns     chan *ManagedConn // Ready to be acquired.
 	recreateConns chan *ManagedConn // Pending to be recreated.
 
-	// Period to flush connections.
+	// Period to wait before flushing connections after
+	// the connection is released by the user.
 	flushPeriod time.Duration
 
-	// Period to reconnect connections.
+	// Period to reconnect connections. Each connection is periodically
+	// reconnected approximately every reconnectPeriod.
 	reconnectPeriod time.Duration
 
 	// Flags to indicate if the goroutines are stopped.
 	flusherStopped         bool
 	durationLimiterStopped bool
-	discarderStopped       bool
+	recreatorStopped       bool
 	// stoppedCond is used to wait until all goroutines are stopped.
 	stoppedCond *CancellableCond
 
-	// stopSignal is closed to signal all goroutines to stop.
+	// stopSignal is used to signal all goroutines to stop.
 	stopSignal chan struct{}
 }
 
+// ManagedConn wraps a Conn and keeps some tracking information that
+// ConnManager needs.
 type ManagedConn struct {
 	Conn       Conn
 	startTime  time.Time
@@ -56,12 +67,14 @@ type ManagedConn struct {
 	isAcquired bool
 }
 
+// ConnCreator allow creating connections.
 type ConnCreator interface {
 	// Create a new connection. May be called concurrently.
 	// The attempt to create the connection should be cancelled if ctx is done.
 	Create(ctx context.Context) (Conn, error)
 }
 
+// Conn represents a connection that can be closed or flushed.
 type Conn interface {
 	// Close the connection. The connection will be discarded
 	// after this call returns.
@@ -86,7 +99,6 @@ func NewConnManager(
 		connCreator:     creator,
 		targetConnCount: targetConnCount,
 		idleConns:       make(chan *ManagedConn, targetConnCount),
-		//flushConns:      make(chan *ManagedConn, targetConnCount),
 		recreateConns:   make(chan *ManagedConn, targetConnCount),
 		flushPeriod:     flushPeriod,
 		reconnectPeriod: reconnectPeriod,
@@ -95,8 +107,9 @@ func NewConnManager(
 	}
 }
 
-// Start starts the connection manager. It will start creating targetConnCount
-// available connections.
+// Start starts the connection manager. It will immediately start
+// creating targetConnCount new connections. All successfully
+// created connections will become available for acquisition.
 func (c *ConnManager) Start() {
 	// Create connections in recreateConns pool. They will be created
 	// by recreator.
@@ -120,7 +133,7 @@ func (c *ConnManager) Stop(ctx context.Context) error {
 	// Wait until all goroutines stop
 	err := c.stoppedCond.Wait(
 		ctx, func() bool {
-			return c.flusherStopped && c.durationLimiterStopped && c.discarderStopped
+			return c.flusherStopped && c.durationLimiterStopped && c.recreatorStopped
 		},
 	)
 	if err != nil {
@@ -152,7 +165,6 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case conn = <-c.idleConns:
-			//case conn = <-c.flushConns:
 		}
 
 		if conn.Conn != nil {
@@ -224,6 +236,7 @@ func (c *ConnManager) Release(conn *ManagedConn) {
 // DiscardAndClose discards the acquired connection and closes it.
 // This is normally used when the connection goes bad in some way
 // and should not be reused.
+// This will result in calling the Close method on the connection.
 func (c *ConnManager) DiscardAndClose(conn *ManagedConn) {
 	if !conn.isAcquired {
 		panic("connection is not acquired")
@@ -270,17 +283,6 @@ func (c *ConnManager) flusher() {
 					break loop
 				}
 			}
-			//case conn := <-c.flushConns:
-			//	if conn.needsFlush {
-			//		conn.needsFlush = false
-			//		if err := conn.Conn.Flush(); err != nil {
-			//			c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
-			//			c.recreateConns <- conn
-			//			continue
-			//		}
-			//		conn.lastFlush = c.clock.Now()
-			//	}
-			//	c.idleConns <- conn
 		}
 	}
 }
@@ -338,7 +340,7 @@ func (c *ConnManager) durationLimiter() {
 func (c *ConnManager) recreator() {
 	defer func() {
 		c.stoppedCond.Cond.L.Lock()
-		c.discarderStopped = true
+		c.recreatorStopped = true
 		c.stoppedCond.Cond.L.Unlock()
 		c.stoppedCond.Cond.Broadcast()
 	}()
