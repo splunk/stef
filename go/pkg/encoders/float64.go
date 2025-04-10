@@ -83,10 +83,6 @@ func (e *Float64Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 }
 
-func (e *Float64Encoder) WriteTo(buf *pkg.BytesWriter) {
-	buf.WriteBytes(e.buf.Bytes())
-}
-
 func (e *Float64Encoder) Reset() {
 	e.lastVal = 0
 	e.leadingBits = 0
