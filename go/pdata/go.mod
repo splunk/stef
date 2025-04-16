@@ -6,8 +6,8 @@ toolchain go1.23.2
 
 require (
 	github.com/google/go-cmp v0.6.0
-	github.com/splunk/stef/go/otel v0.0.4
-	github.com/splunk/stef/go/pkg v0.0.4
+	github.com/splunk/stef/go/otel v0.0.5
+	github.com/splunk/stef/go/pkg v0.0.5
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/pdata v1.16.0
 	modernc.org/b/v2 v2.1.0
