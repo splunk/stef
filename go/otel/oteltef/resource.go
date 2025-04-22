@@ -25,6 +25,8 @@ type Resource struct {
 	modifiedFields modifiedFields
 }
 
+const ResourceStructName = "Resource"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedResourceSchemaURL = uint64(1 << iota)

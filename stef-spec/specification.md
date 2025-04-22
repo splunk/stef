@@ -856,9 +856,9 @@ reader that it MUST also reset its dictionaries.
 ## STEF/gRPC Protocol
 
 STEF data can be communicated over gRPC via
-[TEFDestination](../go/grpc/proto/destination.proto) service.
+[sTEFDestination](../go/grpc/proto/destination.proto) service.
 
-`TEFDestination` service is used to deliver STEF data from a Sender to a Receiver.
+`STEFDestination` service is used to deliver STEF data from a Sender to a Receiver.
 The Sender is responsible for producing a STEF Data Stream and uses a STEF Writer.
 The Receiver correspondingly uses a STEF Reader to decode the received STEF Data Stream.
 
@@ -869,41 +869,47 @@ Sender                               Receiver
     
   │             gRPC Connect              │  
   ├──────────────────────────────────────►│  
-  │                                       │  
-  │     TEFDestinationCapabilities        │  
+  │       STEFClientFirstMessage          │  
+  ├──────────────────────────────────────►│  
+  │     STEFDestinationCapabilities       │  
   │◄──────────────────────────────────────┤  
-  │                                       │  
-  │          TEFClientMessage             │  
+  │         STEFClientMessage             │  
+  ├──────────────────────────────────────►│  
+  .                 ...                   .  
+  │         STEFDataResponse              │  
+  │◄──────────────────────────────────────┤  
+  │         STEFClientMessage             │  
   .                 ...                   .  
   ├──────────────────────────────────────►│  
-  │          TEFDataResponse              │  
-  │◄──────────────────────────────────────┤  
-  │          TEFClientMessage             │  
-  .                 ...                   .  
-  ├──────────────────────────────────────►│  
-  │          TEFDataResponse              │  
+  │         STEFDataResponse              │  
   .                 ...                   .  
 ```
 
 1. The Sender opens a gRPC connection to the Receiver and starts a Stream() to
-   TEFDestination.
-2. Once the stream is open the Destination MUST send a TEFServerMessage with
-   DestCapabilities field set.
-3. The Sender MUST examine received DestCapabilities and if the client is
-   able to operate as requested by DestCapabilities the Sender MUST begin sending
-   TEFClientMessage containing STEF data. The Destination MUST periodically
-   respond with TEFServerMessage containing TEFDataResponse field.
-   It is not required that there is always a corresponding TEFDataResponse for each
-   TEFClientMessage - the Receiver may choose to respond once to acknowledge several
-   previously received TEFClientMessage messages.
+   `STEFDestination`.
+2. Once the stream is open the Sender MUST send a `STEFClientMessage` with
+   `first_message` field set.
+3. The Destination MUST reply with a `STEFServerMessage` with `capabilities` field set.
+4. The Sender MUST examine received `capabilities` and if the client is
+   able to operate as requested by `capabilities` the Sender MUST begin sending
+   `STEFClientMessage` containing STEF data. The Destination MUST periodically
+   respond with `STEFServerMessage` containing `STEFDataResponse`.
+   It is not required that there is always a corresponding `STEFDataResponse` for each
+   `STEFClientMessage` - the Receiver may choose to respond once to acknowledge several
+   previously received `STEFClientMessage` messages.
+
+### first_message field
+
+The Sender MUST set this field in the the first `STEFClientMessage` sent.
+All other fields MUST be unset when `first_message` is set.
+All subsequent messages MUST have `first_message` unset.
 
 ### stef_bytes field
 
-`TEFClientMessage` message contain a `stef_bytes` field. The field
-contains a sequence of bytes of the STEF stream.
+The field `stef_bytes` contains a sequence of bytes of the STEF stream.
 
 The receiver of the `stef_bytes` field is responsible for assembling the STEF data
-stream from a sequence of `TEFClientMessage` messages by concatenating bytes from
+stream from a sequence of `STEFClientMessage` messages by concatenating bytes from
 `stef_bytes` in the order the messages are received.
 
 ### is_end_of_chunk field
@@ -926,29 +932,26 @@ The encoder and decoder that operate on two ends of the gRPC stream maintain the
 record id and increment it precisely in lockstep with every record processed.
 
 The receiver of the STEF stream MUST use the record id value of the decoder and
-reference that value in `ack_record_id` field of `TEFDataResponse` to indicate
+reference that value in `ack_record_id` field of `STEFDataResponse` to indicate
 successful receipt of STEF stream up to that sequence id.
 
 If for whatever reason the decoded stream contains invalid values that cannot be
 accepted by the receiver, although STEF format decoding itself worked correctly and the
 decoder can continue accepting and decoding the subsequence STEF stream bytes, the
 receiver MUST indicate such invalid values back to the sender by referencing the
-record id of invalid value in `bad_data_record_ids` of `TEFDataResponse`. The sequence of
+record id of invalid value in `bad_data_record_ids` of `STEFDataResponse`. The sequence of
 operations in this case looks like this:
 
 ```
 Sender                               Receiver
     
-  │         TEFClientMessage              │  
+  │        STEFClientMessage              │  
   ├──────────────────────────────────────►│  
-  │                                       │  
-  │ TEFDataResponse{bad_data_record_ids}  │  
+  │ STEFDataResponse{bad_data_record_ids} │  
   │◄──────────────────────────────────────┤  
-  │                                       │  
-  │         TEFClientMessage              │  
+  │        STEFClientMessage              │  
   ├──────────────────────────────────────►│  
-  │                                       │  
-  │         TEFClientMessage              │  
+  │        STEFClientMessage              │  
   ├──────────────────────────────────────►│  
   .                 ...                   .  
 ```
@@ -965,22 +968,19 @@ retries. The sequence of operations in this case looks like this:
 ```
 Sender                               Receiver
     
-  │         TEFClientMessage              │  
+  │        STEFClientMessage              │  
   ├──────────────────────────────────────►│  
-  │                                       │  
-  │ TEFDataResponse{bad_data_record_ids}  │  
+  │ STEFDataResponse{bad_data_record_ids} │  
   │◄──────────────────────────────────────┤
-  │                                       │  
   │            gRPC Disconnect            │  
   │◄──────────────────────────────────────┤
-  │                                       │  
   │             gRPC Connect              │  
   ├──────────────────────────────────────►│  
-  │                                       │  
-  │     TEFDestinationCapabilities        │  
+  │       STEFClientFirstMessage          │  
+  ├──────────────────────────────────────►│  
+  │     STEFDestinationCapabilities       │  
   │◄──────────────────────────────────────┤  
-  │                                       │  
-  │          TEFClientMessage             │  
+  │         STEFClientMessage             │  
   ├──────────────────────────────────────►│  
   .                 ...                   .  
 ```
@@ -1009,7 +1009,7 @@ behind the load balancer.
 
 Receivers, which anticipate a large number of incoming gRPC streams should take into
 account memory usage required per stream. To limit the memory usage the receivers can
-indicate dictionary size limits in TEFDestinationCapabilities message.
+indicate dictionary size limits in `STEFDestinationCapabilities` message.
 
 Senders MUST honor dictionary limits returned in DictionaryLimits message by resetting
 dictionaries when their total byte size grows to the specified limit. See

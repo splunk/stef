@@ -24,6 +24,8 @@ type Spans struct {
 	modifiedFields modifiedFields
 }
 
+const SpansStructName = "Spans"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedSpansEnvelope = uint64(1 << iota)

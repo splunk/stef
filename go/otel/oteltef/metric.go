@@ -30,6 +30,8 @@ type Metric struct {
 	modifiedFields modifiedFields
 }
 
+const MetricStructName = "Metric"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedMetricName = uint64(1 << iota)

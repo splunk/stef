@@ -27,6 +27,8 @@ type Scope struct {
 	modifiedFields modifiedFields
 }
 
+const ScopeStructName = "Scope"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedScopeName = uint64(1 << iota)

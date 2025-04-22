@@ -24,11 +24,12 @@ type ClientCallbacks struct {
 	OnAck func(ackId uint64) error
 }
 
+// Client is a client for communicating over STEF/gRPC protocol.
 type Client struct {
 	grpcClient   stef_proto.STEFDestinationClient
 	stream       stef_proto.STEFDestination_StreamClient
 	callbacks    ClientCallbacks
-	clientSchema *schema.WireSchema
+	clientSchema ClientSchema
 	logger       types.Logger
 
 	// Running state
@@ -84,21 +85,60 @@ func (w *grpcWriter) WriteChunk(header []byte, content []byte) error {
 
 var ErrServerInvalidResponse = errors.New("invalid server response")
 
+// ClientSettings contains configuration settings for creating a Client.
 type ClientSettings struct {
+	// Logger instance used for logging client operations.
 	Logger types.Logger
+
 	// gRPC stream to send data over.
-	GrpcClient   stef_proto.STEFDestinationClient
-	ClientSchema *schema.WireSchema
-	Callbacks    ClientCallbacks
+	GrpcClient stef_proto.STEFDestinationClient
+
+	// ClientSchema of the client.
+	ClientSchema ClientSchema
+
+	// Callbacks for handling events such as acknowledgments and disconnections.
+	Callbacks ClientCallbacks
 }
 
-func NewClient(settings ClientSettings) *Client {
+type ClientSchema struct {
+	// The name of the root struct of the schema.
+	RootStructName string
+
+	// The wire schema of the client.
+	WireSchema *schema.WireSchema
+}
+
+// NewClient creates a new instance of the Client.
+//
+// Requirements:
+// - The `RootStructName` in `ClientSchema` must not be empty.
+// - The `WireSchema` in `ClientSchema` must not be nil.
+//
+// Example:
+//
+//	clientSettings := stefgrpc.ClientSettings{
+//	    GrpcClient:   grpcClient,
+//	    ClientSchema: stefgrpc.ClientSchema{RootStructName: "Metrics", WireSchema: &schema},
+//	    Callbacks:    stefgrpc.ClientCallbacks{},
+//	}
+//	client, err := stefgrpc.NewClient(clientSettings)
+//	if err != nil {
+//	    log.Fatalf("Failed to create client: %v", err)
+//	}
+func NewClient(settings ClientSettings) (*Client, error) {
 	if settings.Logger == nil {
 		settings.Logger = internal.NopLogger{}
 	}
 
 	if settings.Callbacks.OnDisconnect == nil {
 		settings.Callbacks.OnDisconnect = func(err error) {}
+	}
+
+	if settings.ClientSchema.RootStructName == "" {
+		return nil, fmt.Errorf("client schema root struct name is empty")
+	}
+	if settings.ClientSchema.WireSchema == nil {
+		return nil, fmt.Errorf("client schema wire schema is nil")
 	}
 
 	client := &Client{
@@ -109,7 +149,7 @@ func NewClient(settings ClientSettings) *Client {
 		waitCh:       make(chan struct{}),
 	}
 
-	return client
+	return client, nil
 }
 
 func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOptions, error) {
@@ -137,6 +177,19 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	}
 	defer closeOnErr()
 
+	// Send the first message to the server, include the root struct name.
+	clientMsg := &stef_proto.STEFClientFirstMessage{
+		RootStructName: c.clientSchema.RootStructName,
+	}
+	err = stream.Send(
+		&stef_proto.STEFClientMessage{
+			FirstMessage: clientMsg,
+		},
+	)
+	if err != nil {
+		return nil, opts, fmt.Errorf("failed to send to server: %w", err)
+	}
+
 	// The server must send capabilities message.
 	message, err := stream.Recv()
 	if err != nil {
@@ -162,7 +215,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	}
 
 	// Check if server schema is backward compatible with client schema.
-	compatibility, err := serverSchema.Compatible(c.clientSchema)
+	compatibility, err := serverSchema.Compatible(c.clientSchema.WireSchema)
 	switch compatibility {
 	case schema.CompatibilityExact:
 		// Schemas match exactly, nothing else is needed, can start sending data.
@@ -171,12 +224,12 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 		// ServerStream schema is superset of client schema. The client MUST specify its schema
 		// in the STEF header.
 		opts.IncludeDescriptor = true
-		opts.Schema = c.clientSchema
+		opts.Schema = c.clientSchema.WireSchema
 
 	case schema.CompatibilityIncompatible:
 		// It is neither exact match nor is server schema a superset, but server schema maybe subset.
 		// Check the opposite direction: if client schema is backward compatible with server schema.
-		compatibility, err = serverSchema.Compatible(c.clientSchema)
+		compatibility, err = serverSchema.Compatible(c.clientSchema.WireSchema)
 
 		if err != nil || compatibility == schema.CompatibilityIncompatible {
 			return nil, opts, fmt.Errorf("client and server schemas are incompatble: %w", err)
@@ -185,7 +238,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 		if compatibility == schema.CompatibilitySuperset {
 			// Client schema is superset of server schema. The client MUST downgrade its schema.
 			opts.IncludeDescriptor = true
-			opts.Schema = c.clientSchema
+			opts.Schema = c.clientSchema.WireSchema
 		}
 	}
 
