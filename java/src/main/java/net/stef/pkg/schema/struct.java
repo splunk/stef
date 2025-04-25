@@ -17,6 +17,14 @@ public class Struct {
         this.isRoot = isRoot;
     }
 
+    public Struct(String name, boolean oneOf, String dictName, boolean isRoot, List<StructField> fields) {
+        this.name = name;
+        this.oneOf = oneOf;
+        this.dictName = dictName;
+        this.isRoot = isRoot;
+        this.fields = fields;
+    }
+
     public Compatibility compatibleWith(Struct oldStruct) throws Exception {
         if (this.fields.size() < oldStruct.fields.size()) {
             throw new Exception("New struct " + this.name + " has fewer fields than old struct");

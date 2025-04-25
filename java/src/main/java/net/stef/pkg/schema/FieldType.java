@@ -7,6 +7,18 @@ public class FieldType {
     public String multiMap;
     public String dictName;
 
+    public FieldType(PrimitiveFieldType primitive) {
+        this.primitive = primitive;
+    }
+
+    public FieldType(PrimitiveFieldType primitive, FieldType array, String struct, String multi, String dictName) {
+        this.primitive = primitive;
+        this.array = array;
+        this.struct = struct;
+        this.multiMap = multi;
+        this.dictName = dictName;
+    }
+
     public boolean isCompatibleWith(FieldType oldFieldType) {
         if ((this.primitive == null) != (oldFieldType.primitive == null)) {
             return false;
