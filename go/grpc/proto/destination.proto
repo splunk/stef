@@ -16,19 +16,38 @@ service STEFDestination {
 }
 
 message STEFClientMessage {
+  // The client MUST set first_message field in the first STEFClientMessage sent.
+  // All other fields MUST be unset when first_message is set.
+  // All subsequent messages MUST have first_message unset.
+  STEFClientFirstMessage first_message = 1;
+
   // The bytes of STEF stream. The recipient is responsible for assembling the
   // STEF data stream from a sequence of messages in the order the
   // messages are received and decoding the STEF data stream.
   //
   // See specification.md for specification of STEF stream.
-  bytes stef_bytes = 1;
+  bytes stef_bytes = 2;
 
   // Indicates that the last byte of tef_bytes is also an end of a chunk (a STEF header or
   // STEF frame). This can be used by recipients to accumulates bytes until the end of
   // the chunk is encountered and only then start decoding the chunk.
   // Clients MUST ensure they mark this field true at least once in a while otherwise
   // recipients may never start decoding the data.
-  bool is_end_of_chunk = 2;
+  bool is_end_of_chunk = 3;
+}
+
+// ClientFirstMessage is the first message sent by the client to the destination.
+// The client MUST send this message first. The destination MUST respond with
+// STEFDestinationCapabilities message. The client MUST NOT send any other
+// messages until it receives STEFDestinationCapabilities message from the
+// destination. The client MUST NOT send STEF data until it receives
+// STEFDestinationCapabilities message from the destination.
+message STEFClientFirstMessage {
+  // The name of the root struct of the client's schema. This is useful
+  // for destinations that accept multiple schemas and need to know which schema
+  // the client is using. The destination will use this information to
+  // determine the schema to use for decoding the data.
+  string root_struct_name = 1;
 }
 
 message STEFDestinationCapabilities {
@@ -70,6 +89,8 @@ message STEFDictionaryLimits {
 
 
 message STEFServerMessage {
+  // TODO: refactor this to avoid using oneof message to reduce
+  // allocations for the most common case of STEFDataResponse.
   oneof message {
     STEFDestinationCapabilities capabilities = 1;
     STEFDataResponse response = 2;

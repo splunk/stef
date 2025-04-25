@@ -22,6 +22,8 @@ type SpanStatus struct {
 	modifiedFields modifiedFields
 }
 
+const SpanStatusStructName = "SpanStatus"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedSpanStatusMessage = uint64(1 << iota)

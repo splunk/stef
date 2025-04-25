@@ -26,6 +26,8 @@ type Link struct {
 	modifiedFields modifiedFields
 }
 
+const LinkStructName = "Link"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedLinkTraceID = uint64(1 << iota)

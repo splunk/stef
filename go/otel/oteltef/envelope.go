@@ -21,6 +21,8 @@ type Envelope struct {
 	modifiedFields modifiedFields
 }
 
+const EnvelopeStructName = "Envelope"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedEnvelopeAttributes = uint64(1 << iota)

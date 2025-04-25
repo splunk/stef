@@ -24,6 +24,8 @@ type Point struct {
 	modifiedFields modifiedFields
 }
 
+const PointStructName = "Point"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedPointStartTimestamp = uint64(1 << iota)

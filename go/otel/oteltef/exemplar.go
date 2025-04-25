@@ -25,6 +25,8 @@ type Exemplar struct {
 	modifiedFields modifiedFields
 }
 
+const ExemplarStructName = "Exemplar"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedExemplarTimestamp = uint64(1 << iota)

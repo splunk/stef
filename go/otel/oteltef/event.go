@@ -24,6 +24,8 @@ type Event struct {
 	modifiedFields modifiedFields
 }
 
+const EventStructName = "Event"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedEventName = uint64(1 << iota)

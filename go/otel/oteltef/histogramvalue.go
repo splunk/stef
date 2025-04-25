@@ -29,6 +29,8 @@ type HistogramValue struct {
 	optionalFieldsPresent uint64
 }
 
+const HistogramValueStructName = "HistogramValue"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedHistogramValueCount = uint64(1 << iota)

@@ -31,6 +31,8 @@ type {{ .StructName }} struct {
 	{{- end}}
 }
 
+const {{ .StructName }}StructName = "{{ .StructName }}"
+
 // Bitmasks for "modified" flags for each field.
 const (
     {{ range .Fields }}

@@ -181,13 +181,27 @@ func NewStreamServer(settings ServerSettings) *StreamServer {
 }
 
 func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) error {
+	// Receive the first message from the client.
+	clientMsg, err := server.Recv()
+	if err != nil {
+		return fmt.Errorf("failed to receive a message from the client: %w", err)
+	}
+	if clientMsg.FirstMessage == nil {
+		return fmt.Errorf("FirstMessage is nil")
+	}
+	if clientMsg.FirstMessage.RootStructName == "" {
+		return fmt.Errorf("RootStructName is unspecified")
+	}
+
+	// Send capabilities message to the client.
+
+	// Prepare the schema bytes.
 	var schemaBytes bytes.Buffer
-	err := s.serverSchema.Serialize(&schemaBytes)
+	err = s.serverSchema.Serialize(&schemaBytes)
 	if err != nil {
 		return fmt.Errorf("could not marshal server schema: %w", err)
 	}
 
-	// Send capabilities message to the client.
 	message := stef_proto.STEFServerMessage{
 		Message: &stef_proto.STEFServerMessage_Capabilities{
 			Capabilities: &stef_proto.STEFDestinationCapabilities{

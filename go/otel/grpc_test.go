@@ -99,10 +99,11 @@ func TestGrpcWriteRead(t *testing.T) {
 
 	clientSettings := stefgrpc.ClientSettings{
 		GrpcClient:   grpcClient,
-		ClientSchema: &schema,
+		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
 		Callbacks:    callbacks,
 	}
-	client := stefgrpc.NewClient(clientSettings)
+	client, err := stefgrpc.NewClient(clientSettings)
+	require.NoError(t, err)
 
 	w, opts, err := client.Connect(context.Background())
 	require.NoError(t, err)
@@ -235,10 +236,11 @@ func TestDictReset(t *testing.T) {
 
 	clientSettings := stefgrpc.ClientSettings{
 		GrpcClient:   grpcClient,
-		ClientSchema: &schema,
+		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
 		Callbacks:    callbacks,
 	}
-	client := stefgrpc.NewClient(clientSettings)
+	client, err := stefgrpc.NewClient(clientSettings)
+	require.NoError(t, err)
 
 	w, opts, err := client.Connect(context.Background())
 	require.NoError(t, err)
@@ -276,4 +278,23 @@ func TestDictReset(t *testing.T) {
 	case <-time.Tick(5 * time.Second):
 		t.Error("Timed out waiting for records")
 	}
+}
+
+func TestGrpcClientError(t *testing.T) {
+	schema, err := oteltef.MetricsWireSchema()
+	require.NoError(t, err)
+
+	clientSettings := stefgrpc.ClientSettings{
+		GrpcClient:   nil,
+		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema},
+	}
+	_, err = stefgrpc.NewClient(clientSettings)
+	require.Error(t, err)
+
+	clientSettings = stefgrpc.ClientSettings{
+		GrpcClient:   nil,
+		ClientSchema: stefgrpc.ClientSchema{RootStructName: oteltef.MetricsStructName},
+	}
+	_, err = stefgrpc.NewClient(clientSettings)
+	require.Error(t, err)
 }

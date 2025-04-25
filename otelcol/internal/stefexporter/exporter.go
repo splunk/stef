@@ -211,12 +211,15 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	settings := tef_grpc.ClientSettings{
 		Logger:       &wrapLogger{s.logger},
 		GrpcClient:   grpcClient,
-		ClientSchema: &schema,
+		ClientSchema: tef_grpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
 		Callbacks: tef_grpc.ClientCallbacks{
 			OnAck: s.onGrpcAck,
 		},
 	}
-	client := tef_grpc.NewClient(settings)
+	client, err := tef_grpc.NewClient(settings)
+	if err != nil {
+		return err
+	}
 
 	grpcWriter, opts, err := client.Connect(context.Background())
 

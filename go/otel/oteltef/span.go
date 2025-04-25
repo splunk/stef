@@ -34,6 +34,8 @@ type Span struct {
 	modifiedFields modifiedFields
 }
 
+const SpanStructName = "Span"
+
 // Bitmasks for "modified" flags for each field.
 const (
 	fieldModifiedSpanTraceID = uint64(1 << iota)
