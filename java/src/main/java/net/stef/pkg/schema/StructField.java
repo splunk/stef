@@ -5,6 +5,12 @@ public class StructField {
     public String name;
     public boolean optional;
 
+    public StructField(FieldType fieldType, String name, boolean optional) {
+        this.fieldType = fieldType;
+        this.name = name;
+        this.optional = optional;
+    }
+
     public boolean isCompatibleWith(StructField oldField) {
         if (this.optional != oldField.optional) {
             return false;

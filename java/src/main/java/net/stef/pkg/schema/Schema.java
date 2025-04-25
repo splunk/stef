@@ -1,13 +1,28 @@
 package net.stef.pkg.schema;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import com.google.gson.annotations.SerializedName;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class Schema {
-    private String packageName;
+    @SerializedName("package") private String packageName;
     private Map<String, Struct> structs = new HashMap<>();
     private Map<String, Multimap> multimaps = new HashMap<>();
     private Map<String, EnumType> enums = new HashMap<>();
+
+    public <K, V> Schema(String pkg, Map<String, Struct> structs) {
+        this.packageName = pkg;
+        this.structs = structs;
+    }
+
+    public Schema(String pkg, Map<String, Struct> structs, Map<String, Multimap> multimaps) {
+        this.packageName = pkg;
+        this.structs = structs;
+        this.multimaps = multimaps;
+    }
+
+    public Schema() {}
 
     public Compatibility compatible(Schema oldSchema) throws Exception {
         boolean exact = this.structs.size() == oldSchema.structs.size();
@@ -101,5 +116,15 @@ public class Schema {
 
         copyPrunedFieldType(srcMultiMap.key.type, dst);
         copyPrunedFieldType(srcMultiMap.value.type, dst);
+    }
+
+    public WireSchema toWire() {
+        WireSchema wireSchema = new WireSchema();
+        for (Map.Entry<String, Struct> entry : structs.entrySet()) {
+            String structName = entry.getKey();
+            Struct struct = entry.getValue();
+            wireSchema.setFieldCount(structName, struct.fields.size());
+        }
+        return wireSchema;
     }
 }
