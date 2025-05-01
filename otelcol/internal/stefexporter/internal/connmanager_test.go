@@ -139,7 +139,7 @@ func TestConnManagerAcquireReleaseMany(t *testing.T) {
 			afterStopFunc: func(creator *mockConnCreator, connCount uint) {
 				// Verify that Stop() flushes all connections.
 				for _, conn := range conns {
-					require.True(t, conn.Conn.(*mockConn).flushed)
+					require.True(t, conn.conn.(*mockConn).flushed)
 				}
 			},
 		},
@@ -254,7 +254,7 @@ func TestConnManagerFlush(t *testing.T) {
 				require.NoError(t, err)
 
 				// Make sure the flush is not done yet.
-				assert.False(t, conn.Conn.(*mockConn).Flushed())
+				assert.False(t, conn.conn.(*mockConn).Flushed())
 
 				// Advance the clock so that Release() trigger flush.
 				cm.clock.(*clockwork.FakeClock).Advance(flushPeriod)
@@ -263,7 +263,7 @@ func TestConnManagerFlush(t *testing.T) {
 				// Make sure the flush is done.
 				assert.Eventually(
 					t, func() bool {
-						return conn.Conn.(*mockConn).Flushed()
+						return conn.conn.(*mockConn).Flushed()
 					},
 					5*time.Second,
 					time.Millisecond*10,
@@ -275,10 +275,10 @@ func TestConnManagerFlush(t *testing.T) {
 
 				// It is the same connection which was already flushed.
 				// Mark it as not flushed so we can test the subsequent flush.
-				conn.Conn.(*mockConn).MarkNotFlushed()
+				conn.conn.(*mockConn).MarkNotFlushed()
 
 				// Make sure the flush is not done yet.
-				assert.False(t, conn.Conn.(*mockConn).Flushed())
+				assert.False(t, conn.conn.(*mockConn).Flushed())
 
 				// Release the connection first.
 				cm.Release(conn)
@@ -289,7 +289,7 @@ func TestConnManagerFlush(t *testing.T) {
 				// Make sure the flush is done.
 				assert.Eventually(
 					t, func() bool {
-						return conn.Conn.(*mockConn).Flushed()
+						return conn.conn.(*mockConn).Flushed()
 					},
 					5*time.Second,
 					time.Millisecond*10,
@@ -317,7 +317,7 @@ func TestConnManagerReconnector(t *testing.T) {
 
 						// This connection should be flushed because Release()
 						// marks it for flushing and durationLimiter flushes it.
-						return conn.Conn.(*mockConn).Flushed() && conn.Conn.(*mockConn).Closed()
+						return conn.conn.(*mockConn).Flushed() && conn.conn.(*mockConn).Closed()
 					}, 5*time.Second, time.Millisecond*10,
 				)
 			},

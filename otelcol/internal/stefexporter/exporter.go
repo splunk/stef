@@ -112,7 +112,7 @@ func (s *stefExporter) exportMetricsAsync(
 		return 0, err
 	}
 
-	stefConn := conn.Conn.(*internal.StefConn)
+	stefConn := conn.Conn().(*internal.StefConn)
 	stefWriter := stefConn.Writer()
 
 	md := data.(pmetric.Metrics)

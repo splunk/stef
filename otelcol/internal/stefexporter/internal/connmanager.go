@@ -16,7 +16,7 @@ import (
 // flushing connections, ensuring each connection is used exclusively
 // by one user at a time.
 //
-// In order to use the connections use Acquire, Release and DiscardAndClose methods.
+// In order to use the connections call Acquire, Release and DiscardAndClose methods.
 type ConnManager struct {
 	logger *zap.Logger
 
@@ -34,7 +34,8 @@ type ConnManager struct {
 	connCreator ConnCreator
 
 	// Connection pools. curConnCount connections are either in one
-	// of these pools, or are acquired temporarily.
+	// of these pools, or are acquired temporarily,
+	// i.e. curConnCount = len(idleConns) + len(recreateConns) + (acquired count).
 	idleConns     chan *ManagedConn // Ready to be acquired.
 	recreateConns chan *ManagedConn // Pending to be recreated.
 
@@ -60,11 +61,16 @@ type ConnManager struct {
 // ManagedConn wraps a Conn and keeps some tracking information that
 // ConnManager needs.
 type ManagedConn struct {
-	Conn       Conn
+	conn       Conn
 	startTime  time.Time
 	lastFlush  time.Time
 	needsFlush bool
 	isAcquired bool
+}
+
+// Conn returns the underlying connection.
+func (c *ManagedConn) Conn() Conn {
+	return c.conn
 }
 
 // ConnCreator allow creating connections.
@@ -148,7 +154,7 @@ func (c *ConnManager) Stop(ctx context.Context) error {
 func (c *ConnManager) closeAll(ctx context.Context) error {
 	// We must close exactly targetConnCount connections in total.
 	// All goroutines are stopped at this point, so they won't interfere.
-	// All connections are either in the between idleConns, flushConns and recreateConns
+	// All connections are either in the between idleConns and recreateConns
 	// pools or are acquired and will be returned to one of the pools soon.
 
 	cnt := c.curConnCount.Load()
@@ -167,10 +173,10 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 		case conn = <-c.idleConns:
 		}
 
-		if conn.Conn != nil {
+		if conn.conn != nil {
 			// Flush if needs a flush and is not discarded.
 			if !discarded && conn.needsFlush {
-				if err := conn.Conn.Flush(); err != nil {
+				if err := conn.conn.Flush(); err != nil {
 					c.logger.Debug("Failed to flush connection", zap.Error(err))
 					errs = append(errs, err)
 					continue
@@ -178,7 +184,7 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 			}
 
 			// And close the connection.
-			if err := conn.Conn.Close(ctx); err != nil {
+			if err := conn.conn.Close(ctx); err != nil {
 				c.logger.Debug("Failed to close connection", zap.Error(err))
 				errs = append(errs, err)
 				continue
@@ -220,7 +226,7 @@ func (c *ConnManager) Release(conn *ManagedConn) {
 	}
 	conn.isAcquired = false
 	if c.clock.Since(conn.lastFlush) >= c.flushPeriod {
-		if err := conn.Conn.Flush(); err != nil {
+		if err := conn.conn.Flush(); err != nil {
 			c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
 			c.recreateConns <- conn
 			return
@@ -268,7 +274,7 @@ func (c *ConnManager) flusher() {
 				case conn := <-c.idleConns:
 					if conn.needsFlush {
 						conn.needsFlush = false
-						if err := conn.Conn.Flush(); err != nil {
+						if err := conn.conn.Flush(); err != nil {
 							c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
 							c.recreateConns <- conn
 							continue loop
@@ -320,7 +326,7 @@ func (c *ConnManager) durationLimiter() {
 				if conn.needsFlush {
 					conn.needsFlush = false
 					// Flush it first.
-					if err := conn.Conn.Flush(); err != nil {
+					if err := conn.conn.Flush(); err != nil {
 						c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
 					}
 				}
@@ -353,10 +359,10 @@ func (c *ConnManager) recreator() {
 			if c.curConnCount.Add(-1) < 0 {
 				panic("negative connection count")
 			}
-			if conn.Conn != nil {
+			if conn.conn != nil {
 				ctx, cancel := contextFromStopSignal(c.stopSignal)
 				// Close the connection.
-				if err := conn.Conn.Close(ctx); err != nil {
+				if err := conn.conn.Close(ctx); err != nil {
 					c.logger.Error("Failed to close connection", zap.Error(err))
 				}
 				cancel()
@@ -409,7 +415,7 @@ func (c *ConnManager) createNewConn() {
 
 		now := c.clock.Now()
 		managedConn := &ManagedConn{
-			Conn:      conn,
+			conn:      conn,
 			startTime: now,
 			lastFlush: now,
 		}
