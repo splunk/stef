@@ -12,8 +12,9 @@ import (
 )
 
 // ConnManager manages a pool of connections.
-// It is responsible for creating connections, reconnecting when needed,
-// flushing connections, ensuring each connection is used exclusively
+//
+// It is responsible for creating connections, reconnecting or flushing connections
+// in the background when needed, and ensuring each connection is used exclusively
 // by one user at a time.
 //
 // In order to use the connections call Acquire, Release and DiscardAndClose methods.
@@ -39,8 +40,9 @@ type ConnManager struct {
 	idleConns     chan *ManagedConn // Ready to be acquired.
 	recreateConns chan *ManagedConn // Pending to be recreated.
 
-	// Period to wait before flushing connections after
-	// the connection is released by the user.
+	// Approximate period to wait before flushing connections after
+	// the connection is released by the user. Setting this value to >0 avoids
+	// unnecessary flushes when the connection is acquired and released frequently.
 	flushPeriod time.Duration
 
 	// Period to reconnect connections. Each connection is periodically
@@ -61,10 +63,20 @@ type ConnManager struct {
 // ManagedConn wraps a Conn and keeps some tracking information that
 // ConnManager needs.
 type ManagedConn struct {
-	conn       Conn
-	startTime  time.Time
-	lastFlush  time.Time
+	// The underlying connection.
+	conn Conn
+
+	// The time when the connection was created.
+	startTime time.Time
+
+	// The time when the connection was last flushed. Set after conn.Flush() is called.
+	lastFlush time.Time
+
+	// needsFlush indicates if the connection needs to be flushed at the next periodic
+	// background check that runs at the flushPeriod intervals.
 	needsFlush bool
+
+	// Keep track of the connection usage, whether it is acquired or no.
 	isAcquired bool
 }
 
@@ -114,11 +126,11 @@ func NewConnManager(
 }
 
 // Start starts the connection manager. It will immediately start
-// creating targetConnCount new connections. All successfully
-// created connections will become available for acquisition.
+// creating targetConnCount new connections by calling connCreator.Create().
+// All successfully created connections will become available for acquisition.
 func (c *ConnManager) Start() {
-	// Create connections in recreateConns pool. They will be created
-	// by recreator.
+	// Put some dummy connections in recreateConns pool and let the recreator()
+	// to replace them by proper connections in the background.
 	for i := uint(0); i < c.targetConnCount; i++ {
 		c.recreateConns <- &ManagedConn{}
 		c.curConnCount.Add(1)
@@ -132,6 +144,7 @@ func (c *ConnManager) Start() {
 // Stop stops the connection manager. It will wait until all acquired
 // connections are returned. Then it will flush connections that
 // are marked as needing to flush, and then will close all connections.
+// Stop will be aborted if the context is done before all connections are closed.
 func (c *ConnManager) Stop(ctx context.Context) error {
 	// Signal goroutines to stop
 	close(c.stopSignal)
@@ -154,11 +167,11 @@ func (c *ConnManager) Stop(ctx context.Context) error {
 func (c *ConnManager) closeAll(ctx context.Context) error {
 	// We must close exactly curConnCount connections in total.
 	// All goroutines are stopped at this point, so they won't interfere.
-	// All connections are either in the between idleConns and recreateConns
-	// pools or are acquired and will be returned to one of the pools soon.
+	// All connections are either in the idleConns or recreateConns pools
+	// or are acquired and will be returned to one of the pools soon.
 
 	cnt := c.curConnCount.Load()
-	c.logger.Debug("closing connections", zap.Int64("count", cnt))
+	c.logger.Debug("Closing connections", zap.Int64("count", cnt))
 
 	var errs []error
 	for i := int64(0); i < cnt; i++ {
@@ -166,10 +179,12 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 		var conn *ManagedConn
 		var discarded bool
 		select {
-		case conn = <-c.recreateConns:
-			discarded = true
 		case <-ctx.Done():
 			return ctx.Err()
+		case conn = <-c.recreateConns:
+			// Connections in recreateConns are discarded and are candidates for recreation.
+			// We don't need to flush them.
+			discarded = true
 		case conn = <-c.idleConns:
 		}
 
@@ -197,6 +212,7 @@ func (c *ConnManager) closeAll(ctx context.Context) error {
 }
 
 // Acquire an idle connection for exclusive use.
+//
 // Must call Release() or DiscardAndClose() when done.
 // Returns an error if the connection is not available til ctx is done
 // or if the manager is stopped.
@@ -215,19 +231,23 @@ func (c *ConnManager) Acquire(ctx context.Context) (*ManagedConn, error) {
 	}
 }
 
-// Release returns the previously acquired connection.
+// Release returns a previously acquired connection to the ConnManager
+// and makes it available to be acquired again.
+//
 // If the connection was last flushed more than flushPeriod ago, it will
-// be flushed first otherwise it becomes available for other clients to
-// Acquire immediately. Either way the connection will be marked as
-// needing a flush.
+// be flushed otherwise it will be marked as needing to be flushed at the
+// next opportunity.
 func (c *ConnManager) Release(conn *ManagedConn) {
 	if !conn.isAcquired {
 		panic("connection is not acquired")
 	}
 	conn.isAcquired = false
 	if c.clock.Since(conn.lastFlush) >= c.flushPeriod {
+		// Time to flush the connection.
 		if err := conn.conn.Flush(); err != nil {
 			c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
+			// Something went wrong, we need to recreate the connection since it
+			// may no longer be usable.
 			c.recreateConns <- conn
 			return
 		}
@@ -276,6 +296,8 @@ func (c *ConnManager) flusher() {
 						conn.needsFlush = false
 						if err := conn.conn.Flush(); err != nil {
 							c.logger.Error("Failed to flush connection. Closing connection.", zap.Error(err))
+							// Something went wrong, we need to recreate the connection since it
+							// may no longer be usable.
 							c.recreateConns <- conn
 							continue loop
 						}
@@ -331,7 +353,7 @@ func (c *ConnManager) durationLimiter() {
 					}
 				}
 
-				// Send it for reconnection.
+				// Send it for reconnection (regardless of whether it was flushed or not).
 				c.recreateConns <- conn
 			} else {
 				// Put it back, too soon to reconnect.
@@ -345,6 +367,7 @@ func (c *ConnManager) durationLimiter() {
 // and replaces them by new connections.
 func (c *ConnManager) recreator() {
 	defer func() {
+		// Indicate we are stopped on exit.
 		c.stoppedCond.Cond.L.Lock()
 		c.recreatorStopped = true
 		c.stoppedCond.Cond.L.Unlock()
@@ -355,10 +378,13 @@ func (c *ConnManager) recreator() {
 		select {
 		case <-c.stopSignal:
 			return
+
 		case conn := <-c.recreateConns:
+			// Track the number of connections.
 			if c.curConnCount.Add(-1) < 0 {
 				panic("negative connection count")
 			}
+
 			if conn.conn != nil {
 				ctx, cancel := contextFromStopSignal(c.stopSignal)
 				// Close the connection.
@@ -408,7 +434,7 @@ func (c *ConnManager) createNewConn() {
 
 		c.logger.Debug("calling Create() connection")
 		conn, err := c.connCreator.Create(ctx)
-		if err != nil {
+		if err != nil || conn == nil {
 			c.logger.Info("Failed to create connection. Will retry.", zap.Error(err))
 			continue
 		}

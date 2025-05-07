@@ -2,14 +2,13 @@ package internal
 
 import (
 	"context"
-	"sync"
 
 	"go.uber.org/zap"
 )
 
 // Async is a function that executes an operation asynchronously.
 // It takes some data and a channel to report the result.
-// It returns a DataID, that will be reported in the resultChan when
+// It returns a DataID, that will be reported via resultChan when
 // the operation completes.
 type Async func(
 	ctx context.Context,
@@ -19,8 +18,8 @@ type Async func(
 
 // DataID identifies the result of an asynchronous operation.
 // Since Async function can be called repeatedly, the DataID is used to differentiate
-// which of the operations started via Async() call has completed when indicated
-// by the resultChan.
+// which of the operations started via Async() call have completed when reported
+// via resultChan.
 type DataID uint64
 
 // AsyncResult is the result of an asynchronous operation completion.
@@ -29,8 +28,8 @@ type AsyncResult struct {
 	// returned by the Async function.
 	DataID DataID
 
-	// Err is the error that occurred during the processing of the data or nil
-	// if the operation completed successfully.
+	// Err is the error that occurred during the processing of the data.
+	// Equals to nil if the operation completed successfully.
 	Err error
 }
 
@@ -39,18 +38,24 @@ type AsyncResult struct {
 type ResultChan chan AsyncResult
 
 // Sync2Async is an API converter that allows an asynchronous implementation
-// of a function (Async) to be called synchronously.
+// of an Async function to be called synchronously.
 type Sync2Async struct {
-	logger             *zap.Logger
-	async              Async
-	asyncMux           sync.Mutex
+	logger *zap.Logger
+
+	// The Async function to be called asynchronously.
+	async Async
+
+	// resultChannelsRing is a ring of channels that are used to report
+	// the result of the async operation. The ring is used to limit the
+	// number of concurrent async operations that can be in flight.
 	resultChannelsRing chan chan AsyncResult
 }
 
 // NewSync2Async creates a new Sync2Async instance.
-// concurrency is the number of concurrent async calls that can be in flight.
-// If more than concurrency Sync() calls are made, the caller will block until
-// one of the async calls completes and returns a result.
+//
+// concurrency is the number of concurrent calls that can be in flight.
+// If more than concurrency Sync() calls are made, the Sync() call will block
+// until one of the previous calls completes and returns a result.
 func NewSync2Async(logger *zap.Logger, concurrency int, async Async) *Sync2Async {
 	s := &Sync2Async{
 		logger:             logger,
@@ -73,15 +78,15 @@ func NewSync2Async(logger *zap.Logger, concurrency int, async Async) *Sync2Async
 //
 // If the number of calls to Sync() exceeds the concurrency limit, the caller will block
 // until one of the previous calls completes. This means that even if the number of
-// executing Sync() calls exceeds concurrency limit, the number of Async calls
+// concurrently executing Sync() calls exceeds concurrency limit, the number of Async calls
 // will never exceed the concurrency limit.
 //
 // Cancelling the ctx will cause the async operation to be abandoned and error
 // to be returned. The ctx is also passed to the Async function.
 // If ctx is cancelled before the async operation is started (e.g. due to being
-// blocked on concurrency limit) then an error will be returned.
+// blocked on concurrency limit) then an error will be returned as well.
 func (s *Sync2Async) Sync(ctx context.Context, data any) error {
-	// Choose an resultChan. We are simply doing round-robin here, every Sync()
+	// Acquire a resultChan from the ring of channels if one is available.
 	var resultChan chan AsyncResult
 	select {
 	case resultChan = <-s.resultChannelsRing:
@@ -89,16 +94,21 @@ func (s *Sync2Async) Sync(ctx context.Context, data any) error {
 		return ctx.Err()
 	}
 	defer func() {
+		// Put it back into the ring of channels when we are done with it.
 		s.resultChannelsRing <- resultChan
 	}()
 
+	// Begin async operation. This will return immediately and the result
+	// will be reported via the resultChan some time in the future.
 	dataID, err := s.async(ctx, data, resultChan)
 	if err != nil {
 		return err
 	}
 
+	// Now we need to wait for the result of the async operation.
 	select {
 	case result := <-resultChan:
+		// Async operation completed. We can return the result.
 		if result.DataID != dataID {
 			// Received ack on the wrong data item. This should normally not happen and indicates a bug somewhere.
 			s.logger.Error(
@@ -110,11 +120,17 @@ func (s *Sync2Async) Sync(ctx context.Context, data any) error {
 		return result.Err
 
 	case <-ctx.Done():
+		// Async operation is still executing, but we have to abandon it and return to our
+		// caller immediately.
 		// Abandon the ack channel that was given to async() because we don't know when/if
-		// that channel will fire. Just allocate a new channel. The new resultChan will
-		// be returned to resultChannelsRing when this func returns.
-		// If after this ack() is called, it will push dataID on an abandoned channel
-		// and will have no effect.
+		// the Async operation will complete and that channel will fire, so we don't want to
+		// touch it anymore.
+		// Just allocate a new channel. The new resultChan will be returned to resultChannelsRing
+		// when this func returns.
+		// If after this the previously started Async operation completes, it will push the result
+		// into an abandoned channel, which will have no effect.
+		// Note that Async can push into an abandoned channel without blocking since the channel
+		// has 1 buffered element.
 		resultChan = make(chan AsyncResult)
 		return ctx.Err()
 	}
