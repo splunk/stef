@@ -152,7 +152,7 @@ func (c *ConnManager) Stop(ctx context.Context) error {
 
 // Close all connections.
 func (c *ConnManager) closeAll(ctx context.Context) error {
-	// We must close exactly targetConnCount connections in total.
+	// We must close exactly curConnCount connections in total.
 	// All goroutines are stopped at this point, so they won't interfere.
 	// All connections are either in the between idleConns and recreateConns
 	// pools or are acquired and will be returned to one of the pools soon.
