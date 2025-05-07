@@ -298,8 +298,6 @@ func TestAckTimeout(t *testing.T) {
 }
 
 func TestStartServerAfterClient(t *testing.T) {
-	t.Skip()
-
 	logCfg := zap.NewDevelopmentConfig()
 	logCfg.DisableStacktrace = true
 	logger, _ := logCfg.Build()
@@ -331,22 +329,23 @@ func TestStartServerAfterClient(t *testing.T) {
 	// Trying sending with server down.
 	md := testdata.GenerateMetrics(1)
 	pointCount := int64(md.DataPointCount())
+
+	go func() {
+		// Sleep a tiny bit get more chance to hit race conditions.
+		time.Sleep(time.Millisecond)
+		// Now start the server.
+		mockSrv.start()
+	}()
+
+	// This likely executes before the server is up
+	// (but can also be before, which is good, we want to test it all).
 	err := exp.exportMetrics(context.Background(), md)
 
-	// Sending must fail.
-	require.Error(t, err)
+	// Sending must succeed since exportMetric waits until the server is up
+	// and connection can be established.
+	require.NoError(t, err)
 
-	// Now start the server.
-	mockSrv.start()
 	defer mockSrv.stop()
-
-	// Try sending until it succeeds. The gRPC connection may not succeed immediately.
-	assert.Eventually(
-		t, func() bool {
-			err = exp.exportMetrics(context.Background(), md)
-			return err == nil
-		}, 5*time.Second, 200*time.Millisecond,
-	)
 
 	// Ensure data is received.
 	assert.EqualValues(t, pointCount, mockSrv.recordsReceived.Load())
