@@ -17,7 +17,8 @@ class BitsWriterTest {
         }
         bw.close();
         byte[] expected = {(byte) 0b11111111, (byte) 0b11100000};
-        assertArrayEquals(expected, bw.toByteArray());
+
+        assertArrayEquals(expected, bw.toBytesCopy());
     }
 
     @Test
@@ -33,11 +34,14 @@ class BitsWriterTest {
         bw.close();
 
         BitsReader br = new BitsReader();
-        br.reset(bw.toByteArray());
+        br.reset(bw.toBytes());
 
         for (long i = 1; i <= count; i += 111) {
             long v = i;
             int bitCount = (int) (Math.floor(Math.log(v) / Math.log(2)) + 1);
+            if (i==16777096) {
+                i=i;
+            }
             long val = br.readBits(bitCount);
             assertEquals(v, val, "Mismatch at index " + i);
         }
@@ -59,7 +63,7 @@ class BitsWriterTest {
         bw.close();
 
         BitsReader br = new BitsReader();
-        br.reset(bw.toByteArray());
+        br.reset(bw.toBytes());
 
         random = new Random(0);
 
