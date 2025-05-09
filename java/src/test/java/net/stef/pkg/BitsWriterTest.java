@@ -74,4 +74,48 @@ class BitsWriterTest {
             assertEquals(v, val, "Mismatch at index " + i);
         }
     }
+
+    @Test
+    void testReadUvarintCompact() {
+        BitsWriter bw = new BitsWriter();
+        for (int i = 0; i < 48; i++) {
+            bw.writeUvarintCompact(1L << i);
+        }
+        bw.close();
+
+        BitsReader br = new BitsReader();
+        br.reset(bw.toBytes());
+
+        for (int i = 0; i < 48; i++) {
+            long expected = 1L << i;
+            long actual = br.readUvarintCompact();
+            assertEquals(expected, actual, "Mismatch at index " + i);
+        }
+    }
+
+    @Test
+    void testReadVarintCompact() {
+        BitsWriter bw = new BitsWriter();
+        for (int i = 0; i < 47; i++) {
+            bw.writeVarintCompact(1L << i);
+        }
+        for (int i = 0; i < 47; i++) {
+            bw.writeVarintCompact(-(1L << i));
+        }
+        bw.close();
+
+        BitsReader br = new BitsReader();
+        br.reset(bw.toBytes());
+
+        for (int i = 0; i < 47; i++) {
+            long expected = 1L << i;
+            long actual = br.readVarintCompact();
+            assertEquals(expected, actual, "Mismatch at index " + i);
+        }
+        for (int i = 0; i < 47; i++) {
+            long expected = -(1L << i);
+            long actual = br.readVarintCompact();
+            assertEquals(expected, actual, "Mismatch at index -" + i);
+        }
+    }
 }
