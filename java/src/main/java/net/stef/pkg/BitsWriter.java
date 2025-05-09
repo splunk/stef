@@ -1,52 +1,76 @@
 package net.stef.pkg;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class BitsWriter {
-    private List<Byte> stream = new ArrayList<>();
+    private byte[] buf;
+    private int bufSize;
     private long bitsBuf = 0;
     private int bitsBufUsed = 0;
+
+    BitsWriter() {
+        reset();
+    }
 
     public void reset() {
         bitsBuf = 0;
         bitsBufUsed = 0;
-        stream.clear();
+        buf = new byte[8];
+        bufSize = 0;
     }
 
     public void close() {
-        while (bitsBufUsed > 0) {
-            writeByte((byte) (bitsBuf >>> 56));
-            bitsBuf <<= 8;
-            bitsBufUsed -= 8;
-        }
+        int targetLen = bufSize + (bitsBufUsed+7)/8;
+        writeLong(bitsBuf);
+        bufSize = targetLen;
     }
 
-    public byte[] toByteArray() {
-        byte[] result = new byte[stream.size()];
-        for (int i = 0; i < stream.size(); i++) {
-            result[i] = stream.get(i);
-        }
-        return result;
+    public ByteBuffer toBytes() {
+        return ByteBuffer.wrap(buf, 0, bufSize).order(ByteOrder.BIG_ENDIAN);
+    }
+
+    public byte[] toBytesCopy() {
+        byte[] copy = new byte[bufSize];
+        System.arraycopy(buf, 0, copy, 0, bufSize);
+        return copy;
     }
 
     public void writeBit(int bit) {
-        bitsBuf = (bitsBuf << 1) | (bit & 1);
-        bitsBufUsed++;
-        if (bitsBufUsed == 8) {
-            writeByte((byte) (bitsBuf >>> 56));
-            bitsBufUsed = 0;
+        if (bitsBufUsed <= 63) {
+            bitsBuf |= Integer.toUnsignedLong(bit) << (63 - bitsBufUsed);
+            bitsBufUsed++;
+            return;
         }
+        writeBitsSlow(bit, 1);
     }
 
-    public void writeBits(long value, int nbits) {
-        for (int i = nbits - 1; i >= 0; i--) {
-            writeBit((int) ((value >>> i) & 1));
+    public void writeBits(long val, int nbits) {
+        int nbitsComplement = 64 - nbits;
+        if (bitsBufUsed <= nbitsComplement) {
+            bitsBuf |= val << (nbitsComplement - bitsBufUsed);
+            bitsBufUsed += nbits;
+            return;
         }
+        writeBitsSlow(val, nbits);
+    }
+
+    private void writeBitsSlow(long val, int nbits) {
+        // Complete bitsBuf to 64 bits.
+        int bitsBufFree = 64 - bitsBufUsed;
+        bitsBuf |= val >>> (nbits - bitsBufFree);
+
+        // And append 64 bits to stream.
+        writeLong(bitsBuf);
+
+        // Write the rest of bits
+        nbits -= bitsBufFree;
+        bitsBuf = val << (64 - nbits);
+        bitsBufUsed = nbits;
     }
 
     public void writeVarintCompact(long value) {
-        long ux = (value >> 63) ^ (value << 1);
+        long ux = (value >>> 63) ^ (value << 1);
         writeUvarintCompact(ux);
     }
 
@@ -68,7 +92,35 @@ public class BitsWriter {
         writeBits(value, bitCount);
     }
 
+    private void ensureSpace(int len) {
+        if (bufSize + len < buf.length) {
+            return;
+        }
+
+        int newBufSize = bufSize * 2;
+        if (bufSize+len > newBufSize) {
+            newBufSize = bufSize+len;
+        }
+        byte[] newBuf = new byte[newBufSize];
+        System.arraycopy(buf, 0, newBuf, 0, buf.length);
+        buf = newBuf;
+    }
+
     private void writeByte(byte b) {
-        stream.add(b);
+        ensureSpace(1);
+        buf[bufSize++] = b;
+    }
+
+    private void writeLong(long l) {
+        ensureSpace(8);
+        buf[bufSize] = (byte)(l>>>56);
+        buf[bufSize+1] = (byte)(l>>>48);
+        buf[bufSize+2] = (byte)(l>>>40);
+        buf[bufSize+3] = (byte)(l>>>32);
+        buf[bufSize+4] = (byte)(l>>>24);
+        buf[bufSize+5] = (byte)(l>>>16);
+        buf[bufSize+6] = (byte)(l>>>8);
+        buf[bufSize+7] = (byte)(l);
+        bufSize += 8;
     }
 }
