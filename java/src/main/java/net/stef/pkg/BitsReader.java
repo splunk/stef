@@ -28,6 +28,9 @@ public class BitsReader {
     public long PeekBits(int nbits)  {
         if (nbits <= availBitCount) {
             // Fast path. Have enough available bits.
+            if (nbits == 0) {
+                return 0;
+            }
             return bitBuf >>> (64 - nbits);
         }
         // Slow path. Not enough available bits. Refill, then peek.

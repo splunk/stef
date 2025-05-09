@@ -2,9 +2,11 @@ package net.stef.pkg;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BitsWriterTest {
 
@@ -39,16 +41,13 @@ class BitsWriterTest {
         for (long i = 1; i <= count; i += 111) {
             long v = i;
             int bitCount = (int) (Math.floor(Math.log(v) / Math.log(2)) + 1);
-            if (i==16777096) {
-                i=i;
-            }
             long val = br.readBits(bitCount);
             assertEquals(v, val, "Mismatch at index " + i);
         }
     }
 
     @Test
-    void testRandWriteReadBits() {
+    void testRandWriteReadBits() throws IOException {
         BitsWriter bw = new BitsWriter();
 
         final long count = 0x10000;
@@ -56,8 +55,8 @@ class BitsWriterTest {
 
         for (long i = 1; i <= count; i++) {
             int shift = random.nextInt(64);
-            long v = random.nextLong() >>> shift;
-            int bitCount = (v == 0) ? 0 : (int) (Math.floor(Math.log(v) / Math.log(2)) + 1);
+            long v = (random.nextLong()& Long.MAX_VALUE) >>> shift;
+            int bitCount = (v == 0) ? 0 : (int) (Math.floor(Math.log(  v) / Math.log(2)) + 1);
             bw.writeBits(v, bitCount);
         }
         bw.close();
@@ -69,7 +68,7 @@ class BitsWriterTest {
 
         for (long i = 1; i <= count; i++) {
             int shift = random.nextInt(64);
-            long v = random.nextLong() >>> shift;
+            long v = (random.nextLong()& Long.MAX_VALUE) >>> shift;
             int bitCount = (v == 0) ? 0 : (int) (Math.floor(Math.log(v) / Math.log(2)) + 1);
             long val = br.readBits(bitCount);
             assertEquals(v, val, "Mismatch at index " + i);
