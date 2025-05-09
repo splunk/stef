@@ -70,7 +70,7 @@ public class BitsWriter {
     }
 
     public void writeVarintCompact(long value) {
-        long ux = (value >>> 63) ^ (value << 1);
+        long ux = (value >> 63) ^ (value << 1);
         writeUvarintCompact(ux);
     }
 

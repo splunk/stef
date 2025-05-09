@@ -123,14 +123,10 @@ public class BitsReader {
     }
 
     public long readUvarintCompact() {
-        long value = 0;
-        int shift = 0;
-        while (true) {
-            int b = readBit();
-            value |= Integer.toUnsignedLong(b) << shift;
-            shift++;
-            if (b == 0) break;
-        }
-        return value;
+        long val = PeekBits(56);
+        int zeros = Long.numberOfLeadingZeros(val);
+        long ret = (val >>> BitstreamLookupTables.readShiftByZeros[zeros]) & BitstreamLookupTables.readMaskByZeros[zeros];
+        Consume(BitstreamLookupTables.readConsumeCountByZeros[zeros]);
+        return ret;
     }
 }
