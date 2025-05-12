@@ -1,7 +1,8 @@
 package net.stef.pkg;
 
 import com.github.luben.zstd.ZstdInputStream;
-import java.io.ByteArrayInputStream;
+
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -38,6 +39,9 @@ public class FrameDecoder {
 
     private void nextFrame() throws IOException {
         int hdrByte = src.read();
+        if (hdrByte == -1) {
+            throw new EOFException();
+        }
         this.flags = hdrByte;
 
         if (!FrameFlags.isValid(flags)) {
@@ -54,6 +58,7 @@ public class FrameDecoder {
                 notFirstFrame = true;
                 decompressor.close();
                 decompressor = new ZstdInputStream(chunkReader);
+                this.frameContentSrc = decompressor;
             }
         } else {
             chunkReader.setLimit(uncompressedSize);
@@ -111,6 +116,10 @@ public class FrameDecoder {
 
         uncompressedSize--;
         ofs++;
-        return frameContentSrc.read();
+        int b= frameContentSrc.read();
+        if (b==-1) {
+            throw new EOFException();
+        }
+        return b;
     }
 }
