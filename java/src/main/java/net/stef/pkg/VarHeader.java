@@ -1,7 +1,5 @@
 package net.stef.pkg;
 
-import net.stef.pkg.internal.Serde;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

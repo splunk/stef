@@ -1,5 +1,6 @@
 package net.stef.pkg;
 
+import java.io.IOException;
 import java.io.OutputStream;
 
 public class WrapChunkWriter implements ChunkWriter {
@@ -10,7 +11,7 @@ public class WrapChunkWriter implements ChunkWriter {
     }
 
     @Override
-    public void writeChunk(byte[] header, byte[] content) throws Exception {
+    public void writeChunk(byte[] header, byte[] content) throws IOException {
         out.write(header);
         out.write(content);
     }

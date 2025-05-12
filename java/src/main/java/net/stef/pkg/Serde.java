@@ -1,9 +1,6 @@
-package net.stef.pkg.internal;
+package net.stef.pkg;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public class Serde {
@@ -38,7 +35,7 @@ public class Serde {
         dst.write((int) value);
     }
 
-    public static long readUvarint(ByteArrayInputStream src) throws IOException {
+    public static long readUvarint(InputStream src) throws IOException {
         long value = 0;
         int shift = 0;
         int b;
