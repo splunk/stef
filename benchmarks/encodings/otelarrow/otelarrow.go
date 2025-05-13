@@ -15,6 +15,10 @@ import (
 type OtelArrowEncoding struct {
 }
 
+func (d *OtelArrowEncoding) LongName() string {
+	return "Otel Arrow"
+}
+
 func (d *OtelArrowEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
 	return data, nil
 }

@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/splunk/stef/benchmarks/encodings"
+	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
@@ -253,6 +254,7 @@ func TestMetricsMultipart(t *testing.T) {
 	testMultipartEncodings := []encodings.MetricMultipartEncoding{
 		&otlp.OTLPEncoding{},
 		&stef.STEFEncoding{},
+		&otelarrow.OtelArrowEncoding{},
 	}
 
 	compressions := []string{"none", "zstd"}
