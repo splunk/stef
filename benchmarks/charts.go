@@ -41,7 +41,7 @@ func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...chart
 	var items []opts.BarData
 	for _, label := range xAxis {
 		value := c.results[label]
-		items = append(items, opts.BarData{Value: value})
+		items = append(items, opts.BarData{Value: value, Label: &opts.Label{Show: opts.Bool(true)}})
 	}
 
 	// create a new bar instance

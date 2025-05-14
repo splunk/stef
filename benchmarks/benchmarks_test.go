@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/benchmarks/encodings"
+	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
 	parquetenc "github.com/splunk/stef/benchmarks/encodings/parquet"
 	"github.com/splunk/stef/benchmarks/encodings/stef"
@@ -24,6 +25,7 @@ var testEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
+	&otelarrow.OtelArrowEncoding{},
 }
 
 var benchmarkDataVariations = []struct {
@@ -60,9 +62,8 @@ func BenchmarkSerializeNative(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
-					encoding.Name() == "ARROW" {
-					// Skip due to bug in Arrow encoding
+				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
+					// Skip Arrow, it does not have native serialization
 					continue
 				}
 				b.Run(
@@ -101,9 +102,8 @@ func BenchmarkDeserializeNative(b *testing.B) {
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range testEncodings {
 			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
-					encoding.Name() == "ARROW" {
-					// Skip due to bug in Arrow encoding
+				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
+					// Skip Arrow, it does not have native serialization
 					continue
 				}
 				b.Run(
