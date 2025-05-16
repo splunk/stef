@@ -27,7 +27,7 @@ public class Serde {
         return new String(buffer, StandardCharsets.UTF_8);
     }
 
-    public static void writeUvarint(long value, ByteArrayOutputStream dst) throws IOException {
+    public static void writeUvarint(long value, OutputStream dst) throws IOException {
         while ((value & ~0x7FL) != 0) {
             dst.write((int) (value & 0x7F) | 0x80);
             value >>>= 7;
