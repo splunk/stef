@@ -1,5 +1,7 @@
 package net.stef.pkg;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 public class BytesWriter {
@@ -50,8 +52,8 @@ public class BytesWriter {
         byteIndex = len;
     }
 
-    public byte[] getBytes() {
-        return Arrays.copyOf(buf, byteIndex);
+    public ByteBuffer toBytes() {
+        return ByteBuffer.wrap(buf, 0, byteIndex).order(ByteOrder.BIG_ENDIAN);
     }
 
     private void ensureCapacity(int additionalBytes) {

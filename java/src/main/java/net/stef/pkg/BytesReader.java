@@ -9,10 +9,10 @@ public class BytesReader {
     private int byteIndex;
     private int capacity;
 
-    public void reset(byte[] buf) {
-        this.buf = buf;
-        this.byteIndex = 0;
-        this.capacity = buf.length;
+    public void reset(ByteBuffer buf) {
+        this.buf = buf.array();
+        this.byteIndex = buf.arrayOffset();
+        this.capacity = buf.capacity();
     }
 
     public byte readByte() throws EOFException {

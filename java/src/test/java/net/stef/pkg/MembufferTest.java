@@ -16,10 +16,10 @@ public class MembufferTest {
         }
 
         BytesReader br = new BytesReader();
-        br.reset(bw.getBytes());
+        br.reset(bw.toBytes());
 
         for (int i = 0; i < 1000; i++) {
-            br.reset(bw.getBytes());
+            br.reset(bw.toBytes());
             long checkVal = 1;
             for (int j = 0; j < 63; j++) {
                 try {
