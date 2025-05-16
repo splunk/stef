@@ -9,7 +9,7 @@ public class BitsWriter {
     private long bitsBuf = 0;
     private int bitsBufUsed = 0;
 
-    BitsWriter() {
+    public BitsWriter() {
         reset();
     }
 

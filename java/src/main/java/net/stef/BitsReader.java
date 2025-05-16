@@ -22,7 +22,11 @@ public class BitsReader {
         availBitCount = 0;
     }
 
-    // PeekBits must ensure at least nbits bits become available, i.e. b.availBitCount >= nbits
+    public void reset(byte[] data) {
+        reset(ByteBuffer.wrap(data));
+    }
+
+        // PeekBits must ensure at least nbits bits become available, i.e. b.availBitCount >= nbits
     // on return. If this means going past EOF then zero bits are appended at the end.
     // Maximum allowed value for nbits is 56.
     public long PeekBits(int nbits)  {

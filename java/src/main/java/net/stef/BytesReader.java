@@ -44,6 +44,7 @@ public class BytesReader {
         return (x >>> 1) ^ -(x & 1);
     }
 
+/*
     public String readStringBytes(int byteSize) throws EOFException {
         if (capacity - byteIndex < byteSize) {
             throw new EOFException();
@@ -52,6 +53,7 @@ public class BytesReader {
         byteIndex += byteSize;
         return str;
     }
+*/
 
     public ByteBuffer readBytesMapped(int byteSize) throws EOFException {
         if (capacity - byteIndex < byteSize) {

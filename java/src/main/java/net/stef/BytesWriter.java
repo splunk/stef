@@ -18,16 +18,22 @@ public class BytesWriter {
         buf[byteIndex++] = b;
     }
 
-    public void writeBytes(byte[] bytes) {
-        ensureCapacity(bytes.length);
-        System.arraycopy(bytes, 0, buf, byteIndex, bytes.length);
-        byteIndex += bytes.length;
+    public void writeBytes(byte[] bytes, int offset, int length) {
+        ensureCapacity(length);
+        System.arraycopy(bytes, offset, buf, byteIndex, length);
+        byteIndex += length;
     }
 
+    public void writeBytes(ByteBuffer bytes) {
+        writeBytes(bytes.array(), bytes.arrayOffset(), bytes.capacity());
+    }
+
+/*
     public void writeStringBytes(String val) {
         byte[] bytes = val.getBytes();
         writeBytes(bytes);
     }
+*/
 
     public void writeUvarint(long value) {
         while ((value & ~0x7FL) != 0) {
