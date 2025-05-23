@@ -19,6 +19,10 @@ type STEFUEncoding struct {
 	Opts pkg.WriterOptions
 }
 
+func (d *STEFUEncoding) LongName() string {
+	return "STEF Unsorted"
+}
+
 func (d *STEFUEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
 	return data, nil
 }

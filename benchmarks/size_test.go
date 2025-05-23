@@ -17,6 +17,7 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings"
 	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
+	parquetenc "github.com/splunk/stef/benchmarks/encodings/parquet"
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
@@ -101,6 +102,14 @@ func replaceExt(fname string, ext string) string {
 	return fname
 }
 
+var sizeEncodings = []encodings.MetricEncoding{
+	&otlp.OTLPEncoding{},
+	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
+	&stef.STEFUEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
+	&parquetenc.Encoding{},
+	&otelarrow.OtelArrowEncoding{},
+}
+
 func TestMetricsSize(t *testing.T) {
 
 	dataVariations := []struct {
@@ -108,12 +117,6 @@ func TestMetricsSize(t *testing.T) {
 		firstUncompessedSize int
 		firstZstdedSize      int
 	}{
-		{
-			generator: &generators.File{
-				FilePath:      "testdata/astronomy-otelmetrics.zst",
-				MultipartFile: true,
-			},
-		},
 		{
 			generator: &generators.File{
 				FilePath: "testdata/hipstershop-otelmetrics.zst",
@@ -128,6 +131,12 @@ func TestMetricsSize(t *testing.T) {
 		{
 			generator: &generators.File{
 				FilePath:      "testdata/hostandcollector-otelmetrics.zst",
+				MultipartFile: true,
+			},
+		},
+		{
+			generator: &generators.File{
+				FilePath:      "testdata/astronomy-otelmetrics.zst",
 				MultipartFile: true,
 			},
 		},
@@ -156,7 +165,7 @@ func TestMetricsSize(t *testing.T) {
 			chart.BeginChart("Dataset: "+dataVariation.generator.GetName(), t)
 		}
 
-		for _, encoding := range testEncodings {
+		for _, encoding := range sizeEncodings {
 			if (dataVariation.generator.GetName() == "astronomy-otelmetrics.zst") &&
 				encoding.Name() == "Otel ARROW" {
 				// Skip due to bug in Arrow encoding
@@ -254,6 +263,7 @@ func TestMetricsMultipart(t *testing.T) {
 	testMultipartEncodings := []encodings.MetricMultipartEncoding{
 		&otlp.OTLPEncoding{},
 		&stef.STEFEncoding{},
+		&stef.STEFUEncoding{},
 		&otelarrow.OtelArrowEncoding{},
 	}
 
