@@ -1,0 +1,44 @@
+package net.stef;
+
+class BitstreamLookupTables {
+    public static final int[] writeBitsCountByZeros = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            56, 56, 56, 56, 56, 56, 56, 56,
+            56, 56, 56, 56, 56, 56, 56, 40,
+            40, 40, 40, 40, 40, 40, 32, 32,
+            32, 32, 32, 32, 32, 24, 24, 24,
+            24, 24, 24, 24, 16, 16, 16, 16,
+            16, 16, 16, 8, 8, 8, 4, 4,
+            1,
+    };
+
+    public static final long[] writeMaskByZeros = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L,
+            0x1000000000000L, 0x1000000000000L,
+            0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L, 0x1000000000000L,
+            0x1000000000000L, 0x200000000L,
+            0x200000000L, 0x200000000L, 0x200000000L, 0x200000000L, 0x200000000L, 0x200000000L, 0x4000000L, 0x4000000L,
+            0x4000000L, 0x4000000L, 0x4000000L, 0x4000000L, 0x4000000L, 0x80000L, 0x80000L, 0x80000L,
+            0x80000L, 0x80000L, 0x80000L, 0x80000L, 0x1000L, 0x1000L, 0x1000L, 0x1000L,
+            0x1000L, 0x1000L, 0x1000L, 0x20L, 0x20L, 0x20L, 0x4L, 0x4L,
+            0x01L,
+    };
+
+    public static final long[] readShiftByZeros = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            55, 52, 48, 40, 32, 24, 16, 0, 1,
+    };
+
+    public static final long[] readMaskByZeros = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0x0L, 0x3L, 0x1FL, 0xFFFL, 0x7FFFFL, 0x3FFFFFFL, 0x1FFFFFFFFL, 0xFFFFFFFFFFFFL,
+    };
+
+    public static final int[] readConsumeCountByZeros = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            1, 4, 8, 16, 24, 32, 40, 56,
+    };
+}
