@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/benchmarks/encodings"
@@ -46,6 +47,7 @@ type Datum struct {
 	Attributes             []Attribute `parquet:"attrs"`
 	StartTimestampUnixNano uint64      `parquet:"start_timestamp"`
 	TimestampUnixNano      uint64      `parquet:"timestamp"`
+	ValueType              uint        `parquet:"value_type"`
 	Int64Vals              int64       `parquet:"valint"`
 	Float64Vals            float64     `parquet:"valfloat"`
 }
@@ -85,6 +87,7 @@ func (d *Encoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error
 												Attributes:             convertAttrs(attrs),
 												StartTimestampUnixNano: value.StartTimestamp(),
 												TimestampUnixNano:      value.Timestamp(),
+												ValueType:              uint(value.Value().Type()),
 												Int64Vals:              value.Value().Int64(),
 												Float64Vals:            value.Value().Float64(),
 											},
@@ -153,8 +156,64 @@ func (d *Encoding) Decode(b []byte) (any, error) {
 	return nil, nil
 }
 
-func (d *Encoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
-	return pmetric.NewMetrics(), nil
+func (d *Encoding) ToOTLP(data []byte) (dst pmetric.Metrics, err error) {
+	reader := parquet.NewGenericReader[Datum](bytes.NewReader(data))
+	records := make([]Datum, 1000)
+	dst = pmetric.NewMetrics()
+	for {
+		n, err := reader.Read(records)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Fatal(err)
+		}
+		for i := 0; i < n; i++ {
+			record := records[i]
+
+			rm := dst.ResourceMetrics().AppendEmpty()
+			covertResource(rm.Resource(), record.Resource)
+
+			sm := rm.ScopeMetrics().AppendEmpty()
+			ms := sm.Metrics().AppendEmpty()
+
+			ms.SetName(record.MetricName)
+			ms.SetDescription(record.Description)
+			ms.SetUnit(record.Unit)
+
+			switch pmetric.MetricType(record.Type) {
+			case pmetric.MetricTypeEmpty:
+
+			case pmetric.MetricTypeGauge:
+				gauge := ms.SetEmptyGauge()
+				point := gauge.DataPoints().AppendEmpty()
+				convertAttrsFrom(point.Attributes(), record.Attributes)
+				point.SetTimestamp(pcommon.Timestamp(record.TimestampUnixNano))
+				point.SetStartTimestamp(pcommon.Timestamp(record.StartTimestampUnixNano))
+				switch pmetric.NumberDataPointValueType(record.ValueType) {
+				case pmetric.NumberDataPointValueTypeInt:
+					point.SetIntValue(record.Int64Vals)
+				case pmetric.NumberDataPointValueTypeDouble:
+					point.SetDoubleValue(record.Float64Vals)
+				}
+
+			default:
+				log.Fatalf("Unsupported metric type: %v", record.Type)
+			}
+		}
+	}
+	return dst, nil
+}
+
+func covertResource(dest pcommon.Resource, src Resource) {
+	convertAttrsFrom(dest.Attributes(), src.Attributes)
+}
+
+func convertAttrsFrom(dest pcommon.Map, src []Attribute) {
+	dest.EnsureCapacity(len(src))
+	for _, attr := range src {
+		dest.PutStr(attr.Key, attr.Value)
+	}
 }
 
 func (d *Encoding) Name() string {
