@@ -47,7 +47,7 @@ public class Float64Encoder {
             if (53-prevLeading-prevTrailing < sigbits) {
                 // Current scheme is smaller than trying reset the range. Use the current scheme.
                 buf.writeBits(0b10, 2);
-                buf.writeBits(xorVal>>prevTrailing, 64-prevLeading-prevTrailing);
+                buf.writeBits(xorVal>>>prevTrailing, 64-prevLeading-prevTrailing);
                 limiter.addFrameBits(buf.bitCount() - oldBitLen);
                 return;
             }
@@ -65,7 +65,7 @@ public class Float64Encoder {
 
         buf.writeBits(bitsVal, 13);
 
-        buf.writeBits(xorVal>>trailing, sigbits);
+        buf.writeBits(xorVal>>>trailing, sigbits);
 
         limiter.addFrameBits(buf.bitCount() - oldBitLen);
     }
@@ -74,8 +74,9 @@ public class Float64Encoder {
         columnSet.setBits(buf);
     }
 
-    public void  writeTo(BytesWriter buf) {
-        buf.writeBytes(buf.toBytes());
+    public void  writeTo(BytesWriter dest) {
+        buf.close();
+        dest.writeBytes(buf.toBytes());
     }
 
     public void reset() {
