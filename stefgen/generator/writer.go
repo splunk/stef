@@ -2,7 +2,6 @@ package generator
 
 import (
 	"bytes"
-	"strings"
 )
 
 func (g *Generator) oWriters() error {
@@ -23,7 +22,7 @@ func (g *Generator) oWriter(str *genStructDef) error {
 	}
 	wireSchema := prunedSchema.ToWire()
 
-	fileName := strings.ToLower(str.Name) + "writer"
+	fileName := g.stefSymbol2FileName(str.Name + "Writer")
 
 	var wireBin bytes.Buffer
 	if err := wireSchema.Serialize(&wireBin); err != nil {
@@ -34,11 +33,7 @@ func (g *Generator) oWriter(str *genStructDef) error {
 		"Schema":     string(wireBin.Bytes()),
 		"StructName": str.Name,
 	}
-	if err := g.oTemplate("writer.go.tmpl", fileName+".go", data); err != nil {
-		return err
-	}
-
-	if err := g.oTemplate("writer_test.go.tmpl", fileName+"_test.go", data); err != nil {
+	if err := g.oTemplates("writer", fileName, data); err != nil {
 		return err
 	}
 	return g.lastErr

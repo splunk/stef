@@ -1,9 +1,5 @@
 package generator
 
-import (
-	"strings"
-)
-
 func (g *Generator) oMultimaps() error {
 	var multimaps []*genStructFieldDef
 	for _, struc := range g.compiledSchema.Structs {
@@ -44,5 +40,5 @@ func (g *Generator) oMultimap(multimap *genMapDef) error {
 		"Value":        mapType.Value,
 	}
 
-	return g.oTemplate("multimap.go.tmpl", strings.ToLower(multimap.Name)+".go", data)
+	return g.oTemplates("multimap", g.stefSymbol2FileName(multimap.Name), data)
 }

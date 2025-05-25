@@ -2,6 +2,7 @@ package idl
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/splunk/stef/go/pkg/schema"
 )
@@ -443,11 +444,21 @@ func (p *Parser) parsePackage() error {
 	if p.lexer.Token() == tPackage {
 		p.lexer.Next() // skip "package"
 
-		if p.lexer.Token() != tIdent {
-			return p.error("package name expected")
+		// Package name is a sequence of identifiers separated by dots.
+		packageComponents := []string{}
+		for {
+			if p.lexer.Token() != tIdent {
+				return p.error("identifier expected")
+			}
+			packageComponents = append(packageComponents, p.lexer.Ident())
+			p.lexer.Next()
+
+			if p.lexer.Token() != tDot {
+				break
+			}
+			p.lexer.Next()
 		}
-		p.schema.PackageName = p.lexer.Ident()
-		p.lexer.Next()
+		p.schema.PackageName = strings.Join(packageComponents, ".")
 	}
 	return nil
 }

@@ -65,6 +65,7 @@ const (
 
 	tIntNumber
 
+	tDot      = '.'
 	tAssign   = '='
 	tLBracket = '['
 	tRBracket = ']'
@@ -158,6 +159,8 @@ func (l *Lexer) Next() {
 	}
 
 	switch l.nextRune {
+	case tDot:
+		l.token = tDot
 	case tAssign:
 		l.token = tAssign
 	case tLParen:
