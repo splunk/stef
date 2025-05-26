@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"log"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
@@ -27,7 +26,7 @@ func (c *BaseOTLPToSTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.Num
 	case pmetric.NumberDataPointValueTypeDouble:
 		dst.Value().SetFloat64(src.DoubleValue())
 	default:
-		log.Fatalf("Unsupported value type: %v", src)
+		panic("Unsupported number datapoint value type")
 	}
 }
 
@@ -101,4 +100,52 @@ func (c *BaseOTLPToSTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.Histog
 	dstHistogram.BucketCounts().CopyFromSlice(counts)
 
 	return nil
+}
+
+func (c *BaseOTLPToSTEF) ConvertExpHistogram(dst *oteltef.Point, src pmetric.ExponentialHistogramDataPoint) error {
+	dst.SetTimestamp(uint64(src.Timestamp()))
+	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
+
+	dstVal := dst.Value()
+	dstVal.SetType(oteltef.PointValueTypeExpHistogram)
+	dstHistogram := dstVal.ExpHistogram()
+	dstHistogram.SetCount(src.Count())
+
+	if src.HasSum() {
+		dstHistogram.SetSum(src.Sum())
+	} else {
+		dstHistogram.UnsetSum()
+	}
+	if src.HasMin() {
+		dstHistogram.SetMin(src.Min())
+	} else {
+		dstHistogram.UnsetMin()
+	}
+	if src.HasMax() {
+		dstHistogram.SetMax(src.Max())
+	} else {
+		dstHistogram.UnsetMax()
+	}
+
+	dstHistogram.SetScale(int64(src.Scale()))
+	dstHistogram.SetZeroCount(src.ZeroCount())
+	dstHistogram.SetZeroThreshold(src.ZeroThreshold())
+
+	expBucketsToStef(dstHistogram.PositiveBuckets(), src.Positive())
+	expBucketsToStef(dstHistogram.NegativeBuckets(), src.Negative())
+
+	return nil
+}
+
+func expBucketsToStef(
+	dst *oteltef.ExpHistogramBuckets, src pmetric.ExponentialHistogramDataPointBuckets,
+) {
+	dst.SetOffset(int64(src.Offset()))
+
+	srcCounts := src.BucketCounts().AsRaw()
+	counts := make([]uint64, len(srcCounts))
+	for j := 0; j < len(srcCounts); j++ {
+		counts[j] = srcCounts[j]
+	}
+	dst.BucketCounts().CopyFromSlice(counts)
 }

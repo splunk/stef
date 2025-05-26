@@ -19,9 +19,10 @@ type PointValue struct {
 	// The current type of the oneof.
 	typ PointValueType
 
-	int64     int64
-	float64   float64
-	histogram HistogramValue
+	int64        int64
+	float64      float64
+	histogram    HistogramValue
+	expHistogram ExpHistogramValue
 
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
@@ -39,6 +40,7 @@ func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.parentModifiedBit = parentModifiedBit
 
 	s.histogram.init(parentModifiedFields, parentModifiedBit)
+	s.expHistogram.init(parentModifiedFields, parentModifiedBit)
 }
 
 type PointValueType byte
@@ -48,6 +50,7 @@ const (
 	PointValueTypeInt64
 	PointValueTypeFloat64
 	PointValueTypeHistogram
+	PointValueTypeExpHistogram
 	PointValueTypeCount
 )
 
@@ -100,11 +103,18 @@ func (s *PointValue) Histogram() *HistogramValue {
 	return &s.histogram
 }
 
+// ExpHistogram returns the value if the contained type is currently PointValueTypeExpHistogram.
+// The caller must check the type via Type() before attempting to call this function.
+func (s *PointValue) ExpHistogram() *ExpHistogramValue {
+	return &s.expHistogram
+}
+
 func (s *PointValue) Clone() PointValue {
 	return PointValue{
-		int64:     s.int64,
-		float64:   s.float64,
-		histogram: s.histogram.Clone(),
+		int64:        s.int64,
+		float64:      s.float64,
+		histogram:    s.histogram.Clone(),
+		expHistogram: s.expHistogram.Clone(),
 	}
 }
 
@@ -112,7 +122,7 @@ func (s *PointValue) Clone() PointValue {
 // memory used by dictionaries.
 func (s *PointValue) byteSize() uint {
 	return uint(unsafe.Sizeof(*s)) +
-		s.histogram.byteSize() + 0
+		s.histogram.byteSize() + s.expHistogram.byteSize() + 0
 }
 
 func copyPointValue(dst *PointValue, src *PointValue) {
@@ -123,6 +133,8 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 		dst.SetFloat64(src.float64)
 	case PointValueTypeHistogram:
 		copyHistogramValue(&dst.histogram, &src.histogram)
+	case PointValueTypeExpHistogram:
+		copyExpHistogramValue(&dst.expHistogram, &src.expHistogram)
 	}
 	dst.SetType(src.typ)
 }
@@ -138,6 +150,7 @@ func (s *PointValue) markParentModified() {
 
 func (s *PointValue) markUnmodified() {
 	s.histogram.markUnmodified()
+	s.expHistogram.markUnmodified()
 }
 
 func (s *PointValue) markUnmodifiedRecursively() {
@@ -146,6 +159,8 @@ func (s *PointValue) markUnmodifiedRecursively() {
 	case PointValueTypeFloat64:
 	case PointValueTypeHistogram:
 		s.histogram.markUnmodifiedRecursively()
+	case PointValueTypeExpHistogram:
+		s.expHistogram.markUnmodifiedRecursively()
 	}
 }
 
@@ -165,6 +180,10 @@ func (e *PointValue) IsEqual(val *PointValue) bool {
 		}
 	case PointValueTypeHistogram:
 		if !e.histogram.IsEqual(&val.histogram) {
+			return false
+		}
+	case PointValueTypeExpHistogram:
+		if !e.expHistogram.IsEqual(&val.expHistogram) {
 			return false
 		}
 	}
@@ -206,6 +225,10 @@ func CmpPointValue(left, right *PointValue) int {
 		if c := CmpHistogramValue(&left.histogram, &right.histogram); c != 0 {
 			return c
 		}
+	case PointValueTypeExpHistogram:
+		if c := CmpExpHistogramValue(&left.expHistogram, &right.expHistogram); c != 0 {
+			return c
+		}
 	}
 
 	return 0
@@ -214,7 +237,7 @@ func CmpPointValue(left, right *PointValue) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *PointValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 3
+	const fieldCount = 4
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(PointValueType(random.IntN(fieldCount + 1)))
@@ -234,6 +257,10 @@ func (s *PointValue) mutateRandom(random *rand.Rand) {
 		if typeChanged || random.IntN(2) == 0 {
 			s.histogram.mutateRandom(random)
 		}
+	case PointValueTypeExpHistogram:
+		if typeChanged || random.IntN(2) == 0 {
+			s.expHistogram.mutateRandom(random)
+		}
 	}
 }
 
@@ -244,9 +271,10 @@ type PointValueEncoder struct {
 	prevType   PointValueType
 	fieldCount uint
 
-	int64Encoder     encoders.Int64Encoder
-	float64Encoder   encoders.Float64Encoder
-	histogramEncoder HistogramValueEncoder
+	int64Encoder        encoders.Int64Encoder
+	float64Encoder      encoders.Float64Encoder
+	histogramEncoder    HistogramValueEncoder
+	expHistogramEncoder ExpHistogramValueEncoder
 }
 
 func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -263,7 +291,7 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 		e.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 3
+		e.fieldCount = 4
 	}
 
 	var err error
@@ -289,6 +317,13 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	if err != nil {
 		return err
 	}
+	if e.fieldCount <= 3 {
+		return nil
+	}
+	err = e.expHistogramEncoder.Init(state, columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -297,6 +332,7 @@ func (e *PointValueEncoder) Reset() {
 	e.int64Encoder.Reset()
 	e.float64Encoder.Reset()
 	e.histogramEncoder.Reset()
+	e.expHistogramEncoder.Reset()
 }
 
 // Encode encodes val into buf
@@ -329,6 +365,9 @@ func (e *PointValueEncoder) Encode(val *PointValue) {
 	case PointValueTypeHistogram:
 		// Encode Histogram
 		e.histogramEncoder.Encode(&val.histogram)
+	case PointValueTypeExpHistogram:
+		// Encode ExpHistogram
+		e.expHistogramEncoder.Encode(&val.expHistogram)
 	}
 }
 
@@ -348,6 +387,10 @@ func (e *PointValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		return // Histogram and subsequent fields are skipped.
 	}
 	e.histogramEncoder.CollectColumns(columnSet.At(2))
+	if e.fieldCount <= 3 {
+		return // ExpHistogram and subsequent fields are skipped.
+	}
+	e.expHistogramEncoder.CollectColumns(columnSet.At(3))
 }
 
 // PointValueDecoder implements decoding of PointValue
@@ -360,9 +403,10 @@ type PointValueDecoder struct {
 
 	prevType PointValueType
 
-	int64Decoder     encoders.Int64Decoder
-	float64Decoder   encoders.Float64Decoder
-	histogramDecoder HistogramValueDecoder
+	int64Decoder        encoders.Int64Decoder
+	float64Decoder      encoders.Float64Decoder
+	histogramDecoder    HistogramValueDecoder
+	expHistogramDecoder ExpHistogramValueDecoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -379,7 +423,7 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 		d.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 3
+		d.fieldCount = 4
 	}
 
 	d.column = columns.Column()
@@ -397,6 +441,10 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 		return err
 	}
 	err = d.histogramDecoder.Init(state, columns.AddSubColumn())
+	if err != nil {
+		return err
+	}
+	err = d.expHistogramDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -424,6 +472,10 @@ func (d *PointValueDecoder) Continue() {
 		return // Histogram and subsequent fields are skipped.
 	}
 	d.histogramDecoder.Continue()
+	if d.fieldCount <= 3 {
+		return // ExpHistogram and subsequent fields are skipped.
+	}
+	d.expHistogramDecoder.Continue()
 }
 
 func (d *PointValueDecoder) Reset() {
@@ -431,6 +483,7 @@ func (d *PointValueDecoder) Reset() {
 	d.int64Decoder.Reset()
 	d.float64Decoder.Reset()
 	d.histogramDecoder.Reset()
+	d.expHistogramDecoder.Reset()
 }
 
 func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
@@ -467,6 +520,12 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	case PointValueTypeHistogram:
 		// Decode Histogram
 		err = d.histogramDecoder.Decode(&dst.histogram)
+		if err != nil {
+			return err
+		}
+	case PointValueTypeExpHistogram:
+		// Decode ExpHistogram
+		err = d.expHistogramDecoder.Decode(&dst.expHistogram)
 		if err != nil {
 			return err
 		}

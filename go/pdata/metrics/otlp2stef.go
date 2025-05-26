@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"log"
-
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/go/otel/oteltef"
@@ -35,8 +33,10 @@ func metricType(typ pmetric.MetricType) oteltef.MetricType {
 		return oteltef.MetricTypeSum
 	case pmetric.MetricTypeHistogram:
 		return oteltef.MetricTypeHistogram
+	case pmetric.MetricTypeExponentialHistogram:
+		return oteltef.MetricTypeExpHistogram
 	default:
-		log.Fatalf("Unsupported value type: %v", typ)
+		panic("Unsupported metric value")
 	}
 	return 0
 }
@@ -76,8 +76,11 @@ func (d *OtlpToSTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.M
 				case pmetric.MetricTypeHistogram:
 					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.Histogram().AggregationTemporality())))
 					err = d.writeHistogram(writer, m.Histogram().DataPoints())
+				case pmetric.MetricTypeExponentialHistogram:
+					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.ExponentialHistogram().AggregationTemporality())))
+					err = d.writeExpHistogram(writer, m.ExponentialHistogram().DataPoints())
 				default:
-					panic("unhandled default case")
+					panic("Unsupported metric type")
 				}
 				if err != nil {
 					return err
@@ -117,6 +120,29 @@ func (d *OtlpToSTEFUnsorted) writeHistogram(writer *oteltef.MetricsWriter, src p
 
 		d.Otlp2tef.MapUnsorted(src.Attributes(), writer.Record.Attributes())
 		writer.Record.Metric().HistogramBounds().CopyFromSlice(src.ExplicitBounds().AsRaw())
+		d.ConvertExemplars(dst.Exemplars(), src.Exemplars())
+
+		err = writer.Write()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *OtlpToSTEFUnsorted) writeExpHistogram(
+	writer *oteltef.MetricsWriter, src pmetric.ExponentialHistogramDataPointSlice,
+) error {
+	for i := 0; i < src.Len(); i++ {
+		src := src.At(i)
+		dst := writer.Record.Point()
+
+		err := d.ConvertExpHistogram(dst, src)
+		if err != nil {
+			return err
+		}
+
+		d.Otlp2tef.MapUnsorted(src.Attributes(), writer.Record.Attributes())
 		d.ConvertExemplars(dst.Exemplars(), src.Exemplars())
 
 		err = writer.Write()
