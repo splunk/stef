@@ -46,13 +46,11 @@ public class Point {
         this.value.init(this.modifiedFields, fieldModifiedValue);
         this.exemplars.init(this.modifiedFields, fieldModifiedExemplars);
     }
-
     
     public long getStartTimestamp() {
         return this.startTimestamp;
     }
 
-    
     // setStartTimestamp sets the value of StartTimestamp field.
     public void setStartTimestamp(long v) {
         if (!Types.Uint64Equal(this.startTimestamp, v)) {
@@ -61,12 +59,9 @@ public class Point {
         }
     }
 
-    
-
     private void markStartTimestampModified() {
         this.modifiedFields.markModified(fieldModifiedStartTimestamp);
     }
-    
 
     // isStartTimestampModified returns true if the value of StartTimestamp field was modified since
     // Point was created, encoded or decoded. If the field is modified
@@ -80,7 +75,6 @@ public class Point {
         return this.timestamp;
     }
 
-    
     // setTimestamp sets the value of Timestamp field.
     public void setTimestamp(long v) {
         if (!Types.Uint64Equal(this.timestamp, v)) {
@@ -89,12 +83,9 @@ public class Point {
         }
     }
 
-    
-
     private void markTimestampModified() {
         this.modifiedFields.markModified(fieldModifiedTimestamp);
     }
-    
 
     // isTimestampModified returns true if the value of Timestamp field was modified since
     // Point was created, encoded or decoded. If the field is modified
@@ -108,8 +99,6 @@ public class Point {
         return this.value;
     }
 
-    
-
     // isValueModified returns true if the value of Value field was modified since
     // Point was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -122,8 +111,6 @@ public class Point {
         return this.exemplars;
     }
 
-    
-
     // isExemplarsModified returns true if the value of Exemplars field was modified since
     // Point was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -131,24 +118,13 @@ public class Point {
     public boolean isExemplarsModified() {
         return (this.modifiedFields.mask & fieldModifiedExemplars) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isStartTimestampModified()) {
-        }
-        
-        if (this.isTimestampModified()) {
-        }
-        
         if (this.isValueModified()) {
             this.value.markUnmodifiedRecursively();
         }
-        
         if (this.isExemplarsModified()) {
             this.exemplars.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 

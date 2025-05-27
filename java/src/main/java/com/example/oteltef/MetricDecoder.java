@@ -41,64 +41,39 @@ public class MetricDecoder {
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
         this.dict = state.getMetric();
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameDecoder.init(state.getMetricName(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.nameDecoder.init(state.getMetricName(), columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-            this.descriptionDecoder.init(state.getMetricDescription(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.descriptionDecoder.init(state.getMetricDescription(), columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-            this.unitDecoder.init(state.getMetricUnit(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.unitDecoder.init(state.getMetricUnit(), columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-            this.type_Decoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.type_Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
         this.metadataDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 5) {
             return; // HistogramBounds and subsequent fields are skipped.
         }
         this.histogramBoundsDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-            this.aggregationTemporalityDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.aggregationTemporalityDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-            this.monotonicDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.monotonicDecoder.init(columns.addSubColumn());
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -197,12 +172,12 @@ public class MetricDecoder {
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
-            this.metadataDecoder.decode(val.metadata);
+            val.metadata = this.metadataDecoder.decode(val.metadata);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
-            this.histogramBoundsDecoder.decode(val.histogramBounds);
+            val.histogramBounds = this.histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {

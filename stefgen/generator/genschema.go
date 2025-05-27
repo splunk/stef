@@ -141,7 +141,14 @@ func (r *genPrimitiveTypeRef) DictName() string {
 // Storage returns the underlying type of fields.
 func (r *genPrimitiveTypeRef) Storage() string {
 	if r.Type == schema.PrimitiveTypeBytes {
-		return r.pkgPrefix() + "Bytes"
+		switch r.Lang {
+		case LangGo:
+			return "pkg.Bytes"
+		case LangJava:
+			return "Bytes"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return r.TypeName()
 }
@@ -175,7 +182,7 @@ func (r *genPrimitiveTypeRef) Exported() string {
 		return r.Enum
 	}
 	if r.Type == schema.PrimitiveTypeBytes {
-		return r.pkgPrefix() + "Bytes"
+		return r.Storage()
 	}
 	return r.TypeName()
 }

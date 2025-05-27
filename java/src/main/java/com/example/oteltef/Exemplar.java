@@ -10,8 +10,8 @@ public class Exemplar {
     
     long timestamp;
     ExemplarValue value;
-    Types.Bytes spanID;
-    Types.Bytes traceID;
+    Bytes spanID;
+    Bytes traceID;
     Attributes filteredAttributes;
 
     // modifiedFields keeps track of which fields are modified.
@@ -48,13 +48,11 @@ public class Exemplar {
         this.value.init(this.modifiedFields, fieldModifiedValue);
         this.filteredAttributes.init(this.modifiedFields, fieldModifiedFilteredAttributes);
     }
-
     
     public long getTimestamp() {
         return this.timestamp;
     }
 
-    
     // setTimestamp sets the value of Timestamp field.
     public void setTimestamp(long v) {
         if (!Types.Uint64Equal(this.timestamp, v)) {
@@ -63,12 +61,9 @@ public class Exemplar {
         }
     }
 
-    
-
     private void markTimestampModified() {
         this.modifiedFields.markModified(fieldModifiedTimestamp);
     }
-    
 
     // isTimestampModified returns true if the value of Timestamp field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
@@ -82,8 +77,6 @@ public class Exemplar {
         return this.value;
     }
 
-    
-
     // isValueModified returns true if the value of Value field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -92,25 +85,21 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedValue) != 0;
     }
     
-    public Types.Bytes getSpanID() {
+    public Bytes getSpanID() {
         return this.spanID;
     }
 
-    
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(Types.Bytes v) {
+    public void setSpanID(Bytes v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
         }
     }
 
-    
-
     private void markSpanIDModified() {
         this.modifiedFields.markModified(fieldModifiedSpanID);
     }
-    
 
     // isSpanIDModified returns true if the value of SpanID field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
@@ -120,25 +109,21 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedSpanID) != 0;
     }
     
-    public Types.Bytes getTraceID() {
+    public Bytes getTraceID() {
         return this.traceID;
     }
 
-    
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(Types.Bytes v) {
+    public void setTraceID(Bytes v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
         }
     }
 
-    
-
     private void markTraceIDModified() {
         this.modifiedFields.markModified(fieldModifiedTraceID);
     }
-    
 
     // isTraceIDModified returns true if the value of TraceID field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
@@ -152,8 +137,6 @@ public class Exemplar {
         return this.filteredAttributes;
     }
 
-    
-
     // isFilteredAttributesModified returns true if the value of FilteredAttributes field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -161,27 +144,13 @@ public class Exemplar {
     public boolean isFilteredAttributesModified() {
         return (this.modifiedFields.mask & fieldModifiedFilteredAttributes) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isTimestampModified()) {
-        }
-        
         if (this.isValueModified()) {
             this.value.markUnmodifiedRecursively();
         }
-        
-        if (this.isSpanIDModified()) {
-        }
-        
-        if (this.isTraceIDModified()) {
-        }
-        
         if (this.isFilteredAttributesModified()) {
             this.filteredAttributes.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 

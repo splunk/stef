@@ -35,43 +35,27 @@ public class ExemplarDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-            this.timestampDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.timestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
         this.valueDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
         this.filteredAttributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -125,7 +109,7 @@ public class ExemplarDecoder {
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            this.valueDecoder.decode(val.value);
+            val.value = this.valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedSpanID) != 0) {
@@ -140,7 +124,7 @@ public class ExemplarDecoder {
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.filteredAttributesDecoder.decode(val.filteredAttributes);
+            val.filteredAttributes = this.filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         
         

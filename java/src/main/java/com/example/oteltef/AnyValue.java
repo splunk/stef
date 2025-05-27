@@ -2,6 +2,7 @@
 // AnyValue Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -9,7 +10,7 @@ import java.util.*;
 // AnyValue is a oneof struct.
 public class AnyValue {
     // The current type of the oneof.
-    AnyValueType typ;
+    Type typ;
     
     StringValue string;
     boolean bool;
@@ -17,7 +18,7 @@ public class AnyValue {
     double float64;
     AnyValueArray array;
     KeyValueList kVList;
-    Types.Bytes bytes;
+    Bytes bytes;
 
     // Pointer to parent's modifiedFields
     private ModifiedFields parentModifiedFields;
@@ -38,25 +39,25 @@ public class AnyValue {
     }
 
     // Type enum for oneof
-    public enum AnyValueType {
-        AnyValueTypeNone,
-        AnyValueTypeString,
-        AnyValueTypeBool,
-        AnyValueTypeInt64,
-        AnyValueTypeFloat64,
-        AnyValueTypeArray,
-        AnyValueTypeKVList,
-        AnyValueTypeBytes,
-        AnyValueTypeCount
+    public enum Type {
+        TypeNone,
+        TypeString,
+        TypeBool,
+        TypeInt64,
+        TypeFloat64,
+        TypeArray,
+        TypeKVList,
+        TypeBytes,
+        TypeCount
     }
 
     // Type returns the type of the value currently contained in AnyValue.
-    public AnyValueType getType() {
+    public Type getType() {
         return typ;
     }
 
     // SetType sets the type of the value currently contained in AnyValue.
-    public void setType(AnyValueType typ) {
+    public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
             this.markParentModified();
@@ -64,95 +65,95 @@ public class AnyValue {
     }
 
     
-    // String returns the value if the contained type is currently AnyValueTypeString.
+    // String returns the value if the contained type is currently TypeString.
     // The caller must check the type via getType() before attempting to call this function.
     public StringValue getString() {
         return this.string;
     }
     
-    // SetString sets the value to the specified value and sets the type to AnyValueTypeString.
+    // SetString sets the value to the specified value and sets the type to TypeString.
     public void setString(StringValue v) {
-        if (!Objects.equals(this.string, v) || this.typ != AnyValueType.AnyValueTypeString) {
+        if (!Objects.equals(this.string, v) || this.typ != Type.TypeString) {
             this.string = v;
-            this.typ = AnyValueType.AnyValueTypeString;
+            this.typ = Type.TypeString;
             this.markParentModified();
         }
     }
     
     
-    // Bool returns the value if the contained type is currently AnyValueTypeBool.
+    // Bool returns the value if the contained type is currently TypeBool.
     // The caller must check the type via getType() before attempting to call this function.
     public boolean getBool() {
         return this.bool;
     }
     
-    // SetBool sets the value to the specified value and sets the type to AnyValueTypeBool.
+    // SetBool sets the value to the specified value and sets the type to TypeBool.
     public void setBool(boolean v) {
-        if (!Objects.equals(this.bool, v) || this.typ != AnyValueType.AnyValueTypeBool) {
+        if (!Objects.equals(this.bool, v) || this.typ != Type.TypeBool) {
             this.bool = v;
-            this.typ = AnyValueType.AnyValueTypeBool;
+            this.typ = Type.TypeBool;
             this.markParentModified();
         }
     }
     
     
-    // Int64 returns the value if the contained type is currently AnyValueTypeInt64.
+    // Int64 returns the value if the contained type is currently TypeInt64.
     // The caller must check the type via getType() before attempting to call this function.
     public long getInt64() {
         return this.int64;
     }
     
-    // SetInt64 sets the value to the specified value and sets the type to AnyValueTypeInt64.
+    // SetInt64 sets the value to the specified value and sets the type to TypeInt64.
     public void setInt64(long v) {
-        if (!Objects.equals(this.int64, v) || this.typ != AnyValueType.AnyValueTypeInt64) {
+        if (!Objects.equals(this.int64, v) || this.typ != Type.TypeInt64) {
             this.int64 = v;
-            this.typ = AnyValueType.AnyValueTypeInt64;
+            this.typ = Type.TypeInt64;
             this.markParentModified();
         }
     }
     
     
-    // Float64 returns the value if the contained type is currently AnyValueTypeFloat64.
+    // Float64 returns the value if the contained type is currently TypeFloat64.
     // The caller must check the type via getType() before attempting to call this function.
     public double getFloat64() {
         return this.float64;
     }
     
-    // SetFloat64 sets the value to the specified value and sets the type to AnyValueTypeFloat64.
+    // SetFloat64 sets the value to the specified value and sets the type to TypeFloat64.
     public void setFloat64(double v) {
-        if (!Objects.equals(this.float64, v) || this.typ != AnyValueType.AnyValueTypeFloat64) {
+        if (!Objects.equals(this.float64, v) || this.typ != Type.TypeFloat64) {
             this.float64 = v;
-            this.typ = AnyValueType.AnyValueTypeFloat64;
+            this.typ = Type.TypeFloat64;
             this.markParentModified();
         }
     }
     
     
-    // Array returns the value if the contained type is currently AnyValueTypeArray.
+    // Array returns the value if the contained type is currently TypeArray.
     // The caller must check the type via getType() before attempting to call this function.
     public AnyValueArray getArray() {
         return this.array;
     }
     
     
-    // KVList returns the value if the contained type is currently AnyValueTypeKVList.
+    // KVList returns the value if the contained type is currently TypeKVList.
     // The caller must check the type via getType() before attempting to call this function.
     public KeyValueList getKVList() {
         return this.kVList;
     }
     
     
-    // Bytes returns the value if the contained type is currently AnyValueTypeBytes.
+    // Bytes returns the value if the contained type is currently TypeBytes.
     // The caller must check the type via getType() before attempting to call this function.
-    public Types.Bytes getBytes() {
+    public Bytes getBytes() {
         return this.bytes;
     }
     
-    // SetBytes sets the value to the specified value and sets the type to AnyValueTypeBytes.
-    public void setBytes(Types.Bytes v) {
-        if (!Objects.equals(this.bytes, v) || this.typ != AnyValueType.AnyValueTypeBytes) {
+    // SetBytes sets the value to the specified value and sets the type to TypeBytes.
+    public void setBytes(Bytes v) {
+        if (!Objects.equals(this.bytes, v) || this.typ != Type.TypeBytes) {
             this.bytes = v;
-            this.typ = AnyValueType.AnyValueTypeBytes;
+            this.typ = Type.TypeBytes;
             this.markParentModified();
         }
     }
@@ -204,21 +205,21 @@ public class AnyValue {
 
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
-            case AnyValueType.AnyValueTypeString:
+            case Type.TypeString:
                 break;
-            case AnyValueType.AnyValueTypeBool:
+            case Type.TypeBool:
                 break;
-            case AnyValueType.AnyValueTypeInt64:
+            case Type.TypeInt64:
                 break;
-            case AnyValueType.AnyValueTypeFloat64:
+            case Type.TypeFloat64:
                 break;
-            case AnyValueType.AnyValueTypeArray:
+            case Type.TypeArray:
                 this.array.markUnmodifiedRecursively();
                 break;
-            case AnyValueType.AnyValueTypeKVList:
+            case Type.TypeKVList:
                 this.kVList.markUnmodifiedRecursively();
                 break;
-            case AnyValueType.AnyValueTypeBytes:
+            case Type.TypeBytes:
                 break;
         default:
             break;
@@ -229,37 +230,37 @@ public class AnyValue {
     public boolean isEqual(AnyValue val) {
         if (this.typ != val.typ) return false;
         switch (this.typ) {
-            case AnyValueType.AnyValueTypeString:
+            case Type.TypeString:
                 if (!Types.StringEqual(this.string, val.string)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeBool:
+            case Type.TypeBool:
                 if (!Types.BoolEqual(this.bool, val.bool)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeInt64:
+            case Type.TypeInt64:
                 if (!Types.Int64Equal(this.int64, val.int64)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeFloat64:
+            case Type.TypeFloat64:
                 if (!Types.Float64Equal(this.float64, val.float64)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeArray:
+            case Type.TypeArray:
                 if (!this.array.isEqual(val.array)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeKVList:
+            case Type.TypeKVList:
                 if (!this.kVList.isEqual(val.kVList)) {
                 return false;
                 }
                 break;
-            case AnyValueType.AnyValueTypeBytes:
+            case Type.TypeBytes:
                 if (!Types.BytesEqual(this.bytes, val.bytes)) {
                 return false;
                 }
@@ -281,43 +282,43 @@ public class AnyValue {
         int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
         if (c != 0) return c;
         switch (left.typ) {
-            case AnyValueType.AnyValueTypeString:
+            case Type.TypeString:
                 c = Types.StringCompare(left.string, right.string);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeBool:
+            case Type.TypeBool:
                 c = Types.BoolCompare(left.bool, right.bool);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeInt64:
+            case Type.TypeInt64:
                 c = Types.Int64Compare(left.int64, right.int64);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeFloat64:
+            case Type.TypeFloat64:
                 c = Types.Float64Compare(left.float64, right.float64);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeArray:
+            case Type.TypeArray:
                 c = CmpAnyValueArray(left.array, right.array);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeKVList:
+            case Type.TypeKVList:
                 c = CmpKeyValueList(left.kVList, right.kVList);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case AnyValueType.AnyValueTypeBytes:
+            case Type.TypeBytes:
                 c = Types.BytesCompare(left.bytes, right.bytes);
                 if (c != 0) {
                     return c;
@@ -334,41 +335,41 @@ public class AnyValue {
         int fieldCount = 7;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
-            this.setType(AnyValueType.values()[random.nextInt(fieldCount + 1)]);
+            this.setType(Type.values()[random.nextInt(fieldCount + 1)]);
             typeChanged = true;
         }
         switch (this.typ) {
-            case AnyValueType.AnyValueTypeString:
+            case Type.TypeString:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setString(Types.StringRandom(random));
                 }
                 break;
-            case AnyValueType.AnyValueTypeBool:
+            case Type.TypeBool:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setBool(Types.BoolRandom(random));
                 }
                 break;
-            case AnyValueType.AnyValueTypeInt64:
+            case Type.TypeInt64:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setInt64(Types.Int64Random(random));
                 }
                 break;
-            case AnyValueType.AnyValueTypeFloat64:
+            case Type.TypeFloat64:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setFloat64(Types.Float64Random(random));
                 }
                 break;
-            case AnyValueType.AnyValueTypeArray:
+            case Type.TypeArray:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.array.mutateRandom(random);
                 }
                 break;
-            case AnyValueType.AnyValueTypeKVList:
+            case Type.TypeKVList:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.kVList.mutateRandom(random);
                 }
                 break;
-            case AnyValueType.AnyValueTypeBytes:
+            case Type.TypeBytes:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setBytes(Types.BytesRandom(random));
                 }

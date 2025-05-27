@@ -47,13 +47,11 @@ public class Scope {
         
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
-
     
     public StringValue getName() {
         return this.name;
     }
 
-    
     // setName sets the value of Name field.
     public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
@@ -62,12 +60,9 @@ public class Scope {
         }
     }
 
-    
-
     private void markNameModified() {
         this.modifiedFields.markModified(fieldModifiedName);
     }
-    
 
     // isNameModified returns true if the value of Name field was modified since
     // Scope was created, encoded or decoded. If the field is modified
@@ -81,7 +76,6 @@ public class Scope {
         return this.version;
     }
 
-    
     // setVersion sets the value of Version field.
     public void setVersion(StringValue v) {
         if (!Types.StringEqual(this.version, v)) {
@@ -90,12 +84,9 @@ public class Scope {
         }
     }
 
-    
-
     private void markVersionModified() {
         this.modifiedFields.markModified(fieldModifiedVersion);
     }
-    
 
     // isVersionModified returns true if the value of Version field was modified since
     // Scope was created, encoded or decoded. If the field is modified
@@ -109,7 +100,6 @@ public class Scope {
         return this.schemaURL;
     }
 
-    
     // setSchemaURL sets the value of SchemaURL field.
     public void setSchemaURL(StringValue v) {
         if (!Types.StringEqual(this.schemaURL, v)) {
@@ -118,12 +108,9 @@ public class Scope {
         }
     }
 
-    
-
     private void markSchemaURLModified() {
         this.modifiedFields.markModified(fieldModifiedSchemaURL);
     }
-    
 
     // isSchemaURLModified returns true if the value of SchemaURL field was modified since
     // Scope was created, encoded or decoded. If the field is modified
@@ -137,8 +124,6 @@ public class Scope {
         return this.attributes;
     }
 
-    
-
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Scope was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -151,7 +136,6 @@ public class Scope {
         return this.droppedAttributesCount;
     }
 
-    
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.
     public void setDroppedAttributesCount(long v) {
         if (!Types.Uint64Equal(this.droppedAttributesCount, v)) {
@@ -160,12 +144,9 @@ public class Scope {
         }
     }
 
-    
-
     private void markDroppedAttributesCountModified() {
         this.modifiedFields.markModified(fieldModifiedDroppedAttributesCount);
     }
-    
 
     // isDroppedAttributesCountModified returns true if the value of DroppedAttributesCount field was modified since
     // Scope was created, encoded or decoded. If the field is modified
@@ -174,26 +155,10 @@ public class Scope {
     public boolean isDroppedAttributesCountModified() {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isNameModified()) {
-        }
-        
-        if (this.isVersionModified()) {
-        }
-        
-        if (this.isSchemaURLModified()) {
-        }
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
-        if (this.isDroppedAttributesCountModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

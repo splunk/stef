@@ -34,36 +34,23 @@ public class SpansDecoder {
         
         this.lastVal.init();
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
         this.envelopeDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 1) {
             return; // Resource and subsequent fields are skipped.
         }
         this.resourceDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 2) {
             return; // Scope and subsequent fields are skipped.
         }
         this.scopeDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 3) {
             return; // Span and subsequent fields are skipped.
         }
         this.spanDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -107,22 +94,22 @@ public class SpansDecoder {
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            this.envelopeDecoder.decode(val.envelope);
+            val.envelope = this.envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            this.resourceDecoder.decode(val.resource);
+            val.resource = this.resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            this.scopeDecoder.decode(val.scope);
+            val.scope = this.scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
-            this.spanDecoder.decode(val.span);
+            val.span = this.spanDecoder.decode(val.span);
         }
         
         

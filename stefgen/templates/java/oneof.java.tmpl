@@ -1,6 +1,7 @@
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -8,7 +9,7 @@ import java.util.*;
 // {{ .StructName }} is a oneof struct.
 public class {{ .StructName }} {
     // The current type of the oneof.
-    {{$.StructName}}Type typ;
+    Type typ;
     {{ range .Fields }}
     {{.Type.Storage}} {{.name}};
     {{- end }}
@@ -37,21 +38,21 @@ public class {{ .StructName }} {
     }
 
     // Type enum for oneof
-    public enum {{$.StructName}}Type {
-        {{.StructName}}TypeNone,
+    public enum Type {
+        TypeNone,
         {{- range .Fields }}
-        {{$.StructName}}Type{{.Name}},
+        Type{{.Name}},
         {{- end }}
-        {{.StructName}}TypeCount
+        TypeCount
     }
 
     // Type returns the type of the value currently contained in {{ $.StructName }}.
-    public {{$.StructName}}Type getType() {
+    public Type getType() {
         return typ;
     }
 
     // SetType sets the type of the value currently contained in {{ $.StructName }}.
-    public void setType({{$.StructName}}Type typ) {
+    public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
             this.markParentModified();
@@ -59,7 +60,7 @@ public class {{ .StructName }} {
     }
 
     {{ range .Fields }}
-    // {{.Name}} returns the value if the contained type is currently {{$.StructName}}Type{{.Name}}.
+    // {{.Name}} returns the value if the contained type is currently Type{{.Name}}.
     // The caller must check the type via getType() before attempting to call this function.
     public {{.Type.Exported}} get{{.Name}}() {
         {{- if .Type.IsPrimitive}}
@@ -69,11 +70,11 @@ public class {{ .StructName }} {
         {{- end}}
     }
     {{if .Type.IsPrimitive}}
-    // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName}}Type{{.Name}}.
+    // Set{{.Name}} sets the value to the specified value and sets the type to Type{{.Name}}.
     public void set{{.Name}}({{.Type.Exported}} v) {
-        if (!Objects.equals(this.{{.name}}, v) || this.typ != {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}) {
+        if (!Objects.equals(this.{{.name}}, v) || this.typ != Type.Type{{.Name}}) {
             this.{{.name}} = v;
-            this.typ = {{$.StructName}}Type.{{$.StructName}}Type{{.Name}};
+            this.typ = Type.Type{{.Name}};
             this.markParentModified();
         }
     }
@@ -124,7 +125,7 @@ public class {{ .StructName }} {
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
         {{- range .Fields }}
-            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            case Type.Type{{.Name}}:
             {{- if not .Type.IsPrimitive }}
                 this.{{.name}}.markUnmodifiedRecursively();
             {{- end }}
@@ -140,7 +141,7 @@ public class {{ .StructName }} {
         if (this.typ != val.typ) return false;
         switch (this.typ) {
         {{- range .Fields }}
-            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            case Type.Type{{.Name}}:
             {{- if .Type.IsPrimitive }}
                 if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
                 return false;
@@ -170,7 +171,7 @@ public class {{ .StructName }} {
         if (c != 0) return c;
         switch (left.typ) {
         {{- range .Fields }}
-            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            case Type.Type{{.Name}}:
                 c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
                 if (c != 0) {
                     return c;
@@ -188,12 +189,12 @@ public class {{ .StructName }} {
         int fieldCount = {{len .Fields}};
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
-            this.setType({{$.StructName}}Type.values()[random.nextInt(fieldCount + 1)]);
+            this.setType(Type.values()[random.nextInt(fieldCount + 1)]);
             typeChanged = true;
         }
         switch (this.typ) {
         {{- range .Fields }}
-            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            case Type.Type{{.Name}}:
                 if (typeChanged || random.nextInt(2) == 0) {
                 {{- if not .Type.IsPrimitive }}
                     this.{{.name}}.mutateRandom(random);

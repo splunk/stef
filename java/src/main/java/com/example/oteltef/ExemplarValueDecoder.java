@@ -36,11 +36,34 @@ public class ExemplarValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Decoder.init(columns.addSubColumn());
+        this.int64Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Decoder.init(columns.addSubColumn());
+        this.float64Decoder.init(columns.addSubColumn());
+    }
+
+    // Decode decodes a value from the buffer into dst.
+    public ExemplarValue decode(ExemplarValue dst) throws Exception {
+        // Read type delta
+        long typeDelta = this.buf.readVarintCompact();
+        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        if (typ < 0 || typ >= ExemplarValue.Type.values().length) {
+            throw new Exception("Invalid oneof type");
+        }
+        dst.setType(ExemplarValue.Type.values()[typ]);
+        this.lastValPtr = dst;
+        // Decode selected field
+        switch (dst.getType()) {
+            case ExemplarValue.Type.TypeInt64:
+                dst.int64 = this.int64Decoder.decode();
+                break;
+            case ExemplarValue.Type.TypeFloat64:
+                dst.float64 = this.float64Decoder.decode();
+                break;
+            default:
+                break;
+        }
+        return dst;
     }
 }
-

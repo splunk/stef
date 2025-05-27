@@ -38,43 +38,27 @@ public class ScopeDecoder {
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
         this.dict = state.getScope();
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameDecoder.init(state.getScopeName(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.nameDecoder.init(state.getScopeName(), columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-            this.versionDecoder.init(state.getScopeVersion(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.versionDecoder.init(state.getScopeVersion(), columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-            this.schemaURLDecoder.init(state.getSchemaURL(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.schemaURLDecoder.init(state.getSchemaURL(), columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 4) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -153,7 +137,7 @@ public class ScopeDecoder {
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {

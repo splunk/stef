@@ -44,106 +44,63 @@ public class SpanDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-            this.traceStateDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.traceStateDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // ParentSpanID and subsequent fields are skipped.
         }
-            this.parentSpanIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.parentSpanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Flags and subsequent fields are skipped.
         }
-            this.flagsDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.flagsDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameDecoder.init(state.getSpanName(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.nameDecoder.init(state.getSpanName(), columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
-            this.kindDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.kindDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // StartTimeUnixNano and subsequent fields are skipped.
         }
-            this.startTimeUnixNanoDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.startTimeUnixNanoDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 8) {
             return; // EndTimeUnixNano and subsequent fields are skipped.
         }
-            this.endTimeUnixNanoDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.endTimeUnixNanoDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 9) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 10) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 11) {
             return; // Events and subsequent fields are skipped.
         }
         this.eventsDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 12) {
             return; // Links and subsequent fields are skipped.
         }
         this.linksDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 13) {
             return; // Status and subsequent fields are skipped.
         }
         this.statusDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -282,7 +239,7 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
@@ -292,17 +249,17 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
-            this.eventsDecoder.decode(val.events);
+            val.events = this.eventsDecoder.decode(val.events);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
-            this.linksDecoder.decode(val.links);
+            val.links = this.linksDecoder.decode(val.links);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
-            this.statusDecoder.decode(val.status);
+            val.status = this.statusDecoder.decode(val.status);
         }
         
         

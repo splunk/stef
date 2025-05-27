@@ -34,36 +34,23 @@ public class PointDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-            this.startTimestampDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.startTimestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-            this.timestampDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.timestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
         this.valueDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 3) {
             return; // Exemplars and subsequent fields are skipped.
         }
         this.exemplarsDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -117,12 +104,12 @@ public class PointDecoder {
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            this.valueDecoder.decode(val.value);
+            val.value = this.valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
-            this.exemplarsDecoder.decode(val.exemplars);
+            val.exemplars = this.exemplarsDecoder.decode(val.exemplars);
         }
         
         

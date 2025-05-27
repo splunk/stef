@@ -2,6 +2,7 @@
 // PointValue Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -9,7 +10,7 @@ import java.util.*;
 // PointValue is a oneof struct.
 public class PointValue {
     // The current type of the oneof.
-    PointValueType typ;
+    Type typ;
     
     long int64;
     double float64;
@@ -33,21 +34,21 @@ public class PointValue {
     }
 
     // Type enum for oneof
-    public enum PointValueType {
-        PointValueTypeNone,
-        PointValueTypeInt64,
-        PointValueTypeFloat64,
-        PointValueTypeHistogram,
-        PointValueTypeCount
+    public enum Type {
+        TypeNone,
+        TypeInt64,
+        TypeFloat64,
+        TypeHistogram,
+        TypeCount
     }
 
     // Type returns the type of the value currently contained in PointValue.
-    public PointValueType getType() {
+    public Type getType() {
         return typ;
     }
 
     // SetType sets the type of the value currently contained in PointValue.
-    public void setType(PointValueType typ) {
+    public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
             this.markParentModified();
@@ -55,39 +56,39 @@ public class PointValue {
     }
 
     
-    // Int64 returns the value if the contained type is currently PointValueTypeInt64.
+    // Int64 returns the value if the contained type is currently TypeInt64.
     // The caller must check the type via getType() before attempting to call this function.
     public long getInt64() {
         return this.int64;
     }
     
-    // SetInt64 sets the value to the specified value and sets the type to PointValueTypeInt64.
+    // SetInt64 sets the value to the specified value and sets the type to TypeInt64.
     public void setInt64(long v) {
-        if (!Objects.equals(this.int64, v) || this.typ != PointValueType.PointValueTypeInt64) {
+        if (!Objects.equals(this.int64, v) || this.typ != Type.TypeInt64) {
             this.int64 = v;
-            this.typ = PointValueType.PointValueTypeInt64;
+            this.typ = Type.TypeInt64;
             this.markParentModified();
         }
     }
     
     
-    // Float64 returns the value if the contained type is currently PointValueTypeFloat64.
+    // Float64 returns the value if the contained type is currently TypeFloat64.
     // The caller must check the type via getType() before attempting to call this function.
     public double getFloat64() {
         return this.float64;
     }
     
-    // SetFloat64 sets the value to the specified value and sets the type to PointValueTypeFloat64.
+    // SetFloat64 sets the value to the specified value and sets the type to TypeFloat64.
     public void setFloat64(double v) {
-        if (!Objects.equals(this.float64, v) || this.typ != PointValueType.PointValueTypeFloat64) {
+        if (!Objects.equals(this.float64, v) || this.typ != Type.TypeFloat64) {
             this.float64 = v;
-            this.typ = PointValueType.PointValueTypeFloat64;
+            this.typ = Type.TypeFloat64;
             this.markParentModified();
         }
     }
     
     
-    // Histogram returns the value if the contained type is currently PointValueTypeHistogram.
+    // Histogram returns the value if the contained type is currently TypeHistogram.
     // The caller must check the type via getType() before attempting to call this function.
     public HistogramValue getHistogram() {
         return this.histogram;
@@ -131,11 +132,11 @@ public class PointValue {
 
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
-            case PointValueType.PointValueTypeInt64:
+            case Type.TypeInt64:
                 break;
-            case PointValueType.PointValueTypeFloat64:
+            case Type.TypeFloat64:
                 break;
-            case PointValueType.PointValueTypeHistogram:
+            case Type.TypeHistogram:
                 this.histogram.markUnmodifiedRecursively();
                 break;
         default:
@@ -147,17 +148,17 @@ public class PointValue {
     public boolean isEqual(PointValue val) {
         if (this.typ != val.typ) return false;
         switch (this.typ) {
-            case PointValueType.PointValueTypeInt64:
+            case Type.TypeInt64:
                 if (!Types.Int64Equal(this.int64, val.int64)) {
                 return false;
                 }
                 break;
-            case PointValueType.PointValueTypeFloat64:
+            case Type.TypeFloat64:
                 if (!Types.Float64Equal(this.float64, val.float64)) {
                 return false;
                 }
                 break;
-            case PointValueType.PointValueTypeHistogram:
+            case Type.TypeHistogram:
                 if (!this.histogram.isEqual(val.histogram)) {
                 return false;
                 }
@@ -179,19 +180,19 @@ public class PointValue {
         int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
         if (c != 0) return c;
         switch (left.typ) {
-            case PointValueType.PointValueTypeInt64:
+            case Type.TypeInt64:
                 c = Types.Int64Compare(left.int64, right.int64);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case PointValueType.PointValueTypeFloat64:
+            case Type.TypeFloat64:
                 c = Types.Float64Compare(left.float64, right.float64);
                 if (c != 0) {
                     return c;
                 }
                 break;
-            case PointValueType.PointValueTypeHistogram:
+            case Type.TypeHistogram:
                 c = HistogramValue.compare(left.histogram, right.histogram);
                 if (c != 0) {
                     return c;
@@ -208,21 +209,21 @@ public class PointValue {
         int fieldCount = 3;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
-            this.setType(PointValueType.values()[random.nextInt(fieldCount + 1)]);
+            this.setType(Type.values()[random.nextInt(fieldCount + 1)]);
             typeChanged = true;
         }
         switch (this.typ) {
-            case PointValueType.PointValueTypeInt64:
+            case Type.TypeInt64:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setInt64(Types.Int64Random(random));
                 }
                 break;
-            case PointValueType.PointValueTypeFloat64:
+            case Type.TypeFloat64:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.setFloat64(Types.Float64Random(random));
                 }
                 break;
-            case PointValueType.PointValueTypeHistogram:
+            case Type.TypeHistogram:
                 if (typeChanged || random.nextInt(2) == 0) {
                     this.histogram.mutateRandom(random);
                 }

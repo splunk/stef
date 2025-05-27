@@ -20,15 +20,16 @@ public class BytesDecoder {
 
     public void reset() {}
 
-    public byte[] decode() throws Exception {
+    public Bytes decode() throws Exception {
         long varint = buf.readVarint();
         if (varint >= 0) {
             int strLen = (int) varint;
             byte[] value = buf.readBytes(strLen);
+            Bytes bytes = new Bytes(value);
             if (strLen > 1 && dict != null) {
-                dict.add(value);
+                dict.add(bytes);
             }
-            return value;
+            return bytes;
         } else {
             if (dict == null) {
                 throw new Exception("Invalid RefNum, out of dictionary range");

@@ -36,29 +36,19 @@ public class ResourceDecoder {
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
         this.dict = state.getResource();
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-            this.schemaURLDecoder.init(state.getSchemaURL(), columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.schemaURLDecoder.init(state.getSchemaURL(), columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 2) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -117,7 +107,7 @@ public class ResourceDecoder {
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedDroppedAttributesCount) != 0) {

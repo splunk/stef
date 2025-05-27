@@ -37,15 +37,41 @@ public class PointValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Decoder.init(columns.addSubColumn());
+        this.int64Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Decoder.init(columns.addSubColumn());
+        this.float64Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Histogram and subsequent fields are skipped.
         }
         this.histogramDecoder.init(state, columns.addSubColumn());
     }
-}
 
+    // Decode decodes a value from the buffer into dst.
+    public PointValue decode(PointValue dst) throws Exception {
+        // Read type delta
+        long typeDelta = this.buf.readVarintCompact();
+        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        if (typ < 0 || typ >= PointValue.Type.values().length) {
+            throw new Exception("Invalid oneof type");
+        }
+        dst.setType(PointValue.Type.values()[typ]);
+        this.lastValPtr = dst;
+        // Decode selected field
+        switch (dst.getType()) {
+            case PointValue.Type.TypeInt64:
+                dst.int64 = this.int64Decoder.decode();
+                break;
+            case PointValue.Type.TypeFloat64:
+                dst.float64 = this.float64Decoder.decode();
+                break;
+            case PointValue.Type.TypeHistogram:
+                dst.histogram = this.histogramDecoder.decode(dst.histogram);
+                break;
+            default:
+                break;
+        }
+        return dst;
+    }
+}

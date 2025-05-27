@@ -40,13 +40,11 @@ public class SpanStatus {
         this.modifiedFields.parentBit = parentModifiedBit;
         
     }
-
     
     public StringValue getMessage() {
         return this.message;
     }
 
-    
     // setMessage sets the value of Message field.
     public void setMessage(StringValue v) {
         if (!Types.StringEqual(this.message, v)) {
@@ -55,12 +53,9 @@ public class SpanStatus {
         }
     }
 
-    
-
     private void markMessageModified() {
         this.modifiedFields.markModified(fieldModifiedMessage);
     }
-    
 
     // isMessageModified returns true if the value of Message field was modified since
     // SpanStatus was created, encoded or decoded. If the field is modified
@@ -74,7 +69,6 @@ public class SpanStatus {
         return this.code;
     }
 
-    
     // setCode sets the value of Code field.
     public void setCode(long v) {
         if (!Types.Uint64Equal(this.code, v)) {
@@ -83,12 +77,9 @@ public class SpanStatus {
         }
     }
 
-    
-
     private void markCodeModified() {
         this.modifiedFields.markModified(fieldModifiedCode);
     }
-    
 
     // isCodeModified returns true if the value of Code field was modified since
     // SpanStatus was created, encoded or decoded. If the field is modified
@@ -97,16 +88,7 @@ public class SpanStatus {
     public boolean isCodeModified() {
         return (this.modifiedFields.mask & fieldModifiedCode) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isMessageModified()) {
-        }
-        
-        if (this.isCodeModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

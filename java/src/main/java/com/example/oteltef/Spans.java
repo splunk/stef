@@ -50,13 +50,10 @@ public class Spans {
         this.scope.init(this.modifiedFields, fieldModifiedScope);
         this.span.init(this.modifiedFields, fieldModifiedSpan);
     }
-
     
     public Envelope getEnvelope() {
         return this.envelope;
     }
-
-    
 
     // isEnvelopeModified returns true if the value of Envelope field was modified since
     // Spans was created, encoded or decoded. If the field is modified
@@ -70,8 +67,6 @@ public class Spans {
         return this.resource;
     }
 
-    
-
     // isResourceModified returns true if the value of Resource field was modified since
     // Spans was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -83,8 +78,6 @@ public class Spans {
     public Scope getScope() {
         return this.scope;
     }
-
-    
 
     // isScopeModified returns true if the value of Scope field was modified since
     // Spans was created, encoded or decoded. If the field is modified
@@ -98,8 +91,6 @@ public class Spans {
         return this.span;
     }
 
-    
-
     // isSpanModified returns true if the value of Span field was modified since
     // Spans was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -107,26 +98,19 @@ public class Spans {
     public boolean isSpanModified() {
         return (this.modifiedFields.mask & fieldModifiedSpan) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
         if (this.isEnvelopeModified()) {
             this.envelope.markUnmodifiedRecursively();
         }
-        
         if (this.isResourceModified()) {
             this.resource.markUnmodifiedRecursively();
         }
-        
         if (this.isScopeModified()) {
             this.scope.markUnmodifiedRecursively();
         }
-        
         if (this.isSpanModified()) {
             this.span.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 

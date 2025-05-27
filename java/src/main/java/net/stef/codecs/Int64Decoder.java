@@ -13,7 +13,7 @@ public class Int64Decoder {
     private long lastVal = 0;
     private long lastDelta = 0;
 
-    public void Init(ReadColumnSet columns) {
+    public void init(ReadColumnSet columns) {
         column = columns.getColumn();
     }
 

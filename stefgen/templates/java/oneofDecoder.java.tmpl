@@ -42,16 +42,42 @@ public class {{ .StructName }}Decoder {
         }
         {{- if .Type.IsPrimitive}}
             {{- if .Type.DictName}}
-            this.{{.name}}Decoder.init(state.get{{.Type.DictName}}(), columns.addSubColumn());
+        this.{{.name}}Decoder.init(state.get{{.Type.DictName}}(), columns.addSubColumn());
             {{- else if .Type.IsDictPossible}}
-            this.{{.name}}Decoder.init(null, columns.addSubColumn());
+        this.{{.name}}Decoder.init(null, columns.addSubColumn());
             {{- else}}
-            this.{{.name}}Decoder.init(columns.addSubColumn());
+        this.{{.name}}Decoder.init(columns.addSubColumn());
             {{- end}}
         {{- else}}
         this.{{.name}}Decoder.init(state, columns.addSubColumn());
         {{- end}}
-        {{- end}}
+        {{- end }}
+    }
+
+    // Decode decodes a value from the buffer into dst.
+    public {{.StructName}} decode({{.StructName}} dst) throws Exception {
+        // Read type delta
+        long typeDelta = this.buf.readVarintCompact();
+        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        if (typ < 0 || typ >= {{.StructName}}.Type.values().length) {
+            throw new Exception("Invalid oneof type");
+        }
+        dst.setType({{.StructName}}.Type.values()[typ]);
+        this.lastValPtr = dst;
+        // Decode selected field
+        switch (dst.getType()) {
+        {{- range .Fields }}
+            case {{$.StructName}}.Type.Type{{.Name}}:
+            {{- if .Type.IsPrimitive }}
+                dst.{{.name}} = this.{{.name}}Decoder.decode();
+            {{- else}}
+                dst.{{.name}} = this.{{.name}}Decoder.decode(dst.{{.name}});
+            {{- end }}
+                break;
+        {{- end }}
+            default:
+                break;
+        }
+        return dst;
     }
 }
-

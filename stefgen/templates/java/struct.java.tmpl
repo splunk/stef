@@ -59,7 +59,6 @@ public class {{ .StructName }} {
         {{- end }}
         {{- end }}
     }
-
     {{ range .Fields }}
     public {{.Type.Exported}} get{{.Name}}() {
         {{- if .Type.IsPrimitive}}
@@ -69,7 +68,8 @@ public class {{ .StructName }} {
         {{- end}}
     }
 
-    {{if .Type.IsPrimitive}}
+    {{- if .Type.IsPrimitive}}
+
     // set{{.Name}} sets the value of {{.Name}} field.
     public void set{{.Name}}({{.Type.Exported}} v) {
         if (!{{ .Type.EqualFunc }}(this.{{.name}}, v)
@@ -82,7 +82,7 @@ public class {{ .StructName }} {
         }
     }
 
-    {{ if .Optional}}
+    {{- if .Optional}}
     // unset{{.Name}} unsets the presence flag of {{.Name}} field. A subsequent has{{.Name}}() will return false.
     public void unset{{.Name}}() {
         if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) != 0) {
@@ -100,7 +100,7 @@ public class {{ .StructName }} {
     private void mark{{.Name}}Modified() {
         this.modifiedFields.markModified(fieldModified{{.Name}});
     }
-    {{end}}
+    {{- end}}
 
     // is{{.Name}}Modified returns true if the value of {{.Name}} field was modified since
     // {{ $.StructName }} was created, encoded or decoded. If the field is modified
@@ -109,16 +109,16 @@ public class {{ .StructName }} {
     public boolean is{{.Name}}Modified() {
         return (this.modifiedFields.mask & fieldModified{{.Name}}) != 0;
     }
-    {{ end }}
+    {{ end -}}
 
     public void markUnmodifiedRecursively() {
-        {{ range .Fields }}
-        if (this.is{{.Name}}Modified()) {
+        {{- range .Fields }}
             {{- if not .Type.IsPrimitive}}
+        if (this.is{{.Name}}Modified()) {
             this.{{.name}}.markUnmodifiedRecursively();
-            {{- end}}
         }
-        {{ end }}
+            {{- end}}
+        {{- end }}
         this.modifiedFields.mask = 0;
     }
 

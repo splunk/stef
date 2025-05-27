@@ -31,15 +31,11 @@ public class EnvelopeDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -68,7 +64,7 @@ public class EnvelopeDecoder {
         
         if ((val.getModifiedFields().mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         

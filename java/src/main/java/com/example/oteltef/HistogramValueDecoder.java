@@ -35,43 +35,27 @@ public class HistogramValueDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-            this.countDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.countDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-            this.sumDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.sumDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-            this.minDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.minDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-            this.maxDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.maxDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
         this.bucketCountsDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -142,7 +126,7 @@ public class HistogramValueDecoder {
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
-            this.bucketCountsDecoder.decode(val.bucketCounts);
+            val.bucketCounts = this.bucketCountsDecoder.decode(val.bucketCounts);
         }
         
         

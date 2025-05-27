@@ -36,50 +36,31 @@ public class MetricsDecoder {
         
         this.lastVal.init();
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
         this.envelopeDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 1) {
             return; // Metric and subsequent fields are skipped.
         }
         this.metricDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 2) {
             return; // Resource and subsequent fields are skipped.
         }
         this.resourceDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 3) {
             return; // Scope and subsequent fields are skipped.
         }
         this.scopeDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 5) {
             return; // Point and subsequent fields are skipped.
         }
         this.pointDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -133,32 +114,32 @@ public class MetricsDecoder {
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            this.envelopeDecoder.decode(val.envelope);
+            val.envelope = this.envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
-            this.metricDecoder.decode(val.metric);
+            val.metric = this.metricDecoder.decode(val.metric);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            this.resourceDecoder.decode(val.resource);
+            val.resource = this.resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            this.scopeDecoder.decode(val.scope);
+            val.scope = this.scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
-            this.pointDecoder.decode(val.point);
+            val.point = this.pointDecoder.decode(val.point);
         }
         
         

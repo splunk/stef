@@ -56,13 +56,11 @@ public class HistogramValue {
         
         this.bucketCounts.init(this.modifiedFields, fieldModifiedBucketCounts);
     }
-
     
     public long getCount() {
         return this.count;
     }
 
-    
     // setCount sets the value of Count field.
     public void setCount(long v) {
         if (!Types.Int64Equal(this.count, v)) {
@@ -71,12 +69,9 @@ public class HistogramValue {
         }
     }
 
-    
-
     private void markCountModified() {
         this.modifiedFields.markModified(fieldModifiedCount);
     }
-    
 
     // isCountModified returns true if the value of Count field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
@@ -90,7 +85,6 @@ public class HistogramValue {
         return this.sum;
     }
 
-    
     // setSum sets the value of Sum field.
     public void setSum(double v) {
         if (!Types.Float64Equal(this.sum, v)|| (this.optionalFieldsPresent & fieldPresentSum) == 0) {
@@ -99,8 +93,6 @@ public class HistogramValue {
             this.optionalFieldsPresent |= fieldPresentSum;
         }
     }
-
-    
     // unsetSum unsets the presence flag of Sum field. A subsequent hasSum() will return false.
     public void unsetSum() {
         if ((this.optionalFieldsPresent & fieldPresentSum) != 0) {
@@ -117,7 +109,6 @@ public class HistogramValue {
     private void markSumModified() {
         this.modifiedFields.markModified(fieldModifiedSum);
     }
-    
 
     // isSumModified returns true if the value of Sum field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
@@ -131,7 +122,6 @@ public class HistogramValue {
         return this.min;
     }
 
-    
     // setMin sets the value of Min field.
     public void setMin(double v) {
         if (!Types.Float64Equal(this.min, v)|| (this.optionalFieldsPresent & fieldPresentMin) == 0) {
@@ -140,8 +130,6 @@ public class HistogramValue {
             this.optionalFieldsPresent |= fieldPresentMin;
         }
     }
-
-    
     // unsetMin unsets the presence flag of Min field. A subsequent hasMin() will return false.
     public void unsetMin() {
         if ((this.optionalFieldsPresent & fieldPresentMin) != 0) {
@@ -158,7 +146,6 @@ public class HistogramValue {
     private void markMinModified() {
         this.modifiedFields.markModified(fieldModifiedMin);
     }
-    
 
     // isMinModified returns true if the value of Min field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
@@ -172,7 +159,6 @@ public class HistogramValue {
         return this.max;
     }
 
-    
     // setMax sets the value of Max field.
     public void setMax(double v) {
         if (!Types.Float64Equal(this.max, v)|| (this.optionalFieldsPresent & fieldPresentMax) == 0) {
@@ -181,8 +167,6 @@ public class HistogramValue {
             this.optionalFieldsPresent |= fieldPresentMax;
         }
     }
-
-    
     // unsetMax unsets the presence flag of Max field. A subsequent hasMax() will return false.
     public void unsetMax() {
         if ((this.optionalFieldsPresent & fieldPresentMax) != 0) {
@@ -199,7 +183,6 @@ public class HistogramValue {
     private void markMaxModified() {
         this.modifiedFields.markModified(fieldModifiedMax);
     }
-    
 
     // isMaxModified returns true if the value of Max field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
@@ -213,8 +196,6 @@ public class HistogramValue {
         return this.bucketCounts;
     }
 
-    
-
     // isBucketCountsModified returns true if the value of BucketCounts field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -222,26 +203,10 @@ public class HistogramValue {
     public boolean isBucketCountsModified() {
         return (this.modifiedFields.mask & fieldModifiedBucketCounts) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isCountModified()) {
-        }
-        
-        if (this.isSumModified()) {
-        }
-        
-        if (this.isMinModified()) {
-        }
-        
-        if (this.isMaxModified()) {
-        }
-        
         if (this.isBucketCountsModified()) {
             this.bucketCounts.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 

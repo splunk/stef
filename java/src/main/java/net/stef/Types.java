@@ -1,26 +1,8 @@
 package net.stef;
 
-import java.util.Arrays;
 import java.util.Random;
 
 public class Types {
-
-    // Bytes is a sequence of immutable bytes.
-    public static class Bytes {
-        private final byte[] value;
-
-        public Bytes(byte[] value) {
-            this.value = value;
-        }
-
-        public byte[] getValue() {
-            return value;
-        }
-
-        public int compareTo(Bytes right) {
-            return Arrays.compare(this.value, right.value);
-        }
-    }
 
     public static int Uint64Compare(long left, long right) {
         return Long.compareUnsigned(left, right);

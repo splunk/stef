@@ -57,13 +57,10 @@ public class Metrics {
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
         this.point.init(this.modifiedFields, fieldModifiedPoint);
     }
-
     
     public Envelope getEnvelope() {
         return this.envelope;
     }
-
-    
 
     // isEnvelopeModified returns true if the value of Envelope field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
@@ -77,8 +74,6 @@ public class Metrics {
         return this.metric;
     }
 
-    
-
     // isMetricModified returns true if the value of Metric field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -90,8 +85,6 @@ public class Metrics {
     public Resource getResource() {
         return this.resource;
     }
-
-    
 
     // isResourceModified returns true if the value of Resource field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
@@ -105,8 +98,6 @@ public class Metrics {
         return this.scope;
     }
 
-    
-
     // isScopeModified returns true if the value of Scope field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -118,8 +109,6 @@ public class Metrics {
     public Attributes getAttributes() {
         return this.attributes;
     }
-
-    
 
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
@@ -133,8 +122,6 @@ public class Metrics {
         return this.point;
     }
 
-    
-
     // isPointModified returns true if the value of Point field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -142,34 +129,25 @@ public class Metrics {
     public boolean isPointModified() {
         return (this.modifiedFields.mask & fieldModifiedPoint) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
         if (this.isEnvelopeModified()) {
             this.envelope.markUnmodifiedRecursively();
         }
-        
         if (this.isMetricModified()) {
             this.metric.markUnmodifiedRecursively();
         }
-        
         if (this.isResourceModified()) {
             this.resource.markUnmodifiedRecursively();
         }
-        
         if (this.isScopeModified()) {
             this.scope.markUnmodifiedRecursively();
         }
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
         if (this.isPointModified()) {
             this.point.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 

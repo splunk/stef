@@ -45,13 +45,11 @@ public class Event {
         
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
-
     
     public StringValue getName() {
         return this.name;
     }
 
-    
     // setName sets the value of Name field.
     public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
@@ -60,12 +58,9 @@ public class Event {
         }
     }
 
-    
-
     private void markNameModified() {
         this.modifiedFields.markModified(fieldModifiedName);
     }
-    
 
     // isNameModified returns true if the value of Name field was modified since
     // Event was created, encoded or decoded. If the field is modified
@@ -79,7 +74,6 @@ public class Event {
         return this.timeUnixNano;
     }
 
-    
     // setTimeUnixNano sets the value of TimeUnixNano field.
     public void setTimeUnixNano(long v) {
         if (!Types.Uint64Equal(this.timeUnixNano, v)) {
@@ -88,12 +82,9 @@ public class Event {
         }
     }
 
-    
-
     private void markTimeUnixNanoModified() {
         this.modifiedFields.markModified(fieldModifiedTimeUnixNano);
     }
-    
 
     // isTimeUnixNanoModified returns true if the value of TimeUnixNano field was modified since
     // Event was created, encoded or decoded. If the field is modified
@@ -107,8 +98,6 @@ public class Event {
         return this.attributes;
     }
 
-    
-
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Event was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -121,7 +110,6 @@ public class Event {
         return this.droppedAttributesCount;
     }
 
-    
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.
     public void setDroppedAttributesCount(long v) {
         if (!Types.Uint64Equal(this.droppedAttributesCount, v)) {
@@ -130,12 +118,9 @@ public class Event {
         }
     }
 
-    
-
     private void markDroppedAttributesCountModified() {
         this.modifiedFields.markModified(fieldModifiedDroppedAttributesCount);
     }
-    
 
     // isDroppedAttributesCountModified returns true if the value of DroppedAttributesCount field was modified since
     // Event was created, encoded or decoded. If the field is modified
@@ -144,23 +129,10 @@ public class Event {
     public boolean isDroppedAttributesCountModified() {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isNameModified()) {
-        }
-        
-        if (this.isTimeUnixNanoModified()) {
-        }
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
-        if (this.isDroppedAttributesCountModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

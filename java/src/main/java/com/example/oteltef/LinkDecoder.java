@@ -36,50 +36,31 @@ public class LinkDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-            this.traceStateDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.traceStateDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-            this.flagsDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.flagsDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
         this.attributesDecoder.init(state, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -153,7 +134,7 @@ public class LinkDecoder {
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.attributes);
+            val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {

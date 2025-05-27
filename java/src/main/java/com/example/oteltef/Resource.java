@@ -43,13 +43,11 @@ public class Resource {
         
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
-
     
     public StringValue getSchemaURL() {
         return this.schemaURL;
     }
 
-    
     // setSchemaURL sets the value of SchemaURL field.
     public void setSchemaURL(StringValue v) {
         if (!Types.StringEqual(this.schemaURL, v)) {
@@ -58,12 +56,9 @@ public class Resource {
         }
     }
 
-    
-
     private void markSchemaURLModified() {
         this.modifiedFields.markModified(fieldModifiedSchemaURL);
     }
-    
 
     // isSchemaURLModified returns true if the value of SchemaURL field was modified since
     // Resource was created, encoded or decoded. If the field is modified
@@ -77,8 +72,6 @@ public class Resource {
         return this.attributes;
     }
 
-    
-
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Resource was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -91,7 +84,6 @@ public class Resource {
         return this.droppedAttributesCount;
     }
 
-    
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.
     public void setDroppedAttributesCount(long v) {
         if (!Types.Uint64Equal(this.droppedAttributesCount, v)) {
@@ -100,12 +92,9 @@ public class Resource {
         }
     }
 
-    
-
     private void markDroppedAttributesCountModified() {
         this.modifiedFields.markModified(fieldModifiedDroppedAttributesCount);
     }
-    
 
     // isDroppedAttributesCountModified returns true if the value of DroppedAttributesCount field was modified since
     // Resource was created, encoded or decoded. If the field is modified
@@ -114,20 +103,10 @@ public class Resource {
     public boolean isDroppedAttributesCountModified() {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isSchemaURLModified()) {
-        }
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
-        if (this.isDroppedAttributesCountModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

@@ -54,13 +54,11 @@ public class Metric {
         this.metadata.init(this.modifiedFields, fieldModifiedMetadata);
         this.histogramBounds.init(this.modifiedFields, fieldModifiedHistogramBounds);
     }
-
     
     public StringValue getName() {
         return this.name;
     }
 
-    
     // setName sets the value of Name field.
     public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
@@ -69,12 +67,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markNameModified() {
         this.modifiedFields.markModified(fieldModifiedName);
     }
-    
 
     // isNameModified returns true if the value of Name field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -88,7 +83,6 @@ public class Metric {
         return this.description;
     }
 
-    
     // setDescription sets the value of Description field.
     public void setDescription(StringValue v) {
         if (!Types.StringEqual(this.description, v)) {
@@ -97,12 +91,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markDescriptionModified() {
         this.modifiedFields.markModified(fieldModifiedDescription);
     }
-    
 
     // isDescriptionModified returns true if the value of Description field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -116,7 +107,6 @@ public class Metric {
         return this.unit;
     }
 
-    
     // setUnit sets the value of Unit field.
     public void setUnit(StringValue v) {
         if (!Types.StringEqual(this.unit, v)) {
@@ -125,12 +115,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markUnitModified() {
         this.modifiedFields.markModified(fieldModifiedUnit);
     }
-    
 
     // isUnitModified returns true if the value of Unit field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -144,7 +131,6 @@ public class Metric {
         return this.type_;
     }
 
-    
     // setType sets the value of Type field.
     public void setType(MetricType v) {
         if (!MetricType.equals(this.type_, v)) {
@@ -153,12 +139,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markTypeModified() {
         this.modifiedFields.markModified(fieldModifiedType);
     }
-    
 
     // isTypeModified returns true if the value of Type field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -172,8 +155,6 @@ public class Metric {
         return this.metadata;
     }
 
-    
-
     // isMetadataModified returns true if the value of Metadata field was modified since
     // Metric was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -185,8 +166,6 @@ public class Metric {
     public DoubleArray getHistogramBounds() {
         return this.histogramBounds;
     }
-
-    
 
     // isHistogramBoundsModified returns true if the value of HistogramBounds field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -200,7 +179,6 @@ public class Metric {
         return this.aggregationTemporality;
     }
 
-    
     // setAggregationTemporality sets the value of AggregationTemporality field.
     public void setAggregationTemporality(long v) {
         if (!Types.Uint64Equal(this.aggregationTemporality, v)) {
@@ -209,12 +187,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markAggregationTemporalityModified() {
         this.modifiedFields.markModified(fieldModifiedAggregationTemporality);
     }
-    
 
     // isAggregationTemporalityModified returns true if the value of AggregationTemporality field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -228,7 +203,6 @@ public class Metric {
         return this.monotonic;
     }
 
-    
     // setMonotonic sets the value of Monotonic field.
     public void setMonotonic(boolean v) {
         if (!Types.BoolEqual(this.monotonic, v)) {
@@ -237,12 +211,9 @@ public class Metric {
         }
     }
 
-    
-
     private void markMonotonicModified() {
         this.modifiedFields.markModified(fieldModifiedMonotonic);
     }
-    
 
     // isMonotonicModified returns true if the value of Monotonic field was modified since
     // Metric was created, encoded or decoded. If the field is modified
@@ -251,36 +222,13 @@ public class Metric {
     public boolean isMonotonicModified() {
         return (this.modifiedFields.mask & fieldModifiedMonotonic) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isNameModified()) {
-        }
-        
-        if (this.isDescriptionModified()) {
-        }
-        
-        if (this.isUnitModified()) {
-        }
-        
-        if (this.isTypeModified()) {
-        }
-        
         if (this.isMetadataModified()) {
             this.metadata.markUnmodifiedRecursively();
         }
-        
         if (this.isHistogramBoundsModified()) {
             this.histogramBounds.markUnmodifiedRecursively();
         }
-        
-        if (this.isAggregationTemporalityModified()) {
-        }
-        
-        if (this.isMonotonicModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

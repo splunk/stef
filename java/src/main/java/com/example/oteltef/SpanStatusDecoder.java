@@ -32,22 +32,15 @@ public class SpanStatusDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        Exception err = null;
         
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-            this.messageDecoder.init(null, columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.messageDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-            this.codeDecoder.init(columns.addSubColumn());
-        if (err != null) {
-            throw err;
-        }
+        this.codeDecoder.init(columns.addSubColumn());
     }
 
     // Continue is called at the start of the frame to continue decoding column data.

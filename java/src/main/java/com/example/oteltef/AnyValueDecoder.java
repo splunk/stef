@@ -41,19 +41,19 @@ public class AnyValueDecoder {
         if (this.fieldCount <= 0) {
             return; // String and subsequent fields are skipped.
         }
-            this.stringDecoder.init(state.getAnyValueString(), columns.addSubColumn());
+        this.stringDecoder.init(state.getAnyValueString(), columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Bool and subsequent fields are skipped.
         }
-            this.boolDecoder.init(columns.addSubColumn());
+        this.boolDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Decoder.init(columns.addSubColumn());
+        this.int64Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Decoder.init(columns.addSubColumn());
+        this.float64Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Array and subsequent fields are skipped.
         }
@@ -65,7 +65,45 @@ public class AnyValueDecoder {
         if (this.fieldCount <= 6) {
             return; // Bytes and subsequent fields are skipped.
         }
-            this.bytesDecoder.init(null, columns.addSubColumn());
+        this.bytesDecoder.init(null, columns.addSubColumn());
+    }
+
+    // Decode decodes a value from the buffer into dst.
+    public AnyValue decode(AnyValue dst) throws Exception {
+        // Read type delta
+        long typeDelta = this.buf.readVarintCompact();
+        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        if (typ < 0 || typ >= AnyValue.Type.values().length) {
+            throw new Exception("Invalid oneof type");
+        }
+        dst.setType(AnyValue.Type.values()[typ]);
+        this.lastValPtr = dst;
+        // Decode selected field
+        switch (dst.getType()) {
+            case AnyValue.Type.TypeString:
+                dst.string = this.stringDecoder.decode();
+                break;
+            case AnyValue.Type.TypeBool:
+                dst.bool = this.boolDecoder.decode();
+                break;
+            case AnyValue.Type.TypeInt64:
+                dst.int64 = this.int64Decoder.decode();
+                break;
+            case AnyValue.Type.TypeFloat64:
+                dst.float64 = this.float64Decoder.decode();
+                break;
+            case AnyValue.Type.TypeArray:
+                dst.array = this.arrayDecoder.decode(dst.array);
+                break;
+            case AnyValue.Type.TypeKVList:
+                dst.kVList = this.kVListDecoder.decode(dst.kVList);
+                break;
+            case AnyValue.Type.TypeBytes:
+                dst.bytes = this.bytesDecoder.decode();
+                break;
+            default:
+                break;
+        }
+        return dst;
     }
 }
-

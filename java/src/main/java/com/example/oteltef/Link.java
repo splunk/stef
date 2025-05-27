@@ -8,8 +8,8 @@ import java.util.*;
 
 public class Link {
     
-    Types.Bytes traceID;
-    Types.Bytes spanID;
+    Bytes traceID;
+    Bytes spanID;
     StringValue traceState;
     long flags;
     Attributes attributes;
@@ -49,27 +49,22 @@ public class Link {
         
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
-
     
-    public Types.Bytes getTraceID() {
+    public Bytes getTraceID() {
         return this.traceID;
     }
 
-    
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(Types.Bytes v) {
+    public void setTraceID(Bytes v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
         }
     }
 
-    
-
     private void markTraceIDModified() {
         this.modifiedFields.markModified(fieldModifiedTraceID);
     }
-    
 
     // isTraceIDModified returns true if the value of TraceID field was modified since
     // Link was created, encoded or decoded. If the field is modified
@@ -79,25 +74,21 @@ public class Link {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public Types.Bytes getSpanID() {
+    public Bytes getSpanID() {
         return this.spanID;
     }
 
-    
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(Types.Bytes v) {
+    public void setSpanID(Bytes v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
         }
     }
 
-    
-
     private void markSpanIDModified() {
         this.modifiedFields.markModified(fieldModifiedSpanID);
     }
-    
 
     // isSpanIDModified returns true if the value of SpanID field was modified since
     // Link was created, encoded or decoded. If the field is modified
@@ -111,7 +102,6 @@ public class Link {
         return this.traceState;
     }
 
-    
     // setTraceState sets the value of TraceState field.
     public void setTraceState(StringValue v) {
         if (!Types.StringEqual(this.traceState, v)) {
@@ -120,12 +110,9 @@ public class Link {
         }
     }
 
-    
-
     private void markTraceStateModified() {
         this.modifiedFields.markModified(fieldModifiedTraceState);
     }
-    
 
     // isTraceStateModified returns true if the value of TraceState field was modified since
     // Link was created, encoded or decoded. If the field is modified
@@ -139,7 +126,6 @@ public class Link {
         return this.flags;
     }
 
-    
     // setFlags sets the value of Flags field.
     public void setFlags(long v) {
         if (!Types.Uint64Equal(this.flags, v)) {
@@ -148,12 +134,9 @@ public class Link {
         }
     }
 
-    
-
     private void markFlagsModified() {
         this.modifiedFields.markModified(fieldModifiedFlags);
     }
-    
 
     // isFlagsModified returns true if the value of Flags field was modified since
     // Link was created, encoded or decoded. If the field is modified
@@ -167,8 +150,6 @@ public class Link {
         return this.attributes;
     }
 
-    
-
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Link was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -181,7 +162,6 @@ public class Link {
         return this.droppedAttributesCount;
     }
 
-    
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.
     public void setDroppedAttributesCount(long v) {
         if (!Types.Uint64Equal(this.droppedAttributesCount, v)) {
@@ -190,12 +170,9 @@ public class Link {
         }
     }
 
-    
-
     private void markDroppedAttributesCountModified() {
         this.modifiedFields.markModified(fieldModifiedDroppedAttributesCount);
     }
-    
 
     // isDroppedAttributesCountModified returns true if the value of DroppedAttributesCount field was modified since
     // Link was created, encoded or decoded. If the field is modified
@@ -204,29 +181,10 @@ public class Link {
     public boolean isDroppedAttributesCountModified() {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
-        if (this.isTraceIDModified()) {
-        }
-        
-        if (this.isSpanIDModified()) {
-        }
-        
-        if (this.isTraceStateModified()) {
-        }
-        
-        if (this.isFlagsModified()) {
-        }
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
-        if (this.isDroppedAttributesCountModified()) {
-        }
-        
         this.modifiedFields.mask = 0;
     }
 

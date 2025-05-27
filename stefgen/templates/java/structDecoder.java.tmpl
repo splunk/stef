@@ -39,25 +39,21 @@ public class {{ .StructName }}Decoder {
         {{- if .DictName}}
         this.dict = state.get{{.DictName}}();
         {{- end}}
-        Exception err = null;
         {{ range $i,$e := .Fields }}
         if (this.fieldCount <= {{$i}}) {
             return; // {{.Name}} and subsequent fields are skipped.
         }
         {{- if .Type.IsPrimitive}}
             {{- if .Type.DictName}}
-            this.{{.name}}Decoder.init(state.get{{.Type.DictName}}(), columns.addSubColumn());
+        this.{{.name}}Decoder.init(state.get{{.Type.DictName}}(), columns.addSubColumn());
             {{- else if .Type.IsDictPossible}}
-            this.{{.name}}Decoder.init(null, columns.addSubColumn());
+        this.{{.name}}Decoder.init(null, columns.addSubColumn());
             {{- else}}
-            this.{{.name}}Decoder.init(columns.addSubColumn());
+        this.{{.name}}Decoder.init(columns.addSubColumn());
             {{- end}}
         {{- else}}
         this.{{.name}}Decoder.init(state, columns.addSubColumn());
         {{- end}}
-        if (err != null) {
-            throw err;
-        }
         {{- end }}
     }
 
@@ -116,7 +112,7 @@ public class {{ .StructName }}Decoder {
             {{- if .Type.IsPrimitive }}
             val.{{.name}} = this.{{.name}}Decoder.decode();
             {{- else}}
-            this.{{.name}}Decoder.decode(val.{{.name}});
+            val.{{.name}} = this.{{.name}}Decoder.decode(val.{{.name}});
             {{- end }}
         }
         {{ end }}

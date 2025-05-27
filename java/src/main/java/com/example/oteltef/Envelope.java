@@ -39,13 +39,10 @@ public class Envelope {
         
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
-
     
     public EnvelopeAttributes getAttributes() {
         return this.attributes;
     }
-
-    
 
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Envelope was created, encoded or decoded. If the field is modified
@@ -54,14 +51,10 @@ public class Envelope {
     public boolean isAttributesModified() {
         return (this.modifiedFields.mask & fieldModifiedAttributes) != 0;
     }
-    
-
     public void markUnmodifiedRecursively() {
-        
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();
         }
-        
         this.modifiedFields.mask = 0;
     }
 
