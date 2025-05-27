@@ -436,13 +436,13 @@ public class Metric {
     @Override
     public int hashCode() {
         return Objects.hash(
-            name, 
-            description
-            unit
-            type_
-            metadata
-            histogramBounds
-            aggregationTemporality
+            name,
+            description,
+            unit,
+            type_,
+            metadata,
+            histogramBounds,
+            aggregationTemporality,
             monotonic
         );
     }

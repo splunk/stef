@@ -310,10 +310,10 @@ public class Scope {
     @Override
     public int hashCode() {
         return Objects.hash(
-            name, 
-            version
-            schemaURL
-            attributes
+            name,
+            version,
+            schemaURL,
+            attributes,
             droppedAttributesCount
         );
     }

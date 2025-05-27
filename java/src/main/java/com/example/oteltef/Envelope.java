@@ -126,7 +126,7 @@ public class Envelope {
     @Override
     public int hashCode() {
         return Objects.hash(
-            attributes, 
+            attributes
         );
     }
 }

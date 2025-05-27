@@ -299,11 +299,11 @@ public class Metrics {
     @Override
     public int hashCode() {
         return Objects.hash(
-            envelope, 
-            metric
-            resource
-            scope
-            attributes
+            envelope,
+            metric,
+            resource,
+            scope,
+            attributes,
             point
         );
     }

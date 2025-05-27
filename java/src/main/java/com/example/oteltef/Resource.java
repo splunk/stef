@@ -218,8 +218,8 @@ public class Resource {
     @Override
     public int hashCode() {
         return Objects.hash(
-            schemaURL, 
-            attributes
+            schemaURL,
+            attributes,
             droppedAttributesCount
         );
     }

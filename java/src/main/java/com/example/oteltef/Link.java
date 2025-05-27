@@ -356,11 +356,11 @@ public class Link {
     @Override
     public int hashCode() {
         return Objects.hash(
-            traceID, 
-            spanID
-            traceState
-            flags
-            attributes
+            traceID,
+            spanID,
+            traceState,
+            flags,
+            attributes,
             droppedAttributesCount
         );
     }

@@ -1,0 +1,230 @@
+// {{ .StructName }} Java class generated from template
+package {{ .PackageName }};
+
+import net.stef.StringValue;
+import net.stef.Types;
+import java.util.*;
+
+// {{ .StructName }} is a oneof struct.
+public class {{ .StructName }} {
+    // The current type of the oneof.
+    {{$.StructName}}Type typ;
+    {{ range .Fields }}
+    {{.Type.Storage}} {{.name}};
+    {{- end }}
+
+    // Pointer to parent's modifiedFields
+    private ModifiedFields parentModifiedFields;
+    // Bit to set in parent's modifiedFields when this oneof is modified.
+    private long parentModifiedBit;
+
+    // Init must be called once, before the {{.StructName}} is used.
+    public void init() {
+        this.init(null, 0);
+    }
+
+    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        this.parentModifiedFields = parentModifiedFields;
+        this.parentModifiedBit = parentModifiedBit;
+        {{ range .Fields }}
+        {{- if .Type.Flags.StoreByPtr}}
+        this.{{.name}} = new {{ .Type.Storage }}();
+        {{- end }}
+        {{- if not .Type.IsPrimitive }}
+        this.{{.name}}.init(parentModifiedFields, parentModifiedBit);
+        {{- end }}
+        {{- end }}
+    }
+
+    // Type enum for oneof
+    public enum {{$.StructName}}Type {
+        {{.StructName}}TypeNone,
+        {{- range .Fields }}
+        {{$.StructName}}Type{{.Name}},
+        {{- end }}
+        {{.StructName}}TypeCount
+    }
+
+    // Type returns the type of the value currently contained in {{ $.StructName }}.
+    public {{$.StructName}}Type getType() {
+        return typ;
+    }
+
+    // SetType sets the type of the value currently contained in {{ $.StructName }}.
+    public void setType({{$.StructName}}Type typ) {
+        if (this.typ != typ) {
+            this.typ = typ;
+            this.markParentModified();
+        }
+    }
+
+    {{ range .Fields }}
+    // {{.Name}} returns the value if the contained type is currently {{$.StructName}}Type{{.Name}}.
+    // The caller must check the type via getType() before attempting to call this function.
+    public {{.Type.Exported}} get{{.Name}}() {
+        {{- if .Type.IsPrimitive}}
+        return this.{{.name}};
+        {{- else}}
+        return this.{{.name}};
+        {{- end}}
+    }
+    {{if .Type.IsPrimitive}}
+    // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName}}Type{{.Name}}.
+    public void set{{.Name}}({{.Type.Exported}} v) {
+        if (!Objects.equals(this.{{.name}}, v) || this.typ != {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}) {
+            this.{{.name}} = v;
+            this.typ = {{$.StructName}}Type.{{$.StructName}}Type{{.Name}};
+            this.markParentModified();
+        }
+    }
+    {{end}}
+    {{ end }}
+
+    // Clone returns a deep copy of this oneof.
+    public {{.StructName}} clone() {
+        {{.StructName}} cpy = new {{.StructName}}();
+        cpy.typ = this.typ;
+        {{- range .Fields }}
+        cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
+        {{- end }}
+        return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        {{- range .Fields -}}
+        {{- if .Type.MustClone}}size += this.{{.name}}.byteSize();{{end}}
+        {{- end }}
+        return size;
+    }
+
+    // CopyFrom performs a deep copy from src.
+    public void copyFrom({{.StructName}} src) {
+        this.typ = src.typ;
+        {{- range .Fields }}
+        this.{{.name}} = src.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
+        {{- end }}
+    }
+
+    private void markParentModified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markModified(parentModifiedBit);
+        }
+    }
+
+    public void markUnmodified() {
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive }}
+        this.{{.name}}.markUnmodified();
+        {{- end }}
+        {{- end }}
+    }
+
+    public void markUnmodifiedRecursively() {
+        switch (this.typ) {
+        {{- range .Fields }}
+            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            {{- if not .Type.IsPrimitive }}
+                this.{{.name}}.markUnmodifiedRecursively();
+            {{- end }}
+                break;
+        {{- end }}
+        default:
+            break;
+        }
+    }
+
+    // isEqual performs deep comparison and returns true if struct is equal to val.
+    public boolean isEqual({{.StructName}} val) {
+        if (this.typ != val.typ) return false;
+        switch (this.typ) {
+        {{- range .Fields }}
+            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+            {{- if .Type.IsPrimitive }}
+                if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
+                return false;
+                }
+            {{- else }}
+                if (!this.{{.name}}.isEqual(val.{{.name}})) {
+                return false;
+                }
+            {{- end }}
+                break;
+        {{- end }}
+        default:
+            break;
+        }
+        return true;
+    }
+
+    public static boolean {{.StructName}}Equal({{.StructName}} left, {{.StructName}} right) {
+        return left.isEqual(right);
+    }
+
+    // compare performs deep comparison and returns 0 if equal, negative if left < right, positive if left > right.
+    public static int compare({{.StructName}} left, {{.StructName}} right) {
+        if (left == null) return right == null ? 0 : -1;
+        if (right == null) return 1;
+        int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
+        if (c != 0) return c;
+        switch (left.typ) {
+        {{- range .Fields }}
+            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+                c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
+                if (c != 0) {
+                    return c;
+                }
+                break;
+        {{- end }}
+        default:
+            break;
+        }
+        return 0;
+    }
+
+    // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
+    public void mutateRandom(Random random) {
+        int fieldCount = {{len .Fields}};
+        boolean typeChanged = false;
+        if (random.nextInt(10) == 0) {
+            this.setType({{$.StructName}}Type.values()[random.nextInt(fieldCount + 1)]);
+            typeChanged = true;
+        }
+        switch (this.typ) {
+        {{- range .Fields }}
+            case {{$.StructName}}Type.{{$.StructName}}Type{{.Name}}:
+                if (typeChanged || random.nextInt(2) == 0) {
+                {{- if not .Type.IsPrimitive }}
+                    this.{{.name}}.mutateRandom(random);
+                {{- else }}
+                    this.set{{.Name}}({{.Type.RandomFunc}}(random));
+                {{- end }}
+                }
+                break;
+        {{- end }}
+        default:
+            break;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual(({{.StructName}})o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+        {{- range $index, $element := .Fields }}
+            {{.name}},
+        {{- end }}
+            typ
+        );
+    }
+}
+

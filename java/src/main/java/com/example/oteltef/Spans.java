@@ -230,9 +230,9 @@ public class Spans {
     @Override
     public int hashCode() {
         return Objects.hash(
-            envelope, 
-            resource
-            scope
+            envelope,
+            resource,
+            scope,
             span
         );
     }

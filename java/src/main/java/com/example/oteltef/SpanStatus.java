@@ -184,7 +184,7 @@ public class SpanStatus {
     @Override
     public int hashCode() {
         return Objects.hash(
-            message, 
+            message,
             code
         );
     }

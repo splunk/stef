@@ -252,9 +252,9 @@ public class Point {
     @Override
     public int hashCode() {
         return Objects.hash(
-            startTimestamp, 
-            timestamp
-            value
+            startTimestamp,
+            timestamp,
+            value,
             exemplars
         );
     }

@@ -197,8 +197,8 @@ public class {{ .StructName }} {
     @Override
     public int hashCode() {
         return Objects.hash(
-        {{- range $index, $element := .Fields }}
-            {{.name}}{{if not $index}}, {{end}}
+        {{- range $index, $element := .Fields }}{{if $index}},{{end}}
+            {{.name}}
         {{- end }}
         );
     }

@@ -688,19 +688,19 @@ public class Span {
     @Override
     public int hashCode() {
         return Objects.hash(
-            traceID, 
-            spanID
-            traceState
-            parentSpanID
-            flags
-            name
-            kind
-            startTimeUnixNano
-            endTimeUnixNano
-            attributes
-            droppedAttributesCount
-            events
-            links
+            traceID,
+            spanID,
+            traceState,
+            parentSpanID,
+            flags,
+            name,
+            kind,
+            startTimeUnixNano,
+            endTimeUnixNano,
+            attributes,
+            droppedAttributesCount,
+            events,
+            links,
             status
         );
     }

@@ -298,10 +298,10 @@ public class Exemplar {
     @Override
     public int hashCode() {
         return Objects.hash(
-            timestamp, 
-            value
-            spanID
-            traceID
+            timestamp,
+            value,
+            spanID,
+            traceID,
             filteredAttributes
         );
     }

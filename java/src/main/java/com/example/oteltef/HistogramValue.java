@@ -358,10 +358,10 @@ public class HistogramValue {
     @Override
     public int hashCode() {
         return Objects.hash(
-            count, 
-            sum
-            min
-            max
+            count,
+            sum,
+            min,
+            max,
             bucketCounts
         );
     }
