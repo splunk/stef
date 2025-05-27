@@ -15,7 +15,16 @@ import (
 	"github.com/splunk/stef/stefgen/templates"
 )
 
+// Lang is the target language for code generation.
+type Lang string
+
+const (
+	LangGo   Lang = "go"
+	LangJava Lang = "java"
+)
+
 type Generator struct {
+	Lang      Lang
 	OutputDir string
 
 	// Buffer to accumulated generated file.
@@ -30,14 +39,16 @@ type Generator struct {
 
 func (g *Generator) GenFile(schema *schema.Schema) error {
 	var err error
-	g.compiledSchema, err = compileSchema(schema)
+	g.compiledSchema, err = g.compileSchema(schema)
 	if err != nil {
 		return err
 	}
 
 	g.schema = schema
 
-	if err := g.oTemplate("common.go.tmpl", "common.go", make(map[string]any)); err != nil {
+	if err := g.oTemplates(
+		"modifiedfields", g.stefSymbol2FileName("ModifiedFields"), make(map[string]any),
+	); err != nil {
 		return err
 	}
 
@@ -73,7 +84,7 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 }
 
 func (g *Generator) formatAndWriteToFile() error {
-	destFileName := path.Base(strings.TrimSuffix(g.fileName, path.Ext(g.fileName))) + ".go"
+	destFileName := path.Base(strings.TrimSuffix(g.fileName, path.Ext(g.fileName))) + "." + string(g.Lang)
 	destFileName = path.Join(g.OutputDir, destFileName)
 	destDir := path.Dir(destFileName)
 
@@ -110,21 +121,50 @@ func (g *Generator) oStartFile(fileName string) error {
 	return g.lastErr
 }
 
-func (g *Generator) oTemplate(templateName, outputFileName string, data map[string]any) error {
+// oTemplates generates multiple files from templates with a common prefix.
+func (g *Generator) oTemplates(templateNamePrefix, outputNamePrefix string, data map[string]any) error {
+	templateDir := string(g.Lang)
+	files, err := templates.Templates.ReadDir(templateDir)
+	if err != nil {
+		return fmt.Errorf("failed to read template directory %s: %w", templateDir, err)
+	}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		templateFileName := file.Name()
+		if !strings.HasPrefix(templateFileName, templateNamePrefix) {
+			continue
+		}
+
+		templateSuffix := strings.TrimPrefix(templateFileName, templateNamePrefix)
+		templateSuffix = strings.TrimSuffix(templateSuffix, path.Ext(templateSuffix))
+		outputFileName := outputNamePrefix + templateSuffix
+
+		if err := g.oTemplate(templateFileName, outputFileName, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// oTemplate generates a single file from a template.
+func (g *Generator) oTemplate(templateFileName, outputFileName string, data map[string]any) error {
 	data["PackageName"] = g.compiledSchema.PackageName
 
 	if err := g.oStartFile(outputFileName); err != nil {
 		return err
 	}
 
-	t, err := template.ParseFS(templates.Templates, templateName)
+	t, err := template.ParseFS(templates.Templates, path.Join(string(g.Lang), templateFileName))
 	if err != nil {
 		return err
 	}
 
 	contentBuf := bytes.NewBuffer(nil)
 
-	err = t.Lookup(templateName).Execute(contentBuf, data)
+	err = t.Lookup(templateFileName).Execute(contentBuf, data)
 	if err != nil {
 		return err
 	}
@@ -140,4 +180,16 @@ func (g *Generator) oTemplate(templateName, outputFileName string, data map[stri
 	}
 
 	return g.lastErr
+}
+
+// Convert a generated STEF symbol to a file name.
+func (g *Generator) stefSymbol2FileName(name string) string {
+	switch g.Lang {
+	case LangGo:
+		return strings.ToLower(name)
+	case LangJava:
+		return name
+	default:
+		panic("unsupported language")
+	}
 }

@@ -78,12 +78,13 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		"OptionalFieldCount": optionalFieldIndex,
 	}
 
-	templateName := "struct.go.tmpl"
+	templateName := "struct"
 	if str.OneOf {
-		templateName = "oneof.go.tmpl"
+		templateName = "oneof"
 	}
 
-	if err := g.oTemplate(templateName, strings.ToLower(str.Name), data); err != nil {
+	fileName := g.stefSymbol2FileName(str.Name)
+	if err := g.oTemplates(templateName, fileName, data); err != nil {
 		return err
 	}
 

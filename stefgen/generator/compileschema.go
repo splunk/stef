@@ -2,16 +2,24 @@ package generator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-func compileSchema(src *schema.Schema) (*genSchema, error) {
+func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 	dst := &genSchema{
 		PackageName: src.PackageName,
 		Structs:     map[string]*genStructDef{},
 		Multimaps:   map[string]*genMapDef{},
 		Enums:       map[string]*genEnumDef{},
+	}
+
+	switch g.Lang {
+	case LangGo:
+		// For Go, we use the last component of the package name as the package name.
+		packageComponents := strings.Split(dst.PackageName, ".")
+		dst.PackageName = packageComponents[len(packageComponents)-1]
 	}
 
 	for name, struc := range src.Structs {

@@ -2,7 +2,6 @@ package generator
 
 import (
 	"fmt"
-	"strings"
 )
 
 func (g *Generator) oArrays() error {
@@ -50,5 +49,5 @@ func (g *Generator) oArray(array *genStructFieldDef) error {
 		"Recursive":    array.Recursive,
 	}
 
-	return g.oTemplate("array.go.tmpl", strings.ToLower(array.Type.TypeName())+".go", data)
+	return g.oTemplates("array", g.stefSymbol2FileName(array.Type.TypeName()), data)
 }

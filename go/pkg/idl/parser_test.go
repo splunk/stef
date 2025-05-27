@@ -18,7 +18,11 @@ func TestParserErrors(t *testing.T) {
 	}{
 		{
 			input: "package ",
-			err:   "test.stef:1:9: package name expected",
+			err:   "test.stef:1:9: identifier expected",
+		},
+		{
+			input: "package abc.",
+			err:   "test.stef:1:13: identifier expected",
 		},
 		{
 			input: "package abc\nhello",

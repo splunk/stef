@@ -1,7 +1,5 @@
 package generator
 
-import "strings"
-
 func (g *Generator) oEnums() error {
 	for _, enum := range g.compiledSchema.Enums {
 		err := g.oEnum(enum)
@@ -30,9 +28,7 @@ func (g *Generator) oEnum(enum *genEnumDef) error {
 		"Fields":   fields,
 	}
 
-	templateName := "enum.go.tmpl"
-
-	if err := g.oTemplate(templateName, strings.ToLower(enum.Name), data); err != nil {
+	if err := g.oTemplates("enum", g.stefSymbol2FileName(enum.Name), data); err != nil {
 		return err
 	}
 

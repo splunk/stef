@@ -10,4 +10,5 @@ build:
 
 generate:
 	cd ../../stefgen && make build
-	../../stefgen/bin/stefgen otel.stef
+	../../stefgen/bin/stefgen --lang=go otel.stef
+	../../stefgen/bin/stefgen --lang=java --outdir=../../java/src/main/java/com/example otel.stef
