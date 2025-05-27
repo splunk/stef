@@ -90,7 +90,7 @@ func (e *STEFEncoding) Name() string {
 }
 
 func (e *STEFEncoding) LongName() string {
-	return e.Name()
+	return "STEF Sorted"
 }
 
 func (e *STEFEncoding) StartMultipart(compression string) (encodings.MetricMultipartStream, error) {
