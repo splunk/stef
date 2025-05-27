@@ -131,7 +131,12 @@ public class Spans {
     }
 
     public Spans clone() {
-        return new Spans(this.envelope, this.resource, this.scope, this.span, );
+        Spans cpy = new Spans();
+        cpy.envelope = this.envelope.clone();
+        cpy.resource = this.resource.clone();
+        cpy.scope = this.scope.clone();
+        cpy.span = this.span.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -157,7 +162,7 @@ public class Spans {
 
     // cmpSpans performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpSpans(Spans left, Spans right) {
+    public static int compare(Spans left, Spans right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -169,22 +174,22 @@ public class Spans {
         }
         int c;
         
-        c = CmpEnvelope(left.envelope, right.envelope);
+        c = Envelope.compare(left.envelope, right.envelope);
         if (c != 0) {
             return c;
         }
         
-        c = CmpResource(left.resource, right.resource);
+        c = Resource.compare(left.resource, right.resource);
         if (c != 0) {
             return c;
         }
         
-        c = CmpScope(left.scope, right.scope);
+        c = Scope.compare(left.scope, right.scope);
         if (c != 0) {
             return c;
         }
         
-        c = CmpSpan(left.span, right.span);
+        c = Span.compare(left.span, right.span);
         if (c != 0) {
             return c;
         }
@@ -211,5 +216,24 @@ public class Spans {
             this.span.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Spans)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            envelope, 
+            resource
+            scope
+            span
+        );
     }
 }

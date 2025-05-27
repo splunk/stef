@@ -198,7 +198,13 @@ public class Scope {
     }
 
     public Scope clone() {
-        return new Scope(this.name, this.version, this.schemaURL, this.attributes.clone(), this.droppedAttributesCount, );
+        Scope cpy = new Scope();
+        cpy.name = this.name;
+        cpy.version = this.version;
+        cpy.schemaURL = this.schemaURL;
+        cpy.attributes = this.attributes.clone();
+        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -227,7 +233,7 @@ public class Scope {
 
     // cmpScope performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpScope(Scope left, Scope right) {
+    public static int compare(Scope left, Scope right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -290,5 +296,25 @@ public class Scope {
             this.setDroppedAttributesCount(Types.Uint64Random(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Scope)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            name, 
+            version
+            schemaURL
+            attributes
+            droppedAttributesCount
+        );
     }
 }

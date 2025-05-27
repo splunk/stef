@@ -4,6 +4,7 @@ package {{ .PackageName }};
 import net.stef.BitsWriter;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
+import net.stef.codecs.*;
 
 public class {{ .StructName }}Encoder {
     private BitsWriter buf = new BitsWriter();

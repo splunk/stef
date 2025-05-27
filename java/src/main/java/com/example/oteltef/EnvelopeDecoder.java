@@ -60,7 +60,7 @@ public class EnvelopeDecoder {
         this.attributesDecoder.reset();
     }
 
-    public void decode(Envelope dstPtr) throws Exception {
+    public Envelope decode(Envelope dstPtr) throws Exception {
         Envelope val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -68,10 +68,11 @@ public class EnvelopeDecoder {
         
         if ((val.getModifiedFields().mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         
+        return val;
     }
 }
 

@@ -154,7 +154,7 @@ public class MetricDecoder {
         this.monotonicDecoder.reset();
     }
 
-    public void decode(Metric[] dstPtr) throws Exception {
+    public Metric decode(Metric dstPtr) throws Exception {
         // Check if the Metric exists in the dictionary.
         int dictFlag = this.buf.readBit();
         if (dictFlag == 0) {
@@ -163,14 +163,14 @@ public class MetricDecoder {
                 throw new Exception("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr[0] = this.lastValPtr;
-            return;
+            dstPtr = this.lastValPtr;
+            return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         Metric val = this.lastValPtr.clone();
         this.lastValPtr = val;
-        dstPtr[0] = val;
+        dstPtr = val;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
         
@@ -197,12 +197,12 @@ public class MetricDecoder {
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
-            val.metadata = this.metadataDecoder.decode();
+            this.metadataDecoder.decode(val.metadata);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
-            val.histogramBounds = this.histogramBoundsDecoder.decode();
+            this.histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {
@@ -218,6 +218,7 @@ public class MetricDecoder {
         
         this.dict.add(val);
         
+        return val;
     }
 }
 

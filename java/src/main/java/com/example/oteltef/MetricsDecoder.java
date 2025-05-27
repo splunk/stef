@@ -125,7 +125,7 @@ public class MetricsDecoder {
         this.pointDecoder.reset();
     }
 
-    public void decode(Metrics dstPtr) throws Exception {
+    public Metrics decode(Metrics dstPtr) throws Exception {
         Metrics val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -133,35 +133,36 @@ public class MetricsDecoder {
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            val.envelope = this.envelopeDecoder.decode();
+            this.envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
-            val.metric = this.metricDecoder.decode();
+            this.metricDecoder.decode(val.metric);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            val.resource = this.resourceDecoder.decode();
+            this.resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            val.scope = this.scopeDecoder.decode();
+            this.scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
-            val.point = this.pointDecoder.decode();
+            this.pointDecoder.decode(val.point);
         }
         
         
+        return val;
     }
 }
 

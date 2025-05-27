@@ -73,7 +73,7 @@ public class SpanStatusDecoder {
         this.codeDecoder.reset();
     }
 
-    public void decode(SpanStatus dstPtr) throws Exception {
+    public SpanStatus decode(SpanStatus dstPtr) throws Exception {
         SpanStatus val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -90,6 +90,7 @@ public class SpanStatusDecoder {
         }
         
         
+        return val;
     }
 }
 

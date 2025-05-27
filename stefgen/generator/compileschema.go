@@ -238,6 +238,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 
 	if src.Struct != "" {
 		return &genStructTypeRef{
+			Lang: lang,
 			Name: src.Struct,
 		}
 	}

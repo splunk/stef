@@ -112,7 +112,7 @@ public class HistogramValueDecoder {
         this.bucketCountsDecoder.reset();
     }
 
-    public void decode(HistogramValue dstPtr) throws Exception {
+    public HistogramValue decode(HistogramValue dstPtr) throws Exception {
         HistogramValue val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -142,10 +142,11 @@ public class HistogramValueDecoder {
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
-            val.bucketCounts = this.bucketCountsDecoder.decode();
+            this.bucketCountsDecoder.decode(val.bucketCounts);
         }
         
         
+        return val;
     }
 }
 

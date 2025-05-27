@@ -5,6 +5,7 @@ package com.example.oteltef;
 import net.stef.BitsWriter;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
+import net.stef.codecs.*;
 
 public class EventEncoder {
     private BitsWriter buf = new BitsWriter();

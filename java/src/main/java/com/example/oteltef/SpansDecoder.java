@@ -99,7 +99,7 @@ public class SpansDecoder {
         this.spanDecoder.reset();
     }
 
-    public void decode(Spans dstPtr) throws Exception {
+    public Spans decode(Spans dstPtr) throws Exception {
         Spans val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -107,25 +107,26 @@ public class SpansDecoder {
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            val.envelope = this.envelopeDecoder.decode();
+            this.envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            val.resource = this.resourceDecoder.decode();
+            this.resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            val.scope = this.scopeDecoder.decode();
+            this.scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
-            val.span = this.spanDecoder.decode();
+            this.spanDecoder.decode(val.span);
         }
         
         
+        return val;
     }
 }
 

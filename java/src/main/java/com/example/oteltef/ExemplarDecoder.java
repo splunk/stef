@@ -112,7 +112,7 @@ public class ExemplarDecoder {
         this.filteredAttributesDecoder.reset();
     }
 
-    public void decode(Exemplar dstPtr) throws Exception {
+    public Exemplar decode(Exemplar dstPtr) throws Exception {
         Exemplar val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -125,7 +125,7 @@ public class ExemplarDecoder {
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            val.value = this.valueDecoder.decode();
+            this.valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedSpanID) != 0) {
@@ -140,10 +140,11 @@ public class ExemplarDecoder {
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.filteredAttributes = this.filteredAttributesDecoder.decode();
+            this.filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         
         
+        return val;
     }
 }
 

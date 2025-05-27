@@ -153,7 +153,12 @@ public class Point {
     }
 
     public Point clone() {
-        return new Point(this.startTimestamp, this.timestamp, this.value, this.exemplars, );
+        Point cpy = new Point();
+        cpy.startTimestamp = this.startTimestamp;
+        cpy.timestamp = this.timestamp;
+        cpy.value = this.value.clone();
+        cpy.exemplars = this.exemplars.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -179,7 +184,7 @@ public class Point {
 
     // cmpPoint performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpPoint(Point left, Point right) {
+    public static int compare(Point left, Point right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -201,7 +206,7 @@ public class Point {
             return c;
         }
         
-        c = CmpPointValue(left.value, right.value);
+        c = PointValue.compare(left.value, right.value);
         if (c != 0) {
             return c;
         }
@@ -233,5 +238,24 @@ public class Point {
             this.exemplars.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Point)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            startTimestamp, 
+            timestamp
+            value
+            exemplars
+        );
     }
 }

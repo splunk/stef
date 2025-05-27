@@ -99,7 +99,7 @@ public class EventDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
-    public void decode(Event dstPtr) throws Exception {
+    public Event decode(Event dstPtr) throws Exception {
         Event val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -117,7 +117,7 @@ public class EventDecoder {
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedDroppedAttributesCount) != 0) {
@@ -126,6 +126,7 @@ public class EventDecoder {
         }
         
         
+        return val;
     }
 }
 

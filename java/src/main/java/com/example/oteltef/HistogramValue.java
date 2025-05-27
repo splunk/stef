@@ -246,7 +246,13 @@ public class HistogramValue {
     }
 
     public HistogramValue clone() {
-        return new HistogramValue(this.count, this.sum, this.min, this.max, this.bucketCounts, );
+        HistogramValue cpy = new HistogramValue();
+        cpy.count = this.count;
+        cpy.sum = this.sum;
+        cpy.min = this.min;
+        cpy.max = this.max;
+        cpy.bucketCounts = this.bucketCounts.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -275,7 +281,7 @@ public class HistogramValue {
 
     // cmpHistogramValue performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpHistogramValue(HistogramValue left, HistogramValue right) {
+    public static int compare(HistogramValue left, HistogramValue right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -338,5 +344,25 @@ public class HistogramValue {
             this.bucketCounts.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((HistogramValue)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            count, 
+            sum
+            min
+            max
+            bucketCounts
+        );
     }
 }

@@ -231,7 +231,14 @@ public class Link {
     }
 
     public Link clone() {
-        return new Link(this.traceID, this.spanID, this.traceState, this.flags, this.attributes, this.droppedAttributesCount, );
+        Link cpy = new Link();
+        cpy.traceID = this.traceID;
+        cpy.spanID = this.spanID;
+        cpy.traceState = this.traceState;
+        cpy.flags = this.flags;
+        cpy.attributes = this.attributes.clone();
+        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -263,7 +270,7 @@ public class Link {
 
     // cmpLink performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpLink(Link left, Link right) {
+    public static int compare(Link left, Link right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -335,5 +342,26 @@ public class Link {
             this.setDroppedAttributesCount(Types.Uint64Random(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Link)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            traceID, 
+            spanID
+            traceState
+            flags
+            attributes
+            droppedAttributesCount
+        );
     }
 }

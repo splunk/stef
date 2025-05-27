@@ -174,7 +174,14 @@ public class Metrics {
     }
 
     public Metrics clone() {
-        return new Metrics(this.envelope, this.metric, this.resource, this.scope, this.attributes, this.point, );
+        Metrics cpy = new Metrics();
+        cpy.envelope = this.envelope.clone();
+        cpy.metric = this.metric.clone();
+        cpy.resource = this.resource.clone();
+        cpy.scope = this.scope.clone();
+        cpy.attributes = this.attributes.clone();
+        cpy.point = this.point.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -206,7 +213,7 @@ public class Metrics {
 
     // cmpMetrics performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpMetrics(Metrics left, Metrics right) {
+    public static int compare(Metrics left, Metrics right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -218,22 +225,22 @@ public class Metrics {
         }
         int c;
         
-        c = CmpEnvelope(left.envelope, right.envelope);
+        c = Envelope.compare(left.envelope, right.envelope);
         if (c != 0) {
             return c;
         }
         
-        c = CmpMetric(left.metric, right.metric);
+        c = Metric.compare(left.metric, right.metric);
         if (c != 0) {
             return c;
         }
         
-        c = CmpResource(left.resource, right.resource);
+        c = Resource.compare(left.resource, right.resource);
         if (c != 0) {
             return c;
         }
         
-        c = CmpScope(left.scope, right.scope);
+        c = Scope.compare(left.scope, right.scope);
         if (c != 0) {
             return c;
         }
@@ -243,7 +250,7 @@ public class Metrics {
             return c;
         }
         
-        c = CmpPoint(left.point, right.point);
+        c = Point.compare(left.point, right.point);
         if (c != 0) {
             return c;
         }
@@ -278,5 +285,26 @@ public class Metrics {
             this.point.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Metrics)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            envelope, 
+            metric
+            resource
+            scope
+            attributes
+            point
+        );
     }
 }

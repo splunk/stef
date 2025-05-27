@@ -186,7 +186,13 @@ public class Exemplar {
     }
 
     public Exemplar clone() {
-        return new Exemplar(this.timestamp, this.value, this.spanID, this.traceID, this.filteredAttributes, );
+        Exemplar cpy = new Exemplar();
+        cpy.timestamp = this.timestamp;
+        cpy.value = this.value.clone();
+        cpy.spanID = this.spanID;
+        cpy.traceID = this.traceID;
+        cpy.filteredAttributes = this.filteredAttributes.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -215,7 +221,7 @@ public class Exemplar {
 
     // cmpExemplar performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpExemplar(Exemplar left, Exemplar right) {
+    public static int compare(Exemplar left, Exemplar right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -232,7 +238,7 @@ public class Exemplar {
             return c;
         }
         
-        c = CmpExemplarValue(left.value, right.value);
+        c = ExemplarValue.compare(left.value, right.value);
         if (c != 0) {
             return c;
         }
@@ -278,5 +284,25 @@ public class Exemplar {
             this.filteredAttributes.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Exemplar)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            timestamp, 
+            value
+            spanID
+            traceID
+            filteredAttributes
+        );
     }
 }

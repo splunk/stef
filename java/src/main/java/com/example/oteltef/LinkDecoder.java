@@ -125,7 +125,7 @@ public class LinkDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
-    public void decode(Link dstPtr) throws Exception {
+    public Link decode(Link dstPtr) throws Exception {
         Link val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -153,7 +153,7 @@ public class LinkDecoder {
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
@@ -162,6 +162,7 @@ public class LinkDecoder {
         }
         
         
+        return val;
     }
 }
 

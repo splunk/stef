@@ -115,7 +115,7 @@ public class ScopeDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
-    public void decode(Scope[] dstPtr) throws Exception {
+    public Scope decode(Scope dstPtr) throws Exception {
         // Check if the Scope exists in the dictionary.
         int dictFlag = this.buf.readBit();
         if (dictFlag == 0) {
@@ -124,14 +124,14 @@ public class ScopeDecoder {
                 throw new Exception("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr[0] = this.lastValPtr;
-            return;
+            dstPtr = this.lastValPtr;
+            return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         Scope val = this.lastValPtr.clone();
         this.lastValPtr = val;
-        dstPtr[0] = val;
+        dstPtr = val;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
         
@@ -153,7 +153,7 @@ public class ScopeDecoder {
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
@@ -164,6 +164,7 @@ public class ScopeDecoder {
         
         this.dict.add(val);
         
+        return val;
     }
 }
 

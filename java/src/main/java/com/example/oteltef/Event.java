@@ -165,7 +165,12 @@ public class Event {
     }
 
     public Event clone() {
-        return new Event(this.name, this.timeUnixNano, this.attributes, this.droppedAttributesCount, );
+        Event cpy = new Event();
+        cpy.name = this.name;
+        cpy.timeUnixNano = this.timeUnixNano;
+        cpy.attributes = this.attributes.clone();
+        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -191,7 +196,7 @@ public class Event {
 
     // cmpEvent performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpEvent(Event left, Event right) {
+    public static int compare(Event left, Event right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -245,5 +250,24 @@ public class Event {
             this.setDroppedAttributesCount(Types.Uint64Random(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Event)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            name, 
+            timeUnixNano
+            attributes
+            droppedAttributesCount
+        );
     }
 }

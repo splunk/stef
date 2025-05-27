@@ -22,13 +22,13 @@ public class ModifiedFields {
     public long parentBit;
 
     public void markModified(long fieldBit) {
-        if (this != null && (this.mask & fieldBit) == 0) {
+        if ((this.mask & fieldBit) == 0) {
             this.markModifiedSlow(fieldBit);
         }
     }
 
     public boolean isModified(long fieldBit) {
-        return this != null && (this.mask & fieldBit) != 0;
+        return (this.mask & fieldBit) != 0;
     }
 
     public void markModifiedSlow(long fieldBit) {

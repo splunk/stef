@@ -229,7 +229,7 @@ public class SpanDecoder {
         this.statusDecoder.reset();
     }
 
-    public void decode(Span dstPtr) throws Exception {
+    public Span decode(Span dstPtr) throws Exception {
         Span val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -282,7 +282,7 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            val.attributes = this.attributesDecoder.decode();
+            this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
@@ -292,20 +292,21 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
-            val.events = this.eventsDecoder.decode();
+            this.eventsDecoder.decode(val.events);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
-            val.links = this.linksDecoder.decode();
+            this.linksDecoder.decode(val.links);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
-            val.status = this.statusDecoder.decode();
+            this.statusDecoder.decode(val.status);
         }
         
         
+        return val;
     }
 }
 

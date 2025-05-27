@@ -285,7 +285,16 @@ public class Metric {
     }
 
     public Metric clone() {
-        return new Metric(this.name, this.description, this.unit, this.type_, this.metadata.clone(), this.histogramBounds.clone(), this.aggregationTemporality, this.monotonic, );
+        Metric cpy = new Metric();
+        cpy.name = this.name;
+        cpy.description = this.description;
+        cpy.unit = this.unit;
+        cpy.type_ = this.type_;
+        cpy.metadata = this.metadata.clone();
+        cpy.histogramBounds = this.histogramBounds.clone();
+        cpy.aggregationTemporality = this.aggregationTemporality;
+        cpy.monotonic = this.monotonic;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -323,7 +332,7 @@ public class Metric {
 
     // cmpMetric performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpMetric(Metric left, Metric right) {
+    public static int compare(Metric left, Metric right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -413,5 +422,28 @@ public class Metric {
             this.setMonotonic(Types.BoolRandom(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Metric)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            name, 
+            description
+            unit
+            type_
+            metadata
+            histogramBounds
+            aggregationTemporality
+            monotonic
+        );
     }
 }

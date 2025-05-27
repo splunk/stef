@@ -123,7 +123,11 @@ public class {{ .StructName }} {
     }
 
     public {{.StructName}} clone() {
-        {{if .DictName}}return new {{ .StructName }}({{ range .Fields }}this.{{.name}}{{if .Type.MustClone}}.clone(){{end}}, {{ end }});{{else}}return new {{ .StructName }}({{ range .Fields }}this.{{.name}}, {{ end }});{{end}}
+        {{.StructName}} cpy = new {{.StructName}}();
+        {{- range .Fields }}
+        cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
+        {{- end }}
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -148,7 +152,7 @@ public class {{ .StructName }} {
 
     // cmp{{.StructName}} performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmp{{.StructName}}({{.StructName}} left, {{.StructName}} right) {
+    public static int compare({{.StructName}} left, {{.StructName}} right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -179,5 +183,23 @@ public class {{ .StructName }} {
             {{- end }}
         }
         {{ end }}
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual(({{.StructName}})o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+        {{- range $index, $element := .Fields }}
+            {{.name}}{{if not $index}}, {{end}}
+        {{- end }}
+        );
     }
 }

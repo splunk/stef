@@ -1,3 +1,4 @@
+{{- if .DictName}}
 // {{ .StructName }}DecoderDict is the dictionary used by {{ .StructName }}Decoder
 package {{ .PackageName }};
 
@@ -29,4 +30,4 @@ public class {{ .StructName }}DecoderDict {
         return this.dict.size();
     }
 }
-
+{{- end}}

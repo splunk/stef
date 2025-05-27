@@ -132,7 +132,11 @@ public class Resource {
     }
 
     public Resource clone() {
-        return new Resource(this.schemaURL, this.attributes.clone(), this.droppedAttributesCount, );
+        Resource cpy = new Resource();
+        cpy.schemaURL = this.schemaURL;
+        cpy.attributes = this.attributes.clone();
+        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -155,7 +159,7 @@ public class Resource {
 
     // cmpResource performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpResource(Resource left, Resource right) {
+    public static int compare(Resource left, Resource right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -200,5 +204,23 @@ public class Resource {
             this.setDroppedAttributesCount(Types.Uint64Random(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Resource)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            schemaURL, 
+            attributes
+            droppedAttributesCount
+        );
     }
 }

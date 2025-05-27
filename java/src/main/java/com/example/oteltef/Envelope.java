@@ -66,7 +66,9 @@ public class Envelope {
     }
 
     public Envelope clone() {
-        return new Envelope(this.attributes, );
+        Envelope cpy = new Envelope();
+        cpy.attributes = this.attributes.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -83,7 +85,7 @@ public class Envelope {
 
     // cmpEnvelope performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpEnvelope(Envelope left, Envelope right) {
+    public static int compare(Envelope left, Envelope right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -110,5 +112,21 @@ public class Envelope {
             this.attributes.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Envelope)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            attributes, 
+        );
     }
 }

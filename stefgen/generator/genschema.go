@@ -397,6 +397,7 @@ type genMapDef struct {
 type genStructTypeRef struct {
 	Name string
 	Def  *genStructDef
+	Lang Lang
 }
 
 func (r *genStructTypeRef) IsPrimitive() bool {
@@ -444,7 +445,14 @@ func (r *genStructTypeRef) EqualFunc() string {
 }
 
 func (r *genStructTypeRef) CompareFunc() string {
-	return "Cmp" + r.Name
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.Name
+	case LangJava:
+		return r.Name + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genStructTypeRef) MustClone() bool {

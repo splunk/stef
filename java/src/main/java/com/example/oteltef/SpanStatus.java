@@ -111,7 +111,10 @@ public class SpanStatus {
     }
 
     public SpanStatus clone() {
-        return new SpanStatus(this.message, this.code, );
+        SpanStatus cpy = new SpanStatus();
+        cpy.message = this.message;
+        cpy.code = this.code;
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -131,7 +134,7 @@ public class SpanStatus {
 
     // cmpSpanStatus performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpSpanStatus(SpanStatus left, SpanStatus right) {
+    public static int compare(SpanStatus left, SpanStatus right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -167,5 +170,22 @@ public class SpanStatus {
             this.setCode(Types.Uint64Random(random));
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((SpanStatus)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            message, 
+            code
+        );
     }
 }

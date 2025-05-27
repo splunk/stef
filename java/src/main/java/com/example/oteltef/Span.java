@@ -459,7 +459,22 @@ public class Span {
     }
 
     public Span clone() {
-        return new Span(this.traceID, this.spanID, this.traceState, this.parentSpanID, this.flags, this.name, this.kind, this.startTimeUnixNano, this.endTimeUnixNano, this.attributes, this.droppedAttributesCount, this.events, this.links, this.status, );
+        Span cpy = new Span();
+        cpy.traceID = this.traceID;
+        cpy.spanID = this.spanID;
+        cpy.traceState = this.traceState;
+        cpy.parentSpanID = this.parentSpanID;
+        cpy.flags = this.flags;
+        cpy.name = this.name;
+        cpy.kind = this.kind;
+        cpy.startTimeUnixNano = this.startTimeUnixNano;
+        cpy.endTimeUnixNano = this.endTimeUnixNano;
+        cpy.attributes = this.attributes.clone();
+        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        cpy.events = this.events.clone();
+        cpy.links = this.links.clone();
+        cpy.status = this.status.clone();
+        return cpy;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
@@ -515,7 +530,7 @@ public class Span {
 
     // cmpSpan performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
-    public static int cmpSpan(Span left, Span right) {
+    public static int compare(Span left, Span right) {
         if (left == null) {
             if (right == null) {
                 return 0;
@@ -592,7 +607,7 @@ public class Span {
             return c;
         }
         
-        c = CmpSpanStatus(left.status, right.status);
+        c = SpanStatus.compare(left.status, right.status);
         if (c != 0) {
             return c;
         }
@@ -659,5 +674,34 @@ public class Span {
             this.status.mutateRandom(random);
         }
         
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return isEqual((Span)o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            traceID, 
+            spanID
+            traceState
+            parentSpanID
+            flags
+            name
+            kind
+            startTimeUnixNano
+            endTimeUnixNano
+            attributes
+            droppedAttributesCount
+            events
+            links
+            status
+        );
     }
 }

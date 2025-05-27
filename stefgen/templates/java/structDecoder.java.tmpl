@@ -82,7 +82,7 @@ public class {{ .StructName }}Decoder {
         {{- end}}
     }
 
-    public void decode({{if .DictName}}{{.StructName}}[] dstPtr{{else}}{{.StructName}} dstPtr{{end}}) throws Exception {
+    public {{.StructName}} decode({{.StructName}} dstPtr) throws Exception {
         {{- if .DictName}}
         // Check if the {{ .StructName }} exists in the dictionary.
         int dictFlag = this.buf.readBit();
@@ -92,14 +92,14 @@ public class {{ .StructName }}Decoder {
                 throw new Exception("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr[0] = this.lastValPtr;
-            return;
+            dstPtr = this.lastValPtr;
+            return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         {{.StructName}} val = this.lastValPtr.clone();
         this.lastValPtr = val;
-        dstPtr[0] = val;
+        dstPtr = val;
         {{- else}}
         {{.StructName}} val = dstPtr;
         {{- end}}
@@ -113,12 +113,17 @@ public class {{ .StructName }}Decoder {
         if ((val.getModifiedFields().mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.getOptionalFieldsPresent() & fieldPresent{{ $.StructName }}{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
+            {{- if .Type.IsPrimitive }}
             val.{{.name}} = this.{{.name}}Decoder.decode();
+            {{- else}}
+            this.{{.name}}Decoder.decode(val.{{.name}});
+            {{- end }}
         }
         {{ end }}
         {{if .DictName}}
         this.dict.add(val);
         {{end}}
+        return val;
     }
 }
 

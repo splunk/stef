@@ -99,7 +99,7 @@ public class PointDecoder {
         this.exemplarsDecoder.reset();
     }
 
-    public void decode(Point dstPtr) throws Exception {
+    public Point decode(Point dstPtr) throws Exception {
         Point val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
@@ -117,15 +117,16 @@ public class PointDecoder {
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            val.value = this.valueDecoder.decode();
+            this.valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
-            val.exemplars = this.exemplarsDecoder.decode();
+            this.exemplarsDecoder.decode(val.exemplars);
         }
         
         
+        return val;
     }
 }
 
