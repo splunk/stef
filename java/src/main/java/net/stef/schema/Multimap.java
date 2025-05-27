@@ -18,7 +18,7 @@ public class Multimap {
         if (!this.value.type.isCompatibleWith(oldMap.value.type)) {
             throw new Exception("Multimap " + this.name + " value type does not match");
         }
-        return Compatibility.EXACT;
+        return Compatibility.Exact;
     }
 
     // Getters and setters omitted for brevity

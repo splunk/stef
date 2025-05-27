@@ -2,6 +2,7 @@
 package oteltef
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand/v2"
 	"strings"
@@ -11,10 +12,13 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
 var _ = encoders.StringEncoder{}
+var _ = schema.WireSchema{}
+var _ = bytes.NewBuffer
 
 type Metric struct {
 	name                   string
@@ -322,7 +326,7 @@ func (s *Metric) mutateRandom(random *rand.Rand) {
 		s.SetUnit(pkg.StringRandom(random))
 	}
 	if random.IntN(fieldCount) == 0 {
-		s.SetType(MetricType(pkg.Uint64Random(random)))
+		s.SetType(MetricType(pkg.Uint64Random(random) % 5))
 	}
 	if random.IntN(fieldCount) == 0 {
 		s.metadata.mutateRandom(random)

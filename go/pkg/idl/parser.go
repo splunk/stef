@@ -2,7 +2,6 @@ package idl
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/splunk/stef/go/pkg/schema"
 )
@@ -458,7 +457,7 @@ func (p *Parser) parsePackage() error {
 			}
 			p.lexer.Next()
 		}
-		p.schema.PackageName = strings.Join(packageComponents, ".")
+		p.schema.PackageName = packageComponents
 	}
 	return nil
 }

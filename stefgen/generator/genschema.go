@@ -9,10 +9,11 @@ import (
 
 // genSchema is a STEF schema description in form that is useful for generation.
 type genSchema struct {
-	PackageName string
-	Structs     map[string]*genStructDef
-	Multimaps   map[string]*genMapDef
-	Enums       map[string]*genEnumDef
+	PackageName    []string
+	PackageNameStr string
+	Structs        map[string]*genStructDef
+	Multimaps      map[string]*genMapDef
+	Enums          map[string]*genEnumDef
 }
 
 func (s *genSchema) SchemaStr() string {
@@ -77,13 +78,20 @@ type TypeFlags struct {
 
 	// TakePtr is true a pointer must be taken of the field to pass it as a parameter.
 	TakePtr bool
+
+	IsEnum bool
 }
 
 type genFieldTypeRef interface {
 	TypeName() string
 	IsPrimitive() bool
 
-	// Exported is the fully qualified exported (public) Go type.
+	// IDLMangledName returns the name of the type derived from its STEF IDL
+	// declaration mangled into an identifier that uniquely identifies the type
+	// and is used as the identifier of that type throughout the generated code.
+	IDLMangledName() string
+
+	// Exported is the fully qualified exported (public) type.
 	Exported() string
 
 	// Storage is the underlying storage type.
@@ -100,7 +108,11 @@ type genFieldTypeRef interface {
 	CompareFunc() string
 	MustClone() bool
 	DictName() string
-	DictGoType() string
+
+	// DictTypeNamePrefix is the prefix for fully qualified type name for encoder and
+	// decoder dictionaries.
+	DictTypeNamePrefix() string
+
 	IsDictPossible() bool
 	SchemaStr() string
 
@@ -109,8 +121,18 @@ type genFieldTypeRef interface {
 
 type genPrimitiveTypeRef struct {
 	Type schema.PrimitiveFieldType
+
+	// Dict is the name of the dictionary type if this is a dictionary.
 	Dict string
+
+	// Enum is the name of the enum type if this is an enum.
 	Enum string
+	// EnumDef is the definition of the enum type.
+	EnumDef *genEnumDef
+
+	// Lang is the language for which code is being generated.
+	// Lang is used to correctly generate language-specific code.
+	Lang Lang
 }
 
 func (r *genPrimitiveTypeRef) IsPrimitive() bool {
@@ -118,9 +140,14 @@ func (r *genPrimitiveTypeRef) IsPrimitive() bool {
 }
 
 func (r *genPrimitiveTypeRef) Flags() TypeFlags {
+	isEnum := false
+	if r.Enum != "" {
+		isEnum = true
+	}
 	return TypeFlags{
 		PassByPtr:  false,
 		StoreByPtr: false,
+		IsEnum:     isEnum,
 	}
 }
 
@@ -140,9 +167,37 @@ func (r *genPrimitiveTypeRef) DictName() string {
 // Storage returns the underlying type of fields.
 func (r *genPrimitiveTypeRef) Storage() string {
 	if r.Type == schema.PrimitiveTypeBytes {
-		return "pkg.Bytes"
+		switch r.Lang {
+		case LangGo:
+			return "pkg.Bytes"
+		case LangJava:
+			return "byte[]"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return r.TypeName()
+}
+
+// InitVal returns the initial value for this type.
+// Return empty string if there is no need to assign an initial value
+// since the default initial value is good enough.
+func (r *genPrimitiveTypeRef) InitVal() string {
+	switch r.Lang {
+	case LangGo:
+		return "" // Go does not need initial values for primitive types.
+	case LangJava:
+		switch r.Type {
+		case schema.PrimitiveTypeString:
+			return "StringValue.empty"
+		case schema.PrimitiveTypeBytes:
+			return "Types.emptyBytes"
+		default:
+			return ""
+		}
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 // ToStorage converts the argument to the underlying type
@@ -150,7 +205,14 @@ func (r *genPrimitiveTypeRef) Storage() string {
 // If the types are the same, no conversion is performed.
 func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 	if r.Enum != "" {
-		return r.Storage() + "(" + arg + ")"
+		switch r.Lang {
+		case LangGo:
+			return r.Storage() + "(" + arg + ")"
+		case LangJava:
+			return arg + ".getValue()"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return arg
 }
@@ -160,7 +222,14 @@ func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 // If the types are the same, no conversion is performed.
 func (r *genPrimitiveTypeRef) ToExported(arg string) string {
 	if r.Enum != "" {
-		return r.Enum + "(" + arg + ")"
+		switch r.Lang {
+		case LangGo:
+			return r.Enum + "(" + arg + ")"
+		case LangJava:
+			return r.Enum + ".fromValue(" + arg + ")"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return arg
 }
@@ -173,117 +242,167 @@ func (r *genPrimitiveTypeRef) Exported() string {
 	if r.Enum != "" {
 		return r.Enum
 	}
-	if r.Type == schema.PrimitiveTypeBytes {
-		return "pkg.Bytes"
-	}
-	return r.TypeName()
+	return r.Storage()
 }
 
+// TypeName returns the language-specific type of the primitive type.
 func (r *genPrimitiveTypeRef) TypeName() string {
-	var s string
+	var typeMap map[schema.PrimitiveFieldType]string
 
-	switch r.Type {
-	case schema.PrimitiveTypeInt64:
-		s += "int64"
-	case schema.PrimitiveTypeUint64:
-		s += "uint64"
-	case schema.PrimitiveTypeFloat64:
-		s += "float64"
-	case schema.PrimitiveTypeBool:
-		s += "bool"
-	case schema.PrimitiveTypeString:
-		s += "string"
-	case schema.PrimitiveTypeBytes:
-		s += "Bytes"
+	switch r.Lang {
+	case LangGo:
+		typeMap = map[schema.PrimitiveFieldType]string{
+			schema.PrimitiveTypeInt64:   "int64",
+			schema.PrimitiveTypeUint64:  "uint64",
+			schema.PrimitiveTypeFloat64: "float64",
+			schema.PrimitiveTypeBool:    "bool",
+			schema.PrimitiveTypeString:  "string",
+			schema.PrimitiveTypeBytes:   "Bytes",
+		}
+	case LangJava:
+		typeMap = map[schema.PrimitiveFieldType]string{
+			schema.PrimitiveTypeInt64:   "long",
+			schema.PrimitiveTypeUint64:  "long",
+			schema.PrimitiveTypeFloat64: "double",
+			schema.PrimitiveTypeBool:    "boolean",
+			schema.PrimitiveTypeString:  "StringValue",
+			schema.PrimitiveTypeBytes:   "byte[]",
+		}
 	default:
-		panic(fmt.Errorf("unimplemented field type %v", r.Type))
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
 
-	return s
+	if s, ok := typeMap[r.Type]; ok {
+		return s
+	}
+	panic(fmt.Errorf("unimplemented field type %v", r.Type))
+}
+
+// Names of primitive types as used in conventions for names of functions or
+// other symbols for that particular primitive type (e.g. in Uint64Equal function name).
+var primitiveTypeMangledNames = map[schema.PrimitiveFieldType]string{
+	schema.PrimitiveTypeUint64:  "Uint64",
+	schema.PrimitiveTypeInt64:   "Int64",
+	schema.PrimitiveTypeFloat64: "Float64",
+	schema.PrimitiveTypeBool:    "Bool",
+	schema.PrimitiveTypeString:  "String",
+	schema.PrimitiveTypeBytes:   "Bytes",
 }
 
 func (r *genPrimitiveTypeRef) EncoderType() string {
-	switch r.Type {
-	case schema.PrimitiveTypeUint64:
-		return "encoders.Uint64"
-	case schema.PrimitiveTypeInt64:
-		return "encoders.Int64"
-	case schema.PrimitiveTypeFloat64:
-		return "encoders.Float64"
-	case schema.PrimitiveTypeBool:
-		return "encoders.Bool"
-	case schema.PrimitiveTypeString:
-		return "encoders.String"
-	case schema.PrimitiveTypeBytes:
-		return "encoders.Bytes"
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "encoders."
+	case LangJava:
+		prefix = ""
 	default:
-		panic(fmt.Sprintf("unknown type %v", r.Type))
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
+
+	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
+		return prefix + s // e.g. encoders.Uint64
+	}
+
+	panic(fmt.Sprintf("unknown type %v", r.Type))
 }
 
-func (r *genPrimitiveTypeRef) DictGoType() string {
+func (r *genPrimitiveTypeRef) IDLMangledName() string {
+	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
+		return s // e.g. Uint64
+	}
+	panic(fmt.Sprintf("unknown type %v", r.Type))
+}
+
+// DictTypeNamePrefix is the prefix for fully qualified type name for encoder and
+// decoder dictionaries.
+func (r *genPrimitiveTypeRef) DictTypeNamePrefix() string {
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "encoders."
+	case LangJava:
+		prefix = ""
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+
 	switch r.Type {
 	case schema.PrimitiveTypeString:
-		return "encoders.String"
+		return prefix + "String"
 	case schema.PrimitiveTypeBytes:
-		return "encoders.Bytes"
+		return prefix + "Bytes"
 	default:
 		panic(fmt.Sprintf("type %v does not support dictionaries", r.Type))
 	}
 }
 
-func (r *genPrimitiveTypeRef) EqualFunc() string {
-	switch r.Type {
-	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Equal"
-	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Equal"
-	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Equal"
-	case schema.PrimitiveTypeBool:
-		return "pkg.BoolEqual"
-	case schema.PrimitiveTypeString:
-		return "pkg.StringEqual"
-	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesEqual"
+// pkgPrefix returns the language-specific supporting package name.
+func (r *genPrimitiveTypeRef) pkgPrefix() string {
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "pkg."
+	case LangJava:
+		prefix = "Types."
 	default:
-		panic(fmt.Sprintf("unknown type %v", r.Type))
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
+	return prefix
+}
+
+func (r *genPrimitiveTypeRef) EqualFunc() string {
+	prefix := r.pkgPrefix()
+
+	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
+		return prefix + s + "Equal" // e.g. Uint64Equal
+	}
+
+	panic(fmt.Sprintf("unknown type %v", r.Type))
 }
 
 func (r *genPrimitiveTypeRef) RandomFunc() string {
-	switch r.Type {
-	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Random"
-	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Random"
-	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Random"
-	case schema.PrimitiveTypeBool:
-		return "pkg.BoolRandom"
-	case schema.PrimitiveTypeString:
-		return "pkg.StringRandom"
-	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesRandom"
-	default:
-		panic(fmt.Sprintf("unknown type %v", r.Type))
+	prefix := r.pkgPrefix()
+
+	if r.Enum != "" {
+		// For enums we need to generate an unsigned random number in the range of the enum values.
+		switch r.Lang {
+		case LangGo:
+			return r.Enum + fmt.Sprintf("(pkg.Uint64Random(random) %% %d)", len(r.EnumDef.Fields))
+		case LangJava:
+			return r.Enum + fmt.Sprintf(
+				".fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) %% %d)", len(r.EnumDef.Fields),
+			)
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
+
+	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
+		return prefix + s + "Random(random)" // e.g. Uint64Random(random)
+	}
+
+	panic(fmt.Sprintf("unknown type %v", r.Type))
 }
 
 func (r *genPrimitiveTypeRef) CompareFunc() string {
+	prefix := r.pkgPrefix()
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Compare"
+		return prefix + "Uint64Compare"
 	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Compare"
+		return prefix + "Int64Compare"
 	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Compare"
+		return prefix + "Float64Compare"
 	case schema.PrimitiveTypeBool:
-		return "pkg.BoolCompare"
+		return prefix + "BoolCompare"
 	case schema.PrimitiveTypeString:
-		return "strings.Compare"
+		if r.Lang == LangGo {
+			return "strings.Compare"
+		}
+		return prefix + "StringCompare"
 	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesCompare"
+		return prefix + "BytesCompare"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}
@@ -293,6 +412,7 @@ func (r *genPrimitiveTypeRef) MustClone() bool {
 	return false
 }
 
+// SchemaStr returns type names in STEF IDL syntax.
 func (r *genPrimitiveTypeRef) SchemaStr() string {
 	str := ""
 	switch r.Type {
@@ -343,6 +463,9 @@ type genMapDef struct {
 type genStructTypeRef struct {
 	Name string
 	Def  *genStructDef
+	// Lang is the language for which code is being generated.
+	// Lang is used to correctly generate language-specific code.
+	Lang Lang
 }
 
 func (r *genStructTypeRef) IsPrimitive() bool {
@@ -357,16 +480,16 @@ func (r *genStructTypeRef) DictName() string {
 	return r.Def.Dict
 }
 
-func (r *genStructTypeRef) DictGoType() string {
+func (r *genStructTypeRef) DictTypeNamePrefix() string {
 	return r.DictName()
 }
 
 func (r *genStructTypeRef) Exported() string {
-	return r.TypeName()
+	return r.Name
 }
 
 func (r *genStructTypeRef) Storage() string {
-	return r.TypeName()
+	return r.Name
 }
 
 func (r *genStructTypeRef) ToExported(arg string) string {
@@ -381,16 +504,34 @@ func (r *genStructTypeRef) TypeName() string {
 	return r.Name
 }
 
+func (r *genStructTypeRef) IDLMangledName() string {
+	return r.Name
+}
+
 func (r *genStructTypeRef) EncoderType() string {
 	return r.Name
 }
 
 func (r *genStructTypeRef) EqualFunc() string {
-	return r.Name + "Equal"
+	switch r.Lang {
+	case LangGo:
+		return r.Name + "Equal"
+	case LangJava:
+		return r.Name + ".equals"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genStructTypeRef) CompareFunc() string {
-	return "Cmp" + r.Name
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.Name
+	case LangJava:
+		return r.Name + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genStructTypeRef) MustClone() bool {
@@ -411,6 +552,9 @@ func (r *genStructTypeRef) Flags() TypeFlags {
 
 type genArrayTypeRef struct {
 	ElemType genFieldTypeRef
+	// Lang is the language for which code is being generated.
+	// Lang is used to correctly generate language-specific code.
+	Lang Lang
 }
 
 func (r *genArrayTypeRef) Flags() TypeFlags {
@@ -437,16 +581,16 @@ func (r *genArrayTypeRef) DictName() string {
 	return ""
 }
 
-func (r *genArrayTypeRef) DictGoType() string {
-	return ""
+func (r *genArrayTypeRef) DictTypeNamePrefix() string {
+	panic("dictionaries of arrays are not supported")
 }
 
 func (r *genArrayTypeRef) Exported() string {
-	return r.TypeName()
+	return r.IDLMangledName()
 }
 
 func (r *genArrayTypeRef) Storage() string {
-	return r.TypeName()
+	return r.IDLMangledName()
 }
 
 func (r *genArrayTypeRef) ToExported(arg string) string {
@@ -465,7 +609,7 @@ func (r *genArrayTypeRef) TypeName() string {
 }
 
 func (r *genArrayTypeRef) EncoderType() string {
-	return r.TypeName()
+	return r.IDLMangledName()
 }
 
 func (r *genArrayTypeRef) EqualFunc() string {
@@ -473,16 +617,31 @@ func (r *genArrayTypeRef) EqualFunc() string {
 }
 
 func (r *genArrayTypeRef) CompareFunc() string {
-	return "Cmp" + r.TypeName()
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.IDLMangledName()
+	case LangJava:
+		return r.IDLMangledName() + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genArrayTypeRef) MustClone() bool {
 	return true
 }
 
+func (r *genArrayTypeRef) IDLMangledName() string {
+	return r.ElemType.IDLMangledName() + "Array"
+}
+
 type genMultimapTypeRef struct {
 	Name string
 	Def  *genMapDef
+
+	// Lang is the language for which code is being generated.
+	// Lang is used to correctly generate language-specific code.
+	Lang Lang
 }
 
 func (r *genMultimapTypeRef) IsDictPossible() bool {
@@ -497,8 +656,8 @@ func (r *genMultimapTypeRef) DictName() string {
 	return ""
 }
 
-func (r *genMultimapTypeRef) DictGoType() string {
-	return ""
+func (r *genMultimapTypeRef) DictTypeNamePrefix() string {
+	panic("dictionaries of multimaps are not supported")
 }
 
 func (r *genMultimapTypeRef) Exported() string {
@@ -523,6 +682,10 @@ func (r *genMultimapTypeRef) TypeName() string {
 	return str
 }
 
+func (r *genMultimapTypeRef) IDLMangledName() string {
+	return r.TypeName()
+}
+
 func (r *genMultimapTypeRef) EncoderType() string {
 	return r.TypeName()
 }
@@ -532,7 +695,14 @@ func (r *genMultimapTypeRef) EqualFunc() string {
 }
 
 func (r *genMultimapTypeRef) CompareFunc() string {
-	return "Cmp" + r.TypeName()
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.TypeName()
+	case LangJava:
+		return r.Name + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genMultimapTypeRef) MustClone() bool {

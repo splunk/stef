@@ -5,7 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class FrameEncoder {
+public class FrameEncoder extends OutputStream {
     private ChunkWriter dest;
     private OutputStream frameContent;
     private int uncompressedSize;
@@ -19,12 +19,13 @@ public class FrameEncoder {
         this.dest = dest;
 
         switch (compression) {
-            case NONE:
+            case None:
                 this.frameContent = compressedBuf;
                 break;
-            case ZSTD:
-                this.compressor = new ZstdOutputStream(compressedBuf);
-                this.frameContent = compressor;
+            case Zstd:
+                compressor = new ZstdOutputStream(compressedBuf);
+                compressor.setCloseFrameOnFlush(true);
+                frameContent = compressor;
                 break;
             default:
                 throw new IllegalArgumentException("Unknown compression: " + compression);
@@ -33,10 +34,11 @@ public class FrameEncoder {
 
     public void openFrame(int resetFlags) throws IOException {
         this.hdrByte = resetFlags;
-        if ((resetFlags & FrameFlags.RESTART_COMPRESSION)!=0 && compressor != null) {
+        if ((resetFlags & FrameFlags.RestartCompression)!=0 && compressor != null) {
             compressor.close();
-            this.compressor = new ZstdOutputStream(compressedBuf);
-            this.frameContent = compressor;
+            compressor = new ZstdOutputStream(compressedBuf);
+            compressor.setCloseFrameOnFlush(true);
+            frameContent = compressor;
         }
     }
 
@@ -45,8 +47,8 @@ public class FrameEncoder {
         frameHdr.write(hdrByte);
         Serde.writeUvarint(uncompressedSize, frameHdr);
 
-        if (compression == Compression.ZSTD) {
-            compressor.close();
+        if (compression == Compression.Zstd) {
+            compressor.flush();
             Serde.writeUvarint(compressedBuf.size(), frameHdr);
         }
 
@@ -55,10 +57,16 @@ public class FrameEncoder {
         uncompressedSize = 0;
     }
 
-    public int write(byte[] data) throws IOException {
+    @Override
+    public void write(int b) throws IOException {
+        frameContent.write(b);
+        uncompressedSize += 1;
+    }
+
+    @Override
+    public void write(byte[] data) throws IOException {
         frameContent.write(data);
         uncompressedSize += data.length;
-        return data.length;
     }
 
     public int getUncompressedSize() {

@@ -1,0 +1,320 @@
+package {{ .PackageName }};
+
+import net.stef.StringValue;
+import net.stef.Types;
+
+import java.util.*;
+import java.util.Objects;
+
+// {{ .MultimapName }} is a multimap, (aka an associative array or a list) of key value
+// pairs from {{.Key.Type.TypeName}} to {{.Value.Type.TypeName}}.
+public class {{ .MultimapName }} {
+    // The key-value pair, element of the map.
+    public static class Elem {
+        {{.Key.Type.Storage}} key;
+        {{.Value.Type.Storage}} value;
+    }
+
+    // The list of map elements.
+    // elems may be allocated more capacity than the map currently needs,
+    // i.e. ony the first elemsLen elements are considered present.
+    Elem[] elems = new Elem[0];
+
+    // elemsLen is the number of elements contains in the elems, elemsLen<=elems.length.
+    int elemsLen = 0;
+
+    // The number of elements in elems that are inited, initedCount>=elemsLen.
+    // initedCount may be higher than elemensLen if the map has shrunk from
+    // a previous larger size.
+    private int initedCount = 0;
+
+    // Reference to parent struct's modifiedFields and the bit to set
+    // if needed to indicate this field is modified.
+    private ModifiedFields parentModifiedFields;
+    private long parentModifiedBit;
+
+    public {{ .MultimapName }}() {
+        init(null, 0);
+    }
+
+    {{ .MultimapName }}(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        this.parentModifiedFields = parentModifiedFields;
+        this.parentModifiedBit = parentModifiedBit;
+    }
+
+    // clone() creates a deep copy of {{.MultimapName}}
+    public {{.MultimapName}} clone() {
+        {{.MultimapName}} clone = new {{.MultimapName}}();
+        copy{{.MultimapName}}(clone, this);
+        return clone;
+    }
+
+    // len returns the number of elements in the multimap.
+    public int len() {
+        return elemsLen;
+    }
+
+    // at returns element at index i.
+    public Elem at(int i) {
+        return elems[i];
+    }
+
+    // ensureElems ensures that elems array has at least newLen elements allocated.
+    // It will grow/reallocate the array if needed.
+    // elemsLen will be set to newLen.
+    // This method does not call init() on new elements in the array.
+    void ensureElems(int newLen) {
+        if (elems.length < newLen) {
+            int allocLen = Math.max(newLen, elems.length * 2);
+            Elem[] newElems = new Elem[allocLen];
+            System.arraycopy(elems, 0, newElems, 0, elems.length);
+            elems = newElems;
+        }
+        elemsLen = newLen;
+    }
+
+    // ensureLen ensures the length of the array is equal to newLen.
+    // It will grow or shrink the array if needed, and initialize newly added elements
+    // if the element type requires initialization.
+    // If the arrays grows, the newly added elements will be initialized to the
+    // initial values of key and value.
+    public void ensureLen(int newLen) {
+        int oldLen = elemsLen;
+        if (newLen==oldLen) {
+            return; // No change needed.
+        }
+
+        ensureElems(newLen);
+        for (int i=initedCount; i < newLen; i++) {
+            elems[i] = new Elem();
+            {{- if .Key.Type.IsPrimitive}}
+            {{if .Key.Type.InitVal}}elems[i].key = {{.Key.Type.InitVal}};{{end}}
+            {{- else}}
+            elems[i].key = new {{.Key.Type.Storage}}(parentModifiedFields, parentModifiedBit);
+            {{- end}}
+            {{- if .Value.Type.IsPrimitive}}
+            {{if .Value.Type.InitVal}}elems[i].value = {{.Value.Type.InitVal}};{{end}}
+            {{- else}}
+            elems[i].value = new {{.Value.Type.Storage}}(parentModifiedFields, parentModifiedBit);
+            {{- end}}
+        }
+        if (initedCount < newLen) {
+            initedCount = newLen;
+        }
+        markModified();
+    }
+
+    private void markModified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markModified(parentModifiedBit);
+        }
+    }
+
+    void markUnmodified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markUnmodified();
+        }
+    }
+
+    void markUnmodifiedRecursively() {
+        for (int i=0; i<elemsLen; i++) {
+            {{- if not .Key.Type.IsPrimitive}}
+            elems[i].key.markUnmodifiedRecursively();
+            {{- end}}
+            {{- if not .Value.Type.IsPrimitive}}
+            elems[i].value.markUnmodifiedRecursively();
+            {{- end}}
+        }
+    }
+
+    // Append adds a key-value pair to the multimap.
+    public void append({{.Key.Type.Exported}} k, {{.Value.Type.Exported}} v) {
+        ensureElems(elemsLen + 1);
+        Elem elem = new Elem();
+        elem.key = {{.Key.Type.ToStorage "k"}};
+        elem.value = {{.Value.Type.ToStorage "v"}};
+        elems[elemsLen-1] = elem;
+        markModified();
+    }
+
+    // setKey sets the key of the element at index i.
+    public void setKey(int i, {{.Key.Type.Exported}} k) {
+        if (!{{.Key.Type.EqualFunc}}(elems[i].key, {{.Key.Type.ToStorage "k"}})) {
+            elems[i].key = {{.Key.Type.ToStorage "k"}};
+            markModified();
+        }
+    }
+
+    // setValue sets the value of the element at index i.
+    public void setValue(int i, {{.Value.Type.Exported}} v) {
+        if (!{{.Value.Type.EqualFunc}}(elems[i].value, {{.Value.Type.ToStorage "v"}})) {
+            elems[i].value = {{.Value.Type.ToStorage "v"}};
+            markModified();
+        }
+    }
+
+    // Sorts the multimap by key.
+    public void sort() {
+        Arrays.sort(elems, 0, elemsLen, new Comparator<Elem>() {
+            @Override
+            public int compare(Elem a, Elem b) {
+                return {{.Key.Type.CompareFunc}}(a.key, b.key);
+            }
+        });
+    }
+
+    // byteSize returns approximate memory usage in bytes. Used to calculate
+    // memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += this.elemsLen * 16; // TODO: estimate size of Elem objects
+        return size;
+    }
+
+    // Copy all elements from src to this multimap.
+    public void copyFrom({{.MultimapName}} src) {
+        boolean modified = false;
+        if (elemsLen!=src.elemsLen) {
+            ensureLen(src.elemsLen);
+            modified = true;
+        }
+    
+        {{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
+        if (!Arrays.equals(elems, src.elems)) {
+            System.arraycopy(src.elems, 0, elems, 0, src.elemsLen);
+            modified = true;
+        }
+        {{else}}
+        for (int i=0; i < src.elemsLen; i++) {
+        {{- if .Key.Type.IsPrimitive}}
+            if (elems[i].key != src.elems[i].key) {
+                elems[i].key = src.elems[i].key;
+                modified = true;
+            }
+        {{else}}
+            if (!{{.Key.Type.EqualFunc}}(elems[i].key, src.elems[i].key)) {
+                copy{{.Key.Type.TypeName}}(elems[i].key, src.elems[i].key);
+                modified = true;
+            }
+        {{end}}
+
+        {{- if .Value.Type.IsPrimitive}}
+            if (elems[i].value != src.elems[i].value) {
+                elems[i].value = src.elems[i].value;
+                modified = true;
+            }
+        {{else}}
+            if (!{{.Value.Type.EqualFunc}}(elems[i].value, src.elems[i].value)) {
+                elems[i].value.copyFrom(src.elems[i].value);
+                modified = true;
+            }
+        {{- end}}
+        }
+        {{end}}
+        if (modified) {
+            markModified();
+        }
+    }
+
+    // equals performs deep comparison and returns true if this multimap is equal to val.
+    public boolean equals({{.MultimapName}} val) {
+        if (elemsLen != val.elemsLen) {
+            return false;
+        }
+        for (int i = 0; i<elemsLen; i++) {
+        {{- if .Key.Type.IsPrimitive }}
+            if (!{{ .Key.Type.EqualFunc }}(elems[i].key,val.elems[i].key)) {
+                return false;
+            }
+        {{- else }}
+            if (!elems[i].equals(val.elems[i])) {
+                return false;
+            }
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive }}
+            if (!{{ .Value.Type.EqualFunc }}(elems[i].value,val.elems[i].value)) {
+                return false;
+            }
+        {{- else }}
+            if (!elems[i].value.equals(val.elems[i].value)) {
+                return false;
+            }
+        {{- end}}
+        }
+        return true;
+    }
+
+    // compare compares two multimaps lexicographically.
+    public static int compare({{.MultimapName}} left, {{.MultimapName}} right) {
+        int l = Math.min(left.elemsLen, right.elemsLen);
+        for (int i = 0; i < l; i++) {
+            int c = {{.Key.Type.CompareFunc}}(left.elems[i].key, right.elems[i].key);
+            if (c != 0) return c;
+        }
+    
+        int lenDiff = left.elemsLen - right.elemsLen;
+        if (lenDiff != 0) {
+            return lenDiff;
+        }
+    
+        for (int i = 0; i < l; i++) {
+            int c = {{.Value.Type.CompareFunc}}(left.elems[i].value, right.elems[i].value);
+            if (c != 0) return c;
+        }
+        return 0;
+    }
+
+    // mutateRandom mutates fields in a random, deterministic manner using random parameter as a deterministic generator.
+    void mutateRandom(Random random) {
+        if (random.nextInt(20) == 0) {
+            ensureLen(elemsLen + 1);
+        }
+        if (random.nextInt(20) == 0 && elemsLen > 0) {
+            ensureLen(elemsLen - 1);
+        }
+        for (int i = 0; i < elemsLen; i++) {
+            if (random.nextInt(4 * elemsLen) == 0) {
+                {{- if not .Key.Type.IsPrimitive }}
+                elems[i].key.mutateRandom(random);
+                {{- else }}
+                setKey(i, {{ .Key.Type.RandomFunc }});
+                {{- end}}
+            }
+            if (random.nextInt(4 * elemsLen) == 0) {
+                {{- if not .Value.Type.IsPrimitive }}
+                elems[i].value.mutateRandom(random);
+                {{- else }}
+                setValue(i, {{ .Value.Type.RandomFunc }});
+                {{- end}}
+            }
+        }
+    }
+
+    // Helper for copying multimaps
+    public static void copy{{.MultimapName}}({{.MultimapName}} dst, {{.MultimapName}} src) {
+        dst.ensureLen(src.elemsLen);
+        for (int i = 0; i < src.elemsLen; i++) {
+            dst.elems[i].key = src.elems[i].key;
+            dst.elems[i].value = src.elems[i].value;
+        }
+        dst.markModified();
+    }
+
+    boolean isSameKeys({{ .MultimapName }} val2) {
+        if (elemsLen != val2.elemsLen) {
+            return false;
+        }
+
+        for (int i=0; i<elemsLen; i++) {
+            if (elems[i].key != val2.elems[i].key) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

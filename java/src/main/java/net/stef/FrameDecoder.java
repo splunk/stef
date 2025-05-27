@@ -6,8 +6,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class FrameDecoder {
-    private ByteAndBlockReader src;
+public class FrameDecoder extends InputStream {
+    private InputStream src;
     private Compression compression;
     private long uncompressedSize;
     private int ofs;
@@ -18,17 +18,17 @@ public class FrameDecoder {
     private boolean frameLoaded;
     private boolean notFirstFrame;
 
-    public void init(ByteAndBlockReader src, Compression compression) throws IOException {
+    public void init(InputStream src, Compression compression) throws IOException {
         this.src = src;
         this.compression = compression;
         chunkReader.init(src);
         chunkReader.setNextChunk(this::nextFrame);
 
         switch (compression) {
-            case NONE:
+            case None:
                 this.frameContentSrc = chunkReader;
                 break;
-            case ZSTD:
+            case Zstd:
                 this.decompressor = new ZstdInputStream(chunkReader);
                 this.frameContentSrc = decompressor;
                 break;
@@ -50,15 +50,16 @@ public class FrameDecoder {
 
         this.uncompressedSize = Serde.readUvarint(src);
 
-        if (compression != Compression.NONE) {
+        if (compression != Compression.None) {
             long compressedSize = Serde.readUvarint(src);
+
             chunkReader.setLimit(compressedSize);
 
-            if (!notFirstFrame || (flags & FrameFlags.RESTART_COMPRESSION)!=0) {
+            if (!notFirstFrame || (flags & FrameFlags.RestartCompression)!=0) {
                 notFirstFrame = true;
                 decompressor.close();
                 decompressor = new ZstdInputStream(chunkReader);
-                this.frameContentSrc = decompressor;
+                frameContentSrc = decompressor;
             }
         } else {
             chunkReader.setLimit(uncompressedSize);
@@ -91,7 +92,12 @@ public class FrameDecoder {
         return uncompressedSize;
     }
 
+    @Override
     public int read(byte[] buffer) throws IOException {
+        if (buffer.length==0) {
+            return 0; // No data to read
+        }
+
         if (uncompressedSize == 0) {
             frameLoaded = false;
             throw new IOException("End of frame");
@@ -108,7 +114,8 @@ public class FrameDecoder {
         return n;
     }
 
-    public int readByte() throws IOException {
+    @Override
+    public int read() throws IOException {
         if (uncompressedSize == 0) {
             frameLoaded = false;
             throw new IOException("End of frame");

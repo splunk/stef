@@ -8,6 +8,12 @@ public enum {{.EnumName}} {
 
     private final long value;
 
+    private static {{.EnumName}}[] enumValues = {{.EnumName}}.values();
+
+    public static {{.EnumName}} fromValue(long value) {
+        return enumValues[(int)value];
+    }
+
     {{.EnumName}}(long value) {
         this.value = value;
     }

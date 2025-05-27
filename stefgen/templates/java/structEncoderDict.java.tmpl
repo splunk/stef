@@ -1,5 +1,46 @@
+{{- if .DictName}}
 package {{ .PackageName }};
 
-public class {{ .StructName }}EncoderDict {
-    // TODO: Implement the encoder dictionary logic for {{ .StructName }}.
+import net.stef.SizeLimiter;
+import java.util.*;
+
+// {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
+class {{ .StructName }}EncoderDict {
+    private final HashMap<{{ .StructName }}, Entry> dict = new HashMap<>();
+    private SizeLimiter limiter;
+
+    public void init(SizeLimiter limiter) {
+        this.dict.clear();
+        this.dict.put(null, new Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+        this.limiter = limiter;
+    }
+
+    public void reset() {
+        this.dict.clear();
+        this.dict.put(null, new Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+    }
+
+    Entry get({{ .StructName }} key) {
+        return this.dict.get(key);
+    }
+
+    void set({{ .StructName }} key, Entry entry) {
+        this.dict.put(key, entry);
+    }
+
+    public int size() {
+        return this.dict.size();
+    }
+
+    // Entry for dictionary
+    static class Entry {
+        public long refNum;
+        public {{ .StructName }} val;
+
+        public Entry(long refNum, {{ .StructName }} val) {
+            this.refNum = refNum;
+            this.val = val;
+        }
+    }
 }
+{{- end}}

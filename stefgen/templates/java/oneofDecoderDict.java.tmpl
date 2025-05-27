@@ -1,0 +1,32 @@
+{{- if .DictName}}
+package {{ .PackageName }};
+
+import java.util.*;
+
+// {{ .StructName }}DecoderDict is the dictionary used by {{ .StructName }}Decoder
+class {{ .StructName }}DecoderDict {
+    private final List<{{.StructName}}> dict = new ArrayList<>();
+
+    public void init() {
+        this.dict.clear();
+        this.dict.add(null); // null {{.StructName}} is RefNum 0
+    }
+
+    // Reset the dictionary to initial state. Used when a frame is started with RestartDictionaries flag.
+    public void reset() {
+        this.init();
+    }
+
+    public {{.StructName}} getByIndex(int index) {
+        return this.dict.get(index);
+    }
+
+    public void add({{.StructName}} val) {
+        this.dict.add(val);
+    }
+
+    public int size() {
+        return this.dict.size();
+    }
+}
+{{- end}}

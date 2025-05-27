@@ -1,6 +1,7 @@
 package {{ .PackageName }}
 
 import (
+    "bytes"
     "fmt"
     "math/rand/v2"
     "strings"
@@ -11,10 +12,13 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+    "github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
 var _ = encoders.StringEncoder{}
+var _ = schema.WireSchema{}
+var _ = bytes.NewBuffer
 
 type {{ .StructName }} struct {
     {{ range .Fields }}
@@ -202,7 +206,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
     {{- if not .Type.IsPrimitive }}
         s.{{.name}}.mutateRandom(random)
     {{- else }}
-        s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc "(random)")}})
+        s.Set{{.Name}}({{.Type.RandomFunc}})
     {{- end}}
     }
 {{- end }}
@@ -607,5 +611,17 @@ func (d* {{ .StructName }}DecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d* {{ .StructName }}DecoderDict) Reset() {
     d.Init()
+}
+{{end}}
+
+{{if .IsMainStruct}}
+var wireSchema{{.StructName}} = []byte{ {{printf .Schema}} }
+
+func {{.StructName}}WireSchema() (schema.WireSchema, error) {
+    var w schema.WireSchema
+    if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
+        return w, err
+    }
+    return w,nil
 }
 {{end}}

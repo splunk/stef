@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 public class WriteBufs {
-    private final WriteColumnSet columns = new WriteColumnSet();
+    public final WriteColumnSet columns = new WriteColumnSet();
     private final BitsWriter tempBuf = new BitsWriter();
     private byte[] bytes = new byte[0];
 
@@ -14,11 +14,11 @@ public class WriteBufs {
         columns.writeSizesTo(tempBuf);
         tempBuf.close();
 
-        long bufSize = tempBuf.toBytes().capacity();
+        long bufSize = tempBuf.toBytes().limit();
         Serde.writeUvarint(bufSize, buf);
 
         ByteBuffer src =tempBuf.toBytes();
-        buf.write(src.array(), src.arrayOffset(), src.capacity());
+        buf.write(src.array(), src.arrayOffset(), src.limit());
         columns.writeDataTo(buf);
     }
 }

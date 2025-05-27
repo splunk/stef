@@ -1,0 +1,103 @@
+// {{ .StructName }}Encoder implements encoding of {{ .StructName }}
+package {{ .PackageName }};
+
+import net.stef.BitsWriter;
+import net.stef.SizeLimiter;
+import net.stef.WriteColumnSet;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+class {{ .StructName }}Encoder {
+    private BitsWriter buf = new BitsWriter();
+    private SizeLimiter limiter;
+    private {{.StructName}}.Type prevType;
+    private int fieldCount;
+
+    {{ range .Fields }}
+    private {{ .Type.EncoderType }}Encoder {{.name}}Encoder = new {{ .Type.EncoderType }}Encoder();
+    {{- end }}
+    {{if .DictName}}
+    private {{ .StructName }}EncoderDict dict;
+    {{end}}
+
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        state.{{.StructName}}Encoder = this;
+        prevType = {{.StructName}}.Type.TypeNone;
+        this.limiter = state.getLimiter();
+        {{- if .DictName}}
+        this.dict = state.get{{.DictName}}();
+        {{- end}}
+
+        if (state.getOverrideSchema() != null) {
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+            this.fieldCount = fieldCount;
+        } else {
+            this.fieldCount = {{len .Fields}};
+        }
+
+        {{ range $i, $e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+        {{.name}}Encoder.init(state.{{.Type.DictName}}, limiter, columns.addSubColumn());
+            {{- else}}
+        {{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}limiter, columns.addSubColumn());
+            {{- end}}
+        {{- else}}
+        {{.name}}Encoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end}}
+    }
+
+    public void reset() {
+        prevType = {{ .StructName }}.Type.TypeNone;
+        {{- range .Fields}}
+        this.{{.name}}Encoder.reset();
+        {{- end}}
+    }
+
+    // Encode encodes val into buf
+    public void encode({{ .StructName }} val) throws IOException {
+        int oldLen = buf.bitCount();
+
+        {{ $.StructName }}.Type typ = val.typ;
+        if (typ.getValue() > fieldCount) {
+            // The current field type is not supported in target schema. Encode the type as None.
+            typ = {{ $.StructName }}.Type.TypeNone;
+        }
+
+        // Compute type delta. 0 means the type is the same as the last time.
+        int typDelta = typ.getValue() - prevType.getValue();
+        prevType = typ;
+        buf.writeVarintCompact(typDelta);
+
+        // Account written bits in the limiter.
+        int newLen = buf.bitCount();
+        limiter.addFrameBits(newLen-oldLen);
+
+        // Encode currently selected field.
+        switch (typ) {
+        {{- range .Fields }}
+        case Type{{.Name}}:
+            // Encode {{.Name}}
+            {{.name}}Encoder.encode(val.{{.name}});
+            break;
+        {{- end }}
+        }
+    }
+
+    // collectColumns collects all buffers from all encoders into buf.
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBits(this.buf);
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        this.{{.name}}Encoder.collectColumns(columnSet.at({{$i}}));
+        {{- end }}
+    }
+}
+

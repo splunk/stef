@@ -1,0 +1,106 @@
+// {{ .StructName }}Decoder implements decoding of {{ .StructName }}
+package {{ .PackageName }};
+
+import net.stef.BitsReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+class {{ .StructName }}Decoder {
+    private final BitsReader buf = new BitsReader();
+    private ReadableColumn column;
+    private {{.StructName}} lastValPtr;
+    private {{.StructName}} lastVal = new {{.StructName}}();
+    private int fieldCount;
+    private {{.StructName}}.Type prevType;
+
+    {{ range .Fields }}
+    private {{ .Type.EncoderType }}Decoder {{.name}}Decoder = new {{ .Type.EncoderType }}Decoder();
+    {{- end }}
+    {{if .DictName}}
+    private {{ .StructName }}DecoderDict dict;
+    {{end}}
+
+    // Init is called once in the lifetime of the stream.
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        state.{{ .StructName }}Decoder = this;
+        prevType = {{.StructName}}.Type.TypeNone;
+        if (state.getOverrideSchema() != null) {
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+            this.fieldCount = fieldCount;
+        } else {
+            this.fieldCount = {{len .Fields}};
+        }
+        this.column = columns.getColumn();
+        this.lastVal.init(null, 0);
+        this.lastValPtr = this.lastVal;
+        {{- if .DictName}}
+        this.dict = state.get{{.DictName}}();
+        {{- end}}
+        Exception err = null;
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .Type.IsPrimitive}}
+            {{- if .Type.DictName}}
+        this.{{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
+            {{- else if .Type.IsDictPossible}}
+        this.{{.name}}Decoder.init(null, columns.addSubColumn());
+            {{- else}}
+        this.{{.name}}Decoder.init(columns.addSubColumn());
+            {{- end}}
+        {{- else}}
+        this.{{.name}}Decoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end }}
+    }
+
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        this.buf.reset(this.column.getData());
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        this.{{.name}}Decoder.continueDecoding();
+        {{- end }}
+    }
+
+    public void reset() {
+        prevType = {{.StructName}}.Type.TypeNone;
+        {{- range .Fields}}
+        {{.name}}Decoder.reset();
+        {{- end}}
+    }
+
+    // Decode decodes a value from the buffer into dst.
+    public {{.StructName}} decode({{.StructName}} dst) throws IOException {
+        // Read type delta
+        long typeDelta = this.buf.readVarintCompact();
+        long typ = prevType.getValue() + typeDelta;
+        if (typ < 0 || typ >= {{.StructName}}.Type.values().length) {
+            throw new IOException("Invalid oneof type");
+        }
+        dst.typ = {{.StructName}}.Type.values()[(int)typ];
+        prevType = dst.typ;
+        this.lastValPtr = dst;
+        // Decode selected field
+        switch (dst.typ) {
+        {{- range .Fields }}
+        case Type{{.Name}}:
+            dst.{{.name}} = this.{{.name}}Decoder.decode({{if not .Type.IsPrimitive }}dst.{{.name}}{{end}});
+            break;
+        {{- end }}
+        default:
+            break;
+        }
+        return dst;
+    }
+}

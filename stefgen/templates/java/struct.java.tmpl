@@ -1,6 +1,256 @@
+// {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
-public class {{ .StructName }} {
-    // TODO: Define the fields and methods for the {{ .StructName }} struct.
-}
+import net.stef.StringValue;
+import net.stef.Types;
+import net.stef.schema.WireSchema;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.*;
+
+public class {{ .StructName }} {
+    // Field values.
+    {{ range .Fields }}
+    {{.Type.Storage}} {{.name}};
+    {{- end }}
+
+    // modifiedFields keeps track of which fields are modified.
+    final ModifiedFields modifiedFields = new ModifiedFields();
+
+    {{- if .OptionalFieldCount }}
+    // Field presence bits.
+    // Fields which are present have the corresponding bit set, see fieldPresent* consts below.
+    long optionalFieldsPresent;
+    {{- end }}
+
+    public static final String StructName = "{{ .StructName }}";
+
+    // Bitmasks for "modified" flags for each field.
+    {{ range .Fields }}
+    public static final long fieldModified{{.Name}} = 1 << {{ .FieldIndex }};
+    {{- end }}
+
+    {{if .OptionalFieldCount}}
+    // Bitmasks for "present" flags for optional fields.
+    {{ range .Fields }}
+    {{- if .Optional}}
+    public static final long fieldPresent{{.Name}} = 1L << {{.OptionalIndex}};
+    {{- end }}
+    {{- end }}
+    {{end}}
+
+    public {{.StructName}}() {
+        init(null, 0);
+    }
+
+    {{.StructName}}(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
+        {{ range .Fields }}
+        {{- if .Type.IsPrimitive }}
+        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
+        {{- else}}
+        {{.name}} = new {{ .Type.Storage }}(modifiedFields, fieldModified{{.Name}});
+        {{- end }}
+        {{- end }}
+    }
+
+    {{ range .Fields }}
+    public {{.Type.Exported}} get{{.Name}}() {
+        {{- if .Type.IsPrimitive}}
+        return {{.Type.ToExported (print .name)}};
+        {{- else}}
+        return this.{{.name}};
+        {{- end}}
+    }
+
+    {{- if .Type.IsPrimitive}}
+
+    // set{{.Name}} sets the value of {{.Name}} field.
+    public void set{{.Name}}({{.Type.Exported}} v) {
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, {{.Type.ToStorage "v"}})
+            {{- if .Optional}}|| (this.optionalFieldsPresent & fieldPresent{{.Name}}) == 0{{end}}) {
+            this.{{.name}} = {{.Type.ToStorage "v"}};
+            this.mark{{.Name}}Modified();
+            {{- if .Optional}}
+            this.optionalFieldsPresent |= fieldPresent{{.Name}};
+            {{- end}}
+        }
+    }
+
+    {{- if .Optional}}
+    // unset{{.Name}} unsets the presence flag of {{.Name}} field. A subsequent has{{.Name}}() will return false.
+    public void unset{{.Name}}() {
+        if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) != 0) {
+            this.optionalFieldsPresent &= ~fieldPresent{{.Name}};
+            this.mark{{.Name}}Modified();
+        }
+    }
+
+    // has{{.Name}} returns true if the presence flag {{.Name}} field is set and false if it is unset.
+    public boolean has{{.Name}}() {
+        return (this.optionalFieldsPresent & fieldPresent{{.Name}}) != 0;
+    }
+    {{- end}}
+
+    private void mark{{.Name}}Modified() {
+        this.modifiedFields.markModified(fieldModified{{.Name}});
+    }
+    {{- end}}
+
+    // is{{.Name}}Modified returns true if the value of {{.Name}} field was modified since
+    // {{ $.StructName }} was created, encoded or decoded. If the field is modified
+    // it will be encoded by the next Write() operation. If the field is decoded by the
+    // next Read() operation the modified flag will be set.
+    public boolean is{{.Name}}Modified() {
+        return (this.modifiedFields.mask & fieldModified{{.Name}}) != 0;
+    }
+    {{ end}}
+
+    void markUnmodified() {
+        modifiedFields.markUnmodified();
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        if (this.is{{.Name}}Modified()) {
+            this.{{.name}}.markUnmodified();
+        }
+        {{- end}}
+        {{- end }}
+    }
+
+    void markUnmodifiedRecursively() {
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        if (this.is{{.Name}}Modified()) {
+            this.{{.name}}.markUnmodifiedRecursively();
+        }
+        {{- end}}
+        {{- end }}
+        this.modifiedFields.mask = 0;
+    }
+
+    public {{.StructName}} clone() {
+        {{.StructName}} cpy = new {{.StructName}}();
+        {{- range .Fields }}
+        cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
+        {{- end }}
+        return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    int byteSize() {
+        int size = 0; // TODO: calculate the size of this object.
+        {{- range .Fields}}
+        {{if .Type.MustClone}}size += this.{{.name}}.byteSize();{{end}}
+        {{- end }}
+        return size;
+    }
+
+    // Performs a deep copy from src to dst.
+    public void copyFrom({{.StructName}} src) {
+        {{- range .Fields }}
+        {{- if .Type.MustClone }}
+        {{.name }}.copyFrom(src.{{.name}});
+        {{- else }}
+        {{- if .Optional }}
+        if (src.has{{.Name}}()) {
+            set{{.Name}}(src.get{{.Name}}());
+        } else {
+            unset{{.Name}}();
+        }
+        {{- else }}
+        set{{.Name}}(src.get{{.Name}}());
+        {{- end }}
+        {{- end }}
+        {{- end }}
+    }
+
+    // equals performs deep comparison and returns true if struct is equal to val.
+    public boolean equals({{ .StructName }} val) {
+        {{- range .Fields }}
+        {{- if .Type.IsPrimitive }}
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
+            return false;
+        }
+        {{- else }}
+        if (!this.{{.name}}.equals(val.{{.name}})) {
+            return false;
+        }
+        {{- end }}
+        {{- end }}
+        return true;
+    }
+
+    public static boolean equals({{.StructName}} left, {{.StructName}} right) {
+        return left.equals(right);
+    }
+
+    // compare performs deep comparison and returns an integer that
+    // will be 0 if left == right, negative if left < right, positive if left > right.
+    public static int compare({{.StructName}} left, {{.StructName}} right) {
+        if (left == null) {
+            if (right == null) {
+                return 0;
+            }
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        int c;
+        {{ range .Fields }}
+        c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
+        if (c != 0) {
+            return c;
+        }
+        {{ end }}
+        return 0;
+    }
+
+    // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
+    void mutateRandom(Random random) {
+        final int fieldCount = {{len .Fields}};
+        {{ range .Fields }}
+        if (random.nextInt(fieldCount) == 0) {
+            {{- if not .Type.IsPrimitive }}
+            this.{{.name}}.mutateRandom(random);
+            {{- else }}
+            this.set{{.Name}}({{.Type.RandomFunc}});
+            {{- end }}
+        }
+        {{ end }}
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return equals(({{.StructName}})o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+        {{- range $index, $element := .Fields }}{{if $index}},{{end}}
+            {{.name}}
+        {{- end }}
+        );
+    }
+
+    {{if .IsMainStruct}}
+    static final byte[] wireSchemaBytes = new byte[]{ {{.Schema}} };
+
+    static WireSchema wireSchema() throws IOException {
+        WireSchema w = new WireSchema();
+        w.deserialize(new ByteArrayInputStream(wireSchemaBytes));
+        return w;
+    }
+    {{end}}
+}

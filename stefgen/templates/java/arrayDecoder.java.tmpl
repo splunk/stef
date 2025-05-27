@@ -1,0 +1,86 @@
+package {{ .PackageName }};
+
+import net.stef.BitsReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+// Decoder for {{ .ArrayName }}
+class {{ .ArrayName }}Decoder {
+    private final BitsReader buf = new BitsReader();
+    private ReadableColumn column;
+    private {{.ElemType.EncoderType}}Decoder decoder;
+    private int prevLen = 0;
+    private {{.ElemType.Storage}} lastVal;
+
+    // init is called once in the lifetime of the stream.
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        column = columns.getColumn();
+    {{if .ElemType.IsPrimitive}}
+        decoder = new {{.ElemType.EncoderType}}Decoder();
+    {{if .ElemType.DictName}}
+        decoder.init(state.{{.ElemType.DictName}}, columns.addSubColumn());
+    {{else if .ElemType.IsDictPossible}}
+        decoder.init(null, columns.addSubColumn());
+    {{else}}
+        decoder.init(columns.addSubColumn());
+    {{end}}
+    {{else}}
+    {{if .Recursive}}
+        decoder = state.{{.ElemType.EncoderType}}Decoder;
+    {{else}}
+        decoder = new {{.ElemType.EncoderType}}Decoder();
+        decoder.init(state, columns.addSubColumn());
+        state.{{.ElemType.EncoderType}}Decoder = decoder;
+    {{end}}
+        lastVal = new {{.ElemType.Storage}}(null, 0);
+    {{end}}
+    }
+
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        buf.reset(column.getData());
+        {{if not .Recursive}}
+        decoder.continueDecoding();
+        {{end}}
+    }
+
+    public void reset() {
+        prevLen = 0;
+        {{if not .Recursive}}
+        decoder.reset();
+        {{end}}
+    }
+
+    public {{.ArrayName}} decode({{.ArrayName}} dst) throws IOException {
+        long lenDelta = buf.readVarintCompact();
+        long newLen = prevLen + lenDelta;
+        if (newLen < 0) {
+            throw new IllegalStateException("Invalid array length: " + newLen);
+        }
+        if (newLen > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+        }
+
+        dst.ensureLen((int)newLen);
+        prevLen = (int)newLen;
+        for (int i = 0; i < newLen; i++) {
+            {{if .ElemType.IsPrimitive}}
+            lastVal = decoder.decode();
+            dst.elems[i] = lastVal;
+            {{else}}
+            lastVal = decoder.decode(lastVal);
+            dst.elems[i].copyFrom(lastVal);
+            {{end}}
+        }
+
+        return dst;
+    }
+}
+

@@ -1,0 +1,37 @@
+package {{ .PackageName }}
+
+import (
+	"github.com/splunk/stef/go/pkg/encoders"
+    "github.com/splunk/stef/go/pkg/schema"
+)
+
+type ReaderState struct {
+    // OverrideSchema is set if decoding should perform a translation from specified
+    // schema. OverrideSchema must be compatible with decoders' schema.
+    OverrideSchema *schema.WireSchema
+
+    // Dictionaries
+    {{range .Dicts -}}
+    {{.DictName}} {{.DictTypeNamePrefix}}DecoderDict
+    {{end}}
+
+    // Decoders
+    {{range $name, $val := .Encoders -}}
+    {{$name}}Decoder *{{$name}}Decoder
+    {{end}}
+}
+
+func (d* ReaderState) Init(overrideSchema *schema.WireSchema) {
+    d.OverrideSchema = overrideSchema
+    {{range .Dicts -}}
+ 	d.{{.DictName}}.Init()
+    {{end -}}
+}
+
+// ResetDicts resets all dictionaries to initial state. Used when a frame is
+// started with RestartDictionaries flag.
+func (d* ReaderState) ResetDicts() {
+    {{range .Dicts -}}
+    d.{{.DictName}}.Reset()
+    {{end -}}
+}

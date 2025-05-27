@@ -28,13 +28,6 @@ public class BytesWriter {
         writeBytes(bytes.array(), bytes.arrayOffset(), bytes.capacity());
     }
 
-/*
-    public void writeStringBytes(String val) {
-        byte[] bytes = val.getBytes();
-        writeBytes(bytes);
-    }
-*/
-
     public void writeUvarint(long value) {
         while ((value & ~0x7FL) != 0) {
             writeByte((byte) ((value & 0x7F) | 0x80));
@@ -60,6 +53,12 @@ public class BytesWriter {
 
     public ByteBuffer toBytes() {
         return ByteBuffer.wrap(buf, 0, byteIndex).order(ByteOrder.BIG_ENDIAN);
+    }
+
+    public byte[] toBytesCopy() {
+        byte[] copy = new byte[byteIndex];
+        System.arraycopy(buf, 0, copy, 0, byteIndex);
+        return copy;
     }
 
     private void ensureCapacity(int additionalBytes) {

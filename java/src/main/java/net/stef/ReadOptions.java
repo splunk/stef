@@ -1,5 +1,6 @@
 package net.stef;
 
+// ReadOptions is a bitmask of options.
 public class ReadOptions {
     // TillEndOfFrame indicates that the read operation must only succeed if
     // the record is available in the already fetched frame. This ensures
@@ -9,5 +10,8 @@ public class ReadOptions {
     // current frame, then ErrEndOfFrame is returned.
     // If TillEndOfFrame is false, then read will fetch new frames from the
     // underlying reader as needed.
-    public boolean tillEndOfFrame;
+    public static int tillEndOfFrame = 1;
+
+    // Default read options to use.
+    public static int none = 0;
 }

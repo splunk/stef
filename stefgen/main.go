@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/stefgen/generator"
@@ -16,6 +15,10 @@ import (
 func main() {
 	lang := flag.String("lang", "", "Target language for code generation. Currently only go is supported.")
 	outDir := flag.String("outdir", "", "Output directory.")
+	testOutDir := flag.String(
+		"testoutdir", "",
+		"Output directory for test files. If unspecified, it defaults to outdir. Can be used with --lang=java only.",
+	)
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -45,15 +48,12 @@ func main() {
 	}
 	wireSchema := parser.Schema()
 
-	packageComponents := strings.Split(wireSchema.PackageName, ".")
-	packageName := packageComponents[len(packageComponents)-1]
-
-	destDir := path.Join(*outDir, packageName)
-	fmt.Printf("Generating %s code to %s\n", *lang, destDir)
+	fmt.Printf("Generating %s code to %s\n", *lang, *outDir)
 
 	g := generator.Generator{
-		OutputDir: destDir,
-		Lang:      generator.Lang(*lang),
+		OutputDir:     *outDir,
+		TestOutputDir: *testOutDir,
+		Lang:          generator.Lang(*lang),
 	}
 	err = g.GenFile(wireSchema)
 	if err != nil {

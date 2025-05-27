@@ -2,10 +2,10 @@
 package {{ .PackageName }}
 
 import (
-    "strings"
     "math/rand/v2"
     "unsafe"
 	"slices"
+	"strings"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
@@ -284,14 +284,14 @@ func (m *{{ .MultimapName }}) mutateRandom(random *rand.Rand) {
 		{{- if not .Key.Type.IsPrimitive }}
 			m.elems[i].key.mutateRandom(random)
 		{{- else }}
-			m.SetKey(i, {{ .Key.Type.RandomFunc }}(random))
+			m.SetKey(i, {{ .Key.Type.RandomFunc }})
 		{{- end}}
 		}
 		if random.IntN(4*len(m.elems))==0 {
 		{{- if not .Value.Type.IsPrimitive }}
 			m.elems[i].value.mutateRandom(random)
 		{{- else }}
-			m.SetValue(i, {{ .Value.Type.RandomFunc }}(random))
+			m.SetValue(i, {{ .Value.Type.RandomFunc }})
 		{{- end}}
 		}
 	}

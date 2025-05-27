@@ -1,15 +1,18 @@
 package net.stef.codecs;
 
-import net.stef.*;
+import net.stef.BytesReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class BytesDecoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private BytesDecoderDict dict;
     private ReadableColumn column;
 
-    public void init(BytesDecoderDict dict, ReadColumnSet columns) throws Exception {
+    public void init(BytesDecoderDict dict, ReadColumnSet columns) {
         this.dict = dict;
         this.column = columns.getColumn();
     }
@@ -20,7 +23,7 @@ public class BytesDecoder {
 
     public void reset() {}
 
-    public byte[] decode() throws Exception {
+    public byte[] decode() throws IOException {
         long varint = buf.readVarint();
         if (varint >= 0) {
             int strLen = (int) varint;
@@ -31,13 +34,13 @@ public class BytesDecoder {
             return value;
         } else {
             if (dict == null) {
-                throw new Exception("Invalid RefNum, out of dictionary range");
+                throw new IOException("Invalid RefNum, out of dictionary range");
             }
-            int refNum = (int) (-varint - 1);
+            long refNum = -varint - 1;
             if (refNum >= dict.size()) {
-                throw new Exception("Invalid RefNum, out of dictionary range");
+                throw new IOException("Invalid RefNum, out of dictionary range");
             }
-            return dict.get(refNum);
+            return dict.get((int) refNum);
         }
     }
 }

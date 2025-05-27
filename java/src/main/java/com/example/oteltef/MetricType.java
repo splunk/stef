@@ -11,6 +11,12 @@ public enum MetricType {
 
     private final long value;
 
+    private static MetricType[] enumValues = MetricType.values();
+
+    public static MetricType fromValue(long value) {
+        return enumValues[(int)value];
+    }
+
     MetricType(long value) {
         this.value = value;
     }
