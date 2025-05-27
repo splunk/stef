@@ -5,21 +5,22 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class LinkDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Link lastValPtr;
     private Link lastVal = new Link();
     private int fieldCount;
 
     
-    private encoders.BytesDecoder traceIDDecoder = new encoders.BytesDecoder();
-    private encoders.BytesDecoder spanIDDecoder = new encoders.BytesDecoder();
-    private encoders.StringDecoder traceStateDecoder = new encoders.StringDecoder();
-    private encoders.Uint64Decoder flagsDecoder = new encoders.Uint64Decoder();
+    private BytesDecoder traceIDDecoder = new BytesDecoder();
+    private BytesDecoder spanIDDecoder = new BytesDecoder();
+    private StringDecoder traceStateDecoder = new StringDecoder();
+    private Uint64Decoder flagsDecoder = new Uint64Decoder();
     private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private encoders.Uint64Decoder droppedAttributesCountDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
     
 
     // Init is called once in the lifetime of the stream.
@@ -86,33 +87,33 @@ public class LinkDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.cont();
+        this.traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.cont();
+        this.spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.cont();
+        this.traceStateDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.cont();
+        this.flagsDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.cont();
+        this.droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -132,32 +133,32 @@ public class LinkDecoder {
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-            this.traceIDDecoder.decode(val.getTraceID());
+            val.traceID = this.traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-            this.spanIDDecoder.decode(val.getSpanID());
+            val.spanID = this.spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
-            this.traceStateDecoder.decode(val.getTraceState());
+            val.traceState = this.traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
-            this.flagsDecoder.decode(val.getFlags());
+            val.flags = this.flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-            this.droppedAttributesCountDecoder.decode(val.getDroppedAttributesCount());
+            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         

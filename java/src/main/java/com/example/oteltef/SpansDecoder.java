@@ -5,9 +5,10 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class SpansDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Spans lastValPtr;
     private Spans lastVal = new Spans();
@@ -70,25 +71,25 @@ public class SpansDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeDecoder.cont();
+        this.envelopeDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceDecoder.cont();
+        this.resourceDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeDecoder.cont();
+        this.scopeDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Span and subsequent fields are skipped.
         }
-        this.spanDecoder.cont();
+        this.spanDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -106,22 +107,22 @@ public class SpansDecoder {
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            this.envelopeDecoder.decode(val.getEnvelope());
+            val.envelope = this.envelopeDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            this.resourceDecoder.decode(val.getResource());
+            val.resource = this.resourceDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            this.scopeDecoder.decode(val.getScope());
+            val.scope = this.scopeDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
-            this.spanDecoder.decode(val.getSpan());
+            val.span = this.spanDecoder.decode();
         }
         
         

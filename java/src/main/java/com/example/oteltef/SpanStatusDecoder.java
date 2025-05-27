@@ -5,17 +5,18 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class SpanStatusDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private SpanStatus lastValPtr;
     private SpanStatus lastVal = new SpanStatus();
     private int fieldCount;
 
     
-    private encoders.StringDecoder messageDecoder = new encoders.StringDecoder();
-    private encoders.Uint64Decoder codeDecoder = new encoders.Uint64Decoder();
+    private StringDecoder messageDecoder = new StringDecoder();
+    private Uint64Decoder codeDecoder = new Uint64Decoder();
     
 
     // Init is called once in the lifetime of the stream.
@@ -54,17 +55,17 @@ public class SpanStatusDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-        this.messageDecoder.cont();
+        this.messageDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-        this.codeDecoder.cont();
+        this.codeDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -80,12 +81,12 @@ public class SpanStatusDecoder {
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedMessage) != 0) {
             // Field is changed and is present, decode it.
-            this.messageDecoder.decode(val.getMessage());
+            val.message = this.messageDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedCode) != 0) {
             // Field is changed and is present, decode it.
-            this.codeDecoder.decode(val.getCode());
+            val.code = this.codeDecoder.decode();
         }
         
         

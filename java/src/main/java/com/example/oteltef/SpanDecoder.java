@@ -5,26 +5,27 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class SpanDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Span lastValPtr;
     private Span lastVal = new Span();
     private int fieldCount;
 
     
-    private encoders.BytesDecoder traceIDDecoder = new encoders.BytesDecoder();
-    private encoders.BytesDecoder spanIDDecoder = new encoders.BytesDecoder();
-    private encoders.StringDecoder traceStateDecoder = new encoders.StringDecoder();
-    private encoders.BytesDecoder parentSpanIDDecoder = new encoders.BytesDecoder();
-    private encoders.Uint64Decoder flagsDecoder = new encoders.Uint64Decoder();
-    private encoders.StringDecoder nameDecoder = new encoders.StringDecoder();
-    private encoders.Uint64Decoder kindDecoder = new encoders.Uint64Decoder();
-    private encoders.Uint64Decoder startTimeUnixNanoDecoder = new encoders.Uint64Decoder();
-    private encoders.Uint64Decoder endTimeUnixNanoDecoder = new encoders.Uint64Decoder();
+    private BytesDecoder traceIDDecoder = new BytesDecoder();
+    private BytesDecoder spanIDDecoder = new BytesDecoder();
+    private StringDecoder traceStateDecoder = new StringDecoder();
+    private BytesDecoder parentSpanIDDecoder = new BytesDecoder();
+    private Uint64Decoder flagsDecoder = new Uint64Decoder();
+    private StringDecoder nameDecoder = new StringDecoder();
+    private Uint64Decoder kindDecoder = new Uint64Decoder();
+    private Uint64Decoder startTimeUnixNanoDecoder = new Uint64Decoder();
+    private Uint64Decoder endTimeUnixNanoDecoder = new Uint64Decoder();
     private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private encoders.Uint64Decoder droppedAttributesCountDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
     private EventArrayDecoder eventsDecoder = new EventArrayDecoder();
     private LinkArrayDecoder linksDecoder = new LinkArrayDecoder();
     private SpanStatusDecoder statusDecoder = new SpanStatusDecoder();
@@ -150,65 +151,65 @@ public class SpanDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.cont();
+        this.traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.cont();
+        this.spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.cont();
+        this.traceStateDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // ParentSpanID and subsequent fields are skipped.
         }
-        this.parentSpanIDDecoder.cont();
+        this.parentSpanIDDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.cont();
+        this.flagsDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.cont();
+        this.nameDecoder.continueDecoding();
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
-        this.kindDecoder.cont();
+        this.kindDecoder.continueDecoding();
         if (this.fieldCount <= 7) {
             return; // StartTimeUnixNano and subsequent fields are skipped.
         }
-        this.startTimeUnixNanoDecoder.cont();
+        this.startTimeUnixNanoDecoder.continueDecoding();
         if (this.fieldCount <= 8) {
             return; // EndTimeUnixNano and subsequent fields are skipped.
         }
-        this.endTimeUnixNanoDecoder.cont();
+        this.endTimeUnixNanoDecoder.continueDecoding();
         if (this.fieldCount <= 9) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 10) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.cont();
+        this.droppedAttributesCountDecoder.continueDecoding();
         if (this.fieldCount <= 11) {
             return; // Events and subsequent fields are skipped.
         }
-        this.eventsDecoder.cont();
+        this.eventsDecoder.continueDecoding();
         if (this.fieldCount <= 12) {
             return; // Links and subsequent fields are skipped.
         }
-        this.linksDecoder.cont();
+        this.linksDecoder.continueDecoding();
         if (this.fieldCount <= 13) {
             return; // Status and subsequent fields are skipped.
         }
-        this.statusDecoder.cont();
+        this.statusDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -236,72 +237,72 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-            this.traceIDDecoder.decode(val.getTraceID());
+            val.traceID = this.traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-            this.spanIDDecoder.decode(val.getSpanID());
+            val.spanID = this.spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
-            this.traceStateDecoder.decode(val.getTraceState());
+            val.traceState = this.traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedParentSpanID) != 0) {
             // Field is changed and is present, decode it.
-            this.parentSpanIDDecoder.decode(val.getParentSpanID());
+            val.parentSpanID = this.parentSpanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
-            this.flagsDecoder.decode(val.getFlags());
+            val.flags = this.flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-            this.nameDecoder.decode(val.getName());
+            val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedKind) != 0) {
             // Field is changed and is present, decode it.
-            this.kindDecoder.decode(val.getKind());
+            val.kind = this.kindDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStartTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-            this.startTimeUnixNanoDecoder.decode(val.getStartTimeUnixNano());
+            val.startTimeUnixNano = this.startTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEndTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-            this.endTimeUnixNanoDecoder.decode(val.getEndTimeUnixNano());
+            val.endTimeUnixNano = this.endTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-            this.droppedAttributesCountDecoder.decode(val.getDroppedAttributesCount());
+            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
-            this.eventsDecoder.decode(val.getEvents());
+            val.events = this.eventsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
-            this.linksDecoder.decode(val.getLinks());
+            val.links = this.linksDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
-            this.statusDecoder.decode(val.getStatus());
+            val.status = this.statusDecoder.decode();
         }
         
         

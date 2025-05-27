@@ -5,18 +5,19 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class ResourceDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Resource lastValPtr;
     private Resource lastVal = new Resource();
     private int fieldCount;
 
     
-    private encoders.StringDecoder schemaURLDecoder = new encoders.StringDecoder();
+    private StringDecoder schemaURLDecoder = new StringDecoder();
     private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private encoders.Uint64Decoder droppedAttributesCountDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
     
     private ResourceDecoderDict dict;
     
@@ -65,21 +66,21 @@ public class ResourceDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.cont();
+        this.schemaURLDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.cont();
+        this.droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -90,8 +91,8 @@ public class ResourceDecoder {
 
     public void decode(Resource[] dstPtr) throws Exception {
         // Check if the Resource exists in the dictionary.
-        boolean dictFlag = this.buf.readBit();
-        if (!dictFlag) {
+        int dictFlag = this.buf.readBit();
+        if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
                 throw new Exception("Invalid refNum");
@@ -111,17 +112,17 @@ public class ResourceDecoder {
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
-            this.schemaURLDecoder.decode(val.getSchemaURL());
+            val.schemaURL = this.schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-            this.droppedAttributesCountDecoder.decode(val.getDroppedAttributesCount());
+            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         

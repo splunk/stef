@@ -17,10 +17,10 @@ public class HistogramValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.Int64Encoder countEncoder = new encoders.Int64Encoder();
-    private encoders.Float64Encoder sumEncoder = new encoders.Float64Encoder();
-    private encoders.Float64Encoder minEncoder = new encoders.Float64Encoder();
-    private encoders.Float64Encoder maxEncoder = new encoders.Float64Encoder();
+    private Int64Encoder countEncoder = new Int64Encoder();
+    private Float64Encoder sumEncoder = new Float64Encoder();
+    private Float64Encoder minEncoder = new Float64Encoder();
+    private Float64Encoder maxEncoder = new Float64Encoder();
     private LongArrayEncoder bucketCountsEncoder = new LongArrayEncoder();
     
 

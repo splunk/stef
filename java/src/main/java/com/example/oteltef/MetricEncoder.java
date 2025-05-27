@@ -17,14 +17,14 @@ public class MetricEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.StringEncoder nameEncoder = new encoders.StringEncoder();
-    private encoders.StringEncoder descriptionEncoder = new encoders.StringEncoder();
-    private encoders.StringEncoder unitEncoder = new encoders.StringEncoder();
-    private encoders.Uint64Encoder type_Encoder = new encoders.Uint64Encoder();
+    private StringEncoder nameEncoder = new StringEncoder();
+    private StringEncoder descriptionEncoder = new StringEncoder();
+    private StringEncoder unitEncoder = new StringEncoder();
+    private Uint64Encoder type_Encoder = new Uint64Encoder();
     private AttributesEncoder metadataEncoder = new AttributesEncoder();
     private DoubleArrayEncoder histogramBoundsEncoder = new DoubleArrayEncoder();
-    private encoders.Uint64Encoder aggregationTemporalityEncoder = new encoders.Uint64Encoder();
-    private encoders.BoolEncoder monotonicEncoder = new encoders.BoolEncoder();
+    private Uint64Encoder aggregationTemporalityEncoder = new Uint64Encoder();
+    private BoolEncoder monotonicEncoder = new BoolEncoder();
     
     private MetricEncoderDict dict;
     

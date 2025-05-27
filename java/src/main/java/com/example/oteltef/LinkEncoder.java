@@ -17,12 +17,12 @@ public class LinkEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.BytesEncoder traceIDEncoder = new encoders.BytesEncoder();
-    private encoders.BytesEncoder spanIDEncoder = new encoders.BytesEncoder();
-    private encoders.StringEncoder traceStateEncoder = new encoders.StringEncoder();
-    private encoders.Uint64Encoder flagsEncoder = new encoders.Uint64Encoder();
+    private BytesEncoder traceIDEncoder = new BytesEncoder();
+    private BytesEncoder spanIDEncoder = new BytesEncoder();
+    private StringEncoder traceStateEncoder = new StringEncoder();
+    private Uint64Encoder flagsEncoder = new Uint64Encoder();
     private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private encoders.Uint64Encoder droppedAttributesCountEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
     
 
     private long keepFieldMask;

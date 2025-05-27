@@ -17,9 +17,9 @@ public class ResourceEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.StringEncoder schemaURLEncoder = new encoders.StringEncoder();
+    private StringEncoder schemaURLEncoder = new StringEncoder();
     private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private encoders.Uint64Encoder droppedAttributesCountEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
     
     private ResourceEncoderDict dict;
     

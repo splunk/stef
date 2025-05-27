@@ -3,7 +3,7 @@ package net.stef.codecs;
 import net.stef.ReadColumnSet;
 import net.stef.StringValue;
 
-public class StringValueDecoder {
+public class StringDecoder {
     private BytesDecoder decoder = new BytesDecoder();
 
     public void init(BytesDecoderDict dict, ReadColumnSet columns) throws Exception {

@@ -4,7 +4,7 @@ import net.stef.StringValue;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 
-public class StringValueEncoder {
+public class StringEncoder {
     private BytesEncoder encoder = new BytesEncoder();
 
     public void init(BytesEncoderDict dict, SizeLimiter limiter, WriteColumnSet columns) {

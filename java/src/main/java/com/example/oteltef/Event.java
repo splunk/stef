@@ -2,15 +2,16 @@
 // Event Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Event {
     
-    private String name;
-    private long timeUnixNano;
-    private Attributes attributes;
-    private long droppedAttributesCount;
+    StringValue name;
+    long timeUnixNano;
+    Attributes attributes;
+    long droppedAttributesCount;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -46,13 +47,13 @@ public class Event {
     }
 
     
-    public String getName() {
+    public StringValue getName() {
         return this.name;
     }
 
     
     // setName sets the value of Name field.
-    public void setName(String v) {
+    public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
             this.name = v;
             this.markNameModified();
@@ -102,7 +103,7 @@ public class Event {
         return (this.modifiedFields.mask & fieldModifiedTimeUnixNano) != 0;
     }
     
-    public Attributes  getAttributes() {
+    public Attributes getAttributes() {
         return this.attributes;
     }
 

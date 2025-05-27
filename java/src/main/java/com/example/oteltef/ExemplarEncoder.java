@@ -17,10 +17,10 @@ public class ExemplarEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.Uint64Encoder timestampEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder timestampEncoder = new Uint64Encoder();
     private ExemplarValueEncoder valueEncoder = new ExemplarValueEncoder();
-    private encoders.BytesEncoder spanIDEncoder = new encoders.BytesEncoder();
-    private encoders.BytesEncoder traceIDEncoder = new encoders.BytesEncoder();
+    private BytesEncoder spanIDEncoder = new BytesEncoder();
+    private BytesEncoder traceIDEncoder = new BytesEncoder();
     private AttributesEncoder filteredAttributesEncoder = new AttributesEncoder();
     
 

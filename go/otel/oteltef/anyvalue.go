@@ -289,7 +289,7 @@ func CmpAnyValue(left, right *AnyValue) int {
 	}
 	switch left.typ {
 	case AnyValueTypeString:
-		if c := strings.Compare(left.string, right.string); c != 0 {
+		if c := pkg.StringCompare(left.string, right.string); c != 0 {
 			return c
 		}
 	case AnyValueTypeBool:

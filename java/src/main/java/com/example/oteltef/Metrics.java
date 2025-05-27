@@ -2,17 +2,18 @@
 // Metrics Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Metrics {
     
-    private Envelope envelope;
-    private Metric  metric;
-    private Resource  resource;
-    private Scope  scope;
-    private Attributes attributes;
-    private Point point;
+    Envelope envelope;
+    Metric metric;
+    Resource resource;
+    Scope scope;
+    Attributes attributes;
+    Point point;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -58,7 +59,7 @@ public class Metrics {
     }
 
     
-    public Envelope  getEnvelope() {
+    public Envelope getEnvelope() {
         return this.envelope;
     }
 
@@ -72,7 +73,7 @@ public class Metrics {
         return (this.modifiedFields.mask & fieldModifiedEnvelope) != 0;
     }
     
-    public Metric  getMetric() {
+    public Metric getMetric() {
         return this.metric;
     }
 
@@ -86,7 +87,7 @@ public class Metrics {
         return (this.modifiedFields.mask & fieldModifiedMetric) != 0;
     }
     
-    public Resource  getResource() {
+    public Resource getResource() {
         return this.resource;
     }
 
@@ -100,7 +101,7 @@ public class Metrics {
         return (this.modifiedFields.mask & fieldModifiedResource) != 0;
     }
     
-    public Scope  getScope() {
+    public Scope getScope() {
         return this.scope;
     }
 
@@ -114,7 +115,7 @@ public class Metrics {
         return (this.modifiedFields.mask & fieldModifiedScope) != 0;
     }
     
-    public Attributes  getAttributes() {
+    public Attributes getAttributes() {
         return this.attributes;
     }
 
@@ -128,7 +129,7 @@ public class Metrics {
         return (this.modifiedFields.mask & fieldModifiedAttributes) != 0;
     }
     
-    public Point  getPoint() {
+    public Point getPoint() {
         return this.point;
     }
 

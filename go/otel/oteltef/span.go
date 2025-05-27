@@ -593,7 +593,7 @@ func CmpSpan(left, right *Span) int {
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
-	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
+	if c := pkg.StringCompare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
 	if c := pkg.BytesCompare(left.parentSpanID, right.parentSpanID); c != 0 {
@@ -602,7 +602,7 @@ func CmpSpan(left, right *Span) int {
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {
 		return c
 	}
-	if c := strings.Compare(left.name, right.name); c != 0 {
+	if c := pkg.StringCompare(left.name, right.name); c != 0 {
 		return c
 	}
 	if c := pkg.Uint64Compare(left.kind, right.kind); c != 0 {

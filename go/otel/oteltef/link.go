@@ -324,7 +324,7 @@ func CmpLink(left, right *Link) int {
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
-	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
+	if c := pkg.StringCompare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {

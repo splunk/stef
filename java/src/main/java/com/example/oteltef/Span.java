@@ -2,25 +2,26 @@
 // Span Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Span {
     
-    private Types.Bytes traceID;
-    private Types.Bytes spanID;
-    private String traceState;
-    private Types.Bytes parentSpanID;
-    private long flags;
-    private String name;
-    private long kind;
-    private long startTimeUnixNano;
-    private long endTimeUnixNano;
-    private Attributes attributes;
-    private long droppedAttributesCount;
-    private EventArray events;
-    private LinkArray links;
-    private SpanStatus status;
+    Types.Bytes traceID;
+    Types.Bytes spanID;
+    StringValue traceState;
+    Types.Bytes parentSpanID;
+    long flags;
+    StringValue name;
+    long kind;
+    long startTimeUnixNano;
+    long endTimeUnixNano;
+    Attributes attributes;
+    long droppedAttributesCount;
+    EventArray events;
+    LinkArray links;
+    SpanStatus status;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -69,13 +70,13 @@ public class Span {
     }
 
     
-    public pkg.Bytes getTraceID() {
+    public Types.Bytes getTraceID() {
         return this.traceID;
     }
 
     
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(pkg.Bytes v) {
+    public void setTraceID(Types.Bytes v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -97,13 +98,13 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public pkg.Bytes getSpanID() {
+    public Types.Bytes getSpanID() {
         return this.spanID;
     }
 
     
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(pkg.Bytes v) {
+    public void setSpanID(Types.Bytes v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -125,13 +126,13 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedSpanID) != 0;
     }
     
-    public String getTraceState() {
+    public StringValue getTraceState() {
         return this.traceState;
     }
 
     
     // setTraceState sets the value of TraceState field.
-    public void setTraceState(String v) {
+    public void setTraceState(StringValue v) {
         if (!Types.StringEqual(this.traceState, v)) {
             this.traceState = v;
             this.markTraceStateModified();
@@ -153,13 +154,13 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedTraceState) != 0;
     }
     
-    public pkg.Bytes getParentSpanID() {
+    public Types.Bytes getParentSpanID() {
         return this.parentSpanID;
     }
 
     
     // setParentSpanID sets the value of ParentSpanID field.
-    public void setParentSpanID(pkg.Bytes v) {
+    public void setParentSpanID(Types.Bytes v) {
         if (!Types.BytesEqual(this.parentSpanID, v)) {
             this.parentSpanID = v;
             this.markParentSpanIDModified();
@@ -209,13 +210,13 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedFlags) != 0;
     }
     
-    public String getName() {
+    public StringValue getName() {
         return this.name;
     }
 
     
     // setName sets the value of Name field.
-    public void setName(String v) {
+    public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
             this.name = v;
             this.markNameModified();
@@ -321,7 +322,7 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedEndTimeUnixNano) != 0;
     }
     
-    public Attributes  getAttributes() {
+    public Attributes getAttributes() {
         return this.attributes;
     }
 
@@ -363,7 +364,7 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
     
-    public EventArray  getEvents() {
+    public EventArray getEvents() {
         return this.events;
     }
 
@@ -377,7 +378,7 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedEvents) != 0;
     }
     
-    public LinkArray  getLinks() {
+    public LinkArray getLinks() {
         return this.links;
     }
 
@@ -391,7 +392,7 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedLinks) != 0;
     }
     
-    public SpanStatus  getStatus() {
+    public SpanStatus getStatus() {
         return this.status;
     }
 

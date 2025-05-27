@@ -244,7 +244,7 @@ func CmpEvent(left, right *Event) int {
 		return 1
 	}
 
-	if c := strings.Compare(left.name, right.name); c != 0 {
+	if c := pkg.StringCompare(left.name, right.name); c != 0 {
 		return c
 	}
 	if c := pkg.Uint64Compare(left.timeUnixNano, right.timeUnixNano); c != 0 {

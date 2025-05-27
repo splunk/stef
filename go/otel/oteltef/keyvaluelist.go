@@ -4,7 +4,6 @@ package oteltef
 import (
 	"math/rand/v2"
 	"slices"
-	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
@@ -103,7 +102,7 @@ func (m *KeyValueList) SetKey(i int, k string) {
 
 func (m *KeyValueList) Sort() {
 	slices.SortFunc(m.elems, func(a, b KeyValueListElem) int {
-		return strings.Compare(a.key, b.key)
+		return pkg.StringCompare(a.key, b.key)
 	})
 }
 
@@ -158,7 +157,7 @@ func (e *KeyValueList) IsEqual(val *KeyValueList) bool {
 func CmpKeyValueList(left, right *KeyValueList) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(left.elems[i].key, right.elems[i].key)
+		c := pkg.StringCompare(left.elems[i].key, right.elems[i].key)
 		if c != 0 {
 			return c
 		}

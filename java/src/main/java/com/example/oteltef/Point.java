@@ -2,15 +2,16 @@
 // Point Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Point {
     
-    private long startTimestamp;
-    private long timestamp;
-    private PointValue value;
-    private ExemplarArray exemplars;
+    long startTimestamp;
+    long timestamp;
+    PointValue value;
+    ExemplarArray exemplars;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -103,7 +104,7 @@ public class Point {
         return (this.modifiedFields.mask & fieldModifiedTimestamp) != 0;
     }
     
-    public PointValue  getValue() {
+    public PointValue getValue() {
         return this.value;
     }
 
@@ -117,7 +118,7 @@ public class Point {
         return (this.modifiedFields.mask & fieldModifiedValue) != 0;
     }
     
-    public ExemplarArray  getExemplars() {
+    public ExemplarArray getExemplars() {
         return this.exemplars;
     }
 

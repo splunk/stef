@@ -2,19 +2,20 @@
 // Metric Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Metric {
     
-    private String name;
-    private String description;
-    private String unit;
-    private long type_;
-    private Attributes metadata;
-    private DoubleArray histogramBounds;
-    private long aggregationTemporality;
-    private boolean monotonic;
+    StringValue name;
+    StringValue description;
+    StringValue unit;
+    MetricType type_;
+    Attributes metadata;
+    DoubleArray histogramBounds;
+    long aggregationTemporality;
+    boolean monotonic;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -55,13 +56,13 @@ public class Metric {
     }
 
     
-    public String getName() {
+    public StringValue getName() {
         return this.name;
     }
 
     
     // setName sets the value of Name field.
-    public void setName(String v) {
+    public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
             this.name = v;
             this.markNameModified();
@@ -83,13 +84,13 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedName) != 0;
     }
     
-    public String getDescription() {
+    public StringValue getDescription() {
         return this.description;
     }
 
     
     // setDescription sets the value of Description field.
-    public void setDescription(String v) {
+    public void setDescription(StringValue v) {
         if (!Types.StringEqual(this.description, v)) {
             this.description = v;
             this.markDescriptionModified();
@@ -111,13 +112,13 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedDescription) != 0;
     }
     
-    public String getUnit() {
+    public StringValue getUnit() {
         return this.unit;
     }
 
     
     // setUnit sets the value of Unit field.
-    public void setUnit(String v) {
+    public void setUnit(StringValue v) {
         if (!Types.StringEqual(this.unit, v)) {
             this.unit = v;
             this.markUnitModified();
@@ -146,7 +147,7 @@ public class Metric {
     
     // setType sets the value of Type field.
     public void setType(MetricType v) {
-        if (!Types.Uint64Equal(this.type_, v)) {
+        if (!MetricType.equals(this.type_, v)) {
             this.type_ = v;
             this.markTypeModified();
         }
@@ -167,7 +168,7 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedType) != 0;
     }
     
-    public Attributes  getMetadata() {
+    public Attributes getMetadata() {
         return this.metadata;
     }
 
@@ -181,7 +182,7 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedMetadata) != 0;
     }
     
-    public DoubleArray  getHistogramBounds() {
+    public DoubleArray getHistogramBounds() {
         return this.histogramBounds;
     }
 
@@ -298,7 +299,7 @@ public class Metric {
         if (!Types.StringEqual(this.unit, val.unit)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.type_, val.type_)) {
+        if (!MetricType.equals(this.type_, val.type_)) {
             return false;
         }
         if (!this.metadata.isEqual(val.metadata)) {

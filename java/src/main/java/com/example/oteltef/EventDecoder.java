@@ -5,19 +5,20 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class EventDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Event lastValPtr;
     private Event lastVal = new Event();
     private int fieldCount;
 
     
-    private encoders.StringDecoder nameDecoder = new encoders.StringDecoder();
-    private encoders.Uint64Decoder timeUnixNanoDecoder = new encoders.Uint64Decoder();
+    private StringDecoder nameDecoder = new StringDecoder();
+    private Uint64Decoder timeUnixNanoDecoder = new Uint64Decoder();
     private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private encoders.Uint64Decoder droppedAttributesCountDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
     
 
     // Init is called once in the lifetime of the stream.
@@ -70,25 +71,25 @@ public class EventDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.cont();
+        this.nameDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // TimeUnixNano and subsequent fields are skipped.
         }
-        this.timeUnixNanoDecoder.cont();
+        this.timeUnixNanoDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.cont();
+        this.droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -106,22 +107,22 @@ public class EventDecoder {
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-            this.nameDecoder.decode(val.getName());
+            val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-            this.timeUnixNanoDecoder.decode(val.getTimeUnixNano());
+            val.timeUnixNano = this.timeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-            this.droppedAttributesCountDecoder.decode(val.getDroppedAttributesCount());
+            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         

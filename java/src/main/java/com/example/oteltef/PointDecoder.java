@@ -5,17 +5,18 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class PointDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Point lastValPtr;
     private Point lastVal = new Point();
     private int fieldCount;
 
     
-    private encoders.Uint64Decoder startTimestampDecoder = new encoders.Uint64Decoder();
-    private encoders.Uint64Decoder timestampDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder startTimestampDecoder = new Uint64Decoder();
+    private Uint64Decoder timestampDecoder = new Uint64Decoder();
     private PointValueDecoder valueDecoder = new PointValueDecoder();
     private ExemplarArrayDecoder exemplarsDecoder = new ExemplarArrayDecoder();
     
@@ -70,25 +71,25 @@ public class PointDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-        this.startTimestampDecoder.cont();
+        this.startTimestampDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.cont();
+        this.timestampDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.cont();
+        this.valueDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Exemplars and subsequent fields are skipped.
         }
-        this.exemplarsDecoder.cont();
+        this.exemplarsDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -106,22 +107,22 @@ public class PointDecoder {
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedStartTimestamp) != 0) {
             // Field is changed and is present, decode it.
-            this.startTimestampDecoder.decode(val.getStartTimestamp());
+            val.startTimestamp = this.startTimestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
-            this.timestampDecoder.decode(val.getTimestamp());
+            val.timestamp = this.timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            this.valueDecoder.decode(val.getValue());
+            val.value = this.valueDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
-            this.exemplarsDecoder.decode(val.getExemplars());
+            val.exemplars = this.exemplarsDecoder.decode();
         }
         
         

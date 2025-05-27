@@ -17,8 +17,8 @@ public class SpanStatusEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.StringEncoder messageEncoder = new encoders.StringEncoder();
-    private encoders.Uint64Encoder codeEncoder = new encoders.Uint64Encoder();
+    private StringEncoder messageEncoder = new StringEncoder();
+    private Uint64Encoder codeEncoder = new Uint64Encoder();
     
 
     private long keepFieldMask;

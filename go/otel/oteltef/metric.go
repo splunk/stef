@@ -385,13 +385,13 @@ func CmpMetric(left, right *Metric) int {
 		return 1
 	}
 
-	if c := strings.Compare(left.name, right.name); c != 0 {
+	if c := pkg.StringCompare(left.name, right.name); c != 0 {
 		return c
 	}
-	if c := strings.Compare(left.description, right.description); c != 0 {
+	if c := pkg.StringCompare(left.description, right.description); c != 0 {
 		return c
 	}
-	if c := strings.Compare(left.unit, right.unit); c != 0 {
+	if c := pkg.StringCompare(left.unit, right.unit); c != 0 {
 		return c
 	}
 	if c := pkg.Uint64Compare(left.type_, right.type_); c != 0 {

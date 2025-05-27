@@ -2,12 +2,13 @@
 // Envelope Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Envelope {
     
-    private EnvelopeAttributes attributes;
+    EnvelopeAttributes attributes;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -40,7 +41,7 @@ public class Envelope {
     }
 
     
-    public EnvelopeAttributes  getAttributes() {
+    public EnvelopeAttributes getAttributes() {
         return this.attributes;
     }
 

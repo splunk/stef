@@ -5,20 +5,21 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class ScopeDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Scope lastValPtr;
     private Scope lastVal = new Scope();
     private int fieldCount;
 
     
-    private encoders.StringDecoder nameDecoder = new encoders.StringDecoder();
-    private encoders.StringDecoder versionDecoder = new encoders.StringDecoder();
-    private encoders.StringDecoder schemaURLDecoder = new encoders.StringDecoder();
+    private StringDecoder nameDecoder = new StringDecoder();
+    private StringDecoder versionDecoder = new StringDecoder();
+    private StringDecoder schemaURLDecoder = new StringDecoder();
     private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private encoders.Uint64Decoder droppedAttributesCountDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
     
     private ScopeDecoderDict dict;
     
@@ -81,29 +82,29 @@ public class ScopeDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.cont();
+        this.nameDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-        this.versionDecoder.cont();
+        this.versionDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.cont();
+        this.schemaURLDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.cont();
+        this.droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -116,8 +117,8 @@ public class ScopeDecoder {
 
     public void decode(Scope[] dstPtr) throws Exception {
         // Check if the Scope exists in the dictionary.
-        boolean dictFlag = this.buf.readBit();
-        if (!dictFlag) {
+        int dictFlag = this.buf.readBit();
+        if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
                 throw new Exception("Invalid refNum");
@@ -137,27 +138,27 @@ public class ScopeDecoder {
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-            this.nameDecoder.decode(val.getName());
+            val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedVersion) != 0) {
             // Field is changed and is present, decode it.
-            this.versionDecoder.decode(val.getVersion());
+            val.version = this.versionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
-            this.schemaURLDecoder.decode(val.getSchemaURL());
+            val.schemaURL = this.schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-            this.droppedAttributesCountDecoder.decode(val.getDroppedAttributesCount());
+            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         

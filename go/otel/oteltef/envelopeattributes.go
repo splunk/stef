@@ -4,7 +4,6 @@ package oteltef
 import (
 	"math/rand/v2"
 	"slices"
-	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
@@ -114,7 +113,7 @@ func (m *EnvelopeAttributes) SetValue(i int, v pkg.Bytes) {
 
 func (m *EnvelopeAttributes) Sort() {
 	slices.SortFunc(m.elems, func(a, b EnvelopeAttributesElem) int {
-		return strings.Compare(a.key, b.key)
+		return pkg.StringCompare(a.key, b.key)
 	})
 }
 
@@ -162,7 +161,7 @@ func (e *EnvelopeAttributes) IsEqual(val *EnvelopeAttributes) bool {
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(left.elems[i].key, right.elems[i].key)
+		c := pkg.StringCompare(left.elems[i].key, right.elems[i].key)
 		if c != 0 {
 			return c
 		}

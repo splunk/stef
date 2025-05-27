@@ -2,16 +2,17 @@
 // HistogramValue Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class HistogramValue {
     
-    private long count;
-    private double sum;
-    private double min;
-    private double max;
-    private LongArray bucketCounts;
+    long count;
+    double sum;
+    double min;
+    double max;
+    LongArray bucketCounts;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -208,7 +209,7 @@ public class HistogramValue {
         return (this.modifiedFields.mask & fieldModifiedMax) != 0;
     }
     
-    public LongArray  getBucketCounts() {
+    public LongArray getBucketCounts() {
         return this.bucketCounts;
     }
 

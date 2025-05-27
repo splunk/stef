@@ -11,11 +11,24 @@ public enum MetricType {
 
     private final long value;
 
+    private static MetricType[] enumValues = MetricType.values();
+
+    public static MetricType fromValue(long value) {
+        return enumValues[(int)value];
+    }
+
     MetricType(long value) {
         this.value = value;
     }
 
     public long getValue() {
         return value;
+    }
+
+    public static boolean equals(MetricType left, MetricType right) {
+        if (left == null) {
+            return right == null;
+        }
+        return left.value == right.value;
     }
 }

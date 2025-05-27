@@ -17,8 +17,8 @@ public class PointEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.Uint64Encoder startTimestampEncoder = new encoders.Uint64Encoder();
-    private encoders.Uint64Encoder timestampEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder startTimestampEncoder = new Uint64Encoder();
+    private Uint64Encoder timestampEncoder = new Uint64Encoder();
     private PointValueEncoder valueEncoder = new PointValueEncoder();
     private ExemplarArrayEncoder exemplarsEncoder = new ExemplarArrayEncoder();
     

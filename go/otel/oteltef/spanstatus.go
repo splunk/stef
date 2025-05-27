@@ -179,7 +179,7 @@ func CmpSpanStatus(left, right *SpanStatus) int {
 		return 1
 	}
 
-	if c := strings.Compare(left.message, right.message); c != 0 {
+	if c := pkg.StringCompare(left.message, right.message); c != 0 {
 		return c
 	}
 	if c := pkg.Uint64Compare(left.code, right.code); c != 0 {

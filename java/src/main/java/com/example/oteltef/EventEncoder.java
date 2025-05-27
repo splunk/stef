@@ -17,10 +17,10 @@ public class EventEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.StringEncoder nameEncoder = new encoders.StringEncoder();
-    private encoders.Uint64Encoder timeUnixNanoEncoder = new encoders.Uint64Encoder();
+    private StringEncoder nameEncoder = new StringEncoder();
+    private Uint64Encoder timeUnixNanoEncoder = new Uint64Encoder();
     private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private encoders.Uint64Encoder droppedAttributesCountEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
     
 
     private long keepFieldMask;

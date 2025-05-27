@@ -5,9 +5,10 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class MetricsDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Metrics lastValPtr;
     private Metrics lastVal = new Metrics();
@@ -86,33 +87,33 @@ public class MetricsDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeDecoder.cont();
+        this.envelopeDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Metric and subsequent fields are skipped.
         }
-        this.metricDecoder.cont();
+        this.metricDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceDecoder.cont();
+        this.resourceDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeDecoder.cont();
+        this.scopeDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.cont();
+        this.attributesDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // Point and subsequent fields are skipped.
         }
-        this.pointDecoder.cont();
+        this.pointDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -132,32 +133,32 @@ public class MetricsDecoder {
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-            this.envelopeDecoder.decode(val.getEnvelope());
+            val.envelope = this.envelopeDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
-            this.metricDecoder.decode(val.getMetric());
+            val.metric = this.metricDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-            this.resourceDecoder.decode(val.getResource());
+            val.resource = this.resourceDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-            this.scopeDecoder.decode(val.getScope());
+            val.scope = this.scopeDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.attributesDecoder.decode(val.getAttributes());
+            val.attributes = this.attributesDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
-            this.pointDecoder.decode(val.getPoint());
+            val.point = this.pointDecoder.decode();
         }
         
         

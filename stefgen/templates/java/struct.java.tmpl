@@ -1,12 +1,13 @@
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class {{ .StructName }} {
     {{ range .Fields }}
-    private {{.Type.Storage}}{{if .Type.Flags.StoreByPtr}} {{end}} {{.name}};
+    {{.Type.Storage}} {{.name}};
     {{- end }}
 
     // modifiedFields keeps track of which fields are modified.
@@ -60,7 +61,7 @@ public class {{ .StructName }} {
     }
 
     {{ range .Fields }}
-    public {{.Type.Exported}}{{if .Type.Flags.PassByPtr}} {{end}} get{{.Name}}() {
+    public {{.Type.Exported}} get{{.Name}}() {
         {{- if .Type.IsPrimitive}}
         return this.{{.name}};
         {{- else}}

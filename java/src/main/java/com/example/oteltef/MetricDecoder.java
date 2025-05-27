@@ -5,23 +5,24 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class MetricDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Metric lastValPtr;
     private Metric lastVal = new Metric();
     private int fieldCount;
 
     
-    private encoders.StringDecoder nameDecoder = new encoders.StringDecoder();
-    private encoders.StringDecoder descriptionDecoder = new encoders.StringDecoder();
-    private encoders.StringDecoder unitDecoder = new encoders.StringDecoder();
-    private encoders.Uint64Decoder type_Decoder = new encoders.Uint64Decoder();
+    private StringDecoder nameDecoder = new StringDecoder();
+    private StringDecoder descriptionDecoder = new StringDecoder();
+    private StringDecoder unitDecoder = new StringDecoder();
+    private Uint64Decoder type_Decoder = new Uint64Decoder();
     private AttributesDecoder metadataDecoder = new AttributesDecoder();
     private DoubleArrayDecoder histogramBoundsDecoder = new DoubleArrayDecoder();
-    private encoders.Uint64Decoder aggregationTemporalityDecoder = new encoders.Uint64Decoder();
-    private encoders.BoolDecoder monotonicDecoder = new encoders.BoolDecoder();
+    private Uint64Decoder aggregationTemporalityDecoder = new Uint64Decoder();
+    private BoolDecoder monotonicDecoder = new BoolDecoder();
     
     private MetricDecoderDict dict;
     
@@ -105,41 +106,41 @@ public class MetricDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.cont();
+        this.nameDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-        this.descriptionDecoder.cont();
+        this.descriptionDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-        this.unitDecoder.cont();
+        this.unitDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-        this.type_Decoder.cont();
+        this.type_Decoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
-        this.metadataDecoder.cont();
+        this.metadataDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // HistogramBounds and subsequent fields are skipped.
         }
-        this.histogramBoundsDecoder.cont();
+        this.histogramBoundsDecoder.continueDecoding();
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-        this.aggregationTemporalityDecoder.cont();
+        this.aggregationTemporalityDecoder.continueDecoding();
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-        this.monotonicDecoder.cont();
+        this.monotonicDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -155,8 +156,8 @@ public class MetricDecoder {
 
     public void decode(Metric[] dstPtr) throws Exception {
         // Check if the Metric exists in the dictionary.
-        boolean dictFlag = this.buf.readBit();
-        if (!dictFlag) {
+        int dictFlag = this.buf.readBit();
+        if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
                 throw new Exception("Invalid refNum");
@@ -176,42 +177,42 @@ public class MetricDecoder {
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-            this.nameDecoder.decode(val.getName());
+            val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedDescription) != 0) {
             // Field is changed and is present, decode it.
-            this.descriptionDecoder.decode(val.getDescription());
+            val.description = this.descriptionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedUnit) != 0) {
             // Field is changed and is present, decode it.
-            this.unitDecoder.decode(val.getUnit());
+            val.unit = this.unitDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedType) != 0) {
             // Field is changed and is present, decode it.
-            this.type_Decoder.decode(val.getType());
+            val.type_ = this.type_Decoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
-            this.metadataDecoder.decode(val.getMetadata());
+            val.metadata = this.metadataDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
-            this.histogramBoundsDecoder.decode(val.getHistogramBounds());
+            val.histogramBounds = this.histogramBoundsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {
             // Field is changed and is present, decode it.
-            this.aggregationTemporalityDecoder.decode(val.getAggregationTemporality());
+            val.aggregationTemporality = this.aggregationTemporalityDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMonotonic) != 0) {
             // Field is changed and is present, decode it.
-            this.monotonicDecoder.decode(val.getMonotonic());
+            val.monotonic = this.monotonicDecoder.decode();
         }
         
         

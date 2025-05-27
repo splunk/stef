@@ -2,15 +2,16 @@
 // Spans Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Spans {
     
-    private Envelope envelope;
-    private Resource  resource;
-    private Scope  scope;
-    private Span span;
+    Envelope envelope;
+    Resource resource;
+    Scope scope;
+    Span span;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -51,7 +52,7 @@ public class Spans {
     }
 
     
-    public Envelope  getEnvelope() {
+    public Envelope getEnvelope() {
         return this.envelope;
     }
 
@@ -65,7 +66,7 @@ public class Spans {
         return (this.modifiedFields.mask & fieldModifiedEnvelope) != 0;
     }
     
-    public Resource  getResource() {
+    public Resource getResource() {
         return this.resource;
     }
 
@@ -79,7 +80,7 @@ public class Spans {
         return (this.modifiedFields.mask & fieldModifiedResource) != 0;
     }
     
-    public Scope  getScope() {
+    public Scope getScope() {
         return this.scope;
     }
 
@@ -93,7 +94,7 @@ public class Spans {
         return (this.modifiedFields.mask & fieldModifiedScope) != 0;
     }
     
-    public Span  getSpan() {
+    public Span getSpan() {
         return this.span;
     }
 

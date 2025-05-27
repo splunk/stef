@@ -1,6 +1,7 @@
 package net.stef;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * StringValue is a wrapper for UTF-8 encoded strings.
@@ -40,6 +41,14 @@ public class StringValue {
 
     public void set(byte[] value) {
         utf8Bytes = value;
+    }
+
+    public boolean equals(StringValue other) {
+        return Arrays.equals(this.utf8Bytes, other.utf8Bytes);
+    }
+
+    public int compareTo(StringValue right) {
+        return Arrays.compare(this.utf8Bytes, right.utf8Bytes);
     }
 }
 

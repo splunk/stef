@@ -2,14 +2,15 @@
 // Resource Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Resource {
     
-    private String schemaURL;
-    private Attributes attributes;
-    private long droppedAttributesCount;
+    StringValue schemaURL;
+    Attributes attributes;
+    long droppedAttributesCount;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -44,13 +45,13 @@ public class Resource {
     }
 
     
-    public String getSchemaURL() {
+    public StringValue getSchemaURL() {
         return this.schemaURL;
     }
 
     
     // setSchemaURL sets the value of SchemaURL field.
-    public void setSchemaURL(String v) {
+    public void setSchemaURL(StringValue v) {
         if (!Types.StringEqual(this.schemaURL, v)) {
             this.schemaURL = v;
             this.markSchemaURLModified();
@@ -72,7 +73,7 @@ public class Resource {
         return (this.modifiedFields.mask & fieldModifiedSchemaURL) != 0;
     }
     
-    public Attributes  getAttributes() {
+    public Attributes getAttributes() {
         return this.attributes;
     }
 

@@ -5,19 +5,20 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class ExemplarDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private Exemplar lastValPtr;
     private Exemplar lastVal = new Exemplar();
     private int fieldCount;
 
     
-    private encoders.Uint64Decoder timestampDecoder = new encoders.Uint64Decoder();
+    private Uint64Decoder timestampDecoder = new Uint64Decoder();
     private ExemplarValueDecoder valueDecoder = new ExemplarValueDecoder();
-    private encoders.BytesDecoder spanIDDecoder = new encoders.BytesDecoder();
-    private encoders.BytesDecoder traceIDDecoder = new encoders.BytesDecoder();
+    private BytesDecoder spanIDDecoder = new BytesDecoder();
+    private BytesDecoder traceIDDecoder = new BytesDecoder();
     private AttributesDecoder filteredAttributesDecoder = new AttributesDecoder();
     
 
@@ -78,29 +79,29 @@ public class ExemplarDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.cont();
+        this.timestampDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.cont();
+        this.valueDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.cont();
+        this.spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.cont();
+        this.traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
-        this.filteredAttributesDecoder.cont();
+        this.filteredAttributesDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -119,27 +120,27 @@ public class ExemplarDecoder {
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
-            this.timestampDecoder.decode(val.getTimestamp());
+            val.timestamp = this.timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-            this.valueDecoder.decode(val.getValue());
+            val.value = this.valueDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-            this.spanIDDecoder.decode(val.getSpanID());
+            val.spanID = this.spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-            this.traceIDDecoder.decode(val.getTraceID());
+            val.traceID = this.traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
-            this.filteredAttributesDecoder.decode(val.getFilteredAttributes());
+            val.filteredAttributes = this.filteredAttributesDecoder.decode();
         }
         
         

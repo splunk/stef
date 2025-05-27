@@ -17,17 +17,17 @@ public class SpanEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.BytesEncoder traceIDEncoder = new encoders.BytesEncoder();
-    private encoders.BytesEncoder spanIDEncoder = new encoders.BytesEncoder();
-    private encoders.StringEncoder traceStateEncoder = new encoders.StringEncoder();
-    private encoders.BytesEncoder parentSpanIDEncoder = new encoders.BytesEncoder();
-    private encoders.Uint64Encoder flagsEncoder = new encoders.Uint64Encoder();
-    private encoders.StringEncoder nameEncoder = new encoders.StringEncoder();
-    private encoders.Uint64Encoder kindEncoder = new encoders.Uint64Encoder();
-    private encoders.Uint64Encoder startTimeUnixNanoEncoder = new encoders.Uint64Encoder();
-    private encoders.Uint64Encoder endTimeUnixNanoEncoder = new encoders.Uint64Encoder();
+    private BytesEncoder traceIDEncoder = new BytesEncoder();
+    private BytesEncoder spanIDEncoder = new BytesEncoder();
+    private StringEncoder traceStateEncoder = new StringEncoder();
+    private BytesEncoder parentSpanIDEncoder = new BytesEncoder();
+    private Uint64Encoder flagsEncoder = new Uint64Encoder();
+    private StringEncoder nameEncoder = new StringEncoder();
+    private Uint64Encoder kindEncoder = new Uint64Encoder();
+    private Uint64Encoder startTimeUnixNanoEncoder = new Uint64Encoder();
+    private Uint64Encoder endTimeUnixNanoEncoder = new Uint64Encoder();
     private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private encoders.Uint64Encoder droppedAttributesCountEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
     private EventArrayEncoder eventsEncoder = new EventArrayEncoder();
     private LinkArrayEncoder linksEncoder = new LinkArrayEncoder();
     private SpanStatusEncoder statusEncoder = new SpanStatusEncoder();

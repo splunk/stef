@@ -175,7 +175,7 @@ func (r *genPrimitiveTypeRef) Exported() string {
 		return r.Enum
 	}
 	if r.Type == schema.PrimitiveTypeBytes {
-		return "pkg.Bytes"
+		return r.pkgPrefix() + "Bytes"
 	}
 	return r.TypeName()
 }
@@ -212,11 +212,14 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 		case schema.PrimitiveTypeBool:
 			s += "boolean"
 		case schema.PrimitiveTypeString:
-			s += "String"
+			s += "StringValue"
 		case schema.PrimitiveTypeBytes:
 			s += "byte[]"
 		default:
 			panic(fmt.Errorf("unimplemented field type %v", r.Type))
+		}
+		if r.Enum != "" {
+			return r.Enum
 		}
 	}
 
@@ -224,19 +227,29 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 }
 
 func (r *genPrimitiveTypeRef) EncoderType() string {
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "encoders."
+	case LangJava:
+		prefix = ""
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return "encoders.Uint64"
+		return prefix + "Uint64"
 	case schema.PrimitiveTypeInt64:
-		return "encoders.Int64"
+		return prefix + "Int64"
 	case schema.PrimitiveTypeFloat64:
-		return "encoders.Float64"
+		return prefix + "Float64"
 	case schema.PrimitiveTypeBool:
-		return "encoders.Bool"
+		return prefix + "Bool"
 	case schema.PrimitiveTypeString:
-		return "encoders.String"
+		return prefix + "String"
 	case schema.PrimitiveTypeBytes:
-		return "encoders.Bytes"
+		return prefix + "Bytes"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}
@@ -267,6 +280,10 @@ func (r *genPrimitiveTypeRef) pkgPrefix() string {
 }
 
 func (r *genPrimitiveTypeRef) EqualFunc() string {
+	if r.Lang == LangJava && r.Enum != "" {
+		return r.Enum + ".equals"
+	}
+
 	prefix := r.pkgPrefix()
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:

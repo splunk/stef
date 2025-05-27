@@ -209,7 +209,7 @@ func CmpResource(left, right *Resource) int {
 		return 1
 	}
 
-	if c := strings.Compare(left.schemaURL, right.schemaURL); c != 0 {
+	if c := pkg.StringCompare(left.schemaURL, right.schemaURL); c != 0 {
 		return c
 	}
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {

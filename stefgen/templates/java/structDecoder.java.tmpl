@@ -4,9 +4,10 @@ package {{ .PackageName }};
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class {{ .StructName }}Decoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private {{.StructName}} lastValPtr;
     private {{.StructName}} lastVal = new {{.StructName}}();
@@ -65,13 +66,13 @@ public class {{ .StructName }}Decoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         {{ range $i,$e := .Fields }}
         if (this.fieldCount <= {{$i}}) {
             return; // {{.Name}} and subsequent fields are skipped.
         }
-        this.{{.name}}Decoder.cont();
+        this.{{.name}}Decoder.continueDecoding();
         {{- end }}
     }
 
@@ -84,8 +85,8 @@ public class {{ .StructName }}Decoder {
     public void decode({{if .DictName}}{{.StructName}}[] dstPtr{{else}}{{.StructName}} dstPtr{{end}}) throws Exception {
         {{- if .DictName}}
         // Check if the {{ .StructName }} exists in the dictionary.
-        boolean dictFlag = this.buf.readBit();
-        if (!dictFlag) {
+        int dictFlag = this.buf.readBit();
+        if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
                 throw new Exception("Invalid refNum");
@@ -112,7 +113,7 @@ public class {{ .StructName }}Decoder {
         if ((val.getModifiedFields().mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.getOptionalFieldsPresent() & fieldPresent{{ $.StructName }}{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
-            this.{{.name}}Decoder.decode(val.get{{.Name}}());
+            val.{{.name}} = this.{{.name}}Decoder.decode();
         }
         {{ end }}
         {{if .DictName}}

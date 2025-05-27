@@ -2,16 +2,17 @@
 // Exemplar Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Exemplar {
     
-    private long timestamp;
-    private ExemplarValue value;
-    private Types.Bytes spanID;
-    private Types.Bytes traceID;
-    private Attributes filteredAttributes;
+    long timestamp;
+    ExemplarValue value;
+    Types.Bytes spanID;
+    Types.Bytes traceID;
+    Attributes filteredAttributes;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -77,7 +78,7 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedTimestamp) != 0;
     }
     
-    public ExemplarValue  getValue() {
+    public ExemplarValue getValue() {
         return this.value;
     }
 
@@ -91,13 +92,13 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedValue) != 0;
     }
     
-    public pkg.Bytes getSpanID() {
+    public Types.Bytes getSpanID() {
         return this.spanID;
     }
 
     
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(pkg.Bytes v) {
+    public void setSpanID(Types.Bytes v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -119,13 +120,13 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedSpanID) != 0;
     }
     
-    public pkg.Bytes getTraceID() {
+    public Types.Bytes getTraceID() {
         return this.traceID;
     }
 
     
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(pkg.Bytes v) {
+    public void setTraceID(Types.Bytes v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -147,7 +148,7 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public Attributes  getFilteredAttributes() {
+    public Attributes getFilteredAttributes() {
         return this.filteredAttributes;
     }
 

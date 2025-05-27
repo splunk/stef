@@ -5,19 +5,20 @@ package com.example.oteltef;
 import net.stef.BitsReader;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
+import net.stef.codecs.*;
 
 public class HistogramValueDecoder {
-    private BitsReader buf = new BitsReader();
+    private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private HistogramValue lastValPtr;
     private HistogramValue lastVal = new HistogramValue();
     private int fieldCount;
 
     
-    private encoders.Int64Decoder countDecoder = new encoders.Int64Decoder();
-    private encoders.Float64Decoder sumDecoder = new encoders.Float64Decoder();
-    private encoders.Float64Decoder minDecoder = new encoders.Float64Decoder();
-    private encoders.Float64Decoder maxDecoder = new encoders.Float64Decoder();
+    private Int64Decoder countDecoder = new Int64Decoder();
+    private Float64Decoder sumDecoder = new Float64Decoder();
+    private Float64Decoder minDecoder = new Float64Decoder();
+    private Float64Decoder maxDecoder = new Float64Decoder();
     private LongArrayDecoder bucketCountsDecoder = new LongArrayDecoder();
     
 
@@ -78,29 +79,29 @@ public class HistogramValueDecoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
+    public void continueDecoding() {
         this.buf.reset(this.column.getData());
         
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countDecoder.cont();
+        this.countDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumDecoder.cont();
+        this.sumDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minDecoder.cont();
+        this.minDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxDecoder.cont();
+        this.maxDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsDecoder.cont();
+        this.bucketCountsDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -121,27 +122,27 @@ public class HistogramValueDecoder {
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.
-            this.countDecoder.decode(val.getCount());
+            val.count = this.countDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueSum) != 0) {
             // Field is changed and is present, decode it.
-            this.sumDecoder.decode(val.getSum());
+            val.sum = this.sumDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMin) != 0) {
             // Field is changed and is present, decode it.
-            this.minDecoder.decode(val.getMin());
+            val.min = this.minDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMax) != 0) {
             // Field is changed and is present, decode it.
-            this.maxDecoder.decode(val.getMax());
+            val.max = this.maxDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
-            this.bucketCountsDecoder.decode(val.getBucketCounts());
+            val.bucketCounts = this.bucketCountsDecoder.decode();
         }
         
         

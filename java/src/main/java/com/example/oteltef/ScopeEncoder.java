@@ -17,11 +17,11 @@ public class ScopeEncoder {
     private boolean forceModifiedFields;
 
     
-    private encoders.StringEncoder nameEncoder = new encoders.StringEncoder();
-    private encoders.StringEncoder versionEncoder = new encoders.StringEncoder();
-    private encoders.StringEncoder schemaURLEncoder = new encoders.StringEncoder();
+    private StringEncoder nameEncoder = new StringEncoder();
+    private StringEncoder versionEncoder = new StringEncoder();
+    private StringEncoder schemaURLEncoder = new StringEncoder();
     private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private encoders.Uint64Encoder droppedAttributesCountEncoder = new encoders.Uint64Encoder();
+    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
     
     private ScopeEncoderDict dict;
     

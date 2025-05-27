@@ -1,24 +1,29 @@
 package net.stef;
 
+import java.util.Arrays;
 import java.util.Random;
 
 public class Types {
 
     // Bytes is a sequence of immutable bytes.
     public static class Bytes {
-        private final String value;
+        private final byte[] value;
 
-        public Bytes(String value) {
+        public Bytes(byte[] value) {
             this.value = value;
         }
 
-        public String getValue() {
+        public byte[] getValue() {
             return value;
+        }
+
+        public int compareTo(Bytes right) {
+            return Arrays.compare(this.value, right.value);
         }
     }
 
     public static int Uint64Compare(long left, long right) {
-        return Long.compare(left, right);
+        return Long.compareUnsigned(left, right);
     }
 
     public static int Int64Compare(long left, long right) {
@@ -33,12 +38,12 @@ public class Types {
         return Double.compare(left, right);
     }
 
-    public static int StringCompare(String left, String right) {
+    public static int StringCompare(StringValue left, StringValue right) {
         return left.compareTo(right);
     }
 
     public static int BytesCompare(Bytes left, Bytes right) {
-        return left.getValue().compareTo(right.getValue());
+        return left.compareTo(right);
     }
 
     public static boolean Uint64Equal(long left, long right) {
@@ -57,7 +62,7 @@ public class Types {
         return Double.compare(left, right) == 0;
     }
 
-    public static boolean StringEqual(String left, String right) {
+    public static boolean StringEqual(StringValue left, StringValue right) {
         return left.equals(right);
     }
 
@@ -81,11 +86,13 @@ public class Types {
         return random.nextDouble();
     }
 
-    public static String StringRandom(Random random) {
-        return String.valueOf(random.nextInt(10));
+    public static StringValue StringRandom(Random random) {
+        return new StringValue(String.valueOf(random.nextInt(10)));
     }
 
     public static Bytes BytesRandom(Random random) {
-        return new Bytes(StringRandom(random));
+        byte[] randomBytes = new byte[4]; // Example size, can be adjusted
+        random.nextBytes(randomBytes);
+        return new Bytes(randomBytes);
     }
 }

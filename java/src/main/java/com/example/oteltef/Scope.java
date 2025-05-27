@@ -2,16 +2,17 @@
 // Scope Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Scope {
     
-    private String name;
-    private String version;
-    private String schemaURL;
-    private Attributes attributes;
-    private long droppedAttributesCount;
+    StringValue name;
+    StringValue version;
+    StringValue schemaURL;
+    Attributes attributes;
+    long droppedAttributesCount;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -48,13 +49,13 @@ public class Scope {
     }
 
     
-    public String getName() {
+    public StringValue getName() {
         return this.name;
     }
 
     
     // setName sets the value of Name field.
-    public void setName(String v) {
+    public void setName(StringValue v) {
         if (!Types.StringEqual(this.name, v)) {
             this.name = v;
             this.markNameModified();
@@ -76,13 +77,13 @@ public class Scope {
         return (this.modifiedFields.mask & fieldModifiedName) != 0;
     }
     
-    public String getVersion() {
+    public StringValue getVersion() {
         return this.version;
     }
 
     
     // setVersion sets the value of Version field.
-    public void setVersion(String v) {
+    public void setVersion(StringValue v) {
         if (!Types.StringEqual(this.version, v)) {
             this.version = v;
             this.markVersionModified();
@@ -104,13 +105,13 @@ public class Scope {
         return (this.modifiedFields.mask & fieldModifiedVersion) != 0;
     }
     
-    public String getSchemaURL() {
+    public StringValue getSchemaURL() {
         return this.schemaURL;
     }
 
     
     // setSchemaURL sets the value of SchemaURL field.
-    public void setSchemaURL(String v) {
+    public void setSchemaURL(StringValue v) {
         if (!Types.StringEqual(this.schemaURL, v)) {
             this.schemaURL = v;
             this.markSchemaURLModified();
@@ -132,7 +133,7 @@ public class Scope {
         return (this.modifiedFields.mask & fieldModifiedSchemaURL) != 0;
     }
     
-    public Attributes  getAttributes() {
+    public Attributes getAttributes() {
         return this.attributes;
     }
 

@@ -2,13 +2,14 @@
 // SpanStatus Java class generated from template
 package com.example.oteltef;
 
+import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class SpanStatus {
     
-    private String message;
-    private long code;
+    StringValue message;
+    long code;
 
     // modifiedFields keeps track of which fields are modified.
     private ModifiedFields modifiedFields = new ModifiedFields();
@@ -41,13 +42,13 @@ public class SpanStatus {
     }
 
     
-    public String getMessage() {
+    public StringValue getMessage() {
         return this.message;
     }
 
     
     // setMessage sets the value of Message field.
-    public void setMessage(String v) {
+    public void setMessage(StringValue v) {
         if (!Types.StringEqual(this.message, v)) {
             this.message = v;
             this.markMessageModified();
