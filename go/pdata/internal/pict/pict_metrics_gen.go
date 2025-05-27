@@ -81,6 +81,9 @@ func pictToCfg(inputs PICTMetricInputs) MetricsCfg {
 	case MetricTypeIntExemplarsHistogram:
 		cfg.MetricDescriptorType = pmetric.MetricTypeHistogram
 		cfg.MetricValueType = pmetric.NumberDataPointValueTypeEmpty
+	case MetricTypeExponentialHistogram:
+		cfg.MetricDescriptorType = pmetric.MetricTypeExponentialHistogram
+		cfg.MetricValueType = pmetric.NumberDataPointValueTypeEmpty
 	default:
 		panic("Should not happen, unsupported type " + string(inputs.MetricType))
 	}

@@ -30,31 +30,34 @@ type WriterState struct {
 	SpanName          encoders.StringEncoderDict
 
 	// Encoders
-	AnyValueEncoder           *AnyValueEncoder
-	AnyValueArrayEncoder      *AnyValueArrayEncoder
-	AttributesEncoder         *AttributesEncoder
-	EnvelopeEncoder           *EnvelopeEncoder
-	EnvelopeAttributesEncoder *EnvelopeAttributesEncoder
-	EventEncoder              *EventEncoder
-	EventArrayEncoder         *EventArrayEncoder
-	ExemplarEncoder           *ExemplarEncoder
-	ExemplarArrayEncoder      *ExemplarArrayEncoder
-	ExemplarValueEncoder      *ExemplarValueEncoder
-	Float64ArrayEncoder       *Float64ArrayEncoder
-	HistogramValueEncoder     *HistogramValueEncoder
-	Int64ArrayEncoder         *Int64ArrayEncoder
-	KeyValueListEncoder       *KeyValueListEncoder
-	LinkEncoder               *LinkEncoder
-	LinkArrayEncoder          *LinkArrayEncoder
-	MetricEncoder             *MetricEncoder
-	MetricsEncoder            *MetricsEncoder
-	PointEncoder              *PointEncoder
-	PointValueEncoder         *PointValueEncoder
-	ResourceEncoder           *ResourceEncoder
-	ScopeEncoder              *ScopeEncoder
-	SpanEncoder               *SpanEncoder
-	SpanStatusEncoder         *SpanStatusEncoder
-	SpansEncoder              *SpansEncoder
+	AnyValueEncoder            *AnyValueEncoder
+	AnyValueArrayEncoder       *AnyValueArrayEncoder
+	AttributesEncoder          *AttributesEncoder
+	EnvelopeEncoder            *EnvelopeEncoder
+	EnvelopeAttributesEncoder  *EnvelopeAttributesEncoder
+	EventEncoder               *EventEncoder
+	EventArrayEncoder          *EventArrayEncoder
+	ExemplarEncoder            *ExemplarEncoder
+	ExemplarArrayEncoder       *ExemplarArrayEncoder
+	ExemplarValueEncoder       *ExemplarValueEncoder
+	ExpHistogramBucketsEncoder *ExpHistogramBucketsEncoder
+	ExpHistogramValueEncoder   *ExpHistogramValueEncoder
+	Float64ArrayEncoder        *Float64ArrayEncoder
+	HistogramValueEncoder      *HistogramValueEncoder
+	Int64ArrayEncoder          *Int64ArrayEncoder
+	KeyValueListEncoder        *KeyValueListEncoder
+	LinkEncoder                *LinkEncoder
+	LinkArrayEncoder           *LinkArrayEncoder
+	MetricEncoder              *MetricEncoder
+	MetricsEncoder             *MetricsEncoder
+	PointEncoder               *PointEncoder
+	PointValueEncoder          *PointValueEncoder
+	ResourceEncoder            *ResourceEncoder
+	ScopeEncoder               *ScopeEncoder
+	SpanEncoder                *SpanEncoder
+	SpanStatusEncoder          *SpanStatusEncoder
+	SpansEncoder               *SpansEncoder
+	Uint64ArrayEncoder         *Uint64ArrayEncoder
 }
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {
@@ -116,31 +119,34 @@ type ReaderState struct {
 	SpanName          encoders.StringDecoderDict
 
 	// Decoders
-	AnyValueDecoder           *AnyValueDecoder
-	AnyValueArrayDecoder      *AnyValueArrayDecoder
-	AttributesDecoder         *AttributesDecoder
-	EnvelopeDecoder           *EnvelopeDecoder
-	EnvelopeAttributesDecoder *EnvelopeAttributesDecoder
-	EventDecoder              *EventDecoder
-	EventArrayDecoder         *EventArrayDecoder
-	ExemplarDecoder           *ExemplarDecoder
-	ExemplarArrayDecoder      *ExemplarArrayDecoder
-	ExemplarValueDecoder      *ExemplarValueDecoder
-	Float64ArrayDecoder       *Float64ArrayDecoder
-	HistogramValueDecoder     *HistogramValueDecoder
-	Int64ArrayDecoder         *Int64ArrayDecoder
-	KeyValueListDecoder       *KeyValueListDecoder
-	LinkDecoder               *LinkDecoder
-	LinkArrayDecoder          *LinkArrayDecoder
-	MetricDecoder             *MetricDecoder
-	MetricsDecoder            *MetricsDecoder
-	PointDecoder              *PointDecoder
-	PointValueDecoder         *PointValueDecoder
-	ResourceDecoder           *ResourceDecoder
-	ScopeDecoder              *ScopeDecoder
-	SpanDecoder               *SpanDecoder
-	SpanStatusDecoder         *SpanStatusDecoder
-	SpansDecoder              *SpansDecoder
+	AnyValueDecoder            *AnyValueDecoder
+	AnyValueArrayDecoder       *AnyValueArrayDecoder
+	AttributesDecoder          *AttributesDecoder
+	EnvelopeDecoder            *EnvelopeDecoder
+	EnvelopeAttributesDecoder  *EnvelopeAttributesDecoder
+	EventDecoder               *EventDecoder
+	EventArrayDecoder          *EventArrayDecoder
+	ExemplarDecoder            *ExemplarDecoder
+	ExemplarArrayDecoder       *ExemplarArrayDecoder
+	ExemplarValueDecoder       *ExemplarValueDecoder
+	ExpHistogramBucketsDecoder *ExpHistogramBucketsDecoder
+	ExpHistogramValueDecoder   *ExpHistogramValueDecoder
+	Float64ArrayDecoder        *Float64ArrayDecoder
+	HistogramValueDecoder      *HistogramValueDecoder
+	Int64ArrayDecoder          *Int64ArrayDecoder
+	KeyValueListDecoder        *KeyValueListDecoder
+	LinkDecoder                *LinkDecoder
+	LinkArrayDecoder           *LinkArrayDecoder
+	MetricDecoder              *MetricDecoder
+	MetricsDecoder             *MetricsDecoder
+	PointDecoder               *PointDecoder
+	PointValueDecoder          *PointValueDecoder
+	ResourceDecoder            *ResourceDecoder
+	ScopeDecoder               *ScopeDecoder
+	SpanDecoder                *SpanDecoder
+	SpanStatusDecoder          *SpanStatusDecoder
+	SpansDecoder               *SpansDecoder
+	Uint64ArrayDecoder         *Uint64ArrayDecoder
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {

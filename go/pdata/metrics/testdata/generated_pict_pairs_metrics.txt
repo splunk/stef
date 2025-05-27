@@ -24,3 +24,4 @@ OnePt	IntExemplarsHistogram	ManyLabels	NoAttrs
 OnePt	MonotonicIntSum	OneLabel	OneAttr
 OnePt	NonMonotonicDoubleSum	ManyLabels	NoAttrs
 ManyPts	MonotonicDoubleSum	NoLabels	TwoAttrs
+OnePt	ExponentialHistogram	NoLabels	NoAttrs

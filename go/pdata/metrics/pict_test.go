@@ -70,6 +70,47 @@ func toBytes(t *testing.T, data pmetric.Metrics) []byte {
 	return bytes
 }
 
+func TestFromOTLPToWriter(t *testing.T) {
+	otlpMetrics, err := pict.GenerateMetrics("testdata/generated_pict_pairs_metrics.txt")
+	require.NoError(t, err)
+
+	for _, otlpMetricSrc := range otlpMetrics {
+		testtools.NormalizeMetrics(otlpMetricSrc)
+		srcCount := otlpMetricSrc.DataPointCount()
+
+		buf := &pkg.MemChunkWriter{}
+		writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
+		require.NoError(t, err)
+
+		// Convert from OTLP to STEF
+		converter := OtlpToSTEFUnsorted{}
+		err = converter.WriteMetrics(otlpMetricSrc, writer)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, srcCount, int(writer.RecordCount()))
+
+		err = writer.Flush()
+		require.NoError(t, err)
+
+		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+		require.NoError(t, err)
+
+		toOtlp := STEFToOTLPUnsorted{}
+		otlpMetricCopy, err := toOtlp.Convert(reader)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, writer.RecordCount(), reader.RecordCount())
+
+		testtools.NormalizeMetrics(otlpMetricCopy)
+
+		copyCount := otlpMetricCopy.DataPointCount()
+		assert.EqualValues(t, srcCount, copyCount)
+
+		assert.NoError(t, testtools.DiffMetrics(otlpMetricSrc, otlpMetricCopy))
+		assert.True(t, bytes.Equal(toBytes(t, otlpMetricSrc), toBytes(t, otlpMetricCopy)))
+	}
+}
+
 func FuzzReader(f *testing.F) {
 	otlpMetrics, err := pict.GenerateMetrics("testdata/generated_pict_pairs_metrics.txt")
 	require.NoError(f, err)

@@ -102,6 +102,43 @@ func replaceExt(fname string, ext string) string {
 	return fname
 }
 
+var metricsDataVariations = []struct {
+	generator            generators.Generator
+	firstUncompessedSize int
+	firstZstdedSize      int
+}{
+	{
+		generator: &generators.File{
+			FilePath:      "testdata/astronomy-otelmetrics.zst",
+			MultipartFile: true,
+		},
+	},
+	{
+		generator: &generators.File{
+			FilePath: "testdata/hipstershop-otelmetrics.zst",
+		},
+	},
+	{
+		generator: &generators.File{
+			FilePath:  "testdata/hipstershop-otelmetrics.zst",
+			BatchSize: 1,
+		},
+	},
+	{
+		generator: &generators.File{
+			FilePath:      "testdata/hostandcollector-otelmetrics.zst",
+			MultipartFile: true,
+		},
+	},
+	{
+		generator: &generators.File{
+			FilePath:      "testdata/hostandcollector-otelmetrics.zst",
+			MultipartFile: true,
+			BatchSize:     1,
+		},
+	},
+}
+
 var sizeEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
@@ -112,48 +149,11 @@ var sizeEncodings = []encodings.MetricEncoding{
 
 func TestMetricsSize(t *testing.T) {
 
-	dataVariations := []struct {
-		generator            generators.Generator
-		firstUncompessedSize int
-		firstZstdedSize      int
-	}{
-		{
-			generator: &generators.File{
-				FilePath: "testdata/hipstershop-otelmetrics.zst",
-			},
-		},
-		{
-			generator: &generators.File{
-				FilePath:  "testdata/hipstershop-otelmetrics.zst",
-				BatchSize: 1,
-			},
-		},
-		{
-			generator: &generators.File{
-				FilePath:      "testdata/hostandcollector-otelmetrics.zst",
-				MultipartFile: true,
-			},
-		},
-		{
-			generator: &generators.File{
-				FilePath:      "testdata/astronomy-otelmetrics.zst",
-				MultipartFile: true,
-			},
-		},
-		{
-			generator: &generators.File{
-				FilePath:      "testdata/hostandcollector-otelmetrics.zst",
-				MultipartFile: true,
-				BatchSize:     1,
-			},
-		},
-	}
-
 	fmt.Println("===== Encoded sizes")
 
 	chart.BeginSection("Size Benchmarks - One Large Batch")
 
-	for _, dataVariation := range dataVariations {
+	for _, dataVariation := range metricsDataVariations {
 		fmt.Printf("%-36s", dataVariation.generator.GetName())
 		fmt.Println("    Uncompressed           Zstd Compressed")
 		fmt.Printf("%-36s", "")

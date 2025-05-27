@@ -130,10 +130,16 @@ func normalizeMetricData(metric pmetric.Metric) {
 				return cmpHistogramDataPoint(a, b) < 0
 			},
 		)
+	case pmetric.MetricTypeExponentialHistogram:
+		normalizeExponentialHistogramDatapointAttrs(metric.ExponentialHistogram().DataPoints())
+		metric.ExponentialHistogram().DataPoints().Sort(
+			func(a, b pmetric.ExponentialHistogramDataPoint) bool {
+				return cmpExponentialHistogramDataPoint(a, b) < 0
+			},
+		)
 	default:
 		panic("not implemented")
 	}
-
 }
 
 func normalizeNumberDatapointAttrs(points pmetric.NumberDataPointSlice) {
@@ -164,7 +170,32 @@ func normalizeHistogramDatapointAttrs(points pmetric.HistogramDataPointSlice) {
 	}
 }
 
+func normalizeExponentialHistogramDatapointAttrs(points pmetric.ExponentialHistogramDataPointSlice) {
+	for i := 0; i < points.Len(); i++ {
+		point := points.At(i)
+		sortAttrs(point.Attributes())
+		normalizeExemplars(point.Exemplars())
+	}
+}
+
 func cmpHistogramDataPoint(left pmetric.HistogramDataPoint, right pmetric.HistogramDataPoint) int {
+	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
+	if c != 0 {
+		return c
+	}
+
+	if left.Timestamp() < right.Timestamp() {
+		return -1
+	}
+	if left.Timestamp() > right.Timestamp() {
+		return 1
+	}
+	return 0
+}
+
+func cmpExponentialHistogramDataPoint(
+	left pmetric.ExponentialHistogramDataPoint, right pmetric.ExponentialHistogramDataPoint,
+) int {
 	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
 	if c != 0 {
 		return c
@@ -376,6 +407,8 @@ func diffMetric(left pmetric.Metric, right pmetric.Metric) error {
 		err = diffNumberDataPoints(left.Sum().DataPoints(), right.Sum().DataPoints())
 	case pmetric.MetricTypeHistogram:
 		err = diffHistogram(left.Histogram(), right.Histogram())
+	case pmetric.MetricTypeExponentialHistogram:
+		err = diffExpHistogram(left.ExponentialHistogram(), right.ExponentialHistogram())
 	default:
 		panic("unknown metric data")
 	}
@@ -394,6 +427,23 @@ func diffHistogram(left, right pmetric.Histogram) error {
 
 	for i := 0; i < left.DataPoints().Len(); i++ {
 		if err := diffHistogramDataPoint(left.DataPoints().At(i), right.DataPoints().At(i)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func diffExpHistogram(left, right pmetric.ExponentialHistogram) error {
+	if str := cmp.Diff(left.AggregationTemporality(), right.AggregationTemporality()); str != "" {
+		return errors.New(str)
+	}
+
+	if left.DataPoints().Len() != right.DataPoints().Len() {
+		return errors.New("DataPoints count mismatch")
+	}
+
+	for i := 0; i < left.DataPoints().Len(); i++ {
+		if err := diffExpHistogramDataPoint(left.DataPoints().At(i), right.DataPoints().At(i)); err != nil {
 			return err
 		}
 	}
@@ -536,6 +586,77 @@ func diffHistogramDataPoint(left, right pmetric.HistogramDataPoint) error {
 		return errors.New(str)
 	}
 	return diffAttrs(left.Attributes(), right.Attributes())
+}
+
+func diffExpHistogramDataPoint(left, right pmetric.ExponentialHistogramDataPoint) error {
+	if str := cmp.Diff(left.StartTimestamp(), right.StartTimestamp()); str != "" {
+		return errors.New(str)
+	}
+	if str := cmp.Diff(left.Timestamp(), right.Timestamp()); str != "" {
+		return errors.New(str)
+	}
+	if str := cmp.Diff(left.Flags(), right.Flags()); str != "" {
+		return errors.New(str)
+	}
+	err := diffExemplars(left.Exemplars(), right.Exemplars())
+	if err != nil {
+		return err
+	}
+
+	if str := cmp.Diff(left.HasSum(), right.HasSum()); str != "" {
+		return errors.New("HasSum is different: " + str)
+	}
+	if str := cmp.Diff(left.Sum(), right.Sum()); str != "" {
+		return errors.New("Sum is different: " + str)
+	}
+
+	if str := cmp.Diff(left.HasMin(), right.HasMin()); str != "" {
+		return errors.New("HasMin is different: " + str)
+	}
+	if str := cmp.Diff(left.Min(), right.Min()); str != "" {
+		return errors.New("Min is different: " + str)
+	}
+
+	if str := cmp.Diff(left.HasMax(), right.HasMax()); str != "" {
+		return errors.New("HasMax is different: " + str)
+	}
+	if str := cmp.Diff(left.Max(), right.Max()); str != "" {
+		return errors.New("Max is different: " + str)
+	}
+
+	if str := cmp.Diff(left.Count(), right.Count()); str != "" {
+		return errors.New("Count is different: " + str)
+	}
+	if str := cmp.Diff(left.Scale(), right.Scale()); str != "" {
+		return errors.New("Scale is different: " + str)
+	}
+	if str := cmp.Diff(left.ZeroCount(), right.ZeroCount()); str != "" {
+		return errors.New("ZeroCount is different: " + str)
+	}
+	if str := cmp.Diff(left.ZeroThreshold(), right.ZeroThreshold()); str != "" {
+		return errors.New("ZeroThreshold is different: " + str)
+	}
+
+	if str := diffExpBuckets(left.Positive(), right.Positive()); str != "" {
+		return errors.New("Positive buckets are different" + str)
+	}
+	if str := diffExpBuckets(left.Negative(), right.Negative()); str != "" {
+		return errors.New("Negative buckets are different" + str)
+	}
+
+	return diffAttrs(left.Attributes(), right.Attributes())
+}
+
+func diffExpBuckets(
+	left, right pmetric.ExponentialHistogramDataPointBuckets,
+) string {
+	if str := cmp.Diff(left.BucketCounts().AsRaw(), right.BucketCounts().AsRaw()); str != "" {
+		return "BucketCounts are different"
+	}
+	if str := cmp.Diff(left.Offset(), right.Offset()); str != "" {
+		return "Offset is different: " + str
+	}
+	return ""
 }
 
 func diffAttrs(a, b pcommon.Map) error {

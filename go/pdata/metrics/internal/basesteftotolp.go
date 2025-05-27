@@ -87,6 +87,13 @@ func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 		}
 		otlpAttrs.MoveTo(point.Attributes())
 		dstMetric.Histogram().SetAggregationTemporality(aggregationTemporalityToOtlp(MetricFlags(srcMetric.AggregationTemporality())))
+	case pmetric.MetricTypeExponentialHistogram:
+		point := dstMetric.ExponentialHistogram().DataPoints().AppendEmpty()
+		if err := s.convertExpHistogramPoint(srcPoint, point); err != nil {
+			return err
+		}
+		otlpAttrs.MoveTo(point.Attributes())
+		dstMetric.ExponentialHistogram().SetAggregationTemporality(aggregationTemporalityToOtlp(MetricFlags(srcMetric.AggregationTemporality())))
 	default:
 		panic("not implemented")
 	}
@@ -143,4 +150,49 @@ func (c *BaseSTEFToOTLP) convertHistogramPoint(
 		}
 	}
 	return nil
+}
+
+func (c *BaseSTEFToOTLP) convertExpHistogramPoint(
+	srcPoint *oteltef.Point, dstPoint pmetric.ExponentialHistogramDataPoint,
+) error {
+	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
+	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
+	dstPoint.SetCount(srcPoint.Value().ExpHistogram().Count())
+
+	expBucketsFromStef(dstPoint.Positive(), srcPoint.Value().ExpHistogram().PositiveBuckets())
+	expBucketsFromStef(dstPoint.Negative(), srcPoint.Value().ExpHistogram().NegativeBuckets())
+
+	if srcPoint.Value().ExpHistogram().HasSum() {
+		dstPoint.SetSum(srcPoint.Value().ExpHistogram().Sum())
+	}
+
+	if srcPoint.Value().ExpHistogram().HasMin() {
+		dstPoint.SetMin(srcPoint.Value().ExpHistogram().Min())
+	}
+
+	if srcPoint.Value().ExpHistogram().HasMax() {
+		dstPoint.SetMax(srcPoint.Value().ExpHistogram().Max())
+	}
+
+	dstPoint.SetScale(int32(srcPoint.Value().ExpHistogram().Scale()))
+	dstPoint.SetZeroCount(srcPoint.Value().ExpHistogram().ZeroCount())
+	dstPoint.SetZeroThreshold(srcPoint.Value().ExpHistogram().ZeroThreshold())
+
+	for i := range srcPoint.Exemplars().Len() {
+		exemplar := srcPoint.Exemplars().At(i)
+		if err := c.ConvertExemplar(exemplar, dstPoint.Exemplars().AppendEmpty()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func expBucketsFromStef(
+	dst pmetric.ExponentialHistogramDataPointBuckets, src *oteltef.ExpHistogramBuckets,
+) {
+	dst.SetOffset(int32(src.Offset()))
+	dst.BucketCounts().EnsureCapacity(src.BucketCounts().Len())
+	for i := 0; i < src.BucketCounts().Len(); i++ {
+		dst.BucketCounts().Append(uint64(src.BucketCounts().At(i)))
+	}
 }
