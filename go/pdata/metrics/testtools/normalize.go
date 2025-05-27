@@ -641,7 +641,7 @@ func diffExpHistogramDataPoint(left, right pmetric.ExponentialHistogramDataPoint
 		return errors.New("Positive buckets are different" + str)
 	}
 	if str := diffExpBuckets(left.Negative(), right.Negative()); str != "" {
-		return errors.New("Positive buckets are different" + str)
+		return errors.New("Negative buckets are different" + str)
 	}
 
 	return diffAttrs(left.Attributes(), right.Attributes())
