@@ -21,7 +21,7 @@ import (
 	"github.com/splunk/stef/go/pkg"
 )
 
-var testEncodings = []encodings.MetricEncoding{
+var speedEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
@@ -60,7 +60,7 @@ func BenchmarkSerializeNative(b *testing.B) {
 
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
-		for _, encoding := range testEncodings {
+		for _, encoding := range speedEncodings {
 			for _, compression := range compressions {
 				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
 					// Skip Arrow, it does not have native serialization
@@ -100,7 +100,7 @@ func BenchmarkDeserializeNative(b *testing.B) {
 
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
-		for _, encoding := range testEncodings {
+		for _, encoding := range speedEncodings {
 			for _, compression := range compressions {
 				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
 					// Skip Arrow, it does not have native serialization
@@ -148,7 +148,7 @@ func BenchmarkDeserializeNative(b *testing.B) {
 func BenchmarkSerializeFromPdata(b *testing.B) {
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
-		for _, encoding := range testEncodings {
+		for _, encoding := range speedEncodings {
 			for _, compression := range compressions {
 				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
@@ -185,7 +185,7 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 func BenchmarkDeserializeToPdata(b *testing.B) {
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
-		for _, encoding := range testEncodings {
+		for _, encoding := range speedEncodings {
 			for _, compression := range compressions {
 				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
 					encoding.Name() == "ARROW" {
