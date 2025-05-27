@@ -2,6 +2,7 @@
 // Metrics Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -160,6 +161,13 @@ public class Metrics {
         cpy.attributes = this.attributes.clone();
         cpy.point = this.point.clone();
         return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += this.envelope.byteSize();size += this.metric.byteSize();size += this.resource.byteSize();size += this.scope.byteSize();size += this.attributes.byteSize();size += this.point.byteSize();
+        return size;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

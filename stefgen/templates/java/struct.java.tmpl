@@ -1,6 +1,7 @@
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -31,7 +32,7 @@ public class {{ .StructName }} {
     // Bitmasks for "present" flags for optional fields.
     {{ range .Fields }}
     {{- if .Optional}}
-    public static final long fieldPresent{{.Name}}{{if not .OptionalIndex}} = 1L << {{.OptionalIndex}}{{end}};
+    public static final long fieldPresent{{.Name}} = 1L << {{.OptionalIndex}};
     {{- end }}
     {{- end }}
     {{end}}
@@ -128,6 +129,15 @@ public class {{ .StructName }} {
         cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
         {{- end }}
         return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        {{ range .Fields -}}
+        {{- if .Type.MustClone}}size += this.{{.name}}.byteSize();{{end}}
+        {{- end }}
+        return size;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

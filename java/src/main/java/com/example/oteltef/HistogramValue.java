@@ -2,6 +2,7 @@
 // HistogramValue Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -35,8 +36,8 @@ public class HistogramValue {
     // Bitmasks for "present" flags for optional fields.
     
     public static final long fieldPresentSum = 1L << 0;
-    public static final long fieldPresentMin;
-    public static final long fieldPresentMax;
+    public static final long fieldPresentMin = 1L << 1;
+    public static final long fieldPresentMax = 1L << 2;
     
 
     // Init must be called once, before the HistogramValue is used.
@@ -218,6 +219,13 @@ public class HistogramValue {
         cpy.max = this.max;
         cpy.bucketCounts = this.bucketCounts.clone();
         return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += this.bucketCounts.byteSize();
+        return size;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

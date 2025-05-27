@@ -2,6 +2,7 @@
 // Point Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -135,6 +136,13 @@ public class Point {
         cpy.value = this.value.clone();
         cpy.exemplars = this.exemplars.clone();
         return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += this.value.byteSize();size += this.exemplars.byteSize();
+        return size;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

@@ -2,6 +2,7 @@
 // Event Java class generated from template
 package com.example.oteltef;
 
+import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -143,6 +144,13 @@ public class Event {
         cpy.attributes = this.attributes.clone();
         cpy.droppedAttributesCount = this.droppedAttributesCount;
         return cpy;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += this.attributes.byteSize();
+        return size;
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

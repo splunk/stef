@@ -94,7 +94,7 @@ public class {{ .StructName }} {
     // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
     public int byteSize() {
         int size = 0;
-        {{- range .Fields -}}
+        {{ range .Fields -}}
         {{- if .Type.MustClone}}size += this.{{.name}}.byteSize();{{end}}
         {{- end }}
         return size;
