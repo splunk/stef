@@ -108,6 +108,7 @@ type genFieldTypeRef interface {
 }
 
 type genPrimitiveTypeRef struct {
+	Lang Lang
 	Type schema.PrimitiveFieldType
 	Dict string
 	Enum string
@@ -140,7 +141,7 @@ func (r *genPrimitiveTypeRef) DictName() string {
 // Storage returns the underlying type of fields.
 func (r *genPrimitiveTypeRef) Storage() string {
 	if r.Type == schema.PrimitiveTypeBytes {
-		return "pkg.Bytes"
+		return r.pkgPrefix() + "Bytes"
 	}
 	return r.TypeName()
 }
@@ -182,21 +183,41 @@ func (r *genPrimitiveTypeRef) Exported() string {
 func (r *genPrimitiveTypeRef) TypeName() string {
 	var s string
 
-	switch r.Type {
-	case schema.PrimitiveTypeInt64:
-		s += "int64"
-	case schema.PrimitiveTypeUint64:
-		s += "uint64"
-	case schema.PrimitiveTypeFloat64:
-		s += "float64"
-	case schema.PrimitiveTypeBool:
-		s += "bool"
-	case schema.PrimitiveTypeString:
-		s += "string"
-	case schema.PrimitiveTypeBytes:
-		s += "Bytes"
-	default:
-		panic(fmt.Errorf("unimplemented field type %v", r.Type))
+	switch r.Lang {
+	case LangGo:
+		switch r.Type {
+		case schema.PrimitiveTypeInt64:
+			s += "int64"
+		case schema.PrimitiveTypeUint64:
+			s += "uint64"
+		case schema.PrimitiveTypeFloat64:
+			s += "float64"
+		case schema.PrimitiveTypeBool:
+			s += "bool"
+		case schema.PrimitiveTypeString:
+			s += "string"
+		case schema.PrimitiveTypeBytes:
+			s += "Bytes"
+		default:
+			panic(fmt.Errorf("unimplemented field type %v", r.Type))
+		}
+	case LangJava:
+		switch r.Type {
+		case schema.PrimitiveTypeInt64:
+			s += "long"
+		case schema.PrimitiveTypeUint64:
+			s += "long"
+		case schema.PrimitiveTypeFloat64:
+			s += "double"
+		case schema.PrimitiveTypeBool:
+			s += "boolean"
+		case schema.PrimitiveTypeString:
+			s += "String"
+		case schema.PrimitiveTypeBytes:
+			s += "byte[]"
+		default:
+			panic(fmt.Errorf("unimplemented field type %v", r.Type))
+		}
 	}
 
 	return s
@@ -232,58 +253,74 @@ func (r *genPrimitiveTypeRef) DictGoType() string {
 	}
 }
 
+func (r *genPrimitiveTypeRef) pkgPrefix() string {
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "pkg."
+	case LangJava:
+		prefix = "Types."
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+	return prefix
+}
+
 func (r *genPrimitiveTypeRef) EqualFunc() string {
+	prefix := r.pkgPrefix()
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Equal"
+		return prefix + "Uint64Equal"
 	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Equal"
+		return prefix + "Int64Equal"
 	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Equal"
+		return prefix + "Float64Equal"
 	case schema.PrimitiveTypeBool:
-		return "pkg.BoolEqual"
+		return prefix + "BoolEqual"
 	case schema.PrimitiveTypeString:
-		return "pkg.StringEqual"
+		return prefix + "StringEqual"
 	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesEqual"
+		return prefix + "BytesEqual"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}
 }
 
 func (r *genPrimitiveTypeRef) RandomFunc() string {
+	prefix := r.pkgPrefix()
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Random"
+		return prefix + "Uint64Random"
 	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Random"
+		return prefix + "Int64Random"
 	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Random"
+		return prefix + "Float64Random"
 	case schema.PrimitiveTypeBool:
-		return "pkg.BoolRandom"
+		return prefix + "BoolRandom"
 	case schema.PrimitiveTypeString:
-		return "pkg.StringRandom"
+		return prefix + "StringRandom"
 	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesRandom"
+		return prefix + "BytesRandom"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}
 }
 
 func (r *genPrimitiveTypeRef) CompareFunc() string {
+	prefix := r.pkgPrefix()
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return "pkg.Uint64Compare"
+		return prefix + "Uint64Compare"
 	case schema.PrimitiveTypeInt64:
-		return "pkg.Int64Compare"
+		return prefix + "Int64Compare"
 	case schema.PrimitiveTypeFloat64:
-		return "pkg.Float64Compare"
+		return prefix + "Float64Compare"
 	case schema.PrimitiveTypeBool:
-		return "pkg.BoolCompare"
+		return prefix + "BoolCompare"
 	case schema.PrimitiveTypeString:
-		return "strings.Compare"
+		return prefix + "StringCompare"
 	case schema.PrimitiveTypeBytes:
-		return "pkg.BytesCompare"
+		return prefix + "BytesCompare"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}

@@ -23,11 +23,11 @@ func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 	}
 
 	for name, struc := range src.Structs {
-		dst.Structs[name] = structWireToGen(struc)
+		dst.Structs[name] = structWireToGen(struc, g.Lang)
 	}
 
 	for name, multimap := range src.Multimaps {
-		dst.Multimaps[name] = multimapWireToGen(multimap)
+		dst.Multimaps[name] = multimapWireToGen(multimap, g.Lang)
 	}
 
 	for name, enum := range src.Enums {
@@ -180,22 +180,22 @@ func (s *genSchema) resolveRefs() error {
 	return nil
 }
 
-func multimapWireToGen(src *schema.Multimap) *genMapDef {
+func multimapWireToGen(src *schema.Multimap, lang Lang) *genMapDef {
 	return &genMapDef{
 		Name:  src.Name,
-		Key:   multimapFieldWireToAst(src.Key),
-		Value: multimapFieldWireToAst(src.Value),
+		Key:   multimapFieldWireToAst(src.Key, lang),
+		Value: multimapFieldWireToAst(src.Value, lang),
 	}
 }
 
-func multimapFieldWireToAst(src schema.MultimapField) genMapFieldDef {
+func multimapFieldWireToAst(src schema.MultimapField, lang Lang) genMapFieldDef {
 	return genMapFieldDef{
-		Type: typeWireToGen(src.Type),
+		Type: typeWireToGen(src.Type, lang),
 		//Recursive: src.Recursive,
 	}
 }
 
-func structWireToGen(src *schema.Struct) *genStructDef {
+func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 	dst := &genStructDef{
 		Name:   src.Name,
 		OneOf:  src.OneOf,
@@ -204,25 +204,26 @@ func structWireToGen(src *schema.Struct) *genStructDef {
 	}
 
 	for i := range src.Fields {
-		dst.Fields = append(dst.Fields, structFieldWireToAst(&src.Fields[i]))
+		dst.Fields = append(dst.Fields, structFieldWireToAst(&src.Fields[i], lang))
 	}
 	return dst
 }
 
-func structFieldWireToAst(src *schema.StructField) *genStructFieldDef {
+func structFieldWireToAst(src *schema.StructField, lang Lang) *genStructFieldDef {
 	dst := &genStructFieldDef{
 		Name:     src.Name,
 		Optional: src.Optional,
 	}
 
-	dst.Type = typeWireToGen(src.FieldType)
+	dst.Type = typeWireToGen(src.FieldType, lang)
 
 	return dst
 }
 
-func typeWireToGen(src schema.FieldType) genFieldTypeRef {
+func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Primitive != nil {
 		return &genPrimitiveTypeRef{
+			Lang: lang,
 			Type: *src.Primitive,
 			Dict: src.DictName,
 			Enum: src.Enum,
@@ -231,7 +232,7 @@ func typeWireToGen(src schema.FieldType) genFieldTypeRef {
 
 	if src.Array != nil {
 		return &genArrayTypeRef{
-			ElemType: typeWireToGen(*src.Array),
+			ElemType: typeWireToGen(*src.Array, lang),
 		}
 	}
 

@@ -1,5 +1,44 @@
+// {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
 package {{ .PackageName }};
 
+import net.stef.SizeLimiter;
+import java.util.*;
+
 public class {{ .StructName }}EncoderDict {
-    // TODO: Implement the encoder dictionary logic for {{ .StructName }}.
+    private TreeMap<{{ .StructName }}, {{ .StructName }}Entry> dict = new TreeMap<>({{ .StructName }}::cmp{{ .StructName }});
+    private SizeLimiter limiter;
+
+    public void init(SizeLimiter limiter) {
+        this.dict.clear();
+        this.dict.put(null, new {{ .StructName }}Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+        this.limiter = limiter;
+    }
+
+    public void reset() {
+        this.dict.clear();
+        this.dict.put(null, new {{ .StructName }}Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+    }
+
+    public {{ .StructName }}Entry get({{ .StructName }} key) {
+        return this.dict.get(key);
+    }
+
+    public void set({{ .StructName }} key, {{ .StructName }}Entry entry) {
+        this.dict.put(key, entry);
+    }
+
+    public int size() {
+        return this.dict.size();
+    }
 }
+
+// {{ .StructName }}Entry for dictionary
+class {{ .StructName }}Entry {
+    public long refNum;
+    public {{ .StructName }} val;
+    public {{ .StructName }}Entry(long refNum, {{ .StructName }} val) {
+        this.refNum = refNum;
+        this.val = val;
+    }
+}
+

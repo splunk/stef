@@ -27,7 +27,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 
 	modifier := " = uint64(1 << iota)"
 	optionalFieldIndex := 0
-	for _, field := range str.Fields {
+	for i, field := range str.Fields {
 		passByPointer := false
 		if _, ok := field.Type.(*genStructTypeRef); ok {
 			passByPointer = true
@@ -52,6 +52,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 			"Name":          field.Name,
 			"Type":          field.Type,
 			"Optional":      field.Optional,
+			"FieldIndex":    i,
 			"OptionalIndex": optionalFieldIndex,
 			"ConstModifier": modifier,
 			"PassByPtr":     passByPointer,

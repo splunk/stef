@@ -1,6 +1,182 @@
+// {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
-public class {{ .StructName }} {
-    // TODO: Define the fields and methods for the {{ .StructName }} struct.
-}
+import net.stef.Types;
+import java.util.*;
 
+public class {{ .StructName }} {
+    {{ range .Fields }}
+    private {{.Type.Storage}}{{if .Type.Flags.StoreByPtr}} {{end}} {{.name}};
+    {{- end }}
+
+    // modifiedFields keeps track of which fields are modified.
+    private ModifiedFields modifiedFields = new ModifiedFields();
+    ModifiedFields getModifiedFields() { return this.modifiedFields; }
+
+    {{- if .OptionalFieldCount }}
+    // Field presence bits.
+    // Fields which are present have the corresponding bit set, see fieldPresent* consts below.
+    private long optionalFieldsPresent;
+    {{- end }}
+
+    public static final String {{ .StructName }}StructName = "{{ .StructName }}";
+
+    // Bitmasks for "modified" flags for each field.
+    {{ range .Fields }}
+    public static final long fieldModified{{.Name}} = 1 << {{ .FieldIndex }};
+    {{- end }}
+
+    {{if .OptionalFieldCount}}
+    // Bitmasks for "present" flags for optional fields.
+    {{ range .Fields }}
+    {{- if .Optional}}
+    public static final long fieldPresent{{.Name}}{{if not .OptionalIndex}} = 1L << {{.OptionalIndex}}{{end}};
+    {{- end }}
+    {{- end }}
+    {{end}}
+
+    // Init must be called once, before the {{.StructName}} is used.
+    public void init() {
+        this.init(null, 0);
+    }
+
+    public static {{.StructName}} new{{.StructName}}() {
+        {{.StructName}} s = new {{.StructName}}();
+        s.init(null, 0);
+        return s;
+    }
+
+    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        this.modifiedFields.parent = parentModifiedFields;
+        this.modifiedFields.parentBit = parentModifiedBit;
+        {{ range .Fields }}
+        {{- if .Type.Flags.StoreByPtr}}
+        this.{{.name}} = new {{ .Type.Storage }}();
+        {{- end }}
+        {{- if not .Type.IsPrimitive }}
+        this.{{.name}}.init(this.modifiedFields, fieldModified{{.Name}});
+        {{- end }}
+        {{- end }}
+    }
+
+    {{ range .Fields }}
+    public {{.Type.Exported}}{{if .Type.Flags.PassByPtr}} {{end}} get{{.Name}}() {
+        {{- if .Type.IsPrimitive}}
+        return this.{{.name}};
+        {{- else}}
+        return this.{{.name}};
+        {{- end}}
+    }
+
+    {{if .Type.IsPrimitive}}
+    // set{{.Name}} sets the value of {{.Name}} field.
+    public void set{{.Name}}({{.Type.Exported}} v) {
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, v)
+            {{- if .Optional}}|| (this.optionalFieldsPresent & fieldPresent{{.Name}}) == 0{{end}}) {
+            this.{{.name}} = v;
+            this.mark{{.Name}}Modified();
+            {{- if .Optional}}
+            this.optionalFieldsPresent |= fieldPresent{{.Name}};
+            {{- end}}
+        }
+    }
+
+    {{ if .Optional}}
+    // unset{{.Name}} unsets the presence flag of {{.Name}} field. A subsequent has{{.Name}}() will return false.
+    public void unset{{.Name}}() {
+        if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) != 0) {
+            this.optionalFieldsPresent &= ~fieldPresent{{.Name}};
+            this.mark{{.Name}}Modified();
+        }
+    }
+
+    // has{{.Name}} returns true if the presence flag {{.Name}} field is set and false if it is unset.
+    public boolean has{{.Name}}() {
+        return (this.optionalFieldsPresent & fieldPresent{{.Name}}) != 0;
+    }
+    {{- end}}
+
+    private void mark{{.Name}}Modified() {
+        this.modifiedFields.markModified(fieldModified{{.Name}});
+    }
+    {{end}}
+
+    // is{{.Name}}Modified returns true if the value of {{.Name}} field was modified since
+    // {{ $.StructName }} was created, encoded or decoded. If the field is modified
+    // it will be encoded by the next Write() operation. If the field is decoded by the
+    // next Read() operation the modified flag will be set.
+    public boolean is{{.Name}}Modified() {
+        return (this.modifiedFields.mask & fieldModified{{.Name}}) != 0;
+    }
+    {{ end }}
+
+    public void markUnmodifiedRecursively() {
+        {{ range .Fields }}
+        if (this.is{{.Name}}Modified()) {
+            {{- if not .Type.IsPrimitive}}
+            this.{{.name}}.markUnmodifiedRecursively();
+            {{- end}}
+        }
+        {{ end }}
+        this.modifiedFields.mask = 0;
+    }
+
+    public {{.StructName}} clone() {
+        {{if .DictName}}return new {{ .StructName }}({{ range .Fields }}this.{{.name}}{{if .Type.MustClone}}.clone(){{end}}, {{ end }});{{else}}return new {{ .StructName }}({{ range .Fields }}this.{{.name}}, {{ end }});{{end}}
+    }
+
+    // isEqual performs deep comparison and returns true if struct is equal to val.
+    public boolean isEqual({{ .StructName }} val) {
+        {{- range .Fields }}
+        {{- if .Type.IsPrimitive }}
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
+            return false;
+        }
+        {{- else }}
+        if (!this.{{.name}}.isEqual(val.{{.name}})) {
+            return false;
+        }
+        {{- end }}
+        {{- end }}
+        return true;
+    }
+
+    public static boolean {{.StructName}}Equal({{.StructName}} left, {{.StructName}} right) {
+        return left.isEqual(right);
+    }
+
+    // cmp{{.StructName}} performs deep comparison and returns an integer that
+    // will be 0 if left == right, negative if left < right, positive if left > right.
+    public static int cmp{{.StructName}}({{.StructName}} left, {{.StructName}} right) {
+        if (left == null) {
+            if (right == null) {
+                return 0;
+            }
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        int c;
+        {{ range .Fields }}
+        c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
+        if (c != 0) {
+            return c;
+        }
+        {{ end }}
+        return 0;
+    }
+
+    public void mutateRandom(Random random) {
+        final int fieldCount = {{len .Fields}};
+        {{ range .Fields }}
+        if (random.nextInt(fieldCount) == 0) {
+            {{- if not .Type.IsPrimitive }}
+            this.{{.name}}.mutateRandom(random);
+            {{- else }}
+            this.set{{.Name}}({{.Type.RandomFunc}}(random));
+            {{- end }}
+        }
+        {{ end }}
+    }
+}

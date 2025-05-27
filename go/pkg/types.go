@@ -49,6 +49,10 @@ func Float64Compare(left, right float64) int {
 	return 0
 }
 
+func StringCompare(left, right Bytes) int {
+	return strings.Compare(string(left), string(right))
+}
+
 func BytesCompare(left, right Bytes) int {
 	return strings.Compare(string(left), string(right))
 }
