@@ -618,7 +618,7 @@ func diffExpHistogramDataPoint(left, right pmetric.ExponentialHistogramDataPoint
 	}
 
 	if str := cmp.Diff(left.HasMax(), right.HasMax()); str != "" {
-		return errors.New("HasMin is different: " + str)
+		return errors.New("HasMax is different: " + str)
 	}
 	if str := cmp.Diff(left.Max(), right.Max()); str != "" {
 		return errors.New("Max is different: " + str)
