@@ -21,7 +21,7 @@ public class {{ .ArrayName }} {
     // Clone() creates a deep copy of {{ .ArrayName }}
     public {{ .ArrayName }} clone() {
         {{ .ArrayName }} clone = new {{ .ArrayName }}();
-        copy{{.ArrayName}}(clone, this);
+        clone.copyFrom(this);
         return clone;
     }
 
@@ -81,57 +81,54 @@ public class {{ .ArrayName }} {
 
     public void markUnmodifiedRecursively() {
         {{if not .ElemType.IsPrimitive}}
-        for (var elem : elems) {
-            elem.markUnmodifiedRecursively();
+        for (int i=0; i<size; i++) {
+            elems[i].markUnmodifiedRecursively();
         }
         {{end}}
     }
 
-    public static void copy{{.ArrayName}}({{.ArrayName}} dst, {{.ArrayName}} src) {
+    public void copyFrom({{.ArrayName}} src) {
         {{- if .ElemType.MustClone}}
-        if dst.elems.length!=src.elems.length {
-            dst.elems = ensureElemsSize(dst.elems, src.elems.length)
-            dst.markModified()
+        if (elems.length != src.elems.length) {
+            ensureElemsSize(src.elems.length);
+            markModified();
         }
-        if src.elems.length>0 {
+        if (src.elems.length > 0) {
             // Allocate all elements at once.
-            elems := make([]{{.ElemType.Storage}}, src.elems.length)
-            for i := range src.elems {
+            for (int i = 0; i < src.size; i++) {
                 {{if not .ElemType.IsPrimitive -}}
                 // Init the element.
-                elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+                elems[i].init(parentModifiedFields, parentModifiedBit);
                 {{- end}}
-                // Point to allocated element.
-                dst.elems[i] = &elems[i]
                 // Copy the element.
-                copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+                elems[i].copyFrom(src.elems[i]);
             }
         }
     {{- else}}
-        if (dst.elems.length != src.elems.length) {
-            int n = Math.min(dst.elems.length, src.elems.length);
-            dst.ensureElemsSize(src.elems.length);
+        if (elems.length != src.elems.length) {
+            int n = Math.min(dst.elems.length, elems.length);
+            ensureElemsSize(src.elems.length);
 
             int i = 0;
             for (; i < n; i++) {
-                if (dst.elems[i] != src.elems[i]) {
-                    dst.elems[i] = src.elems[i];
+                if (elems[i] != src.elems[i]) {
+                    elems[i] = src.elems[i];
                 }
             }
-            for (; i < dst.elems.length; i++) {
-                dst.elems[i] = src.elems[i];
+            for (; i < elems.length; i++) {
+                elems[i] = src.elems[i];
             }
-            dst.markModified();
+            markModified();
         } else {
             boolean modified = false;
-            for (int i=0; i < dst.elems.length; i++) {
-                if (dst.elems[i] != src.elems[i]) {
-                    dst.elems[i] = src.elems[i];
+            for (int i=0; i < elems.length; i++) {
+                if (elems[i] != src.elems[i]) {
+                    elems[i] = src.elems[i];
                     modified = true;
                 }
             }
             if (modified) {
-                dst.markModified();
+                markModified();
             }
         }
         {{- end}}

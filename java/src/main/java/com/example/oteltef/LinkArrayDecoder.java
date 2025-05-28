@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class LinkArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  LinkDecoder decoder = new LinkDecoder(); 
+    private LinkDecoder decoder;
     private int prevLen = 0;
     private Link lastVal;
 
@@ -19,6 +19,7 @@ public class LinkArrayDecoder {
         column = columns.getColumn();
     
     
+        decoder = new LinkDecoder();
         decoder.init(state, columns.addSubColumn());
         state.LinkDecoder = decoder;
     

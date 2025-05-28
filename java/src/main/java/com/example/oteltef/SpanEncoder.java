@@ -38,11 +38,11 @@ public class SpanEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setSpanEncoder(this);
+        state.SpanEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Span");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Span");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

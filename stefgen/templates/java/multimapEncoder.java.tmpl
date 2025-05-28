@@ -1,0 +1,73 @@
+package {{ .PackageName }};
+
+import net.stef.BytesWriter;
+import net.stef.SizeLimiter;
+import net.stef.WriteColumnSet;
+import net.stef.codecs.*;
+
+// Encoder for {{ .MultimapName }}
+public class {{ .MultimapName }}Encoder {
+    private BytesWriter buf;
+    private WriteColumnSet columns;
+    private SizeLimiter limiter;
+
+    private {{if .Key.Recursive}} {{.Key.Type.EncoderType}}Encoder keyEncoder; {{else}} {{.Key.Type.EncoderType}}Encoder keyEncoder; {{end}}
+    private {{if .Value.Recursive}} {{.Value.Type.EncoderType}}Encoder valueEncoder; {{else}} {{.Value.Type.EncoderType}}Encoder valueEncoder; {{end}}
+
+    private {{ .MultimapName }} lastVal = new {{ .MultimapName }}();
+
+    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+        this.limiter = state.getLimiter();
+        {{- if .Key.Type.IsPrimitive}}
+        keyEncoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
+        {{- else}}
+        keyEncoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive}}
+        valueEncoder.init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
+        {{- else}}
+        {{- if .Value.Recursive}}
+        valueEncoder = state.{{.Value.Type.EncoderType}}Encoder;
+        {{- else}}
+        valueEncoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end}}
+}
+
+    public void reset() {
+    {{ if not .Key.Recursive}}
+        keyEncoder.reset();
+    {{- end}}
+    {{ if not .Value.Recursive}}
+        valueEncoder.reset();
+    {{end -}}
+    }
+
+    // IsEqual performs deep comparison and returns true if encoder's previously encoded value is equal to list.
+    public boolean isEqual({{ .MultimapName }} list) {
+        return lastVal.isEqual(list);
+    }
+
+    public boolean encode({{ .MultimapName }} list) {
+        // Implement encoding logic as in Go template
+        return false;
+    }
+
+    private boolean encodeValuesOnly({{ .MultimapName }} list) {
+        // Implement value-only encoding logic
+        return false;
+    }
+
+    private void encodeFull({{ .MultimapName }} list) {
+        // Implement full encoding logic
+    }
+
+    public void rencodeLast() {
+        // Implement re-encoding of last value
+    }
+
+    public void collectColumns(WriteColumnSet columnSet) {
+        // Implement column collection logic
+    }
+}
+

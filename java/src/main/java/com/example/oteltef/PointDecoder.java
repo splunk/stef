@@ -23,9 +23,9 @@ public class PointDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setPointDecoder(this);
+        state.PointDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Point");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Point");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 4;

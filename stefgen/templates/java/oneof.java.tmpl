@@ -100,12 +100,27 @@ public class {{ .StructName }} {
         return size;
     }
 
-    // CopyFrom performs a deep copy from src.
+    // copy performs a deep copy from src.
     public void copyFrom({{.StructName}} src) {
-        this.typ = src.typ;
+        typ = src.typ;
+        switch (src.typ) {
         {{- range .Fields }}
-        this.{{.name}} = src.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
+        case Type.Type{{.Name}}:
+            {{- if .Type.MustClone }}
+            {{.name }}.copyFrom(src.{{.name}});
+            {{- else }}
+            {{- if .Optional }}
+            if (src.has{{.Name}}()) {
+                set{{.Name}}(src.get{{.Name}}());
+            } else {
+                unset{{.Name}}();
+            }
+            {{- else }}
+            set{{.Name}}(src.get{{.Name}}());
+            {{- end }}
+            {{- end }}
         {{- end }}
+        }
     }
 
     private void markParentModified() {

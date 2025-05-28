@@ -188,6 +188,15 @@ public class Exemplar {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Exemplar src) {
+        setTimestamp(src.getTimestamp());
+        value.copyFrom(src.value)
+        setSpanID(src.getSpanID());
+        setTraceID(src.getTraceID());
+        filteredAttributes.copyFrom(src.filteredAttributes)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Exemplar val) {
         if (!Types.Uint64Equal(this.timestamp, val.timestamp)) {
@@ -246,7 +255,7 @@ public class Exemplar {
             return c;
         }
         
-        c = CmpAttributes(left.filteredAttributes, right.filteredAttributes);
+        c = Attributes.compare(left.filteredAttributes, right.filteredAttributes);
         if (c != 0) {
             return c;
         }

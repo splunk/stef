@@ -151,6 +151,25 @@ public class {{ .StructName }} {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom({{.StructName}} src) {
+        {{- range .Fields }}
+        {{- if .Type.MustClone }}
+        {{.name }}.copyFrom(src.{{.name}})
+        {{- else }}
+        {{- if .Optional }}
+        if (src.has{{.Name}}()) {
+            set{{.Name}}(src.get{{.Name}}());
+        } else {
+            unset{{.Name}}();
+        }
+        {{- else }}
+        set{{.Name}}(src.get{{.Name}}());
+        {{- end }}
+        {{- end }}
+        {{- end }}
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual({{ .StructName }} val) {
         {{- range .Fields }}

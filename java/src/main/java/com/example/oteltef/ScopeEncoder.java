@@ -31,12 +31,12 @@ public class ScopeEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setScopeEncoder(this);
+        state.ScopeEncoder = this;
         this.limiter = state.getLimiter();
         this.dict = state.getScope();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Scope");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

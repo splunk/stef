@@ -30,11 +30,11 @@ public class LinkEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setLinkEncoder(this);
+        state.LinkEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Link");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Link");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

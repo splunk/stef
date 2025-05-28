@@ -246,6 +246,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 
 	if src.MultiMap != "" {
 		return &genMultimapTypeRef{
+			Lang: lang,
 			Name: src.MultiMap,
 		}
 	}

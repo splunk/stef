@@ -25,11 +25,11 @@ public class EnvelopeEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setEnvelopeEncoder(this);
+        state.EnvelopeEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Envelope");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

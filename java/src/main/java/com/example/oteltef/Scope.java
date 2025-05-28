@@ -193,6 +193,15 @@ public class Scope {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Scope src) {
+        setName(src.getName());
+        setVersion(src.getVersion());
+        setSchemaURL(src.getSchemaURL());
+        attributes.copyFrom(src.attributes)
+        setDroppedAttributesCount(src.getDroppedAttributesCount());
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Scope val) {
         if (!Types.StringEqual(this.name, val.name)) {
@@ -246,7 +255,7 @@ public class Scope {
             return c;
         }
         
-        c = CmpAttributes(left.attributes, right.attributes);
+        c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }

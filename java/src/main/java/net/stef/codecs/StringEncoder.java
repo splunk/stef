@@ -18,5 +18,7 @@ public class StringEncoder {
     public void collectColumns(WriteColumnSet columnSet) {
         encoder.collectColumns(columnSet);
     }
+
+    public void reset() {}
 }
 

@@ -25,9 +25,9 @@ public class LinkDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setLinkDecoder(this);
+        state.LinkDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Link");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Link");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 6;

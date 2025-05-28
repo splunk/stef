@@ -22,7 +22,7 @@ public class DoubleArray {
     // Clone() creates a deep copy of DoubleArray
     public DoubleArray clone() {
         DoubleArray clone = new DoubleArray();
-        copyDoubleArray(clone, this);
+        clone.copyFrom(this);
         return clone;
     }
 
@@ -80,31 +80,31 @@ public class DoubleArray {
         
     }
 
-    public static void copyDoubleArray(DoubleArray dst, DoubleArray src) {
-        if (dst.elems.length != src.elems.length) {
-            int n = Math.min(dst.elems.length, src.elems.length);
-            dst.ensureElemsSize(src.elems.length);
+    public void copyFrom(DoubleArray src) {
+        if (elems.length != src.elems.length) {
+            int n = Math.min(dst.elems.length, elems.length);
+            ensureElemsSize(src.elems.length);
 
             int i = 0;
             for (; i < n; i++) {
-                if (dst.elems[i] != src.elems[i]) {
-                    dst.elems[i] = src.elems[i];
+                if (elems[i] != src.elems[i]) {
+                    elems[i] = src.elems[i];
                 }
             }
-            for (; i < dst.elems.length; i++) {
-                dst.elems[i] = src.elems[i];
+            for (; i < elems.length; i++) {
+                elems[i] = src.elems[i];
             }
-            dst.markModified();
+            markModified();
         } else {
             boolean modified = false;
-            for (int i=0; i < dst.elems.length; i++) {
-                if (dst.elems[i] != src.elems[i]) {
-                    dst.elems[i] = src.elems[i];
+            for (int i=0; i < elems.length; i++) {
+                if (elems[i] != src.elems[i]) {
+                    elems[i] = src.elems[i];
                     modified = true;
                 }
             }
             if (modified) {
-                dst.markModified();
+                markModified();
             }
         }
     }

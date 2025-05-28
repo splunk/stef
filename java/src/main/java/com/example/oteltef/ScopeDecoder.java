@@ -26,9 +26,9 @@ public class ScopeDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setScopeDecoder(this);
+        state.ScopeDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Scope");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 5;

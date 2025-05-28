@@ -114,6 +114,12 @@ public class SpanStatus {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(SpanStatus src) {
+        setMessage(src.getMessage());
+        setCode(src.getCode());
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(SpanStatus val) {
         if (!Types.StringEqual(this.message, val.message)) {

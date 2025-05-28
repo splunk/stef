@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class LongArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  Int64Decoder decoder = new Int64Decoder(); 
+    private Int64Decoder decoder;
     private int prevLen = 0;
     private long lastVal;
 
@@ -18,6 +18,7 @@ public class LongArrayDecoder {
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
         column = columns.getColumn();
     
+        decoder = new Int64Decoder();
     
         decoder.init(columns.addSubColumn());
     

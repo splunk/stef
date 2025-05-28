@@ -160,6 +160,14 @@ public class Point {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Point src) {
+        setStartTimestamp(src.getStartTimestamp());
+        setTimestamp(src.getTimestamp());
+        value.copyFrom(src.value)
+        exemplars.copyFrom(src.exemplars)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Point val) {
         if (!Types.Uint64Equal(this.startTimestamp, val.startTimestamp)) {

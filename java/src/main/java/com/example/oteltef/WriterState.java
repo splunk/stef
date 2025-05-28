@@ -31,31 +31,31 @@ public class WriterState {
     
 
     // Encoders
-    final AnyValueEncoder AnyValueEncoder;
-    final AnyValueArrayEncoder AnyValueArrayEncoder;
-    final AttributesEncoder AttributesEncoder;
-    final DoubleArrayEncoder DoubleArrayEncoder;
-    final EnvelopeEncoder EnvelopeEncoder;
-    final EnvelopeAttributesEncoder EnvelopeAttributesEncoder;
-    final EventEncoder EventEncoder;
-    final EventArrayEncoder EventArrayEncoder;
-    final ExemplarEncoder ExemplarEncoder;
-    final ExemplarArrayEncoder ExemplarArrayEncoder;
-    final ExemplarValueEncoder ExemplarValueEncoder;
-    final HistogramValueEncoder HistogramValueEncoder;
-    final KeyValueListEncoder KeyValueListEncoder;
-    final LinkEncoder LinkEncoder;
-    final LinkArrayEncoder LinkArrayEncoder;
-    final LongArrayEncoder LongArrayEncoder;
-    final MetricEncoder MetricEncoder;
-    final MetricsEncoder MetricsEncoder;
-    final PointEncoder PointEncoder;
-    final PointValueEncoder PointValueEncoder;
-    final ResourceEncoder ResourceEncoder;
-    final ScopeEncoder ScopeEncoder;
-    final SpanEncoder SpanEncoder;
-    final SpanStatusEncoder SpanStatusEncoder;
-    final SpansEncoder SpansEncoder;
+    AnyValueEncoder AnyValueEncoder;
+    AnyValueArrayEncoder AnyValueArrayEncoder;
+    AttributesEncoder AttributesEncoder;
+    DoubleArrayEncoder DoubleArrayEncoder;
+    EnvelopeEncoder EnvelopeEncoder;
+    EnvelopeAttributesEncoder EnvelopeAttributesEncoder;
+    EventEncoder EventEncoder;
+    EventArrayEncoder EventArrayEncoder;
+    ExemplarEncoder ExemplarEncoder;
+    ExemplarArrayEncoder ExemplarArrayEncoder;
+    ExemplarValueEncoder ExemplarValueEncoder;
+    HistogramValueEncoder HistogramValueEncoder;
+    KeyValueListEncoder KeyValueListEncoder;
+    LinkEncoder LinkEncoder;
+    LinkArrayEncoder LinkArrayEncoder;
+    LongArrayEncoder LongArrayEncoder;
+    MetricEncoder MetricEncoder;
+    MetricsEncoder MetricsEncoder;
+    PointEncoder PointEncoder;
+    PointValueEncoder PointValueEncoder;
+    ResourceEncoder ResourceEncoder;
+    ScopeEncoder ScopeEncoder;
+    SpanEncoder SpanEncoder;
+    SpanStatusEncoder SpanStatusEncoder;
+    SpansEncoder SpansEncoder;
     
 
     public WriterState() {
@@ -130,5 +130,9 @@ public class WriterState {
 
     public void setOverrideSchema(WireSchema overrideSchema) {
         this.overrideSchema = overrideSchema;
+    }
+
+    public SizeLimiter getLimiter() {
+        return limiter;
     }
 }

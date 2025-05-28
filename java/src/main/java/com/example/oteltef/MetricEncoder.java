@@ -34,12 +34,12 @@ public class MetricEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setMetricEncoder(this);
+        state.MetricEncoder = this;
         this.limiter = state.getLimiter();
         this.dict = state.getMetric();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Metric");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

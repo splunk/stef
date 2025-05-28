@@ -241,6 +241,27 @@ public class HistogramValue {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(HistogramValue src) {
+        setCount(src.getCount());
+        if (src.hasSum()) {
+            setSum(src.getSum());
+        } else {
+            unsetSum();
+        }
+        if (src.hasMin()) {
+            setMin(src.getMin());
+        } else {
+            unsetMin();
+        }
+        if (src.hasMax()) {
+            setMax(src.getMax());
+        } else {
+            unsetMax();
+        }
+        bucketCounts.copyFrom(src.bucketCounts)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(HistogramValue val) {
         if (!Types.Int64Equal(this.count, val.count)) {

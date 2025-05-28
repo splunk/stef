@@ -8,6 +8,10 @@ public class BytesReader {
     private int byteIndex;
     private int capacity;
 
+    public void reset(byte[] data) {
+        reset(ByteBuffer.wrap(data));
+    }
+
     public void reset(ByteBuffer buf) {
         this.buf = buf.array();
         this.byteIndex = buf.arrayOffset();

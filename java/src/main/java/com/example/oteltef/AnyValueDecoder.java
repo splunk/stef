@@ -26,9 +26,9 @@ public class AnyValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setAnyValueDecoder(this);
+        state.AnyValueDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("AnyValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 7;
@@ -41,7 +41,7 @@ public class AnyValueDecoder {
         if (this.fieldCount <= 0) {
             return; // String and subsequent fields are skipped.
         }
-        this.stringDecoder.init(state.getAnyValueString(), columns.addSubColumn());
+        this.stringDecoder.init(state.AnyValueString, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Bool and subsequent fields are skipped.
         }

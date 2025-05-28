@@ -29,12 +29,12 @@ public class ResourceEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setResourceEncoder(this);
+        state.ResourceEncoder = this;
         this.limiter = state.getLimiter();
         this.dict = state.getResource();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Resource");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

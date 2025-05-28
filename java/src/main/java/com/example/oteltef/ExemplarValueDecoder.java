@@ -21,9 +21,9 @@ public class ExemplarValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setExemplarValueDecoder(this);
+        state.ExemplarValueDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("ExemplarValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 2;

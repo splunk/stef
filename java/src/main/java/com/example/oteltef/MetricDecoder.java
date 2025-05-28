@@ -29,9 +29,9 @@ public class MetricDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setMetricDecoder(this);
+        state.MetricDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Metric");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 8;

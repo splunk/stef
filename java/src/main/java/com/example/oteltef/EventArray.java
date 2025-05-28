@@ -22,7 +22,7 @@ public class EventArray {
     // Clone() creates a deep copy of EventArray
     public EventArray clone() {
         EventArray clone = new EventArray();
-        copyEventArray(clone, this);
+        clone.copyFrom(this);
         return clone;
     }
 
@@ -71,27 +71,24 @@ public class EventArray {
 
     public void markUnmodifiedRecursively() {
         
-        for (var elem : elems) {
-            elem.markUnmodifiedRecursively();
+        for (int i=0; i<size; i++) {
+            elems[i].markUnmodifiedRecursively();
         }
         
     }
 
-    public static void copyEventArray(EventArray dst, EventArray src) {
-        if dst.elems.length!=src.elems.length {
-            dst.elems = ensureElemsSize(dst.elems, src.elems.length)
-            dst.markModified()
+    public void copyFrom(EventArray src) {
+        if (elems.length != src.elems.length) {
+            ensureElemsSize(src.elems.length);
+            markModified();
         }
-        if src.elems.length>0 {
+        if (src.elems.length > 0) {
             // Allocate all elements at once.
-            elems := make([]Event, src.elems.length)
-            for i := range src.elems {
+            for (int i = 0; i < src.size; i++) {
                 // Init the element.
-                elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-                // Point to allocated element.
-                dst.elems[i] = &elems[i]
+                elems[i].init(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
-                copyEvent(dst.elems[i], src.elems[i])
+                elems[i].copyFrom(src.elems[i]);
             }
         }
     }

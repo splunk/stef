@@ -24,9 +24,9 @@ public class HistogramValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setHistogramValueDecoder(this);
+        state.HistogramValueDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("HistogramValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 5;

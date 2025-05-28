@@ -1,0 +1,191 @@
+package {{ .PackageName }};
+
+import net.stef.StringValue;
+
+import java.util.*;
+import java.util.Objects;
+
+// {{ .MultimapName }} is a multimap, (aka an associative array or a list) of key value
+// pairs from {{.Key.Type.TypeName}} to {{.Value.Type.TypeName}}.
+public class {{ .MultimapName }} {
+    public static class Elem {
+        {{.Key.Type.Storage}} key;
+        {{.Value.Type.Storage}} value;
+    }
+
+    Elem elems[] = new Elem[0];
+    int size = 0;
+
+    private int initedCount = 0;
+    private ModifiedFields parentModifiedFields;
+    private long parentModifiedBit;
+
+    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        this.parentModifiedFields = parentModifiedFields;
+        this.parentModifiedBit = parentModifiedBit;
+    }
+
+    // Clone() creates a deep copy of {{.MultimapName}}
+    public {{.MultimapName}} clone() {
+        {{.MultimapName}} clone = new {{.MultimapName}}();
+        copy{{.MultimapName}}(clone, this);
+        return clone;
+    }
+
+    // Len returns the number of elements in the multimap.
+    public int size() {
+        return elems.size();
+    }
+
+    // At returns element at index i.
+    public Elem at(int i) {
+        return elems.get(i);
+    }
+
+    // EnsureLen ensures the length of the multimap is equal to newLen.
+    // It will grow or shrink the multimap if needed.
+    public void ensureLen(int newLen) {
+        int oldLen = elems.size();
+        if (newLen != oldLen) {
+            while (elems.size() < newLen) {
+                elems.add(new Elem());
+            }
+            while (elems.size() > newLen) {
+                elems.remove(elems.size() - 1);
+            }
+            // TODO: pointer/struct init logic as in Go template
+            if (initedCount < newLen) {
+                initedCount = newLen;
+            }
+            markModified();
+        }
+    }
+
+    private void markModified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markModified(parentModifiedBit);
+        }
+    }
+
+    public boolean isModified() {
+        return parentModifiedFields != null && parentModifiedFields.isModified(parentModifiedBit);
+    }
+
+    public void markUnmodified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markUnmodified();
+        }
+    }
+
+    public void markUnmodifiedRecursively() {
+        for (Elem elem : elems) {
+            // TODO: recursive markUnmodified for key/value if not primitive
+        }
+    }
+
+    // Append adds a key-value pair to the multimap.
+    public void append({{.Key.Type.Exported}} k, {{.Value.Type.Exported}} v) {
+        Elem elem = new Elem();
+        elem.key = {{.Key.Type.ToStorage "k"}};
+        elem.value = {{.Value.Type.ToStorage "v"}};
+        elems.add(elem);
+        markModified();
+    }
+
+    // SetKey sets the key of the element at index i.
+    public void setKey(int i, {{.Key.Type.Exported}} k) {
+        if (!Objects.equals(elems.get(i).key, {{.Key.Type.ToStorage "k"}})) {
+            elems.get(i).key = {{.Key.Type.ToStorage "k"}};
+            markModified();
+        }
+    }
+
+    // SetValue sets the value of the element at index i.
+    public void setValue(int i, {{.Value.Type.Exported}} v) {
+        if (!Objects.equals(elems.get(i).value, {{.Value.Type.ToStorage "v"}})) {
+            elems.get(i).value = {{.Value.Type.ToStorage "v"}};
+            markModified();
+        }
+    }
+
+    // Sorts the multimap by key.
+    public void sort() {
+        elems.sort((a, b) -> {{.Key.Type.CompareFunc}}(a.key, b.key));
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate
+    // memory used by dictionaries.
+    public int byteSize() {
+        int size = 0;
+        size += elems.size() * 16; // Approximate size per element
+        // If key/value have byteSize, sum them
+        for (Elem elem : elems) {
+            // TODO: add key/value byteSize if needed
+        }
+        return size;
+    }
+
+    // Copy all elements from src to this multimap.
+    public void copyFrom({{.MultimapName}} src) {
+        ensureLen(src.elems.size());
+        for (int i = 0; i < src.elems.size(); i++) {
+            elems.get(i).key = src.elems.get(i).key;
+            elems.get(i).value = src.elems.get(i).value;
+        }
+        markModified();
+    }
+
+    // IsEqual performs deep comparison and returns true if this multimap is equal to val.
+    public boolean isEqual({{.MultimapName}} val) {
+        if (elems.size() != val.elems.size()) return false;
+        for (int i = 0; i < elems.size(); i++) {
+            if (!Objects.equals(elems.get(i).key, val.elems.get(i).key)) return false;
+            if (!Objects.equals(elems.get(i).value, val.elems.get(i).value)) return false;
+        }
+        return true;
+    }
+
+    // compare compares two multimaps lexicographically.
+    public static int compare({{.MultimapName}} left, {{.MultimapName}} right) {
+        int l = Math.min(left.elems.size(), right.elems.size());
+        for (int i = 0; i < l; i++) {
+            int c = {{.Key.Type.CompareFunc}}(left.elems.get(i).key, right.elems.get(i).key);
+            if (c != 0) return c;
+        }
+        int lenDiff = left.elems.size() - right.elems.size();
+        if (lenDiff != 0) return lenDiff;
+        for (int i = 0; i < l; i++) {
+            int c = {{.Value.Type.CompareFunc}}(left.elems.get(i).value, right.elems.get(i).value);
+            if (c != 0) return c;
+        }
+        return 0;
+    }
+
+    // mutateRandom mutates fields in a random, deterministic manner using random parameter as a deterministic generator.
+    public void mutateRandom(Random random) {
+        if (random.nextInt(20) == 0) {
+            ensureLen(size() + 1);
+        }
+        if (random.nextInt(20) == 0 && size() > 0) {
+            ensureLen(size() - 1);
+        }
+        for (int i = 0; i < elems.size(); i++) {
+            if (random.nextInt(4 * elems.size()) == 0) {
+                // TODO: mutate key
+            }
+            if (random.nextInt(4 * elems.size()) == 0) {
+                // TODO: mutate value
+            }
+        }
+    }
+
+    // Helper for copying multimaps
+    public static void copy{{.MultimapName}}({{.MultimapName}} dst, {{.MultimapName}} src) {
+        dst.ensureLen(src.elems.size());
+        for (int i = 0; i < src.elems.size(); i++) {
+            dst.elems.get(i).key = src.elems.get(i).key;
+            dst.elems.get(i).value = src.elems.get(i).value;
+        }
+        dst.markModified();
+    }
+}

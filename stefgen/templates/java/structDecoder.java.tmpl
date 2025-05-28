@@ -22,9 +22,9 @@ public class {{ .StructName }}Decoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.set{{ .StructName }}Decoder(this);
+        state.{{ .StructName }}Decoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("{{ .StructName }}");
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = {{len .Fields}};

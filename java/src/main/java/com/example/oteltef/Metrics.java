@@ -199,6 +199,16 @@ public class Metrics {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Metrics src) {
+        envelope.copyFrom(src.envelope)
+        metric.copyFrom(src.metric)
+        resource.copyFrom(src.resource)
+        scope.copyFrom(src.scope)
+        attributes.copyFrom(src.attributes)
+        point.copyFrom(src.point)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Metrics val) {
         if (!this.envelope.isEqual(val.envelope)) {
@@ -260,7 +270,7 @@ public class Metrics {
             return c;
         }
         
-        c = CmpAttributes(left.attributes, right.attributes);
+        c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }

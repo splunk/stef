@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class EventArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  EventDecoder decoder = new EventDecoder(); 
+    private EventDecoder decoder;
     private int prevLen = 0;
     private Event lastVal;
 
@@ -19,6 +19,7 @@ public class EventArrayDecoder {
         column = columns.getColumn();
     
     
+        decoder = new EventDecoder();
         decoder.init(state, columns.addSubColumn());
         state.EventDecoder = decoder;
     

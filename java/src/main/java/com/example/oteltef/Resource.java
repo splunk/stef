@@ -137,6 +137,13 @@ public class Resource {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Resource src) {
+        setSchemaURL(src.getSchemaURL());
+        attributes.copyFrom(src.attributes)
+        setDroppedAttributesCount(src.getDroppedAttributesCount());
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Resource val) {
         if (!Types.StringEqual(this.schemaURL, val.schemaURL)) {
@@ -174,7 +181,7 @@ public class Resource {
             return c;
         }
         
-        c = CmpAttributes(left.attributes, right.attributes);
+        c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }

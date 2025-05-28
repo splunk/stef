@@ -20,9 +20,9 @@ public class EnvelopeDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setEnvelopeDecoder(this);
+        state.EnvelopeDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Envelope");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 1;

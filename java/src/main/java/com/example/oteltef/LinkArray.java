@@ -22,7 +22,7 @@ public class LinkArray {
     // Clone() creates a deep copy of LinkArray
     public LinkArray clone() {
         LinkArray clone = new LinkArray();
-        copyLinkArray(clone, this);
+        clone.copyFrom(this);
         return clone;
     }
 
@@ -71,27 +71,24 @@ public class LinkArray {
 
     public void markUnmodifiedRecursively() {
         
-        for (var elem : elems) {
-            elem.markUnmodifiedRecursively();
+        for (int i=0; i<size; i++) {
+            elems[i].markUnmodifiedRecursively();
         }
         
     }
 
-    public static void copyLinkArray(LinkArray dst, LinkArray src) {
-        if dst.elems.length!=src.elems.length {
-            dst.elems = ensureElemsSize(dst.elems, src.elems.length)
-            dst.markModified()
+    public void copyFrom(LinkArray src) {
+        if (elems.length != src.elems.length) {
+            ensureElemsSize(src.elems.length);
+            markModified();
         }
-        if src.elems.length>0 {
+        if (src.elems.length > 0) {
             // Allocate all elements at once.
-            elems := make([]Link, src.elems.length)
-            for i := range src.elems {
+            for (int i = 0; i < src.size; i++) {
                 // Init the element.
-                elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-                // Point to allocated element.
-                dst.elems[i] = &elems[i]
+                elems[i].init(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
-                copyLink(dst.elems[i], src.elems[i])
+                elems[i].copyFrom(src.elems[i]);
             }
         }
     }

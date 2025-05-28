@@ -187,16 +187,25 @@ public class AnyValue {
         return size;
     }
 
-    // CopyFrom performs a deep copy from src.
+    // copy performs a deep copy from src.
     public void copyFrom(AnyValue src) {
-        this.typ = src.typ;
-        this.string = src.string;
-        this.bool = src.bool;
-        this.int64 = src.int64;
-        this.float64 = src.float64;
-        this.array = src.array.clone();
-        this.kVList = src.kVList.clone();
-        this.bytes = src.bytes;
+        typ = src.typ;
+        switch (src.typ) {
+        case Type.TypeString:
+            setString(src.getString());
+        case Type.TypeBool:
+            setBool(src.getBool());
+        case Type.TypeInt64:
+            setInt64(src.getInt64());
+        case Type.TypeFloat64:
+            setFloat64(src.getFloat64());
+        case Type.TypeArray:
+            array.copyFrom(src.array);
+        case Type.TypeKVList:
+            kVList.copyFrom(src.kVList);
+        case Type.TypeBytes:
+            setBytes(src.getBytes());
+        }
     }
 
     private void markParentModified() {
@@ -320,7 +329,7 @@ public class AnyValue {
                 }
                 break;
             case Type.TypeKVList:
-                c = CmpKeyValueList(left.kVList, right.kVList);
+                c = KeyValueList.compare(left.kVList, right.kVList);
                 if (c != 0) {
                     return c;
                 }

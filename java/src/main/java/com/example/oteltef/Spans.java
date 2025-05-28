@@ -152,6 +152,14 @@ public class Spans {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Spans src) {
+        envelope.copyFrom(src.envelope)
+        resource.copyFrom(src.resource)
+        scope.copyFrom(src.scope)
+        span.copyFrom(src.span)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Spans val) {
         if (!this.envelope.isEqual(val.envelope)) {

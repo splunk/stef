@@ -26,31 +26,31 @@ public class ReaderState {
     
 
     // Decoders
-    final AnyValueDecoder AnyValueDecoder = new AnyValueDecoder();
-    final AnyValueArrayDecoder AnyValueArrayDecoder = new AnyValueArrayDecoder();
-    final AttributesDecoder AttributesDecoder = new AttributesDecoder();
-    final DoubleArrayDecoder DoubleArrayDecoder = new DoubleArrayDecoder();
-    final EnvelopeDecoder EnvelopeDecoder = new EnvelopeDecoder();
-    final EnvelopeAttributesDecoder EnvelopeAttributesDecoder = new EnvelopeAttributesDecoder();
-    final EventDecoder EventDecoder = new EventDecoder();
-    final EventArrayDecoder EventArrayDecoder = new EventArrayDecoder();
-    final ExemplarDecoder ExemplarDecoder = new ExemplarDecoder();
-    final ExemplarArrayDecoder ExemplarArrayDecoder = new ExemplarArrayDecoder();
-    final ExemplarValueDecoder ExemplarValueDecoder = new ExemplarValueDecoder();
-    final HistogramValueDecoder HistogramValueDecoder = new HistogramValueDecoder();
-    final KeyValueListDecoder KeyValueListDecoder = new KeyValueListDecoder();
-    final LinkDecoder LinkDecoder = new LinkDecoder();
-    final LinkArrayDecoder LinkArrayDecoder = new LinkArrayDecoder();
-    final LongArrayDecoder LongArrayDecoder = new LongArrayDecoder();
-    final MetricDecoder MetricDecoder = new MetricDecoder();
-    final MetricsDecoder MetricsDecoder = new MetricsDecoder();
-    final PointDecoder PointDecoder = new PointDecoder();
-    final PointValueDecoder PointValueDecoder = new PointValueDecoder();
-    final ResourceDecoder ResourceDecoder = new ResourceDecoder();
-    final ScopeDecoder ScopeDecoder = new ScopeDecoder();
-    final SpanDecoder SpanDecoder = new SpanDecoder();
-    final SpanStatusDecoder SpanStatusDecoder = new SpanStatusDecoder();
-    final SpansDecoder SpansDecoder = new SpansDecoder();
+    AnyValueDecoder AnyValueDecoder = new AnyValueDecoder();
+    AnyValueArrayDecoder AnyValueArrayDecoder = new AnyValueArrayDecoder();
+    AttributesDecoder AttributesDecoder = new AttributesDecoder();
+    DoubleArrayDecoder DoubleArrayDecoder = new DoubleArrayDecoder();
+    EnvelopeDecoder EnvelopeDecoder = new EnvelopeDecoder();
+    EnvelopeAttributesDecoder EnvelopeAttributesDecoder = new EnvelopeAttributesDecoder();
+    EventDecoder EventDecoder = new EventDecoder();
+    EventArrayDecoder EventArrayDecoder = new EventArrayDecoder();
+    ExemplarDecoder ExemplarDecoder = new ExemplarDecoder();
+    ExemplarArrayDecoder ExemplarArrayDecoder = new ExemplarArrayDecoder();
+    ExemplarValueDecoder ExemplarValueDecoder = new ExemplarValueDecoder();
+    HistogramValueDecoder HistogramValueDecoder = new HistogramValueDecoder();
+    KeyValueListDecoder KeyValueListDecoder = new KeyValueListDecoder();
+    LinkDecoder LinkDecoder = new LinkDecoder();
+    LinkArrayDecoder LinkArrayDecoder = new LinkArrayDecoder();
+    LongArrayDecoder LongArrayDecoder = new LongArrayDecoder();
+    MetricDecoder MetricDecoder = new MetricDecoder();
+    MetricsDecoder MetricsDecoder = new MetricsDecoder();
+    PointDecoder PointDecoder = new PointDecoder();
+    PointValueDecoder PointValueDecoder = new PointValueDecoder();
+    ResourceDecoder ResourceDecoder = new ResourceDecoder();
+    ScopeDecoder ScopeDecoder = new ScopeDecoder();
+    SpanDecoder SpanDecoder = new SpanDecoder();
+    SpanStatusDecoder SpanStatusDecoder = new SpanStatusDecoder();
+    SpansDecoder SpansDecoder = new SpansDecoder();
     
 
     public void init(WireSchema overrideSchema) {

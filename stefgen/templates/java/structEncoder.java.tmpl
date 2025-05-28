@@ -27,14 +27,14 @@ public class {{ .StructName }}Encoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.set{{.StructName}}Encoder(this);
+        state.{{.StructName}}Encoder = this;
         this.limiter = state.getLimiter();
         {{- if .DictName}}
         this.dict = state.get{{.DictName}}();
         {{- end}}
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("{{ .StructName }}");
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

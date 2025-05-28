@@ -29,11 +29,11 @@ public class ExemplarEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setExemplarEncoder(this);
+        state.ExemplarEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Exemplar");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

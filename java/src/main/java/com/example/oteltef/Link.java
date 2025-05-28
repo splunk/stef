@@ -221,6 +221,16 @@ public class Link {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Link src) {
+        setTraceID(src.getTraceID());
+        setSpanID(src.getSpanID());
+        setTraceState(src.getTraceState());
+        setFlags(src.getFlags());
+        attributes.copyFrom(src.attributes)
+        setDroppedAttributesCount(src.getDroppedAttributesCount());
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Link val) {
         if (!Types.BytesEqual(this.traceID, val.traceID)) {
@@ -282,7 +292,7 @@ public class Link {
             return c;
         }
         
-        c = CmpAttributes(left.attributes, right.attributes);
+        c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }

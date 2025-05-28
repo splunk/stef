@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class ExemplarArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  ExemplarDecoder decoder = new ExemplarDecoder(); 
+    private ExemplarDecoder decoder;
     private int prevLen = 0;
     private Exemplar lastVal;
 
@@ -19,6 +19,7 @@ public class ExemplarArrayDecoder {
         column = columns.getColumn();
     
     
+        decoder = new ExemplarDecoder();
         decoder.init(state, columns.addSubColumn());
         state.ExemplarDecoder = decoder;
     

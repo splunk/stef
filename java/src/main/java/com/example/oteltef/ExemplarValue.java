@@ -103,11 +103,15 @@ public class ExemplarValue {
         return size;
     }
 
-    // CopyFrom performs a deep copy from src.
+    // copy performs a deep copy from src.
     public void copyFrom(ExemplarValue src) {
-        this.typ = src.typ;
-        this.int64 = src.int64;
-        this.float64 = src.float64;
+        typ = src.typ;
+        switch (src.typ) {
+        case Type.TypeInt64:
+            setInt64(src.getInt64());
+        case Type.TypeFloat64:
+            setFloat64(src.getFloat64());
+        }
     }
 
     private void markParentModified() {

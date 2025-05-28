@@ -23,9 +23,9 @@ public class EventDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setEventDecoder(this);
+        state.EventDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Event");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Event");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 4;

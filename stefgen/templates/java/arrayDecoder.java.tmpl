@@ -9,7 +9,7 @@ import net.stef.codecs.*;
 public class {{ .ArrayName }}Decoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private {{if .Recursive}} {{.ElemType.EncoderType}}Decoder {{else}} {{.ElemType.EncoderType}}Decoder decoder = new {{.ElemType.EncoderType}}Decoder(); {{end}}
+    private {{.ElemType.EncoderType}}Decoder decoder;
     private int prevLen = 0;
     private {{.ElemType.Storage}} lastVal;
 
@@ -17,6 +17,7 @@ public class {{ .ArrayName }}Decoder {
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
         column = columns.getColumn();
     {{if .ElemType.IsPrimitive}}
+        decoder = new {{.ElemType.EncoderType}}Decoder();
     {{if .ElemType.DictName}}
         decoder.init(state.{{.ElemType.DictName}}, columns.addSubColumn());
     {{else if .ElemType.IsDictPossible}}
@@ -28,6 +29,7 @@ public class {{ .ArrayName }}Decoder {
     {{if .Recursive}}
         decoder = state.{{.ElemType.EncoderType}}Decoder;
     {{else}}
+        decoder = new {{.ElemType.EncoderType}}Decoder();
         decoder.init(state, columns.addSubColumn());
         state.{{.ElemType.EncoderType}}Decoder = decoder;
     {{end}}

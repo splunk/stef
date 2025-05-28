@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class DoubleArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  Float64Decoder decoder = new Float64Decoder(); 
+    private Float64Decoder decoder;
     private int prevLen = 0;
     private double lastVal;
 
@@ -18,6 +18,7 @@ public class DoubleArrayDecoder {
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
         column = columns.getColumn();
     
+        decoder = new Float64Decoder();
     
         decoder.init(columns.addSubColumn());
     

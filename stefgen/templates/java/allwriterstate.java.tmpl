@@ -20,7 +20,7 @@ public class WriterState {
 
     // Encoders
     {{range $name, $val := .Encoders -}}
-    final {{$name}}Encoder {{$name}}Encoder;
+    {{$name}}Encoder {{$name}}Encoder;
     {{end}}
 
     public WriterState() {
@@ -50,5 +50,9 @@ public class WriterState {
 
     public void setOverrideSchema(WireSchema overrideSchema) {
         this.overrideSchema = overrideSchema;
+    }
+
+    public SizeLimiter getLimiter() {
+        return limiter;
     }
 }

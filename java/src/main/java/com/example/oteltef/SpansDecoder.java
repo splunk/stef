@@ -23,9 +23,9 @@ public class SpansDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setSpansDecoder(this);
+        state.SpansDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Spans");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 4;

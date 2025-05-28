@@ -272,6 +272,18 @@ public class Metric {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Metric src) {
+        setName(src.getName());
+        setDescription(src.getDescription());
+        setUnit(src.getUnit());
+        setType(src.getType());
+        metadata.copyFrom(src.metadata)
+        histogramBounds.copyFrom(src.histogramBounds)
+        setAggregationTemporality(src.getAggregationTemporality());
+        setMonotonic(src.getMonotonic());
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Metric val) {
         if (!Types.StringEqual(this.name, val.name)) {
@@ -339,7 +351,7 @@ public class Metric {
             return c;
         }
         
-        c = CmpAttributes(left.metadata, right.metadata);
+        c = Attributes.compare(left.metadata, right.metadata);
         if (c != 0) {
             return c;
         }

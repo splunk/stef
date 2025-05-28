@@ -570,6 +570,7 @@ func (r *genArrayTypeRef) MustClone() bool {
 type genMultimapTypeRef struct {
 	Name string
 	Def  *genMapDef
+	Lang Lang
 }
 
 func (r *genMultimapTypeRef) IsDictPossible() bool {
@@ -619,7 +620,14 @@ func (r *genMultimapTypeRef) EqualFunc() string {
 }
 
 func (r *genMultimapTypeRef) CompareFunc() string {
-	return "Cmp" + r.TypeName()
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.TypeName()
+	case LangJava:
+		return r.Name + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genMultimapTypeRef) MustClone() bool {

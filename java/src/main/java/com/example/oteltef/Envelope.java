@@ -81,6 +81,11 @@ public class Envelope {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Envelope src) {
+        attributes.copyFrom(src.attributes)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Envelope val) {
         if (!this.attributes.isEqual(val.attributes)) {
@@ -107,7 +112,7 @@ public class Envelope {
         }
         int c;
         
-        c = CmpEnvelopeAttributes(left.attributes, right.attributes);
+        c = EnvelopeAttributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }

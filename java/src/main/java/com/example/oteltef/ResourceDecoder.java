@@ -24,9 +24,9 @@ public class ResourceDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        state.setResourceDecoder(this);
+        state.ResourceDecoder = this;
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Resource");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 3;

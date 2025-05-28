@@ -30,11 +30,11 @@ public class MetricsEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setMetricsEncoder(this);
+        state.MetricsEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("Metrics");
+            int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
             this.fieldCount = fieldCount;
             this.keepFieldMask = ~((~0L) << this.fieldCount);
         } else {

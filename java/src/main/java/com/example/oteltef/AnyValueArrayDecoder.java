@@ -10,7 +10,7 @@ import net.stef.codecs.*;
 public class AnyValueArrayDecoder {
     private BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private  AnyValueDecoder 
+    private AnyValueDecoder decoder;
     private int prevLen = 0;
     private AnyValue lastVal;
 

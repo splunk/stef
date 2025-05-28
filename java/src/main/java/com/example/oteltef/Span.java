@@ -430,6 +430,24 @@ public class Span {
         return size;
     }
 
+    // Performs a deep copy from src to dst.
+    public void copyFrom(Span src) {
+        setTraceID(src.getTraceID());
+        setSpanID(src.getSpanID());
+        setTraceState(src.getTraceState());
+        setParentSpanID(src.getParentSpanID());
+        setFlags(src.getFlags());
+        setName(src.getName());
+        setKind(src.getKind());
+        setStartTimeUnixNano(src.getStartTimeUnixNano());
+        setEndTimeUnixNano(src.getEndTimeUnixNano());
+        attributes.copyFrom(src.attributes)
+        setDroppedAttributesCount(src.getDroppedAttributesCount());
+        events.copyFrom(src.events)
+        links.copyFrom(src.links)
+        status.copyFrom(src.status)
+    }
+
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(Span val) {
         if (!Types.BytesEqual(this.traceID, val.traceID)) {
@@ -540,7 +558,7 @@ public class Span {
             return c;
         }
         
-        c = CmpAttributes(left.attributes, right.attributes);
+        c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }
