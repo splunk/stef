@@ -12,7 +12,7 @@ public class Float64Encoder {
     private int leadingBits = 0;
     private int trailingBits = 0;
 
-    public void init(SizeLimiter limiter) {
+    public void init(SizeLimiter limiter, WriteColumnSet columns) {
         this.limiter = limiter;
     }
 

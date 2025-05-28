@@ -232,6 +232,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 
 	if src.Array != nil {
 		return &genArrayTypeRef{
+			Lang:     lang,
 			ElemType: typeWireToGen(*src.Array, lang),
 		}
 	}

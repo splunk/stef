@@ -1,0 +1,233 @@
+package {{ .PackageName }};
+
+import net.stef.Types;
+
+import java.util.*;
+import java.util.Objects;
+
+// {{ .ArrayName }} is a variable size array.
+public class {{ .ArrayName }} {
+    {{.ElemType.Storage}}[] elems = new {{.ElemType.Storage}}[0];
+    int size = 0;
+
+    private ModifiedFields parentModifiedFields;
+    private long parentModifiedBit;
+
+    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        this.parentModifiedFields = parentModifiedFields;
+        this.parentModifiedBit = parentModifiedBit;
+    }
+
+    // Clone() creates a deep copy of {{ .ArrayName }}
+    public {{ .ArrayName }} clone() {
+        {{ .ArrayName }} clone = new {{ .ArrayName }}();
+        copy{{.ArrayName}}(clone, this);
+        return clone;
+    }
+
+    // ByteSize returns approximate memory usage in bytes. Used to calculate
+    // memory used by dictionaries.
+    public int byteSize() {
+        int size = 0; // calculate size of the array in bytes.
+        {{if .ElemType.MustClone}}
+        for (var elem : elems) {
+            size += elem.byteSize();
+        }
+        {{end}}
+        return size;
+    }
+
+    {{if not .ElemType.MustClone}}
+    // copyFromArray copies from a list into this array. The length
+    // of the array will be equal to the length of list and elements of
+    // the array will be assigned from elements of the list.
+    public void copyFromArray({{.ElemType.Exported}}[] src) {
+        if (!Arrays.equals(elems, src)) {
+            elems = new {{.ElemType.Storage}}[src.length];
+            System.arraycopy(src, 0, elems, 0, src.length);
+            markModified();
+        }
+    }
+    {{end}}
+
+    // Append a new element at the end of the array.
+    public void append({{.ElemType.Exported}} val) {
+        ensureElemsSize(size + 1);
+        elems[size] = val;
+        size++;
+        markModified();
+    }
+
+    void ensureElemsSize(int newSize) {
+        if (elems.length < newSize) {
+            newSize = Math.max(newSize, elems.length * 2);
+            {{.ElemType.Storage}}[] newElems = new {{.ElemType.Storage}}[newSize];
+            System.arraycopy(elems, 0, newElems, 0, elems.length);
+        }
+        size = newSize;
+    }
+
+    public void markModified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markModified(parentModifiedBit);
+        }
+    }
+
+    public void markUnmodified() {
+        if (parentModifiedFields != null) {
+            parentModifiedFields.markUnmodified();
+        }
+    }
+
+    public void markUnmodifiedRecursively() {
+        {{if not .ElemType.IsPrimitive}}
+        for (var elem : elems) {
+            elem.markUnmodifiedRecursively();
+        }
+        {{end}}
+    }
+
+    public static void copy{{.ArrayName}}({{.ArrayName}} dst, {{.ArrayName}} src) {
+        {{- if .ElemType.MustClone}}
+        if dst.elems.length!=src.elems.length {
+            dst.elems = ensureElemsSize(dst.elems, src.elems.length)
+            dst.markModified()
+        }
+        if src.elems.length>0 {
+            // Allocate all elements at once.
+            elems := make([]{{.ElemType.Storage}}, src.elems.length)
+            for i := range src.elems {
+                {{if not .ElemType.IsPrimitive -}}
+                // Init the element.
+                elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+                {{- end}}
+                // Point to allocated element.
+                dst.elems[i] = &elems[i]
+                // Copy the element.
+                copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+            }
+        }
+    {{- else}}
+        if (dst.elems.length != src.elems.length) {
+            int n = Math.min(dst.elems.length, src.elems.length);
+            dst.ensureElemsSize(src.elems.length);
+
+            int i = 0;
+            for (; i < n; i++) {
+                if (dst.elems[i] != src.elems[i]) {
+                    dst.elems[i] = src.elems[i];
+                }
+            }
+            for (; i < dst.elems.length; i++) {
+                dst.elems[i] = src.elems[i];
+            }
+            dst.markModified();
+        } else {
+            boolean modified = false;
+            for (int i=0; i < dst.elems.length; i++) {
+                if (dst.elems[i] != src.elems[i]) {
+                    dst.elems[i] = src.elems[i];
+                    modified = true;
+                }
+            }
+            if (modified) {
+                dst.markModified();
+            }
+        }
+        {{- end}}
+    }
+
+    // Len returns the number of elements in the array.
+    public int len() {
+        return size;
+    }
+
+    // At returns element at index i.
+    public {{.ElemType.Exported}} at(int i) {
+        return elems[i];
+    }
+
+    // EnsureLen ensures the length of the array is equal to newLen.
+    // It will grow or shrink the array if needed.
+    public void ensureLen(int newLen) {
+        int oldLen = size;
+        if (newLen > oldLen) {
+            ensureElemsSize(newLen);
+            markModified();
+            {{if .IsStructType}}
+            // Initialize newlly added elements.
+            for (int i = oldLen; i < newLen; i++) {
+                {{.ElemType.Storage}} elem = new {{.ElemType.Storage}}();
+                elem.init(parentModifiedFields, parentModifiedBit);
+                elems[size++] = elem;
+            }
+            {{end}}
+        } else if (oldLen > newLen) {
+            // Shrink it
+            size = newLen;
+            markModified();
+        }
+    }
+
+    // IsEqual performs deep comparison and returns true if array is equal to val.
+    public boolean isEqual({{ .ArrayName }} val) {
+        if (size != val.size) {
+            return false;
+        }
+        for (int i = 0; i < size; i++) {
+            {{if .ElemType.IsPrimitive}}
+            if (!{{ .ElemType.EqualFunc }}(elems[i], val.elems[i])) {
+                return false;
+            }
+            {{else}}
+            if (!elems[i].isEqual(val.elems[i])) {
+                return false;
+            }
+            {{end}}
+        }
+        return true;
+    }
+
+    // compare performs deep comparison and returns an integer that
+    // will be 0 if left == right, negative if left < right, positive if left > right.
+    public static int compare({{ .ArrayName }} left, {{ .ArrayName }} right) {
+        int c = left.size - right.size;
+        if (c != 0) {
+            return c;
+        }
+        for (int i = 0; i < left.size; i++) {
+            int fc = {{.ElemType.CompareFunc}}(left.elems[i], right.elems[i]);
+            if (fc < 0) {
+                return -1;
+            }
+            if (fc > 0) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    // mutateRandom mutates fields in a random, deterministic manner using
+    // random parameter as a deterministic generator.
+    public void mutateRandom(Random random) {
+        if (random.nextInt(20) == 0) {
+            ensureLen(len() + 1);
+        }
+        if (random.nextInt(20) == 0 && len() > 0) {
+            ensureLen(len() - 1);
+        }
+        for (int i = 0; i < size; i++) {
+            if (random.nextInt(2 * size) == 0) {
+                {{if not .ElemType.IsPrimitive}}
+                elems[i].mutateRandom(random);
+                {{else}}
+                var v = {{ .ElemType.RandomFunc }}(random);
+                if (!Objects.equals(elems[i], v)) {
+                    elems[i] = v;
+                    markModified();
+                }
+                {{end}}
+            }
+        }
+    }
+}

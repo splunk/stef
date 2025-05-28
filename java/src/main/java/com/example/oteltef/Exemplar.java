@@ -200,7 +200,7 @@ public class Exemplar {
         return left.isEqual(right);
     }
 
-    // cmpExemplar performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Exemplar left, Exemplar right) {
         if (left == null) {

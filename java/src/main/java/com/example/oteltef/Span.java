@@ -463,7 +463,7 @@ public class Span {
         return left.isEqual(right);
     }
 
-    // cmpSpan performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Span left, Span right) {
         if (left == null) {
@@ -532,12 +532,12 @@ public class Span {
             return c;
         }
         
-        c = CmpEventArray(left.events, right.events);
+        c = EventArray.compare(left.events, right.events);
         if (c != 0) {
             return c;
         }
         
-        c = CmpLinkArray(left.links, right.links);
+        c = LinkArray.compare(left.links, right.links);
         if (c != 0) {
             return c;
         }

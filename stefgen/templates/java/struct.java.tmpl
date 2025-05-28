@@ -160,7 +160,7 @@ public class {{ .StructName }} {
         return left.isEqual(right);
     }
 
-    // cmp{{.StructName}} performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare({{.StructName}} left, {{.StructName}} right) {
         if (left == null) {

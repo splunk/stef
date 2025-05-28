@@ -256,7 +256,7 @@ public class HistogramValue {
         return left.isEqual(right);
     }
 
-    // cmpHistogramValue performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(HistogramValue left, HistogramValue right) {
         if (left == null) {
@@ -290,7 +290,7 @@ public class HistogramValue {
             return c;
         }
         
-        c = CmpLongArray(left.bucketCounts, right.bucketCounts);
+        c = LongArray.compare(left.bucketCounts, right.bucketCounts);
         if (c != 0) {
             return c;
         }

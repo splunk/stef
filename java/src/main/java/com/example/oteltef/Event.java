@@ -177,7 +177,7 @@ public class Event {
         return left.isEqual(right);
     }
 
-    // cmpEvent performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Event left, Event right) {
         if (left == null) {

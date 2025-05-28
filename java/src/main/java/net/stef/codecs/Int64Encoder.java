@@ -12,7 +12,7 @@ public class Int64Encoder {
     private long lastVal = 0;
     private long lastDelta = 0;
 
-    public void init(SizeLimiter limiter) {
+    public void init(SizeLimiter limiter, WriteColumnSet columns) {
         this.limiter = limiter;
     }
 

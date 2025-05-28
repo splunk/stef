@@ -314,7 +314,7 @@ public class AnyValue {
                 }
                 break;
             case Type.TypeArray:
-                c = CmpAnyValueArray(left.array, right.array);
+                c = AnyValueArray.compare(left.array, right.array);
                 if (c != 0) {
                     return c;
                 }

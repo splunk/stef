@@ -239,7 +239,7 @@ public class Link {
         return left.isEqual(right);
     }
 
-    // cmpLink performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Link left, Link right) {
         if (left == null) {

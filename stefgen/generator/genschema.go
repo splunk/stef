@@ -480,6 +480,7 @@ func (r *genStructTypeRef) Flags() TypeFlags {
 
 type genArrayTypeRef struct {
 	ElemType genFieldTypeRef
+	Lang     Lang
 }
 
 func (r *genArrayTypeRef) Flags() TypeFlags {
@@ -542,7 +543,14 @@ func (r *genArrayTypeRef) EqualFunc() string {
 }
 
 func (r *genArrayTypeRef) CompareFunc() string {
-	return "Cmp" + r.TypeName()
+	switch r.Lang {
+	case LangGo:
+		return "Cmp" + r.TypeName()
+	case LangJava:
+		return r.TypeName() + ".compare"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genArrayTypeRef) MustClone() bool {

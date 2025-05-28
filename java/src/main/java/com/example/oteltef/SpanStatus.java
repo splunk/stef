@@ -123,7 +123,7 @@ public class SpanStatus {
         return left.isEqual(right);
     }
 
-    // cmpSpanStatus performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(SpanStatus left, SpanStatus right) {
         if (left == null) {

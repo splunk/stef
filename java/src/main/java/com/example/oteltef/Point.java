@@ -169,7 +169,7 @@ public class Point {
         return left.isEqual(right);
     }
 
-    // cmpPoint performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Point left, Point right) {
         if (left == null) {
@@ -198,7 +198,7 @@ public class Point {
             return c;
         }
         
-        c = CmpExemplarArray(left.exemplars, right.exemplars);
+        c = ExemplarArray.compare(left.exemplars, right.exemplars);
         if (c != 0) {
             return c;
         }

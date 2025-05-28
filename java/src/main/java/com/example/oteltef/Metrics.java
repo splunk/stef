@@ -202,7 +202,7 @@ public class Metrics {
         return left.isEqual(right);
     }
 
-    // cmpMetrics performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Metrics left, Metrics right) {
         if (left == null) {

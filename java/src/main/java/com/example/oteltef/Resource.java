@@ -146,7 +146,7 @@ public class Resource {
         return left.isEqual(right);
     }
 
-    // cmpResource performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Resource left, Resource right) {
         if (left == null) {

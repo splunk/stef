@@ -293,7 +293,7 @@ public class Metric {
         return left.isEqual(right);
     }
 
-    // cmpMetric performs deep comparison and returns an integer that
+    // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(Metric left, Metric right) {
         if (left == null) {
@@ -332,7 +332,7 @@ public class Metric {
             return c;
         }
         
-        c = CmpDoubleArray(left.histogramBounds, right.histogramBounds);
+        c = DoubleArray.compare(left.histogramBounds, right.histogramBounds);
         if (c != 0) {
             return c;
         }
