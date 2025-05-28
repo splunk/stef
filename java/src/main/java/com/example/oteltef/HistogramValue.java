@@ -204,6 +204,15 @@ public class HistogramValue {
     public boolean isBucketCountsModified() {
         return (this.modifiedFields.mask & fieldModifiedBucketCounts) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isBucketCountsModified()) {
+            this.bucketCounts.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isBucketCountsModified()) {
             this.bucketCounts.markUnmodifiedRecursively();

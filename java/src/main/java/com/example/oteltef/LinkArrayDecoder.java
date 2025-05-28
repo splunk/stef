@@ -46,7 +46,7 @@ public class LinkArrayDecoder {
         
     }
 
-    public void decode(LinkArray dst) throws Exception {
+    public LinkArray decode(LinkArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -64,6 +64,8 @@ public class LinkArrayDecoder {
             dst.elems[i].copyFrom(lastVal);
             
         }
+
+        return dst;
     }
 }
 

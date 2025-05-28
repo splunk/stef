@@ -110,15 +110,26 @@ public class {{ .StructName }} {
     public boolean is{{.Name}}Modified() {
         return (this.modifiedFields.mask & fieldModified{{.Name}}) != 0;
     }
-    {{ end -}}
+    {{ end}}
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        if (this.is{{.Name}}Modified()) {
+            this.{{.name}}.markUnmodified();
+        }
+        {{- end}}
+        {{- end }}
+    }
 
     public void markUnmodifiedRecursively() {
         {{- range .Fields }}
-            {{- if not .Type.IsPrimitive}}
+        {{- if not .Type.IsPrimitive}}
         if (this.is{{.Name}}Modified()) {
             this.{{.name}}.markUnmodifiedRecursively();
         }
-            {{- end}}
+        {{- end}}
         {{- end }}
         this.modifiedFields.mask = 0;
     }

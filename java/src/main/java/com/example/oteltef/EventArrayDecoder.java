@@ -46,7 +46,7 @@ public class EventArrayDecoder {
         
     }
 
-    public void decode(EventArray dst) throws Exception {
+    public EventArray decode(EventArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -64,6 +64,8 @@ public class EventArrayDecoder {
             dst.elems[i].copyFrom(lastVal);
             
         }
+
+        return dst;
     }
 }
 

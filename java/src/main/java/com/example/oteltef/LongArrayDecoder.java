@@ -43,7 +43,7 @@ public class LongArrayDecoder {
         
     }
 
-    public void decode(LongArray dst) throws Exception {
+    public LongArray decode(LongArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -61,6 +61,8 @@ public class LongArrayDecoder {
             dst.elems[i] = lastVal;
             
         }
+
+        return dst;
     }
 }
 

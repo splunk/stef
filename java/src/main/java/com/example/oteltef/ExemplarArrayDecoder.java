@@ -46,7 +46,7 @@ public class ExemplarArrayDecoder {
         
     }
 
-    public void decode(ExemplarArray dst) throws Exception {
+    public ExemplarArray decode(ExemplarArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -64,6 +64,8 @@ public class ExemplarArrayDecoder {
             dst.elems[i].copyFrom(lastVal);
             
         }
+
+        return dst;
     }
 }
 

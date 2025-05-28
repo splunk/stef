@@ -52,6 +52,15 @@ public class Envelope {
     public boolean isAttributesModified() {
         return (this.modifiedFields.mask & fieldModifiedAttributes) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isAttributesModified()) {
+            this.attributes.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();

@@ -104,6 +104,15 @@ public class Resource {
     public boolean isDroppedAttributesCountModified() {
         return (this.modifiedFields.mask & fieldModifiedDroppedAttributesCount) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isAttributesModified()) {
+            this.attributes.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();

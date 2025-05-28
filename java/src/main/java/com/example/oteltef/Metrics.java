@@ -130,6 +130,30 @@ public class Metrics {
     public boolean isPointModified() {
         return (this.modifiedFields.mask & fieldModifiedPoint) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isEnvelopeModified()) {
+            this.envelope.markUnmodified();
+        }
+        if (this.isMetricModified()) {
+            this.metric.markUnmodified();
+        }
+        if (this.isResourceModified()) {
+            this.resource.markUnmodified();
+        }
+        if (this.isScopeModified()) {
+            this.scope.markUnmodified();
+        }
+        if (this.isAttributesModified()) {
+            this.attributes.markUnmodified();
+        }
+        if (this.isPointModified()) {
+            this.point.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isEnvelopeModified()) {
             this.envelope.markUnmodifiedRecursively();

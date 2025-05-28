@@ -43,7 +43,7 @@ public class DoubleArrayDecoder {
         
     }
 
-    public void decode(DoubleArray dst) throws Exception {
+    public DoubleArray decode(DoubleArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -61,6 +61,8 @@ public class DoubleArrayDecoder {
             dst.elems[i] = lastVal;
             
         }
+
+        return dst;
     }
 }
 

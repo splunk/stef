@@ -99,6 +99,24 @@ public class Spans {
     public boolean isSpanModified() {
         return (this.modifiedFields.mask & fieldModifiedSpan) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isEnvelopeModified()) {
+            this.envelope.markUnmodified();
+        }
+        if (this.isResourceModified()) {
+            this.resource.markUnmodified();
+        }
+        if (this.isScopeModified()) {
+            this.scope.markUnmodified();
+        }
+        if (this.isSpanModified()) {
+            this.span.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isEnvelopeModified()) {
             this.envelope.markUnmodifiedRecursively();

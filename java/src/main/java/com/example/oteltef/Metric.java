@@ -223,6 +223,18 @@ public class Metric {
     public boolean isMonotonicModified() {
         return (this.modifiedFields.mask & fieldModifiedMonotonic) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isMetadataModified()) {
+            this.metadata.markUnmodified();
+        }
+        if (this.isHistogramBoundsModified()) {
+            this.histogramBounds.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isMetadataModified()) {
             this.metadata.markUnmodifiedRecursively();

@@ -89,6 +89,12 @@ public class SpanStatus {
     public boolean isCodeModified() {
         return (this.modifiedFields.mask & fieldModifiedCode) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+    }
+
     public void markUnmodifiedRecursively() {
         this.modifiedFields.mask = 0;
     }

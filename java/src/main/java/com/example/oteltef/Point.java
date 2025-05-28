@@ -119,6 +119,18 @@ public class Point {
     public boolean isExemplarsModified() {
         return (this.modifiedFields.mask & fieldModifiedExemplars) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isValueModified()) {
+            this.value.markUnmodified();
+        }
+        if (this.isExemplarsModified()) {
+            this.exemplars.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isValueModified()) {
             this.value.markUnmodifiedRecursively();

@@ -41,7 +41,7 @@ public class AnyValueArrayDecoder {
         
     }
 
-    public void decode(AnyValueArray dst) throws Exception {
+    public AnyValueArray decode(AnyValueArray dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -59,6 +59,8 @@ public class AnyValueArrayDecoder {
             dst.elems[i].copyFrom(lastVal);
             
         }
+
+        return dst;
     }
 }
 

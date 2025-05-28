@@ -55,7 +55,7 @@ public class {{ .ArrayName }}Decoder {
         {{end}}
     }
 
-    public void decode({{.ArrayName}} dst) throws Exception {
+    public {{.ArrayName}} decode({{.ArrayName}} dst) throws Exception {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {
@@ -76,6 +76,8 @@ public class {{ .ArrayName }}Decoder {
             dst.elems[i].copyFrom(lastVal);
             {{end}}
         }
+
+        return dst;
     }
 }
 

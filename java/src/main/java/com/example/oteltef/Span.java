@@ -357,6 +357,24 @@ public class Span {
     public boolean isStatusModified() {
         return (this.modifiedFields.mask & fieldModifiedStatus) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isAttributesModified()) {
+            this.attributes.markUnmodified();
+        }
+        if (this.isEventsModified()) {
+            this.events.markUnmodified();
+        }
+        if (this.isLinksModified()) {
+            this.links.markUnmodified();
+        }
+        if (this.isStatusModified()) {
+            this.status.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isAttributesModified()) {
             this.attributes.markUnmodifiedRecursively();

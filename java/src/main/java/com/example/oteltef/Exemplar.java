@@ -145,6 +145,18 @@ public class Exemplar {
     public boolean isFilteredAttributesModified() {
         return (this.modifiedFields.mask & fieldModifiedFilteredAttributes) != 0;
     }
+    
+
+    public void markUnmodified() {
+        modifiedFields.markUnmodified();
+        if (this.isValueModified()) {
+            this.value.markUnmodified();
+        }
+        if (this.isFilteredAttributesModified()) {
+            this.filteredAttributes.markUnmodified();
+        }
+    }
+
     public void markUnmodifiedRecursively() {
         if (this.isValueModified()) {
             this.value.markUnmodifiedRecursively();
