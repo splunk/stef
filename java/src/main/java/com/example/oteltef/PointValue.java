@@ -108,7 +108,10 @@ public class PointValue {
 
     // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
     public int byteSize() {
-        int size = 0;size += this.histogram.byteSize();
+        int size = 0; // TODO: calculate the size of this object.
+        
+        
+        size += this.histogram.byteSize();
         return size;
     }
 

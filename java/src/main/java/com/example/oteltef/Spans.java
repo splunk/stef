@@ -126,8 +126,11 @@ public class Spans {
 
     // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
     public int byteSize() {
-        int size = 0;
-        size += this.envelope.byteSize();size += this.resource.byteSize();size += this.scope.byteSize();size += this.span.byteSize();
+        int size = 0; // TODO: calculate the size of this object.
+        size += this.envelope.byteSize();
+        size += this.resource.byteSize();
+        size += this.scope.byteSize();
+        size += this.span.byteSize();
         return size;
     }
 

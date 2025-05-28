@@ -223,7 +223,11 @@ public class HistogramValue {
 
     // ByteSize returns approximate memory usage in bytes. Used to calculate memory used by dictionaries.
     public int byteSize() {
-        int size = 0;
+        int size = 0; // TODO: calculate the size of this object.
+        
+        
+        
+        
         size += this.bucketCounts.byteSize();
         return size;
     }
