@@ -1,5 +1,10 @@
 package {{ .PackageName }};
 
+import net.stef.BitsReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
+import net.stef.codecs.*;
+
 // Decoder for {{ .ArrayName }}
 public class {{ .ArrayName }}Decoder {
     private BitsReader buf = new BitsReader();
@@ -7,30 +12,28 @@ public class {{ .ArrayName }}Decoder {
     private {{if .Recursive}} {{.ElemType.EncoderType}}Decoder {{else}} {{.ElemType.EncoderType}}Decoder decoder = new {{.ElemType.EncoderType}}Decoder(); {{end}}
     private int prevLen = 0;
     private {{.ElemType.Storage}} lastVal;
-    private {{.ElemType.Storage}} lastValPtr;
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws Exception {
-        column = columns.column();
-        {{if .ElemType.IsPrimitive}}
-        {{if .ElemType.DictName}}
+        column = columns.getColumn();
+    {{if .ElemType.IsPrimitive}}
+    {{if .ElemType.DictName}}
         decoder.init(state.{{.ElemType.DictName}}, columns.addSubColumn());
-        {{else if .ElemType.IsDictPossible}}
+    {{else if .ElemType.IsDictPossible}}
         decoder.init(null, columns.addSubColumn());
-        {{else}}
+    {{else}}
         decoder.init(columns.addSubColumn());
-        {{end}}
-        {{else}}
-        {{if .Recursive}}
+    {{end}}
+    {{else}}
+    {{if .Recursive}}
         decoder = state.{{.ElemType.EncoderType}}Decoder;
-        {{else}}
+    {{else}}
         decoder.init(state, columns.addSubColumn());
         state.{{.ElemType.EncoderType}}Decoder = decoder;
-        {{end}}
+    {{end}}
         lastVal = new {{.ElemType.Storage}}();
         lastVal.init(null, 0);
-        {{end}}
-        lastValPtr = lastVal;
+    {{end}}
     }
 
     // Continue is called at the start of the frame to continue decoding column data.
@@ -38,10 +41,10 @@ public class {{ .ArrayName }}Decoder {
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
     // continuation of that same column in the previous frame.
-    public void cont() {
-        buf.reset(column.data());
+    public void continueDecoding() {
+        buf.reset(column.getData());
         {{if not .Recursive}}
-        decoder.cont();
+        decoder.continueDecoding();
         {{end}}
     }
 
@@ -53,17 +56,24 @@ public class {{ .ArrayName }}Decoder {
     }
 
     public void decode({{.ArrayName}} dst) throws Exception {
-        int lenDelta = buf.readVarintCompact();
-        int newLen = prevLen + lenDelta;
-        dst.ensureLen(newLen);
-        prevLen = newLen;
+        long lenDelta = buf.readVarintCompact();
+        long newLen = prevLen + lenDelta;
+        if (newLen < 0) {
+            throw new IllegalStateException("Invalid array length: " + newLen);
+        }
+        if (newLen > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+        }
+
+        dst.ensureLen((int)newLen);
+        prevLen = (int)newLen;
         for (int i = 0; i < newLen; i++) {
             {{if .ElemType.IsPrimitive}}
             lastVal = decoder.decode();
-            dst.elems.set(i, lastVal);
+            dst.elems[i] = lastVal;
             {{else}}
-            decoder.decode(lastValPtr);
-            dst.elems.get(i).copyFrom(lastValPtr);
+            lastVal = decoder.decode(lastVal);
+            dst.elems[i].copyFrom(lastVal);
             {{end}}
         }
     }
