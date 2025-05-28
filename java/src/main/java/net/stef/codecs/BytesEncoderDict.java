@@ -1,12 +1,14 @@
 package net.stef.codecs;
 
+import net.stef.SizeLimiter;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public class BytesEncoderDict {
     private Map<byte[], Integer> m;
 
-    public void init() {
+    public void init(SizeLimiter limiter) {
         this.m = new HashMap<>();
     }
 

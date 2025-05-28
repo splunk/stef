@@ -263,11 +263,21 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 }
 
 func (r *genPrimitiveTypeRef) DictGoType() string {
+	var prefix string
+	switch r.Lang {
+	case LangGo:
+		prefix = "encoders."
+	case LangJava:
+		prefix = ""
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+
 	switch r.Type {
 	case schema.PrimitiveTypeString:
-		return "encoders.String"
+		return prefix + "String"
 	case schema.PrimitiveTypeBytes:
-		return "encoders.Bytes"
+		return prefix + "Bytes"
 	default:
 		panic(fmt.Sprintf("type %v does not support dictionaries", r.Type))
 	}
