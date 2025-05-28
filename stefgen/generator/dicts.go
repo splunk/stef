@@ -5,7 +5,10 @@ func (g *Generator) oDicts() error {
 		"Dicts":    g.getDicts(),
 		"Encoders": g.getEncoders(),
 	}
-	if err := g.oTemplates("dicts", "dicts", data); err != nil {
+	if err := g.oTemplates("allreaderstate", "readerstate", data); err != nil {
+		return err
+	}
+	if err := g.oTemplates("allwriterstate", "writerstate", data); err != nil {
 		return err
 	}
 	return g.lastErr
