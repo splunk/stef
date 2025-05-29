@@ -168,7 +168,7 @@ public class MetricEncoder {
         
         if ((fieldMask & Metric.fieldModifiedType) != 0) {
             // Encode Type
-            this.type_Encoder.encode(val.type_);
+            this.type_Encoder.encode(val.type_.getValue());
         }
         
         if ((fieldMask & Metric.fieldModifiedMetadata) != 0) {

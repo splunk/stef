@@ -151,8 +151,8 @@ public class EnvelopeAttributes {
             ensureLen(src.elemsLen);
             modified = true;
         }
-        if (!Arrays.equal(elems, src.elems)) {
-            System.arraycopy(elems, src.elems);
+        if (!Arrays.equals(elems, src.elems)) {
+            System.arraycopy(src.elems, 0, elems, 0, src.elemsLen);
             modified = true;
         }
         

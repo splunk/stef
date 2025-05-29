@@ -77,6 +77,8 @@ type TypeFlags struct {
 
 	// TakePtr is true a pointer must be taken of the field to pass it as a parameter.
 	TakePtr bool
+
+	IsEnum bool
 }
 
 type genFieldTypeRef interface {
@@ -119,9 +121,14 @@ func (r *genPrimitiveTypeRef) IsPrimitive() bool {
 }
 
 func (r *genPrimitiveTypeRef) Flags() TypeFlags {
+	isEnum := false
+	if r.Enum != "" {
+		isEnum = true
+	}
 	return TypeFlags{
 		PassByPtr:  false,
 		StoreByPtr: false,
+		IsEnum:     isEnum,
 	}
 }
 

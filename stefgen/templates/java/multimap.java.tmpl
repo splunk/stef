@@ -158,8 +158,8 @@ public class {{ .MultimapName }} {
         }
     
         {{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
-        if (!Arrays.equal(elems, src.elems)) {
-            System.arraycopy(elems, src.elems);
+        if (!Arrays.equals(elems, src.elems)) {
+            System.arraycopy(src.elems, 0, elems, 0, src.elemsLen);
             modified = true;
         }
         {{else}}
