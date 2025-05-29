@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 public class WriteBufs {
-    private final WriteColumnSet columns = new WriteColumnSet();
+    public final WriteColumnSet columns = new WriteColumnSet();
     private final BitsWriter tempBuf = new BitsWriter();
     private byte[] bytes = new byte[0];
 

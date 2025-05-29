@@ -247,11 +247,11 @@ public class {{ .StructName }} {
     }
 
     {{if .IsMainStruct}}
-    private static final byte[] wireSchema = new byte[]{ {{.Schema}} };
+    public static final byte[] wireSchemaBytes = new byte[]{ {{.Schema}} };
 
     public static WireSchema wireSchema() throws IOException {
         WireSchema w = new WireSchema();
-        w.deserialize(new ByteArrayInputStream(wireSchema));
+        w.deserialize(new ByteArrayInputStream(wireSchemaBytes));
         return w;
     }
     {{end}}

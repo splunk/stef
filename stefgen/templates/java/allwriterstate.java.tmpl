@@ -43,6 +43,13 @@ public class WriterState {
         {{end}}
     }
 
+    public void resetDicts() {
+        limiter.resetDict();
+        {{range .Dicts -}}
+        {{.DictName}}.reset();
+        {{end}}
+    }
+
     // Getters and setters for overrideSchema
     public WireSchema getOverrideSchema() {
         return overrideSchema;

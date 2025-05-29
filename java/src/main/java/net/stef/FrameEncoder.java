@@ -5,7 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class FrameEncoder {
+public class FrameEncoder extends OutputStream {
     private ChunkWriter dest;
     private OutputStream frameContent;
     private int uncompressedSize;
@@ -55,10 +55,16 @@ public class FrameEncoder {
         uncompressedSize = 0;
     }
 
-    public int write(byte[] data) throws IOException {
+    @Override
+    public void write(int b) throws IOException {
+        frameContent.write(b);
+        uncompressedSize += 1;
+    }
+
+    @Override
+    public void write(byte[] data) throws IOException {
         frameContent.write(data);
         uncompressedSize += data.length;
-        return data.length;
     }
 
     public int getUncompressedSize() {

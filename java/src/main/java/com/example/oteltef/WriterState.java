@@ -123,6 +123,24 @@ public class WriterState {
         
     }
 
+    public void resetDicts() {
+        limiter.resetDict();
+        AnyValueString.reset();
+        AttributeKey.reset();
+        Metric.reset();
+        MetricDescription.reset();
+        MetricName.reset();
+        MetricUnit.reset();
+        Resource.reset();
+        SchemaURL.reset();
+        Scope.reset();
+        ScopeName.reset();
+        ScopeVersion.reset();
+        SpanEventName.reset();
+        SpanName.reset();
+        
+    }
+
     // Getters and setters for overrideSchema
     public WireSchema getOverrideSchema() {
         return overrideSchema;

@@ -87,4 +87,11 @@ public class WriterOptions {
     public void setSchema(WireSchema schema) { this.schema = schema; }
     public java.util.Map<String, String> getUserData() { return userData; }
     public void setUserData(java.util.Map<String, String> userData) { this.userData = userData; }
+
+    // DefaultMaxFrameSize is the default maximum size of a frame.
+    // 4MiB, less 1KiB to ensure the frame fits in default gRPC message size, which is 4MiB.
+    public static final int DefaultMaxFrameSize = (4 << 20) - 1024;
+
+    // DefaultMaxTotalDictSize is the default maximum of MaxTotalDictSize option.
+    public static final int DefaultMaxTotalDictSize = 4 << 20;
 }
