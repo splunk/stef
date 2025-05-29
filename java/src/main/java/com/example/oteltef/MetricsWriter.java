@@ -5,6 +5,7 @@ import net.stef.Constants;
 import net.stef.ChunkWriter;
 import net.stef.FrameEncoder;
 import net.stef.FrameFlags;
+import net.stef.Serde;
 import net.stef.VarHeader;
 import net.stef.WriteBufs;
 import net.stef.WriterOptions;
@@ -35,19 +36,7 @@ public class MetricsWriter {
         this.writeBufs = new WriteBufs();
         this.frameEncoder = new FrameEncoder();
 
-        // Set default options.
-        if (this.opts.getMaxUncompressedFrameByteSize() == 0) {
-            this.opts.setMaxUncompressedFrameByteSize(WriterOptions.DefaultMaxFrameSize);
-        }
-        if (this.opts.getMaxTotalDictSize() == 0) {
-            this.opts.setMaxTotalDictSize(WriterOptions.DefaultMaxTotalDictSize);
-        }
-
         if (this.opts.getSchema() != null) {
-            // If the schema is overridden must include the descriptor so that the readers
-            // can decode the data correctly.
-            this.opts.setIncludeDescriptor(true);
-
             WireSchema ownSchema = Metrics.wireSchema();
             if (ownSchema.compatible(this.opts.getSchema()) == Compatibility.Incompatible) {
                 throw new IOException("schema is not compatible with Writer");
@@ -73,7 +62,7 @@ public class MetricsWriter {
 
         ByteArrayOutputStream hdrFull = new ByteArrayOutputStream();
         hdrFull.write(Constants.HdrSignature);
-        hdrFull.write(encodeUVarInt(hdrTailSize));
+        Serde.writeUvarint(hdrTailSize, hdrFull);
         hdrFull.write(hdrTail.toByteArray());
 
         this.dst.writeChunk(hdrFull.toByteArray(), null);
@@ -129,7 +118,7 @@ public class MetricsWriter {
     }
 
     private void restartFrame(int nextFrameFlags) throws IOException {
-        frameEncoder.write(encodeUVarInt(this.frameRecordCount));
+        Serde.writeUvarint(frameRecordCount, frameEncoder);
         frameRecordCount = 0;
         encoder.collectColumns(writeBufs.columns);
         writeBufs.writeTo(frameEncoder);
@@ -143,16 +132,5 @@ public class MetricsWriter {
             return;
         }
         restartFrame(opts.getFrameRestartFlags());
-    }
-
-    // Helper for encoding unsigned varint (uvarint) as in Go's binary.AppendUvarint
-    private byte[] encodeUVarInt(long value) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
-            out.write((int)((value & 0x7F) | 0x80));
-            value >>>= 7;
-        }
-        out.write((int)(value & 0x7F));
-        return out.toByteArray();
     }
 }

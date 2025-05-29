@@ -5,13 +5,13 @@ import net.stef.BaseReader;
 import net.stef.FixedHeader;
 import net.stef.FrameFlags;
 import net.stef.ReadOptions;
+import net.stef.ReadResult;
 import net.stef.schema.WireSchema;
 
-import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 
 public class SpansReader {
     private final BaseReader base;
@@ -91,10 +91,5 @@ public class SpansReader {
         base.recordCount++;
         decoder.decode(record);
         return ReadResult.Success;
-    }
-
-    public enum ReadResult {
-        Success,
-        EndOfFrame
     }
 }

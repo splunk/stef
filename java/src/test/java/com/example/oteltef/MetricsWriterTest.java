@@ -5,12 +5,15 @@ import net.stef.Compression;
 import net.stef.FrameFlags;
 import net.stef.MemChunkWriter;
 import net.stef.ReadOptions;
+import net.stef.ReadResult;
 import net.stef.WriterOptions;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -36,18 +39,28 @@ public class MetricsWriterTest {
 
     @Test
     void testMetricsWriteRead() {
-        List<WriterOptions> opts = Arrays.asList(
-            new WriterOptions(),
-            new WriterOptions(Compression.Zstd),
-            new WriterOptions(0, 500, 0),
-            new WriterOptions(0, 0, 500),
-            new WriterOptions(Compression.Zstd, 500, 500),
-            new WriterOptions(FrameFlags.RestartDictionaries),
-            new WriterOptions(FrameFlags.RestartCodecs),
-            new WriterOptions(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs),
-            new WriterOptions(FrameFlags.RestartCompression, Compression.Zstd),
-            new WriterOptions(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs | FrameFlags.RestartCompression, Compression.Zstd),
-            new WriterOptions(FrameFlags.RestartCodecs, 500, 0)
+        List<WriterOptions.Builder> opts = Arrays.asList(
+            WriterOptions.builder(),
+            WriterOptions.builder().compression(Compression.Zstd),
+            WriterOptions.builder().maxUncompressedFrameByteSize(500),
+            WriterOptions.builder().maxTotalDictSize(500),
+
+            WriterOptions.builder().
+                maxUncompressedFrameByteSize(500).
+                maxTotalDictSize(500).
+                compression(Compression.Zstd),
+
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartDictionaries),
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartCodecs),
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs),
+
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartCompression).
+                compression(Compression.Zstd),
+
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs | FrameFlags.RestartCompression).
+                compression(Compression.Zstd),
+
+            WriterOptions.builder().frameRestartFlags(FrameFlags.RestartCodecs).maxUncompressedFrameByteSize(500)
         );
 
         // Choose a seed (non-pseudo) randomly. We will print the seed
@@ -55,10 +68,10 @@ public class MetricsWriterTest {
         long seed1 = System.nanoTime();
         Random random = new Random(seed1);
 
-        for (WriterOptions opt : opts) {
+        for (WriterOptions.Builder opt : opts) {
             try {
                 MemChunkWriter buf = new MemChunkWriter();
-                MetricsWriter writer = new MetricsWriter(buf, opt);
+                MetricsWriter writer = new MetricsWriter(buf, opt.build());
 
                 // Generate records pseudo-randomly
                 List<Metrics> records = genMetricsRecords(random);
@@ -72,11 +85,10 @@ public class MetricsWriterTest {
                 // Read the records and compare to written.
                 MetricsReader reader = new MetricsReader(new ByteArrayInputStream(buf.getBytes()));
                 for (int i = 0; i < records.size(); i++) {
-                    assertTrue(reader.read(new ReadOptions()));
-                    assertNotNull(reader.record);
+                    assertEquals(ReadResult.Success, reader.read(new ReadOptions()));
                     assertTrue(reader.record.isEqual(records.get(i)), "record " + i + " seed " + seed1);
                 }
-                assertFalse(reader.read(new ReadOptions()));
+                assertThrows(EOFException.class, () -> reader.read(new ReadOptions()));
             } catch (Exception e) {
                 fail("seed " + seed1 + ": " + e.getMessage());
             }

@@ -1,6 +1,7 @@
 package net.stef;
 
 import net.stef.schema.WireSchema;
+import java.util.Map;
 
 public class WriterOptions {
     // IncludeDescriptor indicates that the schema descriptor must be written to the file.
@@ -72,21 +73,33 @@ public class WriterOptions {
     // UserData is optional user-defined data that will be stored in the header.
     private java.util.Map<String, String> userData;
 
-    // Getters and setters for all fields
+    private WriterOptions(Builder builder) {
+        includeDescriptor = builder.includeDescriptor;
+        compression = builder.compression;
+        maxUncompressedFrameByteSize = builder.maxUncompressedFrameByteSize;
+        frameRestartFlags = builder.frameRestartFlags;
+        maxTotalDictSize = builder.maxTotalDictSize;
+        userData = builder.userData;
+        schema = builder.schema;
+        if (schema != null) {
+            // If the schema is overridden must include the descriptor so that the readers
+            // can decode the data correctly.
+            includeDescriptor = true;
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    // Getters for all fields
     public boolean isIncludeDescriptor() { return includeDescriptor; }
-    public void setIncludeDescriptor(boolean includeDescriptor) { this.includeDescriptor = includeDescriptor; }
     public Compression getCompression() { return compression; }
-    public void setCompression(Compression compression) { this.compression = compression; }
     public long getMaxUncompressedFrameByteSize() { return maxUncompressedFrameByteSize; }
-    public void setMaxUncompressedFrameByteSize(long maxUncompressedFrameByteSize) { this.maxUncompressedFrameByteSize = maxUncompressedFrameByteSize; }
     public int getFrameRestartFlags() { return frameRestartFlags; }
-    public void setFrameRestartFlags(int frameRestartFlags) { this.frameRestartFlags = frameRestartFlags; }
     public long getMaxTotalDictSize() { return maxTotalDictSize; }
-    public void setMaxTotalDictSize(long maxTotalDictSize) { this.maxTotalDictSize = maxTotalDictSize; }
     public WireSchema getSchema() { return schema; }
-    public void setSchema(WireSchema schema) { this.schema = schema; }
     public java.util.Map<String, String> getUserData() { return userData; }
-    public void setUserData(java.util.Map<String, String> userData) { this.userData = userData; }
 
     // DefaultMaxFrameSize is the default maximum size of a frame.
     // 4MiB, less 1KiB to ensure the frame fits in default gRPC message size, which is 4MiB.
@@ -94,4 +107,46 @@ public class WriterOptions {
 
     // DefaultMaxTotalDictSize is the default maximum of MaxTotalDictSize option.
     public static final int DefaultMaxTotalDictSize = 4 << 20;
+
+    public static class Builder {
+        private boolean includeDescriptor;
+        private Compression compression;
+        private long maxUncompressedFrameByteSize = DefaultMaxFrameSize;
+        private int frameRestartFlags;
+        private long maxTotalDictSize = DefaultMaxTotalDictSize;
+        private WireSchema schema;
+        private Map<String, String> userData;
+
+        public Builder includeDescriptor(boolean includeDescriptor) {
+            this.includeDescriptor = includeDescriptor;
+            return this;
+        }
+        public Builder compression(Compression compression) {
+            this.compression = compression;
+            return this;
+        }
+        public Builder maxUncompressedFrameByteSize(long size) {
+            this.maxUncompressedFrameByteSize = size;
+            return this;
+        }
+        public Builder frameRestartFlags(int flags) {
+            this.frameRestartFlags = flags;
+            return this;
+        }
+        public Builder maxTotalDictSize(long size) {
+            this.maxTotalDictSize = size;
+            return this;
+        }
+        public Builder schema(WireSchema schema) {
+            this.schema = schema;
+            return this;
+        }
+        public Builder userData(Map<String, String> userData) {
+            this.userData = userData;
+            return this;
+        }
+        public WriterOptions build() {
+            return new WriterOptions(this);
+        }
+    }
 }
