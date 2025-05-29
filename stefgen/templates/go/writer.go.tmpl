@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/schema"
 )
 
 type {{.StructName}}Writer struct {
@@ -202,14 +201,4 @@ func (w *{{.StructName}}Writer) Flush() error {
 		return nil
 	}
 	return w.restartFrame(w.opts.FrameRestartFlags)
-}
-
-const wireSchema{{.StructName}} = {{printf "%q" .Schema}}
-
-func {{.StructName}}WireSchema() (schema.WireSchema, error) {
-	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
-		return w, err
-	}
-	return w,nil
 }
