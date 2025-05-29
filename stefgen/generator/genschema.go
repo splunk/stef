@@ -9,10 +9,11 @@ import (
 
 // genSchema is a STEF schema description in form that is useful for generation.
 type genSchema struct {
-	PackageName string
-	Structs     map[string]*genStructDef
-	Multimaps   map[string]*genMapDef
-	Enums       map[string]*genEnumDef
+	PackageName    []string
+	PackageNameStr string
+	Structs        map[string]*genStructDef
+	Multimaps      map[string]*genMapDef
+	Enums          map[string]*genEnumDef
 }
 
 func (s *genSchema) SchemaStr() string {

@@ -18,8 +18,10 @@ func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 	switch g.Lang {
 	case LangGo:
 		// For Go, we use the last component of the package name as the package name.
-		packageComponents := strings.Split(dst.PackageName, ".")
-		dst.PackageName = packageComponents[len(packageComponents)-1]
+		dst.PackageNameStr = src.PackageName[len(src.PackageName)-1]
+	case LangJava:
+		// For Java, we use the full package name.
+		dst.PackageNameStr = strings.Join(src.PackageName, ".")
 	}
 
 	for name, struc := range src.Structs {

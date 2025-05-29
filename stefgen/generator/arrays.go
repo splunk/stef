@@ -41,7 +41,7 @@ func (g *Generator) oArray(array *genStructFieldDef) error {
 
 	_, isStructType := arrtype.ElemType.(*genStructTypeRef)
 	data := map[string]any{
-		"PackageName":  g.compiledSchema.PackageName,
+		"PackageName":  g.compiledSchema.PackageNameStr,
 		"ArrayName":    arrtype.TypeName(),
 		"ElemType":     arrtype.ElemType,
 		"PassByPtr":    passByPointer,

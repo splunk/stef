@@ -6,7 +6,7 @@ import (
 
 // Schema is a STEF schema description, serializable in JSON format.
 type Schema struct {
-	PackageName string               `json:"package,omitempty"`
+	PackageName []string             `json:"package,omitempty"`
 	Structs     map[string]*Struct   `json:"structs"`
 	Multimaps   map[string]*Multimap `json:"multimaps"`
 	Enums       map[string]*Enum
