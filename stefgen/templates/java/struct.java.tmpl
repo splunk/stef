@@ -3,6 +3,10 @@ package {{ .PackageName }};
 
 import net.stef.StringValue;
 import net.stef.Types;
+import net.stef.schema.WireSchema;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.*;
 
 public class {{ .StructName }} {
@@ -241,4 +245,14 @@ public class {{ .StructName }} {
         {{- end }}
         );
     }
+
+    {{if .IsMainStruct}}
+    private static final byte[] wireSchema = new byte[]{ {{.Schema}} };
+
+    public static WireSchema wireSchema() throws IOException {
+        WireSchema w = new WireSchema();
+        w.deserialize(new ByteArrayInputStream(wireSchema));
+        return w;
+    }
+    {{end}}
 }

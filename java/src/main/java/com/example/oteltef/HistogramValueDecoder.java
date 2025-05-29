@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class HistogramValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -23,7 +25,7 @@ public class HistogramValueDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.HistogramValueDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
@@ -96,7 +98,7 @@ public class HistogramValueDecoder {
         this.bucketCountsDecoder.reset();
     }
 
-    public HistogramValue decode(HistogramValue dstPtr) throws Exception {
+    public HistogramValue decode(HistogramValue dstPtr) throws IOException {
         HistogramValue val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

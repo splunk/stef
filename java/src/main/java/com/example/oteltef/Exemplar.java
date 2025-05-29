@@ -4,6 +4,10 @@ package com.example.oteltef;
 
 import net.stef.StringValue;
 import net.stef.Types;
+import net.stef.schema.WireSchema;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.*;
 
 public class Exemplar {
@@ -306,4 +310,6 @@ public class Exemplar {
             filteredAttributes
         );
     }
+
+    
 }

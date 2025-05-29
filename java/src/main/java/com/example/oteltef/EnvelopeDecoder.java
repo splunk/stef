@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class EnvelopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -19,7 +21,7 @@ public class EnvelopeDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.EnvelopeDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
@@ -56,7 +58,7 @@ public class EnvelopeDecoder {
         this.attributesDecoder.reset();
     }
 
-    public Envelope decode(Envelope dstPtr) throws Exception {
+    public Envelope decode(Envelope dstPtr) throws IOException {
         Envelope val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

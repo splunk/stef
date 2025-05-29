@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ResourceDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -23,7 +25,7 @@ public class ResourceDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.ResourceDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
@@ -79,13 +81,13 @@ public class ResourceDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
-    public Resource decode(Resource dstPtr) throws Exception {
+    public Resource decode(Resource dstPtr) throws IOException {
         // Check if the Resource exists in the dictionary.
         int dictFlag = this.buf.readBit();
         if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
-                throw new Exception("Invalid refNum");
+                throw new IOException("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
             dstPtr = this.lastValPtr;

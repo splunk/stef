@@ -6,6 +6,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Encoder for KeyValueList
 public class KeyValueListEncoder {
     private BytesWriter buf;
@@ -17,7 +19,7 @@ public class KeyValueListEncoder {
 
     private KeyValueList lastVal = new KeyValueList();
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
         keyEncoder.init(null, limiter, columns.addSubColumn());
         valueEncoder = state.AnyValueEncoder;

@@ -1,13 +1,14 @@
 package net.stef;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public class ChunkedReader extends ByteAndBlockReader {
-    private ByteAndBlockReader src;
+    private InputStream src;
     private long limit;
     private NextChunkCallback nextChunk;
 
-    public void init(ByteAndBlockReader src) {
+    public void init(InputStream src) {
         this.src = src;
     }
 

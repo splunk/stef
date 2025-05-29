@@ -5,6 +5,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Decoder for {{ .ArrayName }}
 public class {{ .ArrayName }}Decoder {
     private BitsReader buf = new BitsReader();
@@ -14,7 +16,7 @@ public class {{ .ArrayName }}Decoder {
     private {{.ElemType.Storage}} lastVal;
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
     {{if .ElemType.IsPrimitive}}
         decoder = new {{.ElemType.EncoderType}}Decoder();
@@ -57,7 +59,7 @@ public class {{ .ArrayName }}Decoder {
         {{end}}
     }
 
-    public {{.ArrayName}} decode({{.ArrayName}} dst) throws Exception {
+    public {{.ArrayName}} decode({{.ArrayName}} dst) throws IOException {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {

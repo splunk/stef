@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class PointDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -22,7 +24,7 @@ public class PointDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.PointDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Point");
@@ -86,7 +88,7 @@ public class PointDecoder {
         this.exemplarsDecoder.reset();
     }
 
-    public Point decode(Point dstPtr) throws Exception {
+    public Point decode(Point dstPtr) throws IOException {
         Point val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

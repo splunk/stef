@@ -30,7 +30,7 @@ class SchemaTest {
         for (Schema schema : schemas) {
             WireSchema wireSchema = schema.toWire();
             assertDoesNotThrow(() -> {
-                assertEquals(Compatibility.EXACT, wireSchema.compatible(wireSchema));
+                assertEquals(Compatibility.Exact, wireSchema.compatible(wireSchema));
             });
         }
     }
@@ -56,7 +56,7 @@ class SchemaTest {
         WireSchema newWireSchema = newSchema.toWire();
 
         assertDoesNotThrow(() -> {
-            assertEquals(Compatibility.SUPERSET, newWireSchema.compatible(oldWireSchema));
+            assertEquals(Compatibility.Superset, newWireSchema.compatible(oldWireSchema));
         });
     }
 

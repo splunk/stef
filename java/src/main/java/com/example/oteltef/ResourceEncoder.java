@@ -30,7 +30,7 @@ public class ResourceEncoder {
     private long keepFieldMask;
     private int fieldCount;
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.ResourceEncoder = this;
         this.limiter = state.getLimiter();
         this.dict = state.Resource;

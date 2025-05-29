@@ -6,6 +6,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Encoder for Attributes
 public class AttributesEncoder {
     private BytesWriter buf;
@@ -17,7 +19,7 @@ public class AttributesEncoder {
 
     private Attributes lastVal = new Attributes();
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
         keyEncoder.init(state.AttributeKey, limiter, columns.addSubColumn());
         valueEncoder.init(state, columns.addSubColumn());

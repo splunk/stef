@@ -6,6 +6,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Decoder for DoubleArray
 public class DoubleArrayDecoder {
     private BitsReader buf = new BitsReader();
@@ -15,7 +17,7 @@ public class DoubleArrayDecoder {
     private double lastVal;
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
     
         decoder = new Float64Decoder();
@@ -44,7 +46,7 @@ public class DoubleArrayDecoder {
         
     }
 
-    public DoubleArray decode(DoubleArray dst) throws Exception {
+    public DoubleArray decode(DoubleArray dst) throws IOException {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {

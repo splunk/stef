@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ScopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -25,7 +27,7 @@ public class ScopeDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.ScopeDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
@@ -99,13 +101,13 @@ public class ScopeDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
-    public Scope decode(Scope dstPtr) throws Exception {
+    public Scope decode(Scope dstPtr) throws IOException {
         // Check if the Scope exists in the dictionary.
         int dictFlag = this.buf.readBit();
         if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
-                throw new Exception("Invalid refNum");
+                throw new IOException("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
             dstPtr = this.lastValPtr;

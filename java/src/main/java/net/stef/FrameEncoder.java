@@ -19,10 +19,10 @@ public class FrameEncoder {
         this.dest = dest;
 
         switch (compression) {
-            case NONE:
+            case None:
                 this.frameContent = compressedBuf;
                 break;
-            case ZSTD:
+            case Zstd:
                 this.compressor = new ZstdOutputStream(compressedBuf);
                 this.frameContent = compressor;
                 break;
@@ -45,7 +45,7 @@ public class FrameEncoder {
         frameHdr.write(hdrByte);
         Serde.writeUvarint(uncompressedSize, frameHdr);
 
-        if (compression == Compression.ZSTD) {
+        if (compression == Compression.Zstd) {
             compressor.close();
             Serde.writeUvarint(compressedBuf.size(), frameHdr);
         }

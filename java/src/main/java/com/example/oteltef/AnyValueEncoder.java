@@ -25,7 +25,7 @@ public class AnyValueEncoder {
     private BytesEncoder bytesEncoder = new BytesEncoder();
     
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.AnyValueEncoder = this;
         this.limiter = state.getLimiter();
 

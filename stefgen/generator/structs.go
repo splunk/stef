@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"bytes"
 	"fmt"
 	"go/token"
 	"strings"
@@ -77,6 +78,29 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		"Type":               str,
 		"IsMainStruct":       str.IsRoot,
 		"OptionalFieldCount": optionalFieldIndex,
+	}
+
+	if str.IsRoot {
+		prunedSchema, err := g.schema.PrunedForRoot(str.Name)
+		if err != nil {
+			return err
+		}
+		wireSchema := prunedSchema.ToWire()
+
+		var wireBin bytes.Buffer
+		if err := wireSchema.Serialize(&wireBin); err != nil {
+			return err
+		}
+
+		s := ""
+		for i, b := range wireBin.Bytes() {
+			if i > 0 {
+				s += ", "
+			}
+			s += fmt.Sprintf("0x%02X", b)
+		}
+
+		data["Schema"] = s
 	}
 
 	templateName := "struct"

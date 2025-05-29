@@ -3,10 +3,12 @@ package net.stef.codecs;
 import net.stef.ReadColumnSet;
 import net.stef.StringValue;
 
+import java.io.IOException;
+
 public class StringDecoder {
     private BytesDecoder decoder = new BytesDecoder();
 
-    public void init(BytesDecoderDict dict, ReadColumnSet columns) throws Exception {
+    public void init(BytesDecoderDict dict, ReadColumnSet columns) {
         decoder.init(dict,  columns);
     }
 
@@ -18,7 +20,7 @@ public class StringDecoder {
         decoder.reset();
     }
 
-    public StringValue decode() throws Exception {
+    public StringValue decode() throws IOException {
         byte[] bytes = decoder.decode();
         return new StringValue(bytes);
     }

@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class MetricsDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -24,7 +26,7 @@ public class MetricsDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.MetricsDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
@@ -106,7 +108,7 @@ public class MetricsDecoder {
         this.pointDecoder.reset();
     }
 
-    public Metrics decode(Metrics dstPtr) throws Exception {
+    public Metrics decode(Metrics dstPtr) throws IOException {
         Metrics val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

@@ -21,7 +21,7 @@ public class {{ .StructName }}Encoder {
     private {{ .StructName }}EncoderDict dict;
     {{end}}
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.{{.StructName}}Encoder = this;
         this.limiter = state.getLimiter();
         {{- if .DictName}}

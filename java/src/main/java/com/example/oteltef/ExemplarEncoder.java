@@ -30,7 +30,7 @@ public class ExemplarEncoder {
     private long keepFieldMask;
     private int fieldCount;
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.ExemplarEncoder = this;
         this.limiter = state.getLimiter();
 

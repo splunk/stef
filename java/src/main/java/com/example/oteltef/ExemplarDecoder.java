@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ExemplarDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -23,7 +25,7 @@ public class ExemplarDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.ExemplarDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
@@ -96,7 +98,7 @@ public class ExemplarDecoder {
         this.filteredAttributesDecoder.reset();
     }
 
-    public Exemplar decode(Exemplar dstPtr) throws Exception {
+    public Exemplar decode(Exemplar dstPtr) throws IOException {
         Exemplar val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

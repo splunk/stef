@@ -17,7 +17,7 @@ public class ExemplarArrayEncoder {
     private WriterState state;
     private Exemplar lastVal;
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
         

@@ -6,6 +6,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Encoder for EnvelopeAttributes
 public class EnvelopeAttributesEncoder {
     private BytesWriter buf;
@@ -17,7 +19,7 @@ public class EnvelopeAttributesEncoder {
 
     private EnvelopeAttributes lastVal = new EnvelopeAttributes();
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
         keyEncoder.init(null, limiter, columns.addSubColumn());
         valueEncoder.init(null, limiter, columns.addSubColumn());

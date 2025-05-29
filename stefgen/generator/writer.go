@@ -16,13 +16,13 @@ func (g *Generator) oWriters() error {
 }
 
 func (g *Generator) oWriter(str *genStructDef) error {
+	fileName := g.stefSymbol2FileName(str.Name + "Writer")
+
 	prunedSchema, err := g.schema.PrunedForRoot(str.Name)
 	if err != nil {
 		return err
 	}
 	wireSchema := prunedSchema.ToWire()
-
-	fileName := g.stefSymbol2FileName(str.Name + "Writer")
 
 	var wireBin bytes.Buffer
 	if err := wireSchema.Serialize(&wireBin); err != nil {

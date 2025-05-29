@@ -21,7 +21,7 @@ public class PointValueEncoder {
     private HistogramValueEncoder histogramEncoder = new HistogramValueEncoder();
     
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.PointValueEncoder = this;
         this.limiter = state.getLimiter();
 

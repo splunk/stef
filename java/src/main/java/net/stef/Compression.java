@@ -1,8 +1,8 @@
 package net.stef;
 
 public enum Compression {
-    NONE(0),
-    ZSTD(1);
+    None(0),
+    Zstd(1);
 
     public static final int COMPRESSION_MASK = 0b11;
 

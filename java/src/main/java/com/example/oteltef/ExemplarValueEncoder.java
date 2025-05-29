@@ -20,7 +20,7 @@ public class ExemplarValueEncoder {
     private Float64Encoder float64Encoder = new Float64Encoder();
     
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.ExemplarValueEncoder = this;
         this.limiter = state.getLimiter();
 

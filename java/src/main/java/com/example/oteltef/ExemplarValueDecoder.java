@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ExemplarValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -21,7 +23,7 @@ public class ExemplarValueDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.ExemplarValueDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
@@ -69,12 +71,12 @@ public class ExemplarValueDecoder {
     }
 
     // Decode decodes a value from the buffer into dst.
-    public ExemplarValue decode(ExemplarValue dst) throws Exception {
+    public ExemplarValue decode(ExemplarValue dst) throws IOException {
         // Read type delta
         long typeDelta = this.buf.readVarintCompact();
         long typ = prevType.getValue() + typeDelta;
         if (typ < 0 || typ >= ExemplarValue.Type.values().length) {
-            throw new Exception("Invalid oneof type");
+            throw new IOException("Invalid oneof type");
         }
         dst.typ = ExemplarValue.Type.values()[(int)typ];
         prevType = dst.typ;

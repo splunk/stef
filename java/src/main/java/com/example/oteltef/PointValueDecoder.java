@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class PointValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -22,7 +24,7 @@ public class PointValueDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.PointValueDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
@@ -79,12 +81,12 @@ public class PointValueDecoder {
     }
 
     // Decode decodes a value from the buffer into dst.
-    public PointValue decode(PointValue dst) throws Exception {
+    public PointValue decode(PointValue dst) throws IOException {
         // Read type delta
         long typeDelta = this.buf.readVarintCompact();
         long typ = prevType.getValue() + typeDelta;
         if (typ < 0 || typ >= PointValue.Type.values().length) {
-            throw new Exception("Invalid oneof type");
+            throw new IOException("Invalid oneof type");
         }
         dst.typ = PointValue.Type.values()[(int)typ];
         prevType = dst.typ;

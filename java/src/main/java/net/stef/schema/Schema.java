@@ -37,10 +37,10 @@ public class Schema {
             }
 
             Compatibility comp = newStruct.compatibleWith(oldStruct);
-            if (comp == Compatibility.INCOMPATIBLE) {
-                return Compatibility.INCOMPATIBLE;
+            if (comp == Compatibility.Incompatible) {
+                return Compatibility.Incompatible;
             }
-            if (comp == Compatibility.SUPERSET) {
+            if (comp == Compatibility.Superset) {
                 exact = false;
             }
         }
@@ -55,15 +55,15 @@ public class Schema {
             }
 
             Compatibility comp = newMap.compatibleWith(oldMap);
-            if (comp == Compatibility.INCOMPATIBLE) {
-                return Compatibility.INCOMPATIBLE;
+            if (comp == Compatibility.Incompatible) {
+                return Compatibility.Incompatible;
             }
-            if (comp == Compatibility.SUPERSET) {
+            if (comp == Compatibility.Superset) {
                 exact = false;
             }
         }
 
-        return exact ? Compatibility.EXACT : Compatibility.SUPERSET;
+        return exact ? Compatibility.Exact : Compatibility.Superset;
     }
 
     public Schema prunedForRoot(String rootStructName) throws Exception {

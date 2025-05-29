@@ -32,7 +32,7 @@ public class ScopeEncoder {
     private long keepFieldMask;
     private int fieldCount;
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.ScopeEncoder = this;
         this.limiter = state.getLimiter();
         this.dict = state.Scope;

@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class MetricDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -28,7 +30,7 @@ public class MetricDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.MetricDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
@@ -129,13 +131,13 @@ public class MetricDecoder {
         this.monotonicDecoder.reset();
     }
 
-    public Metric decode(Metric dstPtr) throws Exception {
+    public Metric decode(Metric dstPtr) throws IOException {
         // Check if the Metric exists in the dictionary.
         int dictFlag = this.buf.readBit();
         if (dictFlag == 0) {
             long refNum = this.buf.readUvarintCompact();
             if (refNum >= this.dict.size()) {
-                throw new Exception("Invalid refNum");
+                throw new IOException("Invalid refNum");
             }
             this.lastValPtr = this.dict.getByIndex((int)refNum);
             dstPtr = this.lastValPtr;

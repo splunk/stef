@@ -20,7 +20,7 @@ public class FrameTest {
         // Encode one frame with some data.
         FrameEncoder encoder = new FrameEncoder();
         MemChunkReaderWriter buf = new MemChunkReaderWriter();
-        encoder.init(buf, Compression.NONE);
+        encoder.init(buf, Compression.None);
 
         byte[] writeStr = "hellohellohellohellohellohellohellohellohellohello".getBytes();
         encoder.write(writeStr);
@@ -28,7 +28,7 @@ public class FrameTest {
 
         // Now decode that frame.
         FrameDecoder decoder = new FrameDecoder();
-        decoder.init(buf, Compression.NONE);
+        decoder.init(buf, Compression.None);
         decoder.next();
 
         byte[] readStr = new byte[writeStr.length];

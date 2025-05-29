@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Decoder for Attributes
 public class AttributesDecoder {
     private BytesReader buf;
@@ -16,7 +18,7 @@ public class AttributesDecoder {
     private Attributes lastVal = new Attributes();
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         this.column = columns.getColumn();
         // Key decoder init
         this.keyDecoder = new StringDecoder();
@@ -52,7 +54,7 @@ public class AttributesDecoder {
         // if (valueDecoder != null) valueDecoder.reset();
     }
 
-    public Attributes decode(Attributes dst) throws Exception {
+    public Attributes decode(Attributes dst) throws IOException {
         long countOrChangedValues = buf.readUvarint();
         if (countOrChangedValues == 0) {
             decodeCopyOfLast(dst);
@@ -77,7 +79,7 @@ public class AttributesDecoder {
         }
     }
 
-    private void decodeValuesOnly(long changedValuesBits, Attributes dst) throws Exception {
+    private void decodeValuesOnly(long changedValuesBits, Attributes dst) throws IOException {
         if (lastVal.elemsLen == 0) {
             throw new RuntimeException("Multimap decode error: lastVal empty");
         }
@@ -118,7 +120,7 @@ public class AttributesDecoder {
         }
     }
 
-    private void decodeFull(int count, Attributes dst) throws Exception {
+    private void decodeFull(int count, Attributes dst) throws IOException {
         if (count < 0 || count >= Limits.MultimapElemCountLimit) {
             throw new RuntimeException("Multimap decode error: invalid count " + count);
         }

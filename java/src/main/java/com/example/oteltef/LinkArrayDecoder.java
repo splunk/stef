@@ -6,6 +6,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Decoder for LinkArray
 public class LinkArrayDecoder {
     private BitsReader buf = new BitsReader();
@@ -15,7 +17,7 @@ public class LinkArrayDecoder {
     private Link lastVal;
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
     
     
@@ -47,7 +49,7 @@ public class LinkArrayDecoder {
         
     }
 
-    public LinkArray decode(LinkArray dst) throws Exception {
+    public LinkArray decode(LinkArray dst) throws IOException {
         long lenDelta = buf.readVarintCompact();
         long newLen = prevLen + lenDelta;
         if (newLen < 0) {

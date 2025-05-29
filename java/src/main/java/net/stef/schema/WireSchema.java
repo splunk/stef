@@ -77,7 +77,7 @@ public class WireSchema {
             }
         }
 
-        return exactCompat ? Compatibility.EXACT : Compatibility.SUPERSET;
+        return exactCompat ? Compatibility.Exact : Compatibility.Superset;
     }
 
     private void writeString(DataOutputStream out, String value) throws IOException {

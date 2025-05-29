@@ -16,7 +16,7 @@ public class {{ .ArrayName }}Encoder {
     private WriterState state;
     private {{.ElemType.Storage}} lastVal;
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
         {{if .ElemType.IsPrimitive}}

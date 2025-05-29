@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Decoder for KeyValueList
 public class KeyValueListDecoder {
     private BytesReader buf;
@@ -16,7 +18,7 @@ public class KeyValueListDecoder {
     private KeyValueList lastVal = new KeyValueList();
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         this.column = columns.getColumn();
         // Key decoder init
         this.keyDecoder = new StringDecoder();
@@ -51,7 +53,7 @@ public class KeyValueListDecoder {
         // if (valueDecoder != null) valueDecoder.reset();
     }
 
-    public KeyValueList decode(KeyValueList dst) throws Exception {
+    public KeyValueList decode(KeyValueList dst) throws IOException {
         long countOrChangedValues = buf.readUvarint();
         if (countOrChangedValues == 0) {
             decodeCopyOfLast(dst);
@@ -76,7 +78,7 @@ public class KeyValueListDecoder {
         }
     }
 
-    private void decodeValuesOnly(long changedValuesBits, KeyValueList dst) throws Exception {
+    private void decodeValuesOnly(long changedValuesBits, KeyValueList dst) throws IOException {
         if (lastVal.elemsLen == 0) {
             throw new RuntimeException("Multimap decode error: lastVal empty");
         }
@@ -117,7 +119,7 @@ public class KeyValueListDecoder {
         }
     }
 
-    private void decodeFull(int count, KeyValueList dst) throws Exception {
+    private void decodeFull(int count, KeyValueList dst) throws IOException {
         if (count < 0 || count >= Limits.MultimapElemCountLimit) {
             throw new RuntimeException("Multimap decode error: invalid count " + count);
         }

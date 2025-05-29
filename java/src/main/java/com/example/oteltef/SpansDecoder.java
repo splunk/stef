@@ -7,6 +7,8 @@ import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class SpansDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
@@ -22,7 +24,7 @@ public class SpansDecoder {
     
 
     // Init is called once in the lifetime of the stream.
-    public void init(ReaderState state, ReadColumnSet columns) throws Exception {
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.SpansDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
@@ -86,7 +88,7 @@ public class SpansDecoder {
         this.spanDecoder.reset();
     }
 
-    public Spans decode(Spans dstPtr) throws Exception {
+    public Spans decode(Spans dstPtr) throws IOException {
         Spans val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);

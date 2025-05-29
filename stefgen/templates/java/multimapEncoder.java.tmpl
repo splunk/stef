@@ -5,6 +5,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 // Encoder for {{ .MultimapName }}
 public class {{ .MultimapName }}Encoder {
     private BytesWriter buf;
@@ -16,7 +18,7 @@ public class {{ .MultimapName }}Encoder {
 
     private {{ .MultimapName }} lastVal = new {{ .MultimapName }}();
 
-    public void init(WriterState state, WriteColumnSet columns) throws Exception {
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
         {{- if .Key.Type.IsPrimitive}}
         keyEncoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
