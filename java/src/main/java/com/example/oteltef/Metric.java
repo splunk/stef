@@ -11,7 +11,7 @@ public class Metric {
     StringValue name;
     StringValue description;
     StringValue unit;
-    MetricType type_;
+    long type_;
     Attributes metadata;
     DoubleArray histogramBounds;
     long aggregationTemporality;
@@ -56,7 +56,7 @@ public class Metric {
     }
     
     public StringValue getName() {
-        return this.name;
+        return name;
     }
 
     // setName sets the value of Name field.
@@ -80,7 +80,7 @@ public class Metric {
     }
     
     public StringValue getDescription() {
-        return this.description;
+        return description;
     }
 
     // setDescription sets the value of Description field.
@@ -104,7 +104,7 @@ public class Metric {
     }
     
     public StringValue getUnit() {
-        return this.unit;
+        return unit;
     }
 
     // setUnit sets the value of Unit field.
@@ -128,13 +128,13 @@ public class Metric {
     }
     
     public MetricType getType() {
-        return this.type_;
+        return MetricType.fromValue(type_);
     }
 
     // setType sets the value of Type field.
     public void setType(MetricType v) {
-        if (!MetricType.equals(this.type_, v)) {
-            this.type_ = v;
+        if (!Types.Uint64Equal(this.type_, v.getValue())) {
+            this.type_ = v.getValue();
             this.markTypeModified();
         }
     }
@@ -176,7 +176,7 @@ public class Metric {
     }
     
     public long getAggregationTemporality() {
-        return this.aggregationTemporality;
+        return aggregationTemporality;
     }
 
     // setAggregationTemporality sets the value of AggregationTemporality field.
@@ -200,7 +200,7 @@ public class Metric {
     }
     
     public boolean getMonotonic() {
-        return this.monotonic;
+        return monotonic;
     }
 
     // setMonotonic sets the value of Monotonic field.
@@ -294,7 +294,7 @@ public class Metric {
         if (!Types.StringEqual(this.unit, val.unit)) {
             return false;
         }
-        if (!MetricType.equals(this.type_, val.type_)) {
+        if (!Types.Uint64Equal(this.type_, val.type_)) {
             return false;
         }
         if (!this.metadata.isEqual(val.metadata)) {
@@ -389,7 +389,7 @@ public class Metric {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setType(Types.Uint64Random(random));
+            this.setType(MetricType.fromValue(Types.Uint64Random(random)));
         }
         
         if (random.nextInt(fieldCount) == 0) {

@@ -37,20 +37,20 @@ public class ScopeDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        this.dict = state.getScope();
+        this.dict = state.Scope;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.getScopeName(), columns.addSubColumn());
+        this.nameDecoder.init(state.ScopeName, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-        this.versionDecoder.init(state.getScopeVersion(), columns.addSubColumn());
+        this.versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.init(state.getSchemaURL(), columns.addSubColumn());
+        this.schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -61,7 +61,7 @@ public class ScopeDecoder {
         this.droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -122,26 +122,31 @@ public class ScopeDecoder {
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
+
             val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedVersion) != 0) {
             // Field is changed and is present, decode it.
+
             val.version = this.versionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
+
             val.schemaURL = this.schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+
             val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
+
             val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         

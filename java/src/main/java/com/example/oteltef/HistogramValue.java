@@ -58,7 +58,7 @@ public class HistogramValue {
     }
     
     public long getCount() {
-        return this.count;
+        return count;
     }
 
     // setCount sets the value of Count field.
@@ -82,7 +82,7 @@ public class HistogramValue {
     }
     
     public double getSum() {
-        return this.sum;
+        return sum;
     }
 
     // setSum sets the value of Sum field.
@@ -119,7 +119,7 @@ public class HistogramValue {
     }
     
     public double getMin() {
-        return this.min;
+        return min;
     }
 
     // setMin sets the value of Min field.
@@ -156,7 +156,7 @@ public class HistogramValue {
     }
     
     public double getMax() {
-        return this.max;
+        return max;
     }
 
     // setMax sets the value of Max field.

@@ -63,7 +63,7 @@ public class LinkDecoder {
         this.droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -114,31 +114,37 @@ public class LinkDecoder {
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
+
             val.traceID = this.traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
+
             val.spanID = this.spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
+
             val.traceState = this.traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
+
             val.flags = this.flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+
             val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
+
             val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         

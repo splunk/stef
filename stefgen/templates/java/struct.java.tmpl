@@ -62,7 +62,7 @@ public class {{ .StructName }} {
     {{ range .Fields }}
     public {{.Type.Exported}} get{{.Name}}() {
         {{- if .Type.IsPrimitive}}
-        return this.{{.name}};
+        return {{.Type.ToExported (print .name)}};
         {{- else}}
         return this.{{.name}};
         {{- end}}
@@ -72,9 +72,9 @@ public class {{ .StructName }} {
 
     // set{{.Name}} sets the value of {{.Name}} field.
     public void set{{.Name}}({{.Type.Exported}} v) {
-        if (!{{ .Type.EqualFunc }}(this.{{.name}}, v)
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, {{.Type.ToStorage "v"}})
             {{- if .Optional}}|| (this.optionalFieldsPresent & fieldPresent{{.Name}}) == 0{{end}}) {
-            this.{{.name}} = v;
+            this.{{.name}} = {{.Type.ToStorage "v"}};
             this.mark{{.Name}}Modified();
             {{- if .Optional}}
             this.optionalFieldsPresent |= fieldPresent{{.Name}};
@@ -218,7 +218,7 @@ public class {{ .StructName }} {
             {{- if not .Type.IsPrimitive }}
             this.{{.name}}.mutateRandom(random);
             {{- else }}
-            this.set{{.Name}}({{.Type.RandomFunc}}(random));
+            this.set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc (print "(random)"))}});
             {{- end }}
         }
         {{ end }}

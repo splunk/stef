@@ -45,7 +45,7 @@ public class Resource {
     }
     
     public StringValue getSchemaURL() {
-        return this.schemaURL;
+        return schemaURL;
     }
 
     // setSchemaURL sets the value of SchemaURL field.
@@ -81,7 +81,7 @@ public class Resource {
     }
     
     public long getDroppedAttributesCount() {
-        return this.droppedAttributesCount;
+        return droppedAttributesCount;
     }
 
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.

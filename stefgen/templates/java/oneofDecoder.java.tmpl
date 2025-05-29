@@ -12,6 +12,7 @@ public class {{ .StructName }}Decoder {
     private {{.StructName}} lastValPtr;
     private {{.StructName}} lastVal = new {{.StructName}}();
     private int fieldCount;
+    private {{.StructName}}.Type prevType;
 
     {{ range .Fields }}
     private {{ .Type.EncoderType }}Decoder {{.name}}Decoder = new {{ .Type.EncoderType }}Decoder();
@@ -54,25 +55,44 @@ public class {{ .StructName }}Decoder {
         {{- end }}
     }
 
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        this.buf.reset(this.column.getData());
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        this.{{.name}}Decoder.continueDecoding();
+        {{- end }}
+    }
+
+    public void reset() {
+        prevType = {{.StructName}}.Type.TypeNone;
+        {{- range .Fields}}
+        {{.name}}Decoder.reset();
+        {{- end}}
+    }
+
     // Decode decodes a value from the buffer into dst.
     public {{.StructName}} decode({{.StructName}} dst) throws Exception {
         // Read type delta
         long typeDelta = this.buf.readVarintCompact();
-        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        long typ = prevType.getValue() + typeDelta;
         if (typ < 0 || typ >= {{.StructName}}.Type.values().length) {
             throw new Exception("Invalid oneof type");
         }
-        dst.setType({{.StructName}}.Type.values()[typ]);
+        dst.typ = {{.StructName}}.Type.values()[(int)typ];
+        prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field
-        switch (dst.getType()) {
+        switch (dst.typ) {
         {{- range .Fields }}
             case {{$.StructName}}.Type.Type{{.Name}}:
-            {{- if .Type.IsPrimitive }}
-                dst.{{.name}} = this.{{.name}}Decoder.decode();
-            {{- else}}
-                dst.{{.name}} = this.{{.name}}Decoder.decode(dst.{{.name}});
-            {{- end }}
+                dst.{{.name}} = this.{{.name}}Decoder.decode({{if not .Type.IsPrimitive }}dst.{{.name}}{{end}});
                 break;
         {{- end }}
             default:

@@ -1,7 +1,7 @@
 package net.stef.codecs;
 
-import net.stef.BitsReader;
 import net.stef.BytesWriter;
+import net.stef.ReadColumnSet;
 import net.stef.SizeLimiter;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +15,7 @@ public class Float64CodecTest {
                 Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0.0, -0.0};
         Float64Encoder encoder = new Float64Encoder();
         SizeLimiter sizeLimiter = new SizeLimiter();
-        encoder.init(sizeLimiter); // SizeLimiter not needed for this test
+        encoder.init(sizeLimiter, null); // SizeLimiter not needed for this test
         for (double v : values) {
             encoder.encode(v);
         }
@@ -23,10 +23,13 @@ public class Float64CodecTest {
         BytesWriter buf = new BytesWriter(0);
         encoder.writeTo(buf);
 
-        BitsReader reader = new BitsReader();
-        reader.reset(buf.toBytes());
+        ReadColumnSet columns = new ReadColumnSet();
+        columns.getColumn().setData(buf.toBytesCopy());
+
         Float64Decoder decoder = new Float64Decoder();
-        decoder.init(reader);
+        decoder.init(columns);
+        decoder.continueDecoding();
+
         for (double expected : values) {
             double actual = decoder.decode();
             assertEquals(expected, actual, 0.0);

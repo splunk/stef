@@ -58,7 +58,7 @@ public class HistogramValueDecoder {
         this.bucketCountsDecoder.init(state, columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -106,26 +106,31 @@ public class HistogramValueDecoder {
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.
+
             val.count = this.countDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
             // Field is changed and is present, decode it.
+
             val.sum = this.sumDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
             // Field is changed and is present, decode it.
+
             val.min = this.minDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
             // Field is changed and is present, decode it.
+
             val.max = this.maxDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
+
             val.bucketCounts = this.bucketCountsDecoder.decode(val.bucketCounts);
         }
         

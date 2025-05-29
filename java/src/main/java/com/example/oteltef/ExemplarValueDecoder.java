@@ -13,6 +13,7 @@ public class ExemplarValueDecoder {
     private ExemplarValue lastValPtr;
     private ExemplarValue lastVal = new ExemplarValue();
     private int fieldCount;
+    private ExemplarValue.Type prevType;
 
     
     private Int64Decoder int64Decoder = new Int64Decoder();
@@ -43,18 +44,43 @@ public class ExemplarValueDecoder {
         this.float64Decoder.init(columns.addSubColumn());
     }
 
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        this.buf.reset(this.column.getData());
+        
+        if (this.fieldCount <= 0) {
+            return; // Int64 and subsequent fields are skipped.
+        }
+        this.int64Decoder.continueDecoding();
+        if (this.fieldCount <= 1) {
+            return; // Float64 and subsequent fields are skipped.
+        }
+        this.float64Decoder.continueDecoding();
+    }
+
+    public void reset() {
+        prevType = ExemplarValue.Type.TypeNone;
+        int64Decoder.reset();
+        float64Decoder.reset();
+    }
+
     // Decode decodes a value from the buffer into dst.
     public ExemplarValue decode(ExemplarValue dst) throws Exception {
         // Read type delta
         long typeDelta = this.buf.readVarintCompact();
-        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        long typ = prevType.getValue() + typeDelta;
         if (typ < 0 || typ >= ExemplarValue.Type.values().length) {
             throw new Exception("Invalid oneof type");
         }
-        dst.setType(ExemplarValue.Type.values()[typ]);
+        dst.typ = ExemplarValue.Type.values()[(int)typ];
+        prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field
-        switch (dst.getType()) {
+        switch (dst.typ) {
             case ExemplarValue.Type.TypeInt64:
                 dst.int64 = this.int64Decoder.decode();
                 break;

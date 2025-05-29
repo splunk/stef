@@ -63,7 +63,7 @@ public class MetricsDecoder {
         this.pointDecoder.init(state, columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -114,31 +114,37 @@ public class MetricsDecoder {
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
+
             val.envelope = this.envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
+
             val.metric = this.metricDecoder.decode(val.metric);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
+
             val.resource = this.resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
+
             val.scope = this.scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+
             val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
+
             val.point = this.pointDecoder.decode(val.point);
         }
         

@@ -13,6 +13,7 @@ public class AnyValueDecoder {
     private AnyValue lastValPtr;
     private AnyValue lastVal = new AnyValue();
     private int fieldCount;
+    private AnyValue.Type prevType;
 
     
     private StringDecoder stringDecoder = new StringDecoder();
@@ -68,18 +69,68 @@ public class AnyValueDecoder {
         this.bytesDecoder.init(null, columns.addSubColumn());
     }
 
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        this.buf.reset(this.column.getData());
+        
+        if (this.fieldCount <= 0) {
+            return; // String and subsequent fields are skipped.
+        }
+        this.stringDecoder.continueDecoding();
+        if (this.fieldCount <= 1) {
+            return; // Bool and subsequent fields are skipped.
+        }
+        this.boolDecoder.continueDecoding();
+        if (this.fieldCount <= 2) {
+            return; // Int64 and subsequent fields are skipped.
+        }
+        this.int64Decoder.continueDecoding();
+        if (this.fieldCount <= 3) {
+            return; // Float64 and subsequent fields are skipped.
+        }
+        this.float64Decoder.continueDecoding();
+        if (this.fieldCount <= 4) {
+            return; // Array and subsequent fields are skipped.
+        }
+        this.arrayDecoder.continueDecoding();
+        if (this.fieldCount <= 5) {
+            return; // KVList and subsequent fields are skipped.
+        }
+        this.kVListDecoder.continueDecoding();
+        if (this.fieldCount <= 6) {
+            return; // Bytes and subsequent fields are skipped.
+        }
+        this.bytesDecoder.continueDecoding();
+    }
+
+    public void reset() {
+        prevType = AnyValue.Type.TypeNone;
+        stringDecoder.reset();
+        boolDecoder.reset();
+        int64Decoder.reset();
+        float64Decoder.reset();
+        arrayDecoder.reset();
+        kVListDecoder.reset();
+        bytesDecoder.reset();
+    }
+
     // Decode decodes a value from the buffer into dst.
     public AnyValue decode(AnyValue dst) throws Exception {
         // Read type delta
         long typeDelta = this.buf.readVarintCompact();
-        int typ = (this.lastValPtr != null ? this.lastValPtr.getType().ordinal() : 0) + (int)typeDelta;
+        long typ = prevType.getValue() + typeDelta;
         if (typ < 0 || typ >= AnyValue.Type.values().length) {
             throw new Exception("Invalid oneof type");
         }
-        dst.setType(AnyValue.Type.values()[typ]);
+        dst.typ = AnyValue.Type.values()[(int)typ];
+        prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field
-        switch (dst.getType()) {
+        switch (dst.typ) {
             case AnyValue.Type.TypeString:
                 dst.string = this.stringDecoder.decode();
                 break;

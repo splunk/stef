@@ -49,7 +49,7 @@ public class Scope {
     }
     
     public StringValue getName() {
-        return this.name;
+        return name;
     }
 
     // setName sets the value of Name field.
@@ -73,7 +73,7 @@ public class Scope {
     }
     
     public StringValue getVersion() {
-        return this.version;
+        return version;
     }
 
     // setVersion sets the value of Version field.
@@ -97,7 +97,7 @@ public class Scope {
     }
     
     public StringValue getSchemaURL() {
-        return this.schemaURL;
+        return schemaURL;
     }
 
     // setSchemaURL sets the value of SchemaURL field.
@@ -133,7 +133,7 @@ public class Scope {
     }
     
     public long getDroppedAttributesCount() {
-        return this.droppedAttributesCount;
+        return droppedAttributesCount;
     }
 
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.

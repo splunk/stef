@@ -122,7 +122,7 @@ public class {{ .StructName }}Encoder {
         if ((fieldMask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Encode {{.Name}}
-            this.{{.name}}Encoder.encode(val.{{.name}}{{ if .Type.Flags.IsEnum }}.getValue(){{end}});
+            this.{{.name}}Encoder.encode(val.{{.name}});
         }
         {{ end }}
         // Account written bits in the limiter.

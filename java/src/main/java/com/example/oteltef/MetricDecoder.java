@@ -40,20 +40,20 @@ public class MetricDecoder {
         
         this.lastVal.init(null, 0);
         this.lastValPtr = this.lastVal;
-        this.dict = state.getMetric();
+        this.dict = state.Metric;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.getMetricName(), columns.addSubColumn());
+        this.nameDecoder.init(state.MetricName, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-        this.descriptionDecoder.init(state.getMetricDescription(), columns.addSubColumn());
+        this.descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-        this.unitDecoder.init(state.getMetricUnit(), columns.addSubColumn());
+        this.unitDecoder.init(state.MetricUnit, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
@@ -76,7 +76,7 @@ public class MetricDecoder {
         this.monotonicDecoder.init(columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -152,41 +152,49 @@ public class MetricDecoder {
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
+
             val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedDescription) != 0) {
             // Field is changed and is present, decode it.
+
             val.description = this.descriptionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedUnit) != 0) {
             // Field is changed and is present, decode it.
+
             val.unit = this.unitDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedType) != 0) {
             // Field is changed and is present, decode it.
+
             val.type_ = this.type_Decoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
+
             val.metadata = this.metadataDecoder.decode(val.metadata);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
+
             val.histogramBounds = this.histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {
             // Field is changed and is present, decode it.
+
             val.aggregationTemporality = this.aggregationTemporalityDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMonotonic) != 0) {
             // Field is changed and is present, decode it.
+
             val.monotonic = this.monotonicDecoder.decode();
         }
         

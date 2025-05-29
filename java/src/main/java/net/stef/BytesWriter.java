@@ -62,6 +62,12 @@ public class BytesWriter {
         return ByteBuffer.wrap(buf, 0, byteIndex).order(ByteOrder.BIG_ENDIAN);
     }
 
+    public byte[] toBytesCopy() {
+        byte[] copy = new byte[byteIndex];
+        System.arraycopy(buf, 0, copy, 0, byteIndex);
+        return copy;
+    }
+
     private void ensureCapacity(int additionalBytes) {
         if (byteIndex + additionalBytes > buf.length) {
             buf = Arrays.copyOf(buf, Math.max(buf.length * 2, byteIndex + additionalBytes));

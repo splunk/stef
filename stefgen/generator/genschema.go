@@ -165,7 +165,14 @@ func (r *genPrimitiveTypeRef) Storage() string {
 // If the types are the same, no conversion is performed.
 func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 	if r.Enum != "" {
-		return r.Storage() + "(" + arg + ")"
+		switch r.Lang {
+		case LangGo:
+			return r.Storage() + "(" + arg + ")"
+		case LangJava:
+			return arg + ".getValue()"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return arg
 }
@@ -175,7 +182,14 @@ func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 // If the types are the same, no conversion is performed.
 func (r *genPrimitiveTypeRef) ToExported(arg string) string {
 	if r.Enum != "" {
-		return r.Enum + "(" + arg + ")"
+		switch r.Lang {
+		case LangGo:
+			return r.Enum + "(" + arg + ")"
+		case LangJava:
+			return r.Enum + ".fromValue(" + arg + ")"
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
 	}
 	return arg
 }
@@ -231,9 +245,6 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 			s = "byte[]"
 		default:
 			panic(fmt.Errorf("unimplemented field type %v", r.Type))
-		}
-		if r.Enum != "" {
-			return r.Enum
 		}
 	}
 
@@ -304,9 +315,9 @@ func (r *genPrimitiveTypeRef) pkgPrefix() string {
 }
 
 func (r *genPrimitiveTypeRef) EqualFunc() string {
-	if r.Lang == LangJava && r.Enum != "" {
-		return r.Enum + ".equals"
-	}
+	//if r.Lang == LangJava && r.Enum != "" {
+	//	return r.Enum + ".equals"
+	//}
 
 	prefix := r.pkgPrefix()
 	switch r.Type {

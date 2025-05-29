@@ -24,11 +24,4 @@ public enum MetricType {
     public long getValue() {
         return value;
     }
-
-    public static boolean equals(MetricType left, MetricType right) {
-        if (left == null) {
-            return right == null;
-        }
-        return left.value == right.value;
-    }
 }

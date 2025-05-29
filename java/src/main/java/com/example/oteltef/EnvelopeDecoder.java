@@ -38,7 +38,7 @@ public class EnvelopeDecoder {
         this.attributesDecoder.init(state, columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -64,6 +64,7 @@ public class EnvelopeDecoder {
         
         if ((val.getModifiedFields().mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+
             val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         

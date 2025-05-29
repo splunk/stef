@@ -48,7 +48,7 @@ public class Point {
     }
     
     public long getStartTimestamp() {
-        return this.startTimestamp;
+        return startTimestamp;
     }
 
     // setStartTimestamp sets the value of StartTimestamp field.
@@ -72,7 +72,7 @@ public class Point {
     }
     
     public long getTimestamp() {
-        return this.timestamp;
+        return timestamp;
     }
 
     // setTimestamp sets the value of Timestamp field.

@@ -21,11 +21,4 @@ public enum {{.EnumName}} {
     public long getValue() {
         return value;
     }
-
-    public static boolean equals({{.EnumName}} left, {{.EnumName}} right) {
-        if (left == null) {
-            return right == null;
-        }
-        return left.value == right.value;
-    }
 }

@@ -47,7 +47,7 @@ public class Event {
     }
     
     public StringValue getName() {
-        return this.name;
+        return name;
     }
 
     // setName sets the value of Name field.
@@ -71,7 +71,7 @@ public class Event {
     }
     
     public long getTimeUnixNano() {
-        return this.timeUnixNano;
+        return timeUnixNano;
     }
 
     // setTimeUnixNano sets the value of TimeUnixNano field.
@@ -107,7 +107,7 @@ public class Event {
     }
     
     public long getDroppedAttributesCount() {
-        return this.droppedAttributesCount;
+        return droppedAttributesCount;
     }
 
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.

@@ -50,7 +50,7 @@ public class Exemplar {
     }
     
     public long getTimestamp() {
-        return this.timestamp;
+        return timestamp;
     }
 
     // setTimestamp sets the value of Timestamp field.
@@ -86,7 +86,7 @@ public class Exemplar {
     }
     
     public byte[] getSpanID() {
-        return this.spanID;
+        return spanID;
     }
 
     // setSpanID sets the value of SpanID field.
@@ -110,7 +110,7 @@ public class Exemplar {
     }
     
     public byte[] getTraceID() {
-        return this.traceID;
+        return traceID;
     }
 
     // setTraceID sets the value of TraceID field.

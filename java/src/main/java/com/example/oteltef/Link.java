@@ -51,7 +51,7 @@ public class Link {
     }
     
     public byte[] getTraceID() {
-        return this.traceID;
+        return traceID;
     }
 
     // setTraceID sets the value of TraceID field.
@@ -75,7 +75,7 @@ public class Link {
     }
     
     public byte[] getSpanID() {
-        return this.spanID;
+        return spanID;
     }
 
     // setSpanID sets the value of SpanID field.
@@ -99,7 +99,7 @@ public class Link {
     }
     
     public StringValue getTraceState() {
-        return this.traceState;
+        return traceState;
     }
 
     // setTraceState sets the value of TraceState field.
@@ -123,7 +123,7 @@ public class Link {
     }
     
     public long getFlags() {
-        return this.flags;
+        return flags;
     }
 
     // setFlags sets the value of Flags field.
@@ -159,7 +159,7 @@ public class Link {
     }
     
     public long getDroppedAttributesCount() {
-        return this.droppedAttributesCount;
+        return droppedAttributesCount;
     }
 
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.

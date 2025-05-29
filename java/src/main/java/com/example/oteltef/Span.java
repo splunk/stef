@@ -70,7 +70,7 @@ public class Span {
     }
     
     public byte[] getTraceID() {
-        return this.traceID;
+        return traceID;
     }
 
     // setTraceID sets the value of TraceID field.
@@ -94,7 +94,7 @@ public class Span {
     }
     
     public byte[] getSpanID() {
-        return this.spanID;
+        return spanID;
     }
 
     // setSpanID sets the value of SpanID field.
@@ -118,7 +118,7 @@ public class Span {
     }
     
     public StringValue getTraceState() {
-        return this.traceState;
+        return traceState;
     }
 
     // setTraceState sets the value of TraceState field.
@@ -142,7 +142,7 @@ public class Span {
     }
     
     public byte[] getParentSpanID() {
-        return this.parentSpanID;
+        return parentSpanID;
     }
 
     // setParentSpanID sets the value of ParentSpanID field.
@@ -166,7 +166,7 @@ public class Span {
     }
     
     public long getFlags() {
-        return this.flags;
+        return flags;
     }
 
     // setFlags sets the value of Flags field.
@@ -190,7 +190,7 @@ public class Span {
     }
     
     public StringValue getName() {
-        return this.name;
+        return name;
     }
 
     // setName sets the value of Name field.
@@ -214,7 +214,7 @@ public class Span {
     }
     
     public long getKind() {
-        return this.kind;
+        return kind;
     }
 
     // setKind sets the value of Kind field.
@@ -238,7 +238,7 @@ public class Span {
     }
     
     public long getStartTimeUnixNano() {
-        return this.startTimeUnixNano;
+        return startTimeUnixNano;
     }
 
     // setStartTimeUnixNano sets the value of StartTimeUnixNano field.
@@ -262,7 +262,7 @@ public class Span {
     }
     
     public long getEndTimeUnixNano() {
-        return this.endTimeUnixNano;
+        return endTimeUnixNano;
     }
 
     // setEndTimeUnixNano sets the value of EndTimeUnixNano field.
@@ -298,7 +298,7 @@ public class Span {
     }
     
     public long getDroppedAttributesCount() {
-        return this.droppedAttributesCount;
+        return droppedAttributesCount;
     }
 
     // setDroppedAttributesCount sets the value of DroppedAttributesCount field.

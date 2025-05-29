@@ -68,7 +68,7 @@ public class SpanDecoder {
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.getSpanName(), columns.addSubColumn());
+        this.nameDecoder.init(state.SpanName, columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
@@ -103,7 +103,7 @@ public class SpanDecoder {
         this.statusDecoder.init(state, columns.addSubColumn());
     }
 
-    // Continue is called at the start of the frame to continue decoding column data.
+    // continueDecoding is called at the start of the frame to continue decoding column data.
     // This should set the decoder's source buffer, so the new decoding continues from
     // the supplied column data. This should NOT reset the internal state of the decoder,
     // since columns can cross frame boundaries and the new column data is considered
@@ -194,71 +194,85 @@ public class SpanDecoder {
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
+
             val.traceID = this.traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
+
             val.spanID = this.spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
+
             val.traceState = this.traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedParentSpanID) != 0) {
             // Field is changed and is present, decode it.
+
             val.parentSpanID = this.parentSpanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
+
             val.flags = this.flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
+
             val.name = this.nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedKind) != 0) {
             // Field is changed and is present, decode it.
+
             val.kind = this.kindDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStartTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
+
             val.startTimeUnixNano = this.startTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEndTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
+
             val.endTimeUnixNano = this.endTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+
             val.attributes = this.attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
+
             val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
+
             val.events = this.eventsDecoder.decode(val.events);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
+
             val.links = this.linksDecoder.decode(val.links);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
+
             val.status = this.statusDecoder.decode(val.status);
         }
         

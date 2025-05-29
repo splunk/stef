@@ -42,7 +42,7 @@ public class SpanStatus {
     }
     
     public StringValue getMessage() {
-        return this.message;
+        return message;
     }
 
     // setMessage sets the value of Message field.
@@ -66,7 +66,7 @@ public class SpanStatus {
     }
     
     public long getCode() {
-        return this.code;
+        return code;
     }
 
     // setCode sets the value of Code field.

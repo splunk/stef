@@ -34,7 +34,8 @@ public class AttributesDecoder {
     public void continueDecoding() {
         buf.reset(column.getData());
         keyDecoder.continueDecoding();
-        valueDecoder.continueDecoding();}
+        valueDecoder.continueDecoding();
+    }
 
     // Finish is called at the end of the stream to perform any cleanup if neede
     public void finish() {
@@ -69,21 +70,21 @@ public class AttributesDecoder {
     }
 
     private void decodeCopyOfLast(Attributes dst) {
-        dst.ensureLen(lastVal.size);
-        for (int i=0; i<dst.size; i++) {
+        dst.ensureLen(lastVal.elemsLen);
+        for (int i=0; i<dst.elemsLen; i++) {
             dst.elems[i].key = lastVal.elems[i].key;
             dst.elems[i].value.copyFrom(lastVal.elems[i].value);
         }
     }
 
     private void decodeValuesOnly(long changedValuesBits, Attributes dst) throws Exception {
-        if (lastVal.size() == 0) {
+        if (lastVal.elemsLen == 0) {
             throw new RuntimeException("Multimap decode error: lastVal empty");
         }
-        int count = lastVal.size();
+        int count = lastVal.elemsLen;
         dst.ensureLen(count);
-        long bitToRead = 1L << (dst.size - 1);
-        for (int i = 0; i < dst.size; i++) {
+        long bitToRead = 1L << (dst.elemsLen - 1);
+        for (int i = 0; i < dst.elemsLen; i++) {
             // Copy the key from lastVal. All keys are the same.
             dst.elems[i].key = lastVal.elems[i].key;
             if ((bitToRead & changedValuesBits) == 0) {
@@ -94,8 +95,8 @@ public class AttributesDecoder {
         }
 
         // Decode changed values
-        bitToRead = (long)1 << (dst.size - 1);
-        for (int i = 0; i<dst.size; i++) {
+        bitToRead = (long)1 << (dst.elemsLen - 1);
+        for (int i = 0; i<dst.elemsLen; i++) {
             if ((bitToRead & changedValuesBits) != 0) {
                 // Value is changed, decode it.
                 dst.elems[i].value = valueDecoder.decode(dst.elems[i].value);
@@ -108,8 +109,8 @@ public class AttributesDecoder {
         lastVal.ensureLen(count);
 
         // Store the values in lastVal.
-        bitToRead = (long)1 << (dst.size - 1);
-        for (int i = 0; i<dst.size; i++) {
+        bitToRead = (long)1 << (dst.elemsLen - 1);
+        for (int i = 0; i<dst.elemsLen; i++) {
             if ((bitToRead & changedValuesBits) != 0) {
                 lastVal.elems[i].value.copyFrom(dst.elems[i].value);
             }
