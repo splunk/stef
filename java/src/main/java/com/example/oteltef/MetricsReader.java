@@ -7,10 +7,11 @@ import net.stef.FrameFlags;
 import net.stef.ReadOptions;
 import net.stef.schema.WireSchema;
 
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
 public class MetricsReader {
     private final BaseReader base;
@@ -19,7 +20,7 @@ public class MetricsReader {
 
     // Record contains the record that was just read by the last read() operation.
     // Do not modify this field externally. The next read() will overwrite the record.
-    private final Metrics record = new Metrics();
+    public final Metrics record = new Metrics();
 
     public MetricsReader(InputStream source) throws IOException {
         base = new BaseReader(new BufferedInputStream(source, 64 * 1024));

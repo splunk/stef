@@ -54,7 +54,7 @@ public class FrameDecoder extends InputStream {
             long compressedSize = Serde.readUvarint(src);
             chunkReader.setLimit(compressedSize);
 
-            if (!notFirstFrame || (flags & FrameFlags.RESTART_COMPRESSION)!=0) {
+            if (!notFirstFrame || (flags & FrameFlags.RestartCompression)!=0) {
                 notFirstFrame = true;
                 decompressor.close();
                 decompressor = new ZstdInputStream(chunkReader);

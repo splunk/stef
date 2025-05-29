@@ -15,7 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 public class MetricsWriter {
-    public Metrics Record;
+    public final Metrics Record;
 
     private WriterOptions opts;
     private ChunkWriter dst;

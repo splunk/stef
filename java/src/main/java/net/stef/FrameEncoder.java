@@ -33,7 +33,7 @@ public class FrameEncoder extends OutputStream {
 
     public void openFrame(int resetFlags) throws IOException {
         this.hdrByte = resetFlags;
-        if ((resetFlags & FrameFlags.RESTART_COMPRESSION)!=0 && compressor != null) {
+        if ((resetFlags & FrameFlags.RestartCompression)!=0 && compressor != null) {
             compressor.close();
             this.compressor = new ZstdOutputStream(compressedBuf);
             this.frameContent = compressor;

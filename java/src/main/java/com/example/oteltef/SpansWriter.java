@@ -15,7 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 public class SpansWriter {
-    public Spans Record;
+    public final Spans Record;
 
     private WriterOptions opts;
     private ChunkWriter dst;

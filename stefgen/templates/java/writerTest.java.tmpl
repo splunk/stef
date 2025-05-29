@@ -1,4 +1,84 @@
 package {{ .PackageName }};
 
+import net.stef.Compression;
+import net.stef.FrameFlags;
+import net.stef.MemChunkWriter;
+import net.stef.ReadOptions;
+import net.stef.WriterOptions;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 public class {{.StructName}}WriterTest {
+
+    // gen{{.StructName}}Records generates a number of records pseudo-randomly
+    // using the supplied Random generator. Generated records will be always
+    // the same for the same input state of Random generator.
+    static List<{{.StructName}}> gen{{.StructName}}Records(Random random) {
+        final int recCount = 1000;
+        List<{{.StructName}}> records = new ArrayList<>(recCount);
+        {{.StructName}} record = new {{.StructName}}();
+        record.init();
+        for (int i = 0; i < recCount; i++) {
+            record.mutateRandom(random);
+            {{.StructName}} copy = new {{.StructName}}();
+            copy.init();
+            copy.copyFrom(record);
+            records.add(copy);
+        }
+        return records;
+    }
+
+    @Test
+    void test{{.StructName}}WriteRead() {
+        List<WriterOptions> opts = Arrays.asList(
+            new WriterOptions(),
+            new WriterOptions(Compression.Zstd),
+            new WriterOptions(0, 500, 0),
+            new WriterOptions(0, 0, 500),
+            new WriterOptions(Compression.Zstd, 500, 500),
+            new WriterOptions(FrameFlags.RestartDictionaries),
+            new WriterOptions(FrameFlags.RestartCodecs),
+            new WriterOptions(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs),
+            new WriterOptions(FrameFlags.RestartCompression, Compression.Zstd),
+            new WriterOptions(FrameFlags.RestartDictionaries | FrameFlags.RestartCodecs | FrameFlags.RestartCompression, Compression.Zstd),
+            new WriterOptions(FrameFlags.RestartCodecs, 500, 0)
+        );
+
+        // Choose a seed (non-pseudo) randomly. We will print the seed
+        // on failure for easy reproduction.
+        long seed1 = System.nanoTime();
+        Random random = new Random(seed1);
+
+        for (WriterOptions opt : opts) {
+            try {
+                MemChunkWriter buf = new MemChunkWriter();
+                {{.StructName}}Writer writer = new {{.StructName}}Writer(buf, opt);
+
+                // Generate records pseudo-randomly
+                List<{{.StructName}}> records = gen{{.StructName}}Records(random);
+                // Write the records
+                for (int i = 0; i < records.size(); i++) {
+                    writer.Record.copyFrom(records.get(i));
+                    writer.write();
+                }
+                writer.flush();
+
+                // Read the records and compare to written.
+                {{.StructName}}Reader reader = new {{.StructName}}Reader(new ByteArrayInputStream(buf.getBytes()));
+                for (int i = 0; i < records.size(); i++) {
+                    assertTrue(reader.read(new ReadOptions()));
+                    assertNotNull(reader.record);
+                    assertTrue(reader.record.isEqual(records.get(i)), "record " + i + " seed " + seed1);
+                }
+                assertFalse(reader.read(new ReadOptions()));
+            } catch (Exception e) {
+                fail("seed " + seed1 + ": " + e.getMessage());
+            }
+        }
+    }
 }

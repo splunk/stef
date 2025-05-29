@@ -14,7 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 public class {{.StructName}}Writer {
-    public {{.StructName}} Record;
+    public final {{.StructName}} Record;
 
     private WriterOptions opts;
     private ChunkWriter dst;
