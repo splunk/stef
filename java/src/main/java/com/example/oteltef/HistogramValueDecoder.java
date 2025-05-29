@@ -12,8 +12,7 @@ import java.io.IOException;
 public class HistogramValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private HistogramValue lastValPtr;
-    private HistogramValue lastVal = new HistogramValue();
+    private HistogramValue lastVal;
     private int fieldCount;
 
     
@@ -29,35 +28,34 @@ public class HistogramValueDecoder {
         state.HistogramValueDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 5;
+            fieldCount = 5;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new HistogramValue(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countDecoder.init(columns.addSubColumn());
+        countDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumDecoder.init(columns.addSubColumn());
+        sumDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minDecoder.init(columns.addSubColumn());
+        minDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxDecoder.init(columns.addSubColumn());
+        maxDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsDecoder.init(state, columns.addSubColumn());
+        bucketCountsDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -101,39 +99,39 @@ public class HistogramValueDecoder {
     public HistogramValue decode(HistogramValue dstPtr) throws IOException {
         HistogramValue val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         // Write bits to indicate which optional fields are set.
-        val.optionalFieldsPresent = this.buf.readBits(3);
+        val.optionalFieldsPresent = buf.readBits(3);
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.
 
-            val.count = this.countDecoder.decode();
+            val.count = countDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
             // Field is changed and is present, decode it.
 
-            val.sum = this.sumDecoder.decode();
+            val.sum = sumDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
             // Field is changed and is present, decode it.
 
-            val.min = this.minDecoder.decode();
+            val.min = minDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
             // Field is changed and is present, decode it.
 
-            val.max = this.maxDecoder.decode();
+            val.max = maxDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
 
-            val.bucketCounts = this.bucketCountsDecoder.decode(val.bucketCounts);
+            val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         
         

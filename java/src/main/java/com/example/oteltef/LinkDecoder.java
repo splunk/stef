@@ -12,8 +12,7 @@ import java.io.IOException;
 public class LinkDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Link lastValPtr;
-    private Link lastVal = new Link();
+    private Link lastVal;
     private int fieldCount;
 
     
@@ -30,39 +29,38 @@ public class LinkDecoder {
         state.LinkDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Link");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 6;
+            fieldCount = 6;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Link(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.init(null, columns.addSubColumn());
+        traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.init(null, columns.addSubColumn());
+        spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.init(null, columns.addSubColumn());
+        traceStateDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.init(columns.addSubColumn());
+        flagsDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.init(state, columns.addSubColumn());
+        attributesDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
+        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -111,43 +109,43 @@ public class LinkDecoder {
     public Link decode(Link dstPtr) throws IOException {
         Link val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.traceID = this.traceIDDecoder.decode();
+            val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.spanID = this.spanIDDecoder.decode();
+            val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
 
-            val.traceState = this.traceStateDecoder.decode();
+            val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
 
-            val.flags = this.flagsDecoder.decode();
+            val.flags = flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.attributes = this.attributesDecoder.decode(val.attributes);
+            val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
 
-            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
+            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

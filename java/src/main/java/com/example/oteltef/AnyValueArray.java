@@ -16,7 +16,15 @@ public class AnyValueArray {
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
 
-    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+    AnyValueArray() {
+        init(null, 0);
+    }
+
+    AnyValueArray(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
     }
@@ -79,7 +87,7 @@ public class AnyValueArray {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
                 // Init the element.
-                elems[i].init(parentModifiedFields, parentModifiedBit);
+                elems[i] = new AnyValue(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
             }
@@ -120,9 +128,7 @@ public class AnyValueArray {
             
             // Initialize newly added elements.
             for (int i = elemsLen; i < newLen; i++) {
-                AnyValue elem = new AnyValue();
-                elem.init(parentModifiedFields, parentModifiedBit);
-                elems[elemsLen++] = elem;
+                elems[elemsLen++] = new AnyValue(parentModifiedFields, parentModifiedBit);
             }
             
         } else if (elemsLen > newLen) {

@@ -12,8 +12,7 @@ import java.io.IOException;
 public class ExemplarDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Exemplar lastValPtr;
-    private Exemplar lastVal = new Exemplar();
+    private Exemplar lastVal;
     private int fieldCount;
 
     
@@ -29,35 +28,34 @@ public class ExemplarDecoder {
         state.ExemplarDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 5;
+            fieldCount = 5;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Exemplar(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.init(columns.addSubColumn());
+        timestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.init(state, columns.addSubColumn());
+        valueDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.init(null, columns.addSubColumn());
+        spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.init(null, columns.addSubColumn());
+        traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
-        this.filteredAttributesDecoder.init(state, columns.addSubColumn());
+        filteredAttributesDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -101,37 +99,37 @@ public class ExemplarDecoder {
     public Exemplar decode(Exemplar dstPtr) throws IOException {
         Exemplar val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
 
-            val.timestamp = this.timestampDecoder.decode();
+            val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
 
-            val.value = this.valueDecoder.decode(val.value);
+            val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.spanID = this.spanIDDecoder.decode();
+            val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.traceID = this.traceIDDecoder.decode();
+            val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.filteredAttributes = this.filteredAttributesDecoder.decode(val.filteredAttributes);
+            val.filteredAttributes = filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         
         

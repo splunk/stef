@@ -14,16 +14,18 @@ public class EnvelopeAttributesEncoder {
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
-    private  StringEncoder keyEncoder; 
-    private  BytesEncoder valueEncoder; 
+    private StringEncoder keyEncoder;
+    private BytesEncoder valueEncoder;
 
     private EnvelopeAttributes lastVal = new EnvelopeAttributes();
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
+        keyEncoder = new StringEncoder();
         keyEncoder.init(null, limiter, columns.addSubColumn());
+        valueEncoder = new BytesEncoder();
         valueEncoder.init(null, limiter, columns.addSubColumn());
-}
+    }
 
     public void reset() {
     

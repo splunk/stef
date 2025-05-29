@@ -43,7 +43,6 @@ public class SpansWriter {
             }
         }
 
-        Record.init();
         state.init(opts);
         encoder.init(state, writeBufs.columns);
 

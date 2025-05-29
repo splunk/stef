@@ -12,8 +12,7 @@ import java.io.IOException;
 public class SpanDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Span lastValPtr;
-    private Span lastVal = new Span();
+    private Span lastVal;
     private int fieldCount;
 
     
@@ -38,71 +37,70 @@ public class SpanDecoder {
         state.SpanDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Span");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 14;
+            fieldCount = 14;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Span(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.init(null, columns.addSubColumn());
+        traceIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.init(null, columns.addSubColumn());
+        spanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.init(null, columns.addSubColumn());
+        traceStateDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // ParentSpanID and subsequent fields are skipped.
         }
-        this.parentSpanIDDecoder.init(null, columns.addSubColumn());
+        parentSpanIDDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.init(columns.addSubColumn());
+        flagsDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.SpanName, columns.addSubColumn());
+        nameDecoder.init(state.SpanName, columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
-        this.kindDecoder.init(columns.addSubColumn());
+        kindDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // StartTimeUnixNano and subsequent fields are skipped.
         }
-        this.startTimeUnixNanoDecoder.init(columns.addSubColumn());
+        startTimeUnixNanoDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 8) {
             return; // EndTimeUnixNano and subsequent fields are skipped.
         }
-        this.endTimeUnixNanoDecoder.init(columns.addSubColumn());
+        endTimeUnixNanoDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 9) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.init(state, columns.addSubColumn());
+        attributesDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 10) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
+        droppedAttributesCountDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 11) {
             return; // Events and subsequent fields are skipped.
         }
-        this.eventsDecoder.init(state, columns.addSubColumn());
+        eventsDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 12) {
             return; // Links and subsequent fields are skipped.
         }
-        this.linksDecoder.init(state, columns.addSubColumn());
+        linksDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 13) {
             return; // Status and subsequent fields are skipped.
         }
-        this.statusDecoder.init(state, columns.addSubColumn());
+        statusDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -191,91 +189,91 @@ public class SpanDecoder {
     public Span decode(Span dstPtr) throws IOException {
         Span val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.traceID = this.traceIDDecoder.decode();
+            val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.spanID = this.spanIDDecoder.decode();
+            val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
 
-            val.traceState = this.traceStateDecoder.decode();
+            val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedParentSpanID) != 0) {
             // Field is changed and is present, decode it.
 
-            val.parentSpanID = this.parentSpanIDDecoder.decode();
+            val.parentSpanID = parentSpanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
 
-            val.flags = this.flagsDecoder.decode();
+            val.flags = flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
 
-            val.name = this.nameDecoder.decode();
+            val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedKind) != 0) {
             // Field is changed and is present, decode it.
 
-            val.kind = this.kindDecoder.decode();
+            val.kind = kindDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStartTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
 
-            val.startTimeUnixNano = this.startTimeUnixNanoDecoder.decode();
+            val.startTimeUnixNano = startTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEndTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
 
-            val.endTimeUnixNano = this.endTimeUnixNanoDecoder.decode();
+            val.endTimeUnixNano = endTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.attributes = this.attributesDecoder.decode(val.attributes);
+            val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
 
-            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
+            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
 
-            val.events = this.eventsDecoder.decode(val.events);
+            val.events = eventsDecoder.decode(val.events);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
 
-            val.links = this.linksDecoder.decode(val.links);
+            val.links = linksDecoder.decode(val.links);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
 
-            val.status = this.statusDecoder.decode(val.status);
+            val.status = statusDecoder.decode(val.status);
         }
         
         

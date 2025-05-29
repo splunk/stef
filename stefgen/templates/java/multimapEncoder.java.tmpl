@@ -13,28 +13,35 @@ public class {{ .MultimapName }}Encoder {
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
-    private {{if .Key.Recursive}} {{.Key.Type.EncoderType}}Encoder keyEncoder; {{else}} {{.Key.Type.EncoderType}}Encoder keyEncoder; {{end}}
-    private {{if .Value.Recursive}} {{.Value.Type.EncoderType}}Encoder valueEncoder; {{else}} {{.Value.Type.EncoderType}}Encoder valueEncoder; {{end}}
+    private {{.Key.Type.EncoderType}}Encoder keyEncoder;
+    private {{.Value.Type.EncoderType}}Encoder valueEncoder;
 
     private {{ .MultimapName }} lastVal = new {{ .MultimapName }}();
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
-        {{- if .Key.Type.IsPrimitive}}
+    {{- if .Key.Recursive}}
+        keyEncoder = state.{{.Key.Type.EncoderType}}Encoder;
+    {{- else}}
+        keyEncoder = new {{.Key.Type.EncoderType}}Encoder();
+    {{- if .Key.Type.IsPrimitive}}
         keyEncoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
-        {{- else}}
+    {{- else}}
         keyEncoder.init(state, columns.addSubColumn());
-        {{- end}}
-        {{- if .Value.Type.IsPrimitive}}
-        valueEncoder.init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
-        {{- else}}
-        {{- if .Value.Recursive}}
+    {{- end}}
+    {{- end}}
+
+    {{- if .Value.Recursive}}
         valueEncoder = state.{{.Value.Type.EncoderType}}Encoder;
-        {{- else}}
+    {{- else}}
+        valueEncoder = new {{.Value.Type.EncoderType}}Encoder();
+    {{- if .Value.Type.IsPrimitive}}
+        valueEncoder.init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
+    {{- else}}
         valueEncoder.init(state, columns.addSubColumn());
-        {{- end}}
-        {{- end}}
-}
+    {{- end}}
+    {{- end}}
+    }
 
     public void reset() {
     {{ if not .Key.Recursive}}

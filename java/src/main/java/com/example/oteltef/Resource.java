@@ -30,23 +30,21 @@ public class Resource {
 
     
 
-    // Init must be called once, before the Resource is used.
-    public void init() {
-        this.init(null, 0);
+    public Resource() {
+        init(null, 0);
     }
 
-    public static Resource newResource() {
-        Resource s = new Resource();
-        s.init(null, 0);
-        return s;
+    Resource(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
+        attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
     }
+
     
     public StringValue getSchemaURL() {
         return schemaURL;

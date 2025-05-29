@@ -52,26 +52,24 @@ public class Span {
 
     
 
-    // Init must be called once, before the Span is used.
-    public void init() {
-        this.init(null, 0);
+    public Span() {
+        init(null, 0);
     }
 
-    public static Span newSpan() {
-        Span s = new Span();
-        s.init(null, 0);
-        return s;
+    Span(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
-        this.events.init(this.modifiedFields, fieldModifiedEvents);
-        this.links.init(this.modifiedFields, fieldModifiedLinks);
-        this.status.init(this.modifiedFields, fieldModifiedStatus);
+        attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
+        events = new EventArray(modifiedFields, fieldModifiedEvents);
+        links = new LinkArray(modifiedFields, fieldModifiedLinks);
+        status = new SpanStatus(modifiedFields, fieldModifiedStatus);
     }
+
     
     public byte[] getTraceID() {
         return traceID;

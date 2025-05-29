@@ -24,8 +24,15 @@ public class AnyValue {
     // Bit to set in parent's modifiedFields when this oneof is modified.
     private long parentModifiedBit;
 
-    // Init must be called once, before the AnyValue is used.
-    public void init() {
+    AnyValue() {
+        init();
+    }
+
+    AnyValue(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init() {
         this.init(null, 0);
     }
 
@@ -33,8 +40,8 @@ public class AnyValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
-        this.array.init(parentModifiedFields, parentModifiedBit);
-        this.kVList.init(parentModifiedFields, parentModifiedBit);
+        array = new AnyValueArray(parentModifiedFields, parentModifiedBit);
+        kVList = new KeyValueList(parentModifiedFields, parentModifiedBit);
     }
 
     // Type enum for oneof

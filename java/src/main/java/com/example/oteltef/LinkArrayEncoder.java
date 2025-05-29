@@ -20,22 +20,15 @@ public class LinkArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
-        
         encoder = new LinkEncoder();
-        encoder.init(state, columns.addSubColumn());
         state.LinkEncoder = encoder;
-        
-        lastVal = new Link();
-        lastVal.init(null, 0);
-        
+        encoder.init(state, columns.addSubColumn());
+        lastVal = new Link(null, 0);
     }
 
     public void reset() {
         prevLen = 0;
-        
         encoder.reset();
-        
     }
 
     public void encode(LinkArray arr) throws IOException {

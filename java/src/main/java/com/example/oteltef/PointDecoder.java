@@ -12,8 +12,7 @@ import java.io.IOException;
 public class PointDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Point lastValPtr;
-    private Point lastVal = new Point();
+    private Point lastVal;
     private int fieldCount;
 
     
@@ -28,31 +27,30 @@ public class PointDecoder {
         state.PointDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Point");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 4;
+            fieldCount = 4;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Point(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-        this.startTimestampDecoder.init(columns.addSubColumn());
+        startTimestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.init(columns.addSubColumn());
+        timestampDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.init(state, columns.addSubColumn());
+        valueDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Exemplars and subsequent fields are skipped.
         }
-        this.exemplarsDecoder.init(state, columns.addSubColumn());
+        exemplarsDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -91,31 +89,31 @@ public class PointDecoder {
     public Point decode(Point dstPtr) throws IOException {
         Point val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedStartTimestamp) != 0) {
             // Field is changed and is present, decode it.
 
-            val.startTimestamp = this.startTimestampDecoder.decode();
+            val.startTimestamp = startTimestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
 
-            val.timestamp = this.timestampDecoder.decode();
+            val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
 
-            val.value = this.valueDecoder.decode(val.value);
+            val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
 
-            val.exemplars = this.exemplarsDecoder.decode(val.exemplars);
+            val.exemplars = exemplarsDecoder.decode(val.exemplars);
         }
         
         

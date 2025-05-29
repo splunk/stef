@@ -7,6 +7,8 @@ import net.stef.WriteColumnSet;
 public class StringEncoder {
     private BytesEncoder encoder = new BytesEncoder();
 
+    public StringEncoder() {}
+
     public void init(BytesEncoderDict dict, SizeLimiter limiter, WriteColumnSet columns) {
         encoder.init(dict, limiter, columns);
     }

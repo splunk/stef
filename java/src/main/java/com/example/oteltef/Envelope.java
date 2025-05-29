@@ -26,23 +26,21 @@ public class Envelope {
 
     
 
-    // Init must be called once, before the Envelope is used.
-    public void init() {
-        this.init(null, 0);
+    public Envelope() {
+        init(null, 0);
     }
 
-    public static Envelope newEnvelope() {
-        Envelope s = new Envelope();
-        s.init(null, 0);
-        return s;
+    Envelope(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
+        attributes = new EnvelopeAttributes(modifiedFields, fieldModifiedAttributes);
     }
+
     
     public EnvelopeAttributes getAttributes() {
         return this.attributes;

@@ -43,23 +43,21 @@ public class HistogramValue {
     public static final long fieldPresentMax = 1L << 2;
     
 
-    // Init must be called once, before the HistogramValue is used.
-    public void init() {
-        this.init(null, 0);
+    public HistogramValue() {
+        init(null, 0);
     }
 
-    public static HistogramValue newHistogramValue() {
-        HistogramValue s = new HistogramValue();
-        s.init(null, 0);
-        return s;
+    HistogramValue(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.bucketCounts.init(this.modifiedFields, fieldModifiedBucketCounts);
+        bucketCounts = new LongArray(modifiedFields, fieldModifiedBucketCounts);
     }
+
     
     public long getCount() {
         return count;

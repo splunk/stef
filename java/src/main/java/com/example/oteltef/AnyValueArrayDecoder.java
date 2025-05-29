@@ -23,8 +23,7 @@ public class AnyValueArrayDecoder {
     
         decoder = state.AnyValueDecoder;
     
-        lastVal = new AnyValue();
-        lastVal.init(null, 0);
+        lastVal = new AnyValue(null, 0);
     
     }
 

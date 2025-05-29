@@ -20,18 +20,12 @@ public class AnyValueArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
-        
         encoder = state.AnyValueEncoder;
-        
-        lastVal = new AnyValue();
-        lastVal.init(null, 0);
-        
+        lastVal = new AnyValue(null, 0);
     }
 
     public void reset() {
         prevLen = 0;
-        
     }
 
     public void encode(AnyValueArray arr) throws IOException {

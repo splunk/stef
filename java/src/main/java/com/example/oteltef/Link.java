@@ -36,23 +36,21 @@ public class Link {
 
     
 
-    // Init must be called once, before the Link is used.
-    public void init() {
-        this.init(null, 0);
+    public Link() {
+        init(null, 0);
     }
 
-    public static Link newLink() {
-        Link s = new Link();
-        s.init(null, 0);
-        return s;
+    Link(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
+        attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
     }
+
     
     public byte[] getTraceID() {
         return traceID;

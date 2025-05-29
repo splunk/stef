@@ -110,7 +110,7 @@ public class WriterOptions {
 
     public static class Builder {
         private boolean includeDescriptor;
-        private Compression compression;
+        private Compression compression = Compression.None;
         private long maxUncompressedFrameByteSize = DefaultMaxFrameSize;
         private int frameRestartFlags;
         private long maxTotalDictSize = DefaultMaxTotalDictSize;

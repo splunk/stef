@@ -20,17 +20,13 @@ public class LongArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
         encoder = new Int64Encoder();
         encoder.init(limiter, columns.addSubColumn());
-        
     }
 
     public void reset() {
         prevLen = 0;
-        
         encoder.reset();
-        
     }
 
     public void encode(LongArray arr) throws IOException {

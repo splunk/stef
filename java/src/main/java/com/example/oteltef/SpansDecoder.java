@@ -12,8 +12,7 @@ import java.io.IOException;
 public class SpansDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Spans lastValPtr;
-    private Spans lastVal = new Spans();
+    private Spans lastVal;
     private int fieldCount;
 
     
@@ -28,31 +27,30 @@ public class SpansDecoder {
         state.SpansDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 4;
+            fieldCount = 4;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init();
-        this.lastValPtr = this.lastVal;
+        lastVal = new Spans();
         
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeDecoder.init(state, columns.addSubColumn());
+        envelopeDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceDecoder.init(state, columns.addSubColumn());
+        resourceDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeDecoder.init(state, columns.addSubColumn());
+        scopeDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Span and subsequent fields are skipped.
         }
-        this.spanDecoder.init(state, columns.addSubColumn());
+        spanDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -91,31 +89,31 @@ public class SpansDecoder {
     public Spans decode(Spans dstPtr) throws IOException {
         Spans val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
 
-            val.envelope = this.envelopeDecoder.decode(val.envelope);
+            val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
 
-            val.resource = this.resourceDecoder.decode(val.resource);
+            val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
 
-            val.scope = this.scopeDecoder.decode(val.scope);
+            val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
 
-            val.span = this.spanDecoder.decode(val.span);
+            val.span = spanDecoder.decode(val.span);
         }
         
         

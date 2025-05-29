@@ -16,7 +16,15 @@ public class LinkArray {
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
 
-    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+    LinkArray() {
+        init(null, 0);
+    }
+
+    LinkArray(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
     }
@@ -79,7 +87,7 @@ public class LinkArray {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
                 // Init the element.
-                elems[i].init(parentModifiedFields, parentModifiedBit);
+                elems[i] = new Link(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
             }
@@ -120,9 +128,7 @@ public class LinkArray {
             
             // Initialize newly added elements.
             for (int i = elemsLen; i < newLen; i++) {
-                Link elem = new Link();
-                elem.init(parentModifiedFields, parentModifiedBit);
-                elems[elemsLen++] = elem;
+                elems[elemsLen++] = new Link(parentModifiedFields, parentModifiedBit);
             }
             
         } else if (elemsLen > newLen) {

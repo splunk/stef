@@ -25,8 +25,7 @@ public class ExemplarArrayDecoder {
         decoder.init(state, columns.addSubColumn());
         state.ExemplarDecoder = decoder;
     
-        lastVal = new Exemplar();
-        lastVal.init(null, 0);
+        lastVal = new Exemplar(null, 0);
     
     }
 

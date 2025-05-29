@@ -11,8 +11,7 @@ import java.io.IOException;
 public class {{ .StructName }}Decoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private {{.StructName}} lastValPtr;
-    private {{.StructName}} lastVal = new {{.StructName}}();
+    private {{.StructName}} lastVal;
     private int fieldCount;
 
     {{ range .Fields }}
@@ -27,19 +26,18 @@ public class {{ .StructName }}Decoder {
         state.{{ .StructName }}Decoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = {{len .Fields}};
+            fieldCount = {{len .Fields}};
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         {{if .IsMainStruct}}
-        this.lastVal.init();
+        lastVal = new {{.StructName}}();
         {{- else}}
-        this.lastVal.init(null, 0);
+        lastVal = new {{.StructName}}(null, 0);
         {{- end}}
-        this.lastValPtr = this.lastVal;
         {{- if .DictName}}
-        this.dict = state.{{.DictName}};
+        dict = state.{{.DictName}};
         {{- end}}
         {{ range $i,$e := .Fields }}
         if (this.fieldCount <= {{$i}}) {
@@ -47,14 +45,14 @@ public class {{ .StructName }}Decoder {
         }
         {{- if .Type.IsPrimitive}}
             {{- if .Type.DictName}}
-        this.{{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
+        {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
             {{- else if .Type.IsDictPossible}}
-        this.{{.name}}Decoder.init(null, columns.addSubColumn());
+        {{.name}}Decoder.init(null, columns.addSubColumn());
             {{- else}}
-        this.{{.name}}Decoder.init(columns.addSubColumn());
+        {{.name}}Decoder.init(columns.addSubColumn());
             {{- end}}
         {{- else}}
-        this.{{.name}}Decoder.init(state, columns.addSubColumn());
+        {{.name}}Decoder.init(state, columns.addSubColumn());
         {{- end}}
         {{- end }}
     }
@@ -83,40 +81,40 @@ public class {{ .StructName }}Decoder {
     public {{.StructName}} decode({{.StructName}} dstPtr) throws IOException {
         {{- if .DictName}}
         // Check if the {{ .StructName }} exists in the dictionary.
-        int dictFlag = this.buf.readBit();
+        int dictFlag = buf.readBit();
         if (dictFlag == 0) {
-            long refNum = this.buf.readUvarintCompact();
-            if (refNum >= this.dict.size()) {
+            long refNum = buf.readUvarintCompact();
+            if (refNum >= dict.size()) {
                 throw new IOException("Invalid refNum");
             }
-            this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr = this.lastValPtr;
+            lastVal = dict.getByIndex((int)refNum);
+            dstPtr = lastVal;
             return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
-        {{.StructName}} val = this.lastValPtr.clone();
-        this.lastValPtr = val;
+        {{.StructName}} val = lastVal.clone();
+        lastVal = val;
         dstPtr = val;
         {{- else}}
         {{.StructName}} val = dstPtr;
         {{- end}}
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
-        val.optionalFieldsPresent = this.buf.readBits({{ .OptionalFieldCount}});
+        val.optionalFieldsPresent = buf.readBits({{ .OptionalFieldCount}});
         {{- end}}
         {{ range .Fields }}
         if ((val.getModifiedFields().mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
 
-            val.{{.name}} = this.{{.name}}Decoder.decode({{if not .Type.IsPrimitive}}val.{{.name}}{{end}});
+            val.{{.name}} = {{.name}}Decoder.decode({{if not .Type.IsPrimitive}}val.{{.name}}{{end}});
         }
         {{ end }}
         {{if .DictName}}
-        this.dict.add(val);
+        dict.add(val);
         {{end}}
         return val;
     }

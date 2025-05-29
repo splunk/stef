@@ -14,16 +14,17 @@ public class KeyValueListEncoder {
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
-    private  StringEncoder keyEncoder; 
-    private  AnyValueEncoder valueEncoder; 
+    private StringEncoder keyEncoder;
+    private AnyValueEncoder valueEncoder;
 
     private KeyValueList lastVal = new KeyValueList();
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
+        keyEncoder = new StringEncoder();
         keyEncoder.init(null, limiter, columns.addSubColumn());
         valueEncoder = state.AnyValueEncoder;
-}
+    }
 
     public void reset() {
     

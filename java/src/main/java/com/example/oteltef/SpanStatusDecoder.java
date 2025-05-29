@@ -12,8 +12,7 @@ import java.io.IOException;
 public class SpanStatusDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private SpanStatus lastValPtr;
-    private SpanStatus lastVal = new SpanStatus();
+    private SpanStatus lastVal;
     private int fieldCount;
 
     
@@ -26,23 +25,22 @@ public class SpanStatusDecoder {
         state.SpanStatusDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 2;
+            fieldCount = 2;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new SpanStatus(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-        this.messageDecoder.init(null, columns.addSubColumn());
+        messageDecoder.init(null, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-        this.codeDecoder.init(columns.addSubColumn());
+        codeDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -71,19 +69,19 @@ public class SpanStatusDecoder {
     public SpanStatus decode(SpanStatus dstPtr) throws IOException {
         SpanStatus val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedMessage) != 0) {
             // Field is changed and is present, decode it.
 
-            val.message = this.messageDecoder.decode();
+            val.message = messageDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedCode) != 0) {
             // Field is changed and is present, decode it.
 
-            val.code = this.codeDecoder.decode();
+            val.code = codeDecoder.decode();
         }
         
         

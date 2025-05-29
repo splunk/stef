@@ -12,8 +12,7 @@ import java.io.IOException;
 public class EnvelopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Envelope lastValPtr;
-    private Envelope lastVal = new Envelope();
+    private Envelope lastVal;
     private int fieldCount;
 
     
@@ -25,19 +24,18 @@ public class EnvelopeDecoder {
         state.EnvelopeDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 1;
+            fieldCount = 1;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Envelope(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.init(state, columns.addSubColumn());
+        attributesDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -61,13 +59,13 @@ public class EnvelopeDecoder {
     public Envelope decode(Envelope dstPtr) throws IOException {
         Envelope val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.attributes = this.attributesDecoder.decode(val.attributes);
+            val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         

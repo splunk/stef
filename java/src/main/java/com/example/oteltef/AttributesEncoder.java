@@ -14,16 +14,18 @@ public class AttributesEncoder {
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
-    private  StringEncoder keyEncoder; 
-    private  AnyValueEncoder valueEncoder; 
+    private StringEncoder keyEncoder;
+    private AnyValueEncoder valueEncoder;
 
     private Attributes lastVal = new Attributes();
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.limiter = state.getLimiter();
+        keyEncoder = new StringEncoder();
         keyEncoder.init(state.AttributeKey, limiter, columns.addSubColumn());
+        valueEncoder = new AnyValueEncoder();
         valueEncoder.init(state, columns.addSubColumn());
-}
+    }
 
     public void reset() {
     

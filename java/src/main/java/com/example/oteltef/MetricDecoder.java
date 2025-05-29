@@ -12,8 +12,7 @@ import java.io.IOException;
 public class MetricDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Metric lastValPtr;
-    private Metric lastVal = new Metric();
+    private Metric lastVal;
     private int fieldCount;
 
     
@@ -34,48 +33,47 @@ public class MetricDecoder {
         state.MetricDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 8;
+            fieldCount = 8;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
-        this.dict = state.Metric;
+        lastVal = new Metric(null, 0);
+        dict = state.Metric;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.MetricName, columns.addSubColumn());
+        nameDecoder.init(state.MetricName, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-        this.descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
+        descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-        this.unitDecoder.init(state.MetricUnit, columns.addSubColumn());
+        unitDecoder.init(state.MetricUnit, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-        this.type_Decoder.init(columns.addSubColumn());
+        type_Decoder.init(columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
-        this.metadataDecoder.init(state, columns.addSubColumn());
+        metadataDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // HistogramBounds and subsequent fields are skipped.
         }
-        this.histogramBoundsDecoder.init(state, columns.addSubColumn());
+        histogramBoundsDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-        this.aggregationTemporalityDecoder.init(columns.addSubColumn());
+        aggregationTemporalityDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-        this.monotonicDecoder.init(columns.addSubColumn());
+        monotonicDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -133,75 +131,75 @@ public class MetricDecoder {
 
     public Metric decode(Metric dstPtr) throws IOException {
         // Check if the Metric exists in the dictionary.
-        int dictFlag = this.buf.readBit();
+        int dictFlag = buf.readBit();
         if (dictFlag == 0) {
-            long refNum = this.buf.readUvarintCompact();
-            if (refNum >= this.dict.size()) {
+            long refNum = buf.readUvarintCompact();
+            if (refNum >= dict.size()) {
                 throw new IOException("Invalid refNum");
             }
-            this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr = this.lastValPtr;
+            lastVal = dict.getByIndex((int)refNum);
+            dstPtr = lastVal;
             return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
-        Metric val = this.lastValPtr.clone();
-        this.lastValPtr = val;
+        Metric val = lastVal.clone();
+        lastVal = val;
         dstPtr = val;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
 
-            val.name = this.nameDecoder.decode();
+            val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedDescription) != 0) {
             // Field is changed and is present, decode it.
 
-            val.description = this.descriptionDecoder.decode();
+            val.description = descriptionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedUnit) != 0) {
             // Field is changed and is present, decode it.
 
-            val.unit = this.unitDecoder.decode();
+            val.unit = unitDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedType) != 0) {
             // Field is changed and is present, decode it.
 
-            val.type_ = this.type_Decoder.decode();
+            val.type_ = type_Decoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
 
-            val.metadata = this.metadataDecoder.decode(val.metadata);
+            val.metadata = metadataDecoder.decode(val.metadata);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
 
-            val.histogramBounds = this.histogramBoundsDecoder.decode(val.histogramBounds);
+            val.histogramBounds = histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {
             // Field is changed and is present, decode it.
 
-            val.aggregationTemporality = this.aggregationTemporalityDecoder.decode();
+            val.aggregationTemporality = aggregationTemporalityDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMonotonic) != 0) {
             // Field is changed and is present, decode it.
 
-            val.monotonic = this.monotonicDecoder.decode();
+            val.monotonic = monotonicDecoder.decode();
         }
         
         
-        this.dict.add(val);
+        dict.add(val);
         
         return val;
     }

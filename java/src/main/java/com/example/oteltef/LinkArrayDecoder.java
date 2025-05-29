@@ -25,8 +25,7 @@ public class LinkArrayDecoder {
         decoder.init(state, columns.addSubColumn());
         state.LinkDecoder = decoder;
     
-        lastVal = new Link();
-        lastVal.init(null, 0);
+        lastVal = new Link(null, 0);
     
     }
 

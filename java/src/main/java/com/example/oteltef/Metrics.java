@@ -36,31 +36,26 @@ public class Metrics {
 
     
 
-    // Init must be called once, before the Metrics is used.
-    public void init() {
-        this.init(null, 0);
+    public Metrics() {
+        init(null, 0);
     }
 
-    public static Metrics newMetrics() {
-        Metrics s = new Metrics();
-        s.init(null, 0);
-        return s;
+    Metrics(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.envelope.init(this.modifiedFields, fieldModifiedEnvelope);
-        this.metric = new Metric();
-        this.metric.init(this.modifiedFields, fieldModifiedMetric);
-        this.resource = new Resource();
-        this.resource.init(this.modifiedFields, fieldModifiedResource);
-        this.scope = new Scope();
-        this.scope.init(this.modifiedFields, fieldModifiedScope);
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
-        this.point.init(this.modifiedFields, fieldModifiedPoint);
+        envelope = new Envelope(modifiedFields, fieldModifiedEnvelope);
+        metric = new Metric(modifiedFields, fieldModifiedMetric);
+        resource = new Resource(modifiedFields, fieldModifiedResource);
+        scope = new Scope(modifiedFields, fieldModifiedScope);
+        attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
+        point = new Point(modifiedFields, fieldModifiedPoint);
     }
+
     
     public Envelope getEnvelope() {
         return this.envelope;

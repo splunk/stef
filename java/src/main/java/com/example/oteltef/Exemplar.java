@@ -34,24 +34,22 @@ public class Exemplar {
 
     
 
-    // Init must be called once, before the Exemplar is used.
-    public void init() {
-        this.init(null, 0);
+    public Exemplar() {
+        init(null, 0);
     }
 
-    public static Exemplar newExemplar() {
-        Exemplar s = new Exemplar();
-        s.init(null, 0);
-        return s;
+    Exemplar(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.value.init(this.modifiedFields, fieldModifiedValue);
-        this.filteredAttributes.init(this.modifiedFields, fieldModifiedFilteredAttributes);
+        value = new ExemplarValue(modifiedFields, fieldModifiedValue);
+        filteredAttributes = new Attributes(modifiedFields, fieldModifiedFilteredAttributes);
     }
+
     
     public long getTimestamp() {
         return timestamp;

@@ -20,22 +20,15 @@ public class EventArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
-        
         encoder = new EventEncoder();
-        encoder.init(state, columns.addSubColumn());
         state.EventEncoder = encoder;
-        
-        lastVal = new Event();
-        lastVal.init(null, 0);
-        
+        encoder.init(state, columns.addSubColumn());
+        lastVal = new Event(null, 0);
     }
 
     public void reset() {
         prevLen = 0;
-        
         encoder.reset();
-        
     }
 
     public void encode(EventArray arr) throws IOException {

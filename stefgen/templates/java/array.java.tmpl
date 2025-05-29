@@ -15,7 +15,15 @@ public class {{ .ArrayName }} {
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
 
-    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+    {{ .ArrayName }}() {
+        init(null, 0);
+    }
+
+    {{ .ArrayName }}(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
     }
@@ -91,7 +99,7 @@ public class {{ .ArrayName }} {
             for (int i = 0; i < src.elemsLen; i++) {
                 {{if not .ElemType.IsPrimitive -}}
                 // Init the element.
-                elems[i].init(parentModifiedFields, parentModifiedBit);
+                elems[i] = new {{.ElemType.Storage}}(parentModifiedFields, parentModifiedBit);
                 {{- end}}
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
@@ -161,9 +169,7 @@ public class {{ .ArrayName }} {
             {{if .IsStructType}}
             // Initialize newly added elements.
             for (int i = elemsLen; i < newLen; i++) {
-                {{.ElemType.Storage}} elem = new {{.ElemType.Storage}}();
-                elem.init(parentModifiedFields, parentModifiedBit);
-                elems[elemsLen++] = elem;
+                elems[elemsLen++] = new {{.ElemType.Storage}}(parentModifiedFields, parentModifiedBit);
             }
             {{end}}
         } else if (elemsLen > newLen) {

@@ -12,8 +12,7 @@ import java.io.IOException;
 public class ScopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Scope lastValPtr;
-    private Scope lastVal = new Scope();
+    private Scope lastVal;
     private int fieldCount;
 
     
@@ -31,36 +30,35 @@ public class ScopeDecoder {
         state.ScopeDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 5;
+            fieldCount = 5;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
-        this.dict = state.Scope;
+        lastVal = new Scope(null, 0);
+        dict = state.Scope;
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.ScopeName, columns.addSubColumn());
+        nameDecoder.init(state.ScopeName, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-        this.versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
+        versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
+        schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.init(state, columns.addSubColumn());
+        attributesDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
+        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -103,57 +101,57 @@ public class ScopeDecoder {
 
     public Scope decode(Scope dstPtr) throws IOException {
         // Check if the Scope exists in the dictionary.
-        int dictFlag = this.buf.readBit();
+        int dictFlag = buf.readBit();
         if (dictFlag == 0) {
-            long refNum = this.buf.readUvarintCompact();
-            if (refNum >= this.dict.size()) {
+            long refNum = buf.readUvarintCompact();
+            if (refNum >= dict.size()) {
                 throw new IOException("Invalid refNum");
             }
-            this.lastValPtr = this.dict.getByIndex((int)refNum);
-            dstPtr = this.lastValPtr;
+            lastVal = dict.getByIndex((int)refNum);
+            dstPtr = lastVal;
             return dstPtr;
         }
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
-        Scope val = this.lastValPtr.clone();
-        this.lastValPtr = val;
+        Scope val = lastVal.clone();
+        lastVal = val;
         dstPtr = val;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
 
-            val.name = this.nameDecoder.decode();
+            val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedVersion) != 0) {
             // Field is changed and is present, decode it.
 
-            val.version = this.versionDecoder.decode();
+            val.version = versionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
 
-            val.schemaURL = this.schemaURLDecoder.decode();
+            val.schemaURL = schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.attributes = this.attributesDecoder.decode(val.attributes);
+            val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
 
-            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
+            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         
-        this.dict.add(val);
+        dict.add(val);
         
         return val;
     }

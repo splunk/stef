@@ -16,7 +16,15 @@ public class ExemplarArray {
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
 
-    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+    ExemplarArray() {
+        init(null, 0);
+    }
+
+    ExemplarArray(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
     }
@@ -79,7 +87,7 @@ public class ExemplarArray {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
                 // Init the element.
-                elems[i].init(parentModifiedFields, parentModifiedBit);
+                elems[i] = new Exemplar(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
             }
@@ -120,9 +128,7 @@ public class ExemplarArray {
             
             // Initialize newly added elements.
             for (int i = elemsLen; i < newLen; i++) {
-                Exemplar elem = new Exemplar();
-                elem.init(parentModifiedFields, parentModifiedBit);
-                elems[elemsLen++] = elem;
+                elems[elemsLen++] = new Exemplar(parentModifiedFields, parentModifiedBit);
             }
             
         } else if (elemsLen > newLen) {

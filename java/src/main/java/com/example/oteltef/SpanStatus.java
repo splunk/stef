@@ -28,22 +28,20 @@ public class SpanStatus {
 
     
 
-    // Init must be called once, before the SpanStatus is used.
-    public void init() {
-        this.init(null, 0);
+    public SpanStatus() {
+        init(null, 0);
     }
 
-    public static SpanStatus newSpanStatus() {
-        SpanStatus s = new SpanStatus();
-        s.init(null, 0);
-        return s;
+    SpanStatus(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
     }
+
     
     public StringValue getMessage() {
         return message;

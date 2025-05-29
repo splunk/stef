@@ -25,11 +25,9 @@ public class {{.StructName}}WriterTest {
         final int recCount = 1000;
         List<{{.StructName}}> records = new ArrayList<>(recCount);
         {{.StructName}} record = new {{.StructName}}();
-        record.init();
         for (int i = 0; i < recCount; i++) {
             record.mutateRandom(random);
             {{.StructName}} copy = new {{.StructName}}();
-            copy.init();
             copy.copyFrom(record);
             records.add(copy);
         }

@@ -19,8 +19,15 @@ public class ExemplarValue {
     // Bit to set in parent's modifiedFields when this oneof is modified.
     private long parentModifiedBit;
 
-    // Init must be called once, before the ExemplarValue is used.
-    public void init() {
+    ExemplarValue() {
+        init();
+    }
+
+    ExemplarValue(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init() {
         this.init(null, 0);
     }
 

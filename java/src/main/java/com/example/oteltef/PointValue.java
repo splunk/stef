@@ -20,8 +20,15 @@ public class PointValue {
     // Bit to set in parent's modifiedFields when this oneof is modified.
     private long parentModifiedBit;
 
-    // Init must be called once, before the PointValue is used.
-    public void init() {
+    PointValue() {
+        init();
+    }
+
+    PointValue(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init() {
         this.init(null, 0);
     }
 
@@ -29,7 +36,7 @@ public class PointValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
-        this.histogram.init(parentModifiedFields, parentModifiedBit);
+        histogram = new HistogramValue(parentModifiedFields, parentModifiedBit);
     }
 
     // Type enum for oneof

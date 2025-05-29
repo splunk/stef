@@ -16,7 +16,15 @@ public class EventArray {
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
 
-    public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+    EventArray() {
+        init(null, 0);
+    }
+
+    EventArray(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
     }
@@ -79,7 +87,7 @@ public class EventArray {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
                 // Init the element.
-                elems[i].init(parentModifiedFields, parentModifiedBit);
+                elems[i] = new Event(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
             }
@@ -120,9 +128,7 @@ public class EventArray {
             
             // Initialize newly added elements.
             for (int i = elemsLen; i < newLen; i++) {
-                Event elem = new Event();
-                elem.init(parentModifiedFields, parentModifiedBit);
-                elems[elemsLen++] = elem;
+                elems[elemsLen++] = new Event(parentModifiedFields, parentModifiedBit);
             }
             
         } else if (elemsLen > newLen) {

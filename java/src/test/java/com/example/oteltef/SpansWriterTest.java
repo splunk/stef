@@ -26,11 +26,9 @@ public class SpansWriterTest {
         final int recCount = 1000;
         List<Spans> records = new ArrayList<>(recCount);
         Spans record = new Spans();
-        record.init();
         for (int i = 0; i < recCount; i++) {
             record.mutateRandom(random);
             Spans copy = new Spans();
-            copy.init();
             copy.copyFrom(record);
             records.add(copy);
         }

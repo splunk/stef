@@ -18,8 +18,15 @@ public class {{ .StructName }} {
     // Bit to set in parent's modifiedFields when this oneof is modified.
     private long parentModifiedBit;
 
-    // Init must be called once, before the {{.StructName}} is used.
-    public void init() {
+    {{ .StructName }}() {
+        init();
+    }
+
+    {{ .StructName }}(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
+    }
+
+    private void init() {
         this.init(null, 0);
     }
 
@@ -27,11 +34,8 @@ public class {{ .StructName }} {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         {{ range .Fields }}
-        {{- if .Type.Flags.StoreByPtr}}
-        this.{{.name}} = new {{ .Type.Storage }}();
-        {{- end }}
         {{- if not .Type.IsPrimitive }}
-        this.{{.name}}.init(parentModifiedFields, parentModifiedBit);
+        {{.name}} = new {{ .Type.Storage }}(parentModifiedFields, parentModifiedBit);
         {{- end }}
         {{- end }}
     }

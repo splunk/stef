@@ -32,28 +32,24 @@ public class Spans {
 
     
 
-    // Init must be called once, before the Spans is used.
-    public void init() {
-        this.init(null, 0);
+    public Spans() {
+        init(null, 0);
     }
 
-    public static Spans newSpans() {
-        Spans s = new Spans();
-        s.init(null, 0);
-        return s;
+    Spans(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.envelope.init(this.modifiedFields, fieldModifiedEnvelope);
-        this.resource = new Resource();
-        this.resource.init(this.modifiedFields, fieldModifiedResource);
-        this.scope = new Scope();
-        this.scope.init(this.modifiedFields, fieldModifiedScope);
-        this.span.init(this.modifiedFields, fieldModifiedSpan);
+        envelope = new Envelope(modifiedFields, fieldModifiedEnvelope);
+        resource = new Resource(modifiedFields, fieldModifiedResource);
+        scope = new Scope(modifiedFields, fieldModifiedScope);
+        span = new Span(modifiedFields, fieldModifiedSpan);
     }
+
     
     public Envelope getEnvelope() {
         return this.envelope;

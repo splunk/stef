@@ -20,17 +20,13 @@ public class DoubleArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
         encoder = new Float64Encoder();
         encoder.init(limiter, columns.addSubColumn());
-        
     }
 
     public void reset() {
         prevLen = 0;
-        
         encoder.reset();
-        
     }
 
     public void encode(DoubleArray arr) throws IOException {

@@ -25,8 +25,7 @@ public class EventArrayDecoder {
         decoder.init(state, columns.addSubColumn());
         state.EventDecoder = decoder;
     
-        lastVal = new Event();
-        lastVal.init(null, 0);
+        lastVal = new Event(null, 0);
     
     }
 

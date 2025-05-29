@@ -19,27 +19,27 @@ public class {{ .ArrayName }}Encoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        {{if .ElemType.IsPrimitive}}
-        encoder = new {{.ElemType.EncoderType}}Encoder();
-        encoder.init({{if .DictName}}state.{{.DictName}}{{else}}limiter{{end}}, columns.addSubColumn());
-        {{else}}
-        {{if .Recursive}}
+    {{- if .Recursive}}
         encoder = state.{{.ElemType.EncoderType}}Encoder;
-        {{else}}
+    {{- else}}
         encoder = new {{.ElemType.EncoderType}}Encoder();
-        encoder.init(state, columns.addSubColumn());
+    {{- if .ElemType.IsPrimitive}}
+        encoder.init({{if .DictName}}state.{{.DictName}}{{else}}limiter{{end}}, columns.addSubColumn());
+    {{- else}}
         state.{{.ElemType.EncoderType}}Encoder = encoder;
-        {{end}}
-        lastVal = new {{.ElemType.Storage}}();
-        lastVal.init(null, 0);
-        {{end}}
+        encoder.init(state, columns.addSubColumn());
+    {{- end}}
+    {{- end}}
+    {{- if not .ElemType.IsPrimitive}}
+        lastVal = new {{.ElemType.Storage}}(null, 0);
+    {{- end}}
     }
 
     public void reset() {
         prevLen = 0;
-        {{if not .Recursive}}
+        {{- if not .Recursive}}
         encoder.reset();
-        {{end}}
+        {{- end}}
     }
 
     public void encode({{ .ArrayName }} arr) throws IOException {

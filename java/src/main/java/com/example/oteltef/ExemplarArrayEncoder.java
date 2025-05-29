@@ -20,22 +20,15 @@ public class ExemplarArrayEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        
-        
         encoder = new ExemplarEncoder();
-        encoder.init(state, columns.addSubColumn());
         state.ExemplarEncoder = encoder;
-        
-        lastVal = new Exemplar();
-        lastVal.init(null, 0);
-        
+        encoder.init(state, columns.addSubColumn());
+        lastVal = new Exemplar(null, 0);
     }
 
     public void reset() {
         prevLen = 0;
-        
         encoder.reset();
-        
     }
 
     public void encode(ExemplarArray arr) throws IOException {

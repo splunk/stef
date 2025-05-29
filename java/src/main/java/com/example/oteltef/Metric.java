@@ -40,24 +40,22 @@ public class Metric {
 
     
 
-    // Init must be called once, before the Metric is used.
-    public void init() {
-        this.init(null, 0);
+    public Metric() {
+        init(null, 0);
     }
 
-    public static Metric newMetric() {
-        Metric s = new Metric();
-        s.init(null, 0);
-        return s;
+    Metric(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.metadata.init(this.modifiedFields, fieldModifiedMetadata);
-        this.histogramBounds.init(this.modifiedFields, fieldModifiedHistogramBounds);
+        metadata = new Attributes(modifiedFields, fieldModifiedMetadata);
+        histogramBounds = new DoubleArray(modifiedFields, fieldModifiedHistogramBounds);
     }
+
     
     public StringValue getName() {
         return name;

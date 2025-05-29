@@ -26,11 +26,9 @@ public class MetricsWriterTest {
         final int recCount = 1000;
         List<Metrics> records = new ArrayList<>(recCount);
         Metrics record = new Metrics();
-        record.init();
         for (int i = 0; i < recCount; i++) {
             record.mutateRandom(random);
             Metrics copy = new Metrics();
-            copy.init();
             copy.copyFrom(record);
             records.add(copy);
         }

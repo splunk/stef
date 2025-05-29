@@ -32,24 +32,22 @@ public class Point {
 
     
 
-    // Init must be called once, before the Point is used.
-    public void init() {
-        this.init(null, 0);
+    public Point() {
+        init(null, 0);
     }
 
-    public static Point newPoint() {
-        Point s = new Point();
-        s.init(null, 0);
-        return s;
+    Point(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.value.init(this.modifiedFields, fieldModifiedValue);
-        this.exemplars.init(this.modifiedFields, fieldModifiedExemplars);
+        value = new PointValue(modifiedFields, fieldModifiedValue);
+        exemplars = new ExemplarArray(modifiedFields, fieldModifiedExemplars);
     }
+
     
     public long getStartTimestamp() {
         return startTimestamp;

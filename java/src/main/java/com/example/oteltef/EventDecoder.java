@@ -12,8 +12,7 @@ import java.io.IOException;
 public class EventDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Event lastValPtr;
-    private Event lastVal = new Event();
+    private Event lastVal;
     private int fieldCount;
 
     
@@ -28,31 +27,30 @@ public class EventDecoder {
         state.EventDecoder = this;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Event");
-            this.fieldCount = fieldCount;
+            fieldCount = fieldCount;
         } else {
-            this.fieldCount = 4;
+            fieldCount = 4;
         }
-        this.column = columns.getColumn();
+        column = columns.getColumn();
         
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
+        lastVal = new Event(null, 0);
         
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.init(state.SpanEventName, columns.addSubColumn());
+        nameDecoder.init(state.SpanEventName, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // TimeUnixNano and subsequent fields are skipped.
         }
-        this.timeUnixNanoDecoder.init(columns.addSubColumn());
+        timeUnixNanoDecoder.init(columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.init(state, columns.addSubColumn());
+        attributesDecoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.init(columns.addSubColumn());
+        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -91,31 +89,31 @@ public class EventDecoder {
     public Event decode(Event dstPtr) throws IOException {
         Event val = dstPtr;
         // Read bits that indicate which fields follow.
-        val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
+        val.getModifiedFields().mask = buf.readBits(fieldCount);
         
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
 
-            val.name = this.nameDecoder.decode();
+            val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
 
-            val.timeUnixNano = this.timeUnixNanoDecoder.decode();
+            val.timeUnixNano = timeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
 
-            val.attributes = this.attributesDecoder.decode(val.attributes);
+            val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
 
-            val.droppedAttributesCount = this.droppedAttributesCountDecoder.decode();
+            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

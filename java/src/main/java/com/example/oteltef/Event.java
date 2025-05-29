@@ -32,23 +32,21 @@ public class Event {
 
     
 
-    // Init must be called once, before the Event is used.
-    public void init() {
-        this.init(null, 0);
+    public Event() {
+        init(null, 0);
     }
 
-    public static Event newEvent() {
-        Event s = new Event();
-        s.init(null, 0);
-        return s;
+    Event(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        init(parentModifiedFields, parentModifiedBit);
     }
 
-    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.modifiedFields.parent = parentModifiedFields;
-        this.modifiedFields.parentBit = parentModifiedBit;
+    private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        modifiedFields.parent = parentModifiedFields;
+        modifiedFields.parentBit = parentModifiedBit;
         
-        this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
+        attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
     }
+
     
     public StringValue getName() {
         return name;
