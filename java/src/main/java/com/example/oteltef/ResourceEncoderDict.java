@@ -7,25 +7,25 @@ import net.stef.SizeLimiter;
 import java.util.*;
 
 public class ResourceEncoderDict {
-    private HashMap<Resource, ResourceEntry> dict = new HashMap<>();
+    private HashMap<Resource, Entry> dict = new HashMap<>();
     private SizeLimiter limiter;
 
     public void init(SizeLimiter limiter) {
         this.dict.clear();
-        this.dict.put(null, new ResourceEntry(0L, null)); // null Resource is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Resource is RefNum 0
         this.limiter = limiter;
     }
 
     public void reset() {
         this.dict.clear();
-        this.dict.put(null, new ResourceEntry(0L, null)); // null Resource is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Resource is RefNum 0
     }
 
-    ResourceEntry get(Resource key) {
+    Entry get(Resource key) {
         return this.dict.get(key);
     }
 
-    void set(Resource key, ResourceEntry entry) {
+    void set(Resource key, Entry entry) {
         this.dict.put(key, entry);
     }
 
@@ -33,12 +33,12 @@ public class ResourceEncoderDict {
         return this.dict.size();
     }
 
-    // ResourceEntry for dictionary
-    static class ResourceEntry {
+    // Entry for dictionary
+    static class Entry {
         public long refNum;
         public Resource val;
 
-        public ResourceEntry(long refNum, Resource val) {
+        public Entry(long refNum, Resource val) {
             this.refNum = refNum;
             this.val = val;
         }

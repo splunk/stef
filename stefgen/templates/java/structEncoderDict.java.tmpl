@@ -6,25 +6,25 @@ import net.stef.SizeLimiter;
 import java.util.*;
 
 public class {{ .StructName }}EncoderDict {
-    private HashMap<{{ .StructName }}, {{ .StructName }}Entry> dict = new HashMap<>();
+    private HashMap<{{ .StructName }}, Entry> dict = new HashMap<>();
     private SizeLimiter limiter;
 
     public void init(SizeLimiter limiter) {
         this.dict.clear();
-        this.dict.put(null, new {{ .StructName }}Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null {{ .StructName }} is RefNum 0
         this.limiter = limiter;
     }
 
     public void reset() {
         this.dict.clear();
-        this.dict.put(null, new {{ .StructName }}Entry(0L, null)); // null {{ .StructName }} is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null {{ .StructName }} is RefNum 0
     }
 
-    {{ .StructName }}Entry get({{ .StructName }} key) {
+    Entry get({{ .StructName }} key) {
         return this.dict.get(key);
     }
 
-    void set({{ .StructName }} key, {{ .StructName }}Entry entry) {
+    void set({{ .StructName }} key, Entry entry) {
         this.dict.put(key, entry);
     }
 
@@ -32,12 +32,12 @@ public class {{ .StructName }}EncoderDict {
         return this.dict.size();
     }
 
-    // {{ .StructName }}Entry for dictionary
-    static class {{ .StructName }}Entry {
+    // Entry for dictionary
+    static class Entry {
         public long refNum;
         public {{ .StructName }} val;
 
-        public {{ .StructName }}Entry(long refNum, {{ .StructName }} val) {
+        public Entry(long refNum, {{ .StructName }} val) {
             this.refNum = refNum;
             this.val = val;
         }

@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class SpanStatusEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -42,11 +44,11 @@ public class SpanStatusEncoder {
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-            this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-            this.codeEncoder.init(this.limiter, columns.addSubColumn());
+        this.codeEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -58,7 +60,7 @@ public class SpanStatusEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(SpanStatus val) {
+    public void encode(SpanStatus val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -81,12 +83,12 @@ public class SpanStatusEncoder {
         
         if ((fieldMask & SpanStatus.fieldModifiedMessage) != 0) {
             // Encode Message
-            this.messageEncoder.encode(val.getMessage());
+            this.messageEncoder.encode(val.message);
         }
         
         if ((fieldMask & SpanStatus.fieldModifiedCode) != 0) {
             // Encode Code
-            this.codeEncoder.encode(val.getCode());
+            this.codeEncoder.encode(val.code);
         }
         
         // Account written bits in the limiter.

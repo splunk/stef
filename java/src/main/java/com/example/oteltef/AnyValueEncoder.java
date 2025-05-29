@@ -7,10 +7,12 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class AnyValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private AnyValueType prevType;
+    private AnyValue.Type prevType;
     private int fieldCount;
 
     
@@ -24,11 +26,11 @@ public class AnyValueEncoder {
     
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setAnyValueEncoder(this);
+        state.AnyValueEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("AnyValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 7;
@@ -38,31 +40,31 @@ public class AnyValueEncoder {
         if (this.fieldCount <= 0) {
             return; // String and subsequent fields are skipped.
         }
-            this.stringEncoder.init(state.getAnyValueString(), columns.addSubColumn());
+        stringEncoder.init(state.AnyValueString, limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Bool and subsequent fields are skipped.
         }
-            this.boolEncoder.init(columns.addSubColumn());
+        boolEncoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Encoder.init(columns.addSubColumn());
+        int64Encoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Encoder.init(columns.addSubColumn());
+        float64Encoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Array and subsequent fields are skipped.
         }
-        this.arrayEncoder.init(state, columns.addSubColumn());
+        arrayEncoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // KVList and subsequent fields are skipped.
         }
-        this.kVListEncoder.init(state, columns.addSubColumn());
+        kVListEncoder.init(state, columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // Bytes and subsequent fields are skipped.
         }
-            this.bytesEncoder.init(null, columns.addSubColumn());
+        bytesEncoder.init(null, limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -77,12 +79,82 @@ public class AnyValueEncoder {
     }
 
     // Encode encodes val into buf
-    public void encode(AnyValue val) {
-        int typOrdinal = val.getType().ordinal();
-        if (typOrdinal > this.fieldCount) {
-            typOrdinal = 0; // Encode as None if not supported
+    public void encode(AnyValue val) throws IOException {
+        int oldLen = buf.bitCount();
+
+        AnyValue.Type typ = val.typ;
+        if (typ.getValue() > fieldCount) {
+            // The current field type is not supported in target schema. Encode the type as None.
+            typ = AnyValue.Type.TypeNone;
         }
-        // TODO: Implement encoding logic for oneof type and fields
+
+        // Compute type delta. 0 means the type is the same as the last time.
+        int typDelta = typ.getValue() - prevType.getValue();
+        prevType = typ;
+        buf.writeVarintCompact(typDelta);
+
+        // Account written bits in the limiter.
+        int newLen = buf.bitCount();
+        limiter.addFrameBits(newLen-oldLen);
+
+        // Encode currently selected field.
+        switch (typ) {
+        case AnyValue.Type.TypeString:
+            // Encode String
+            stringEncoder.encode(val.string);
+        case AnyValue.Type.TypeBool:
+            // Encode Bool
+            boolEncoder.encode(val.bool);
+        case AnyValue.Type.TypeInt64:
+            // Encode Int64
+            int64Encoder.encode(val.int64);
+        case AnyValue.Type.TypeFloat64:
+            // Encode Float64
+            float64Encoder.encode(val.float64);
+        case AnyValue.Type.TypeArray:
+            // Encode Array
+            arrayEncoder.encode(val.array);
+        case AnyValue.Type.TypeKVList:
+            // Encode KVList
+            kVListEncoder.encode(val.kVList);
+        case AnyValue.Type.TypeBytes:
+            // Encode Bytes
+            bytesEncoder.encode(val.bytes);
+        }
+    }
+
+    // collectColumns collects all buffers from all encoders into buf.
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBits(this.buf);
+        
+        if (this.fieldCount <= 0) {
+            return; // String and subsequent fields are skipped.
+        }
+        this.stringEncoder.collectColumns(columnSet.at(0));
+        if (this.fieldCount <= 1) {
+            return; // Bool and subsequent fields are skipped.
+        }
+        this.boolEncoder.collectColumns(columnSet.at(1));
+        if (this.fieldCount <= 2) {
+            return; // Int64 and subsequent fields are skipped.
+        }
+        this.int64Encoder.collectColumns(columnSet.at(2));
+        if (this.fieldCount <= 3) {
+            return; // Float64 and subsequent fields are skipped.
+        }
+        this.float64Encoder.collectColumns(columnSet.at(3));
+        if (this.fieldCount <= 4) {
+            return; // Array and subsequent fields are skipped.
+        }
+        this.arrayEncoder.collectColumns(columnSet.at(4));
+        if (this.fieldCount <= 5) {
+            return; // KVList and subsequent fields are skipped.
+        }
+        this.kVListEncoder.collectColumns(columnSet.at(5));
+        if (this.fieldCount <= 6) {
+            return; // Bytes and subsequent fields are skipped.
+        }
+        this.bytesEncoder.collectColumns(columnSet.at(6));
     }
 }
 

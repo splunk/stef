@@ -7,10 +7,12 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class PointValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private PointValueType prevType;
+    private PointValue.Type prevType;
     private int fieldCount;
 
     
@@ -20,11 +22,11 @@ public class PointValueEncoder {
     
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setPointValueEncoder(this);
+        state.PointValueEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("PointValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 3;
@@ -34,15 +36,15 @@ public class PointValueEncoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Encoder.init(columns.addSubColumn());
+        int64Encoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Encoder.init(columns.addSubColumn());
+        float64Encoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Histogram and subsequent fields are skipped.
         }
-        this.histogramEncoder.init(state, columns.addSubColumn());
+        histogramEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {
@@ -53,12 +55,54 @@ public class PointValueEncoder {
     }
 
     // Encode encodes val into buf
-    public void encode(PointValue val) {
-        int typOrdinal = val.getType().ordinal();
-        if (typOrdinal > this.fieldCount) {
-            typOrdinal = 0; // Encode as None if not supported
+    public void encode(PointValue val) throws IOException {
+        int oldLen = buf.bitCount();
+
+        PointValue.Type typ = val.typ;
+        if (typ.getValue() > fieldCount) {
+            // The current field type is not supported in target schema. Encode the type as None.
+            typ = PointValue.Type.TypeNone;
         }
-        // TODO: Implement encoding logic for oneof type and fields
+
+        // Compute type delta. 0 means the type is the same as the last time.
+        int typDelta = typ.getValue() - prevType.getValue();
+        prevType = typ;
+        buf.writeVarintCompact(typDelta);
+
+        // Account written bits in the limiter.
+        int newLen = buf.bitCount();
+        limiter.addFrameBits(newLen-oldLen);
+
+        // Encode currently selected field.
+        switch (typ) {
+        case PointValue.Type.TypeInt64:
+            // Encode Int64
+            int64Encoder.encode(val.int64);
+        case PointValue.Type.TypeFloat64:
+            // Encode Float64
+            float64Encoder.encode(val.float64);
+        case PointValue.Type.TypeHistogram:
+            // Encode Histogram
+            histogramEncoder.encode(val.histogram);
+        }
+    }
+
+    // collectColumns collects all buffers from all encoders into buf.
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBits(this.buf);
+        
+        if (this.fieldCount <= 0) {
+            return; // Int64 and subsequent fields are skipped.
+        }
+        this.int64Encoder.collectColumns(columnSet.at(0));
+        if (this.fieldCount <= 1) {
+            return; // Float64 and subsequent fields are skipped.
+        }
+        this.float64Encoder.collectColumns(columnSet.at(1));
+        if (this.fieldCount <= 2) {
+            return; // Histogram and subsequent fields are skipped.
+        }
+        this.histogramEncoder.collectColumns(columnSet.at(2));
     }
 }
 

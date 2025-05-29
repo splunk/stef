@@ -2,7 +2,6 @@
 // AnyValue Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -18,7 +17,7 @@ public class AnyValue {
     double float64;
     AnyValueArray array;
     KeyValueList kVList;
-    Bytes bytes;
+    byte[] bytes;
 
     // Pointer to parent's modifiedFields
     private ModifiedFields parentModifiedFields;
@@ -40,15 +39,25 @@ public class AnyValue {
 
     // Type enum for oneof
     public enum Type {
-        TypeNone,
-        TypeString,
-        TypeBool,
-        TypeInt64,
-        TypeFloat64,
-        TypeArray,
-        TypeKVList,
-        TypeBytes,
-        TypeCount
+        TypeNone(0),
+        TypeString(0 + 1),
+        TypeBool(1 + 1),
+        TypeInt64(2 + 1),
+        TypeFloat64(3 + 1),
+        TypeArray(4 + 1),
+        TypeKVList(5 + 1),
+        TypeBytes(6 + 1),
+        TypeCount(7 + 1);
+
+        private final int value;
+
+        Type(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
     }
 
     // Type returns the type of the value currently contained in AnyValue.
@@ -145,12 +154,12 @@ public class AnyValue {
     
     // Bytes returns the value if the contained type is currently TypeBytes.
     // The caller must check the type via getType() before attempting to call this function.
-    public Bytes getBytes() {
+    public byte[] getBytes() {
         return this.bytes;
     }
     
     // SetBytes sets the value to the specified value and sets the type to TypeBytes.
-    public void setBytes(Bytes v) {
+    public void setBytes(byte[] v) {
         if (!Objects.equals(this.bytes, v) || this.typ != Type.TypeBytes) {
             this.bytes = v;
             this.typ = Type.TypeBytes;
@@ -287,7 +296,7 @@ public class AnyValue {
         return true;
     }
 
-    public static boolean AnyValueEqual(AnyValue left, AnyValue right) {
+    public static boolean isEqual(AnyValue left, AnyValue right) {
         return left.isEqual(right);
     }
 

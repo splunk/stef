@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class SpanEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -54,39 +56,39 @@ public class SpanEncoder {
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-            this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // ParentSpanID and subsequent fields are skipped.
         }
-            this.parentSpanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.parentSpanIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Flags and subsequent fields are skipped.
         }
-            this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+        this.flagsEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameEncoder.init(state.getSpanName(), this.limiter, columns.addSubColumn());
+        this.nameEncoder.init(state.SpanName, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
-            this.kindEncoder.init(this.limiter, columns.addSubColumn());
+        this.kindEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // StartTimeUnixNano and subsequent fields are skipped.
         }
-            this.startTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+        this.startTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 8) {
             return; // EndTimeUnixNano and subsequent fields are skipped.
         }
-            this.endTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+        this.endTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 9) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -94,7 +96,7 @@ public class SpanEncoder {
         if (this.fieldCount <= 10) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 11) {
             return; // Events and subsequent fields are skipped.
         }
@@ -130,7 +132,7 @@ public class SpanEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Span val) {
+    public void encode(Span val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -165,72 +167,72 @@ public class SpanEncoder {
         
         if ((fieldMask & Span.fieldModifiedTraceID) != 0) {
             // Encode TraceID
-            this.traceIDEncoder.encode(val.getTraceID());
+            this.traceIDEncoder.encode(val.traceID);
         }
         
         if ((fieldMask & Span.fieldModifiedSpanID) != 0) {
             // Encode SpanID
-            this.spanIDEncoder.encode(val.getSpanID());
+            this.spanIDEncoder.encode(val.spanID);
         }
         
         if ((fieldMask & Span.fieldModifiedTraceState) != 0) {
             // Encode TraceState
-            this.traceStateEncoder.encode(val.getTraceState());
+            this.traceStateEncoder.encode(val.traceState);
         }
         
         if ((fieldMask & Span.fieldModifiedParentSpanID) != 0) {
             // Encode ParentSpanID
-            this.parentSpanIDEncoder.encode(val.getParentSpanID());
+            this.parentSpanIDEncoder.encode(val.parentSpanID);
         }
         
         if ((fieldMask & Span.fieldModifiedFlags) != 0) {
             // Encode Flags
-            this.flagsEncoder.encode(val.getFlags());
+            this.flagsEncoder.encode(val.flags);
         }
         
         if ((fieldMask & Span.fieldModifiedName) != 0) {
             // Encode Name
-            this.nameEncoder.encode(val.getName());
+            this.nameEncoder.encode(val.name);
         }
         
         if ((fieldMask & Span.fieldModifiedKind) != 0) {
             // Encode Kind
-            this.kindEncoder.encode(val.getKind());
+            this.kindEncoder.encode(val.kind);
         }
         
         if ((fieldMask & Span.fieldModifiedStartTimeUnixNano) != 0) {
             // Encode StartTimeUnixNano
-            this.startTimeUnixNanoEncoder.encode(val.getStartTimeUnixNano());
+            this.startTimeUnixNanoEncoder.encode(val.startTimeUnixNano);
         }
         
         if ((fieldMask & Span.fieldModifiedEndTimeUnixNano) != 0) {
             // Encode EndTimeUnixNano
-            this.endTimeUnixNanoEncoder.encode(val.getEndTimeUnixNano());
+            this.endTimeUnixNanoEncoder.encode(val.endTimeUnixNano);
         }
         
         if ((fieldMask & Span.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Span.fieldModifiedDroppedAttributesCount) != 0) {
             // Encode DroppedAttributesCount
-            this.droppedAttributesCountEncoder.encode(val.getDroppedAttributesCount());
+            this.droppedAttributesCountEncoder.encode(val.droppedAttributesCount);
         }
         
         if ((fieldMask & Span.fieldModifiedEvents) != 0) {
             // Encode Events
-            this.eventsEncoder.encode(val.getEvents());
+            this.eventsEncoder.encode(val.events);
         }
         
         if ((fieldMask & Span.fieldModifiedLinks) != 0) {
             // Encode Links
-            this.linksEncoder.encode(val.getLinks());
+            this.linksEncoder.encode(val.links);
         }
         
         if ((fieldMask & Span.fieldModifiedStatus) != 0) {
             // Encode Status
-            this.statusEncoder.encode(val.getStatus());
+            this.statusEncoder.encode(val.status);
         }
         
         // Account written bits in the limiter.

@@ -2,7 +2,6 @@
 // Exemplar Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -11,8 +10,8 @@ public class Exemplar {
     
     long timestamp;
     ExemplarValue value;
-    Bytes spanID;
-    Bytes traceID;
+    byte[] spanID;
+    byte[] traceID;
     Attributes filteredAttributes;
 
     // modifiedFields keeps track of which fields are modified.
@@ -86,12 +85,12 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedValue) != 0;
     }
     
-    public Bytes getSpanID() {
+    public byte[] getSpanID() {
         return this.spanID;
     }
 
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(Bytes v) {
+    public void setSpanID(byte[] v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -110,12 +109,12 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedSpanID) != 0;
     }
     
-    public Bytes getTraceID() {
+    public byte[] getTraceID() {
         return this.traceID;
     }
 
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(Bytes v) {
+    public void setTraceID(byte[] v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -191,10 +190,10 @@ public class Exemplar {
     // Performs a deep copy from src to dst.
     public void copyFrom(Exemplar src) {
         setTimestamp(src.getTimestamp());
-        value.copyFrom(src.value)
+        value.copyFrom(src.value);
         setSpanID(src.getSpanID());
         setTraceID(src.getTraceID());
-        filteredAttributes.copyFrom(src.filteredAttributes)
+        filteredAttributes.copyFrom(src.filteredAttributes);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

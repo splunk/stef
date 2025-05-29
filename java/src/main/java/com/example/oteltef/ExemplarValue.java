@@ -2,7 +2,6 @@
 // ExemplarValue Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -33,10 +32,20 @@ public class ExemplarValue {
 
     // Type enum for oneof
     public enum Type {
-        TypeNone,
-        TypeInt64,
-        TypeFloat64,
-        TypeCount
+        TypeNone(0),
+        TypeInt64(0 + 1),
+        TypeFloat64(1 + 1),
+        TypeCount(2 + 1);
+
+        private final int value;
+
+        Type(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
     }
 
     // Type returns the type of the value currently contained in ExemplarValue.
@@ -154,7 +163,7 @@ public class ExemplarValue {
         return true;
     }
 
-    public static boolean ExemplarValueEqual(ExemplarValue left, ExemplarValue right) {
+    public static boolean isEqual(ExemplarValue left, ExemplarValue right) {
         return left.isEqual(right);
     }
 

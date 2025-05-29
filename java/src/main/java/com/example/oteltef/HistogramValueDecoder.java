@@ -102,24 +102,24 @@ public class HistogramValueDecoder {
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
         
         // Write bits to indicate which optional fields are set.
-        val.setOptionalFieldsPresent(this.buf.readBits(3));
+        val.optionalFieldsPresent = this.buf.readBits(3);
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.
             val.count = this.countDecoder.decode();
         }
         
-        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueSum) != 0) {
+        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
             // Field is changed and is present, decode it.
             val.sum = this.sumDecoder.decode();
         }
         
-        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMin) != 0) {
+        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
             // Field is changed and is present, decode it.
             val.min = this.minDecoder.decode();
         }
         
-        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMax) != 0) {
+        if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
             // Field is changed and is present, decode it.
             val.max = this.maxDecoder.decode();
         }

@@ -145,7 +145,7 @@ func (r *genPrimitiveTypeRef) Storage() string {
 		case LangGo:
 			return "pkg.Bytes"
 		case LangJava:
-			return "Bytes"
+			return "byte[]"
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -194,34 +194,34 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 	case LangGo:
 		switch r.Type {
 		case schema.PrimitiveTypeInt64:
-			s += "int64"
+			s = "int64"
 		case schema.PrimitiveTypeUint64:
-			s += "uint64"
+			s = "uint64"
 		case schema.PrimitiveTypeFloat64:
-			s += "float64"
+			s = "float64"
 		case schema.PrimitiveTypeBool:
-			s += "bool"
+			s = "bool"
 		case schema.PrimitiveTypeString:
-			s += "string"
+			s = "string"
 		case schema.PrimitiveTypeBytes:
-			s += "Bytes"
+			s = "Bytes"
 		default:
 			panic(fmt.Errorf("unimplemented field type %v", r.Type))
 		}
 	case LangJava:
 		switch r.Type {
 		case schema.PrimitiveTypeInt64:
-			s += "long"
+			s = "long"
 		case schema.PrimitiveTypeUint64:
-			s += "long"
+			s = "long"
 		case schema.PrimitiveTypeFloat64:
-			s += "double"
+			s = "double"
 		case schema.PrimitiveTypeBool:
-			s += "boolean"
+			s = "boolean"
 		case schema.PrimitiveTypeString:
-			s += "StringValue"
+			s = "StringValue"
 		case schema.PrimitiveTypeBytes:
-			s += "byte[]"
+			s = "byte[]"
 		default:
 			panic(fmt.Errorf("unimplemented field type %v", r.Type))
 		}
@@ -458,7 +458,14 @@ func (r *genStructTypeRef) EncoderType() string {
 }
 
 func (r *genStructTypeRef) EqualFunc() string {
-	return r.Name + "Equal"
+	switch r.Lang {
+	case LangGo:
+		return r.Name + "Equal"
+	case LangJava:
+		return r.Name + ".isEqual"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
 }
 
 func (r *genStructTypeRef) CompareFunc() string {

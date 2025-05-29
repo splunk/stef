@@ -2,7 +2,6 @@
 // Metric Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -278,8 +277,8 @@ public class Metric {
         setDescription(src.getDescription());
         setUnit(src.getUnit());
         setType(src.getType());
-        metadata.copyFrom(src.metadata)
-        histogramBounds.copyFrom(src.histogramBounds)
+        metadata.copyFrom(src.metadata);
+        histogramBounds.copyFrom(src.histogramBounds);
         setAggregationTemporality(src.getAggregationTemporality());
         setMonotonic(src.getMonotonic());
     }

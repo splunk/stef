@@ -11,20 +11,22 @@ import java.io.IOException;
 public class {{ .ArrayName }}Encoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private {{if .Recursive}} {{.ElemType.EncoderType}}Encoder {{else}} {{.ElemType.EncoderType}}Encoder encoder = new {{.ElemType.EncoderType}}Encoder(); {{end}}
+    private {{.ElemType.EncoderType}}Encoder encoder;
     private int prevLen = 0;
     private WriterState state;
     private {{.ElemType.Storage}} lastVal;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         this.state = state;
-        this.limiter = state.limiter;
+        this.limiter = state.getLimiter();
         {{if .ElemType.IsPrimitive}}
+        encoder = new {{.ElemType.EncoderType}}Encoder();
         encoder.init({{if .DictName}}state.{{.DictName}}{{else}}limiter{{end}}, columns.addSubColumn());
         {{else}}
         {{if .Recursive}}
         encoder = state.{{.ElemType.EncoderType}}Encoder;
         {{else}}
+        encoder = new {{.ElemType.EncoderType}}Encoder();
         encoder.init(state, columns.addSubColumn());
         state.{{.ElemType.EncoderType}}Encoder = encoder;
         {{end}}
@@ -41,7 +43,7 @@ public class {{ .ArrayName }}Encoder {
     }
 
     public void encode({{ .ArrayName }} arr) throws IOException {
-        int newLen = arr.size;
+        int newLen = arr.elemsLen;
         int oldBitLen = buf.bitCount();
         int lenDelta = newLen - prevLen;
         prevLen = newLen;

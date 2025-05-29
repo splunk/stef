@@ -1,7 +1,6 @@
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -18,7 +17,7 @@ public class {{ .StructName }} {
     {{- if .OptionalFieldCount }}
     // Field presence bits.
     // Fields which are present have the corresponding bit set, see fieldPresent* consts below.
-    private long optionalFieldsPresent;
+    long optionalFieldsPresent;
     {{- end }}
 
     public static final String {{ .StructName }}StructName = "{{ .StructName }}";
@@ -155,7 +154,7 @@ public class {{ .StructName }} {
     public void copyFrom({{.StructName}} src) {
         {{- range .Fields }}
         {{- if .Type.MustClone }}
-        {{.name }}.copyFrom(src.{{.name}})
+        {{.name }}.copyFrom(src.{{.name}});
         {{- else }}
         {{- if .Optional }}
         if (src.has{{.Name}}()) {

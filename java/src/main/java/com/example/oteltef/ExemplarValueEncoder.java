@@ -7,10 +7,12 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ExemplarValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private ExemplarValueType prevType;
+    private ExemplarValue.Type prevType;
     private int fieldCount;
 
     
@@ -19,11 +21,11 @@ public class ExemplarValueEncoder {
     
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
-        state.setExemplarValueEncoder(this);
+        state.ExemplarValueEncoder = this;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().fieldCount("ExemplarValue");
+            int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
             this.fieldCount = fieldCount;
         } else {
             this.fieldCount = 2;
@@ -33,11 +35,11 @@ public class ExemplarValueEncoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-            this.int64Encoder.init(columns.addSubColumn());
+        int64Encoder.init(limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-            this.float64Encoder.init(columns.addSubColumn());
+        float64Encoder.init(limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -47,12 +49,47 @@ public class ExemplarValueEncoder {
     }
 
     // Encode encodes val into buf
-    public void encode(ExemplarValue val) {
-        int typOrdinal = val.getType().ordinal();
-        if (typOrdinal > this.fieldCount) {
-            typOrdinal = 0; // Encode as None if not supported
+    public void encode(ExemplarValue val) throws IOException {
+        int oldLen = buf.bitCount();
+
+        ExemplarValue.Type typ = val.typ;
+        if (typ.getValue() > fieldCount) {
+            // The current field type is not supported in target schema. Encode the type as None.
+            typ = ExemplarValue.Type.TypeNone;
         }
-        // TODO: Implement encoding logic for oneof type and fields
+
+        // Compute type delta. 0 means the type is the same as the last time.
+        int typDelta = typ.getValue() - prevType.getValue();
+        prevType = typ;
+        buf.writeVarintCompact(typDelta);
+
+        // Account written bits in the limiter.
+        int newLen = buf.bitCount();
+        limiter.addFrameBits(newLen-oldLen);
+
+        // Encode currently selected field.
+        switch (typ) {
+        case ExemplarValue.Type.TypeInt64:
+            // Encode Int64
+            int64Encoder.encode(val.int64);
+        case ExemplarValue.Type.TypeFloat64:
+            // Encode Float64
+            float64Encoder.encode(val.float64);
+        }
+    }
+
+    // collectColumns collects all buffers from all encoders into buf.
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBits(this.buf);
+        
+        if (this.fieldCount <= 0) {
+            return; // Int64 and subsequent fields are skipped.
+        }
+        this.int64Encoder.collectColumns(columnSet.at(0));
+        if (this.fieldCount <= 1) {
+            return; // Float64 and subsequent fields are skipped.
+        }
+        this.float64Encoder.collectColumns(columnSet.at(1));
     }
 }
 

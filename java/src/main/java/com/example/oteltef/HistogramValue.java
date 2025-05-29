@@ -2,7 +2,6 @@
 // HistogramValue Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -20,7 +19,7 @@ public class HistogramValue {
     ModifiedFields getModifiedFields() { return this.modifiedFields; }
     // Field presence bits.
     // Fields which are present have the corresponding bit set, see fieldPresent* consts below.
-    private long optionalFieldsPresent;
+    long optionalFieldsPresent;
 
     public static final String HistogramValueStructName = "HistogramValue";
 
@@ -259,7 +258,7 @@ public class HistogramValue {
         } else {
             unsetMax();
         }
-        bucketCounts.copyFrom(src.bucketCounts)
+        bucketCounts.copyFrom(src.bucketCounts);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

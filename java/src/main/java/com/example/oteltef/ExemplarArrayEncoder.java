@@ -12,16 +12,17 @@ import java.io.IOException;
 public class ExemplarArrayEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private  ExemplarEncoder encoder = new ExemplarEncoder(); 
+    private ExemplarEncoder encoder;
     private int prevLen = 0;
     private WriterState state;
     private Exemplar lastVal;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         this.state = state;
-        this.limiter = state.limiter;
+        this.limiter = state.getLimiter();
         
         
+        encoder = new ExemplarEncoder();
         encoder.init(state, columns.addSubColumn());
         state.ExemplarEncoder = encoder;
         
@@ -38,7 +39,7 @@ public class ExemplarArrayEncoder {
     }
 
     public void encode(ExemplarArray arr) throws IOException {
-        int newLen = arr.size;
+        int newLen = arr.elemsLen;
         int oldBitLen = buf.bitCount();
         int lenDelta = newLen - prevLen;
         prevLen = newLen;

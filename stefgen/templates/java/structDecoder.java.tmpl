@@ -103,11 +103,11 @@ public class {{ .StructName }}Decoder {
         val.getModifiedFields().mask = this.buf.readBits(this.fieldCount);
         {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
-        val.setOptionalFieldsPresent(this.buf.readBits({{ .OptionalFieldCount}}));
+        val.optionalFieldsPresent = this.buf.readBits({{ .OptionalFieldCount}});
         {{- end}}
         {{ range .Fields }}
         if ((val.getModifiedFields().mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
-            {{- if .Optional}} && (val.getOptionalFieldsPresent() & fieldPresent{{ $.StructName }}{{.Name}}) != 0{{end}}) {
+            {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
             {{- if .Type.IsPrimitive }}
             val.{{.name}} = this.{{.name}}Decoder.decode();

@@ -2,7 +2,6 @@
 // Metrics Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -201,12 +200,12 @@ public class Metrics {
 
     // Performs a deep copy from src to dst.
     public void copyFrom(Metrics src) {
-        envelope.copyFrom(src.envelope)
-        metric.copyFrom(src.metric)
-        resource.copyFrom(src.resource)
-        scope.copyFrom(src.scope)
-        attributes.copyFrom(src.attributes)
-        point.copyFrom(src.point)
+        envelope.copyFrom(src.envelope);
+        metric.copyFrom(src.metric);
+        resource.copyFrom(src.resource);
+        scope.copyFrom(src.scope);
+        attributes.copyFrom(src.attributes);
+        point.copyFrom(src.point);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

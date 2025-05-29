@@ -2,7 +2,6 @@
 // Resource Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -140,7 +139,7 @@ public class Resource {
     // Performs a deep copy from src to dst.
     public void copyFrom(Resource src) {
         setSchemaURL(src.getSchemaURL());
-        attributes.copyFrom(src.attributes)
+        attributes.copyFrom(src.attributes);
         setDroppedAttributesCount(src.getDroppedAttributesCount());
     }
 

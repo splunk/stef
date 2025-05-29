@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class EventEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -44,11 +46,11 @@ public class EventEncoder {
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameEncoder.init(state.getSpanEventName(), this.limiter, columns.addSubColumn());
+        this.nameEncoder.init(state.SpanEventName, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // TimeUnixNano and subsequent fields are skipped.
         }
-            this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+        this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -56,7 +58,7 @@ public class EventEncoder {
         if (this.fieldCount <= 3) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -70,7 +72,7 @@ public class EventEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Event val) {
+    public void encode(Event val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -95,22 +97,22 @@ public class EventEncoder {
         
         if ((fieldMask & Event.fieldModifiedName) != 0) {
             // Encode Name
-            this.nameEncoder.encode(val.getName());
+            this.nameEncoder.encode(val.name);
         }
         
         if ((fieldMask & Event.fieldModifiedTimeUnixNano) != 0) {
             // Encode TimeUnixNano
-            this.timeUnixNanoEncoder.encode(val.getTimeUnixNano());
+            this.timeUnixNanoEncoder.encode(val.timeUnixNano);
         }
         
         if ((fieldMask & Event.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Event.fieldModifiedDroppedAttributesCount) != 0) {
             // Encode DroppedAttributesCount
-            this.droppedAttributesCountEncoder.encode(val.getDroppedAttributesCount());
+            this.droppedAttributesCountEncoder.encode(val.droppedAttributesCount);
         }
         
         // Account written bits in the limiter.

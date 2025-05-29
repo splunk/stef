@@ -7,25 +7,25 @@ import net.stef.SizeLimiter;
 import java.util.*;
 
 public class ScopeEncoderDict {
-    private HashMap<Scope, ScopeEntry> dict = new HashMap<>();
+    private HashMap<Scope, Entry> dict = new HashMap<>();
     private SizeLimiter limiter;
 
     public void init(SizeLimiter limiter) {
         this.dict.clear();
-        this.dict.put(null, new ScopeEntry(0L, null)); // null Scope is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Scope is RefNum 0
         this.limiter = limiter;
     }
 
     public void reset() {
         this.dict.clear();
-        this.dict.put(null, new ScopeEntry(0L, null)); // null Scope is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Scope is RefNum 0
     }
 
-    ScopeEntry get(Scope key) {
+    Entry get(Scope key) {
         return this.dict.get(key);
     }
 
-    void set(Scope key, ScopeEntry entry) {
+    void set(Scope key, Entry entry) {
         this.dict.put(key, entry);
     }
 
@@ -33,12 +33,12 @@ public class ScopeEncoderDict {
         return this.dict.size();
     }
 
-    // ScopeEntry for dictionary
-    static class ScopeEntry {
+    // Entry for dictionary
+    static class Entry {
         public long refNum;
         public Scope val;
 
-        public ScopeEntry(long refNum, Scope val) {
+        public Entry(long refNum, Scope val) {
             this.refNum = refNum;
             this.val = val;
         }

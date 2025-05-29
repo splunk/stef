@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class HistogramValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -45,19 +47,19 @@ public class HistogramValueEncoder {
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-            this.countEncoder.init(this.limiter, columns.addSubColumn());
+        this.countEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+        this.sumEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-            this.minEncoder.init(this.limiter, columns.addSubColumn());
+        this.minEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-            this.maxEncoder.init(this.limiter, columns.addSubColumn());
+        this.maxEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
@@ -76,7 +78,7 @@ public class HistogramValueEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(HistogramValue val) {
+    public void encode(HistogramValue val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -99,32 +101,32 @@ public class HistogramValueEncoder {
         this.buf.writeBits(fieldMask, this.fieldCount);
         
         // Write bits to indicate which optional fields are set.
-        this.buf.writeBits(val.getOptionalFieldsPresent(), 3);
+        this.buf.writeBits(val.optionalFieldsPresent, 3);
         // Encode modified, present fields.
         
         if ((fieldMask & HistogramValue.fieldModifiedCount) != 0) {
             // Encode Count
-            this.countEncoder.encode(val.getCount());
+            this.countEncoder.encode(val.count);
         }
         
-        if ((fieldMask & HistogramValue.fieldModifiedSum) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueSum) != 0) {
+        if ((fieldMask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
             // Encode Sum
-            this.sumEncoder.encode(val.getSum());
+            this.sumEncoder.encode(val.sum);
         }
         
-        if ((fieldMask & HistogramValue.fieldModifiedMin) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMin) != 0) {
+        if ((fieldMask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
             // Encode Min
-            this.minEncoder.encode(val.getMin());
+            this.minEncoder.encode(val.min);
         }
         
-        if ((fieldMask & HistogramValue.fieldModifiedMax) != 0 && (val.getOptionalFieldsPresent() & fieldPresentHistogramValueMax) != 0) {
+        if ((fieldMask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
             // Encode Max
-            this.maxEncoder.encode(val.getMax());
+            this.maxEncoder.encode(val.max);
         }
         
         if ((fieldMask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Encode BucketCounts
-            this.bucketCountsEncoder.encode(val.getBucketCounts());
+            this.bucketCountsEncoder.encode(val.bucketCounts);
         }
         
         // Account written bits in the limiter.

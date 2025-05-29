@@ -1,12 +1,10 @@
 package net.stef.codecs;
 
-import net.stef.Bytes;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public class BytesDecoderDict {
-    private List<Bytes> dict;
+    private List<byte[]> dict;
 
     public BytesDecoderDict() {
         this.dict = new ArrayList<>();
@@ -18,11 +16,11 @@ public class BytesDecoderDict {
         this.dict.clear();
     }
 
-    public void add(Bytes value) {
+    public void add(byte[] value) {
         this.dict.add(value);
     }
 
-    public Bytes get(int index) {
+    public byte[] get(int index) {
         return this.dict.get(index);
     }
 

@@ -12,15 +12,16 @@ import java.io.IOException;
 public class DoubleArrayEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private  Float64Encoder encoder = new Float64Encoder(); 
+    private Float64Encoder encoder;
     private int prevLen = 0;
     private WriterState state;
     private double lastVal;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         this.state = state;
-        this.limiter = state.limiter;
+        this.limiter = state.getLimiter();
         
+        encoder = new Float64Encoder();
         encoder.init(limiter, columns.addSubColumn());
         
     }
@@ -33,7 +34,7 @@ public class DoubleArrayEncoder {
     }
 
     public void encode(DoubleArray arr) throws IOException {
-        int newLen = arr.size;
+        int newLen = arr.elemsLen;
         int oldBitLen = buf.bitCount();
         int lenDelta = newLen - prevLen;
         prevLen = newLen;

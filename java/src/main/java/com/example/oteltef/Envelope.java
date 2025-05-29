@@ -2,7 +2,6 @@
 // Envelope Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -83,7 +82,7 @@ public class Envelope {
 
     // Performs a deep copy from src to dst.
     public void copyFrom(Envelope src) {
-        attributes.copyFrom(src.attributes)
+        attributes.copyFrom(src.attributes);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

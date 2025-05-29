@@ -9,7 +9,9 @@ import java.util.Objects;
 // DoubleArray is a variable size array.
 public class DoubleArray {
     double[] elems = new double[0];
-    int size = 0;
+
+    // elemsLen is the number of elements contains in the elems, elemsLen<=elems.length.
+    int elemsLen = 0;
 
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
@@ -49,19 +51,10 @@ public class DoubleArray {
 
     // Append a new element at the end of the array.
     public void append(double val) {
-        ensureElemsSize(size + 1);
-        elems[size] = val;
-        size++;
+        ensureElems(elemsLen + 1);
+        elems[elemsLen] = val;
+        elemsLen++;
         markModified();
-    }
-
-    void ensureElemsSize(int newSize) {
-        if (elems.length < newSize) {
-            newSize = Math.max(newSize, elems.length * 2);
-            double[] newElems = new double[newSize];
-            System.arraycopy(elems, 0, newElems, 0, elems.length);
-        }
-        size = newSize;
     }
 
     public void markModified() {
@@ -81,9 +74,9 @@ public class DoubleArray {
     }
 
     public void copyFrom(DoubleArray src) {
-        if (elems.length != src.elems.length) {
-            int n = Math.min(dst.elems.length, elems.length);
-            ensureElemsSize(src.elems.length);
+        if (elemsLen != src.elemsLen) {
+            int n = Math.min(elemsLen, elemsLen);
+            ensureElems(src.elemsLen);
 
             int i = 0;
             for (; i < n; i++) {
@@ -91,13 +84,13 @@ public class DoubleArray {
                     elems[i] = src.elems[i];
                 }
             }
-            for (; i < elems.length; i++) {
+            for (; i < elemsLen; i++) {
                 elems[i] = src.elems[i];
             }
             markModified();
         } else {
             boolean modified = false;
-            for (int i=0; i < elems.length; i++) {
+            for (int i=0; i < elemsLen; i++) {
                 if (elems[i] != src.elems[i]) {
                     elems[i] = src.elems[i];
                     modified = true;
@@ -111,7 +104,7 @@ public class DoubleArray {
 
     // Len returns the number of elements in the array.
     public int len() {
-        return size;
+        return elemsLen;
     }
 
     // At returns element at index i.
@@ -119,27 +112,41 @@ public class DoubleArray {
         return elems[i];
     }
 
-    // EnsureLen ensures the length of the array is equal to newLen.
-    // It will grow or shrink the array if needed.
+    // ensureElems ensures that elems array has at least newLen elements allocated.
+    // It will grow/reallocate the array if needed.
+    // elemsLen will be set to newLen.
+    // This method does not call init() on new elements in the array.
+    void ensureElems(int newLen) {
+        if (elems.length < newLen) {
+            int allocLen = Math.max(newLen, elems.length * 2);
+            double[] newElems = new double[allocLen];
+            System.arraycopy(elems, 0, newElems, 0, elems.length);
+            elems = newElems;
+        }
+        elemsLen = newLen;
+    }
+
+    // ensureLen ensures the length of the array is equal to newLen.
+    // It will grow or shrink the array if needed, and initialize newly added elements
+    // if the element type requires initialization.
     public void ensureLen(int newLen) {
-        int oldLen = size;
-        if (newLen > oldLen) {
-            ensureElemsSize(newLen);
+        if (newLen > elemsLen) {
+            ensureElems(newLen);
             markModified();
             
-        } else if (oldLen > newLen) {
+        } else if (elemsLen > newLen) {
             // Shrink it
-            size = newLen;
+            elemsLen = newLen;
             markModified();
         }
     }
 
     // IsEqual performs deep comparison and returns true if array is equal to val.
     public boolean isEqual(DoubleArray val) {
-        if (size != val.size) {
+        if (elemsLen != val.elemsLen) {
             return false;
         }
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < elemsLen; i++) {
             
             if (!Types.Float64Equal(elems[i], val.elems[i])) {
                 return false;
@@ -152,11 +159,11 @@ public class DoubleArray {
     // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(DoubleArray left, DoubleArray right) {
-        int c = left.size - right.size;
+        int c = left.elemsLen - right.elemsLen;
         if (c != 0) {
             return c;
         }
-        for (int i = 0; i < left.size; i++) {
+        for (int i = 0; i < left.elemsLen; i++) {
             int fc = Types.Float64Compare(left.elems[i], right.elems[i]);
             if (fc < 0) {
                 return -1;
@@ -177,8 +184,8 @@ public class DoubleArray {
         if (random.nextInt(20) == 0 && len() > 0) {
             ensureLen(len() - 1);
         }
-        for (int i = 0; i < size; i++) {
-            if (random.nextInt(2 * size) == 0) {
+        for (int i = 0; i < elemsLen; i++) {
+            if (random.nextInt(2 * elemsLen) == 0) {
                 
                 var v = Types.Float64Random(random);
                 if (!Objects.equals(elems[i], v)) {

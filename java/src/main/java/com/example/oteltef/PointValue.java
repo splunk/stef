@@ -2,7 +2,6 @@
 // PointValue Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -35,11 +34,21 @@ public class PointValue {
 
     // Type enum for oneof
     public enum Type {
-        TypeNone,
-        TypeInt64,
-        TypeFloat64,
-        TypeHistogram,
-        TypeCount
+        TypeNone(0),
+        TypeInt64(0 + 1),
+        TypeFloat64(1 + 1),
+        TypeHistogram(2 + 1),
+        TypeCount(3 + 1);
+
+        private final int value;
+
+        Type(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
     }
 
     // Type returns the type of the value currently contained in PointValue.
@@ -177,7 +186,7 @@ public class PointValue {
         return true;
     }
 
-    public static boolean PointValueEqual(PointValue left, PointValue right) {
+    public static boolean isEqual(PointValue left, PointValue right) {
         return left.isEqual(right);
     }
 

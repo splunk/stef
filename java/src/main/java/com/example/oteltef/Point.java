@@ -2,7 +2,6 @@
 // Point Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -164,8 +163,8 @@ public class Point {
     public void copyFrom(Point src) {
         setStartTimestamp(src.getStartTimestamp());
         setTimestamp(src.getTimestamp());
-        value.copyFrom(src.value)
-        exemplars.copyFrom(src.exemplars)
+        value.copyFrom(src.value);
+        exemplars.copyFrom(src.exemplars);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ExemplarEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -45,7 +47,7 @@ public class ExemplarEncoder {
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+        this.timestampEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
@@ -53,11 +55,11 @@ public class ExemplarEncoder {
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
@@ -76,7 +78,7 @@ public class ExemplarEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Exemplar val) {
+    public void encode(Exemplar val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -102,27 +104,27 @@ public class ExemplarEncoder {
         
         if ((fieldMask & Exemplar.fieldModifiedTimestamp) != 0) {
             // Encode Timestamp
-            this.timestampEncoder.encode(val.getTimestamp());
+            this.timestampEncoder.encode(val.timestamp);
         }
         
         if ((fieldMask & Exemplar.fieldModifiedValue) != 0) {
             // Encode Value
-            this.valueEncoder.encode(val.getValue());
+            this.valueEncoder.encode(val.value);
         }
         
         if ((fieldMask & Exemplar.fieldModifiedSpanID) != 0) {
             // Encode SpanID
-            this.spanIDEncoder.encode(val.getSpanID());
+            this.spanIDEncoder.encode(val.spanID);
         }
         
         if ((fieldMask & Exemplar.fieldModifiedTraceID) != 0) {
             // Encode TraceID
-            this.traceIDEncoder.encode(val.getTraceID());
+            this.traceIDEncoder.encode(val.traceID);
         }
         
         if ((fieldMask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Encode FilteredAttributes
-            this.filteredAttributesEncoder.encode(val.getFilteredAttributes());
+            this.filteredAttributesEncoder.encode(val.filteredAttributes);
         }
         
         // Account written bits in the limiter.

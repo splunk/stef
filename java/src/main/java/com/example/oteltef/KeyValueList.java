@@ -2,6 +2,7 @@
 package com.example.oteltef;
 
 import net.stef.StringValue;
+import net.stef.Types;
 
 import java.util.*;
 import java.util.Objects;
@@ -14,8 +15,10 @@ public class KeyValueList {
         AnyValue value;
     }
 
-    Elem elems[] = new Elem[0];
-    int size = 0;
+    Elem[] elems = new Elem[0];
+
+    // elemsLen is the number of elements contains in the elems, elemsLen<=elems.length.
+    int elemsLen = 0;
 
     private int initedCount = 0;
     private ModifiedFields parentModifiedFields;
@@ -34,32 +37,46 @@ public class KeyValueList {
     }
 
     // Len returns the number of elements in the multimap.
-    public int size() {
-        return elems.size();
+    public int len() {
+        return elemsLen;
     }
 
     // At returns element at index i.
     public Elem at(int i) {
-        return elems.get(i);
+        return elems[i];
     }
 
-    // EnsureLen ensures the length of the multimap is equal to newLen.
-    // It will grow or shrink the multimap if needed.
-    public void ensureLen(int newLen) {
-        int oldLen = elems.size();
-        if (newLen != oldLen) {
-            while (elems.size() < newLen) {
-                elems.add(new Elem());
-            }
-            while (elems.size() > newLen) {
-                elems.remove(elems.size() - 1);
-            }
-            // TODO: pointer/struct init logic as in Go template
-            if (initedCount < newLen) {
-                initedCount = newLen;
-            }
-            markModified();
+    // ensureElems ensures that elems array has at least newLen elements allocated.
+    // It will grow/reallocate the array if needed.
+    // elemsLen will be set to newLen.
+    // This method does not call init() on new elements in the array.
+    void ensureElems(int newLen) {
+        if (elems.length < newLen) {
+            int allocLen = Math.max(newLen, elems.length * 2);
+            Elem[] newElems = new Elem[allocLen];
+            System.arraycopy(elems, 0, newElems, 0, elems.length);
         }
+        elemsLen = newLen;
+    }
+
+    // ensureLen ensures the length of the array is equal to newLen.
+    // It will grow or shrink the array if needed, and initialize newly added elements
+    // if the element type requires initialization.
+    public void ensureLen(int newLen) {
+        int oldLen = elemsLen;
+        if (newLen==oldLen) {
+            return; // No change needed.
+        }
+
+        ensureElems(newLen);
+        for (int i=initedCount; i < newLen; i++) {
+            elems[i] = new Elem();
+            elems[i].value.init(parentModifiedFields, parentModifiedBit);
+        }
+        if (initedCount < newLen) {
+            initedCount = newLen;
+        }
+        markModified();
     }
 
     private void markModified() {
@@ -86,77 +103,103 @@ public class KeyValueList {
 
     // Append adds a key-value pair to the multimap.
     public void append(StringValue k, AnyValue v) {
+        ensureElems(elemsLen + 1);
         Elem elem = new Elem();
         elem.key = k;
         elem.value = v;
-        elems.add(elem);
+        elems[elemsLen++] = elem;
         markModified();
     }
 
     // SetKey sets the key of the element at index i.
     public void setKey(int i, StringValue k) {
-        if (!Objects.equals(elems.get(i).key, k)) {
-            elems.get(i).key = k;
+        if (!Types.StringEqual(elems[i].key, k)) {
+            elems[i].key = k;
             markModified();
         }
     }
 
     // SetValue sets the value of the element at index i.
     public void setValue(int i, AnyValue v) {
-        if (!Objects.equals(elems.get(i).value, v)) {
-            elems.get(i).value = v;
+        if (!AnyValue.isEqual(elems[i].value, v)) {
+            elems[i].value = v;
             markModified();
         }
     }
 
     // Sorts the multimap by key.
     public void sort() {
-        elems.sort((a, b) -> Types.StringCompare(a.key, b.key));
+        Arrays.sort(elems, 0, elemsLen, new Comparator<Elem>() {
+            @Override
+            public int compare(Elem a, Elem b) {
+                return Types.StringCompare(a.key, b.key);
+            }
+        });
     }
 
     // ByteSize returns approximate memory usage in bytes. Used to calculate
     // memory used by dictionaries.
     public int byteSize() {
         int size = 0;
-        size += elems.size() * 16; // Approximate size per element
-        // If key/value have byteSize, sum them
-        for (Elem elem : elems) {
-            // TODO: add key/value byteSize if needed
-        }
+        size += this.elemsLen * 16; // TODO: estimate size of Elem objects
         return size;
     }
 
     // Copy all elements from src to this multimap.
     public void copyFrom(KeyValueList src) {
-        ensureLen(src.elems.size());
-        for (int i = 0; i < src.elems.size(); i++) {
-            elems.get(i).key = src.elems.get(i).key;
-            elems.get(i).value = src.elems.get(i).value;
+        boolean modified = false;
+        if (elemsLen!=src.elemsLen) {
+            ensureLen(src.elemsLen);
+            modified = true;
         }
-        markModified();
+        for (int i=0; i < src.elemsLen; i++) {
+            if (elems[i].key != src.elems[i].key) {
+                elems[i].key = src.elems[i].key;
+                modified = true;
+            }
+        
+            if (!AnyValue.isEqual(elems[i].value, src.elems[i].value)) {
+                elems[i].value.copyFrom(src.elems[i].value);
+                modified = true;
+            }
+        }
+        
+        if (modified) {
+            markModified();
+        }
     }
 
     // IsEqual performs deep comparison and returns true if this multimap is equal to val.
     public boolean isEqual(KeyValueList val) {
-        if (elems.size() != val.elems.size()) return false;
-        for (int i = 0; i < elems.size(); i++) {
-            if (!Objects.equals(elems.get(i).key, val.elems.get(i).key)) return false;
-            if (!Objects.equals(elems.get(i).value, val.elems.get(i).value)) return false;
+        if (elemsLen != val.elemsLen) {
+            return false;
+        }
+        for (int i = 0; i<elemsLen; i++) {
+            if (!Types.StringEqual(elems[i].key,val.elems[i].key)) {
+                return false;
+            }
+            if (!elems[i].value.isEqual(val.elems[i].value)) {
+                return false;
+            }
         }
         return true;
     }
 
     // compare compares two multimaps lexicographically.
     public static int compare(KeyValueList left, KeyValueList right) {
-        int l = Math.min(left.elems.size(), right.elems.size());
+        int l = Math.min(left.elemsLen, right.elemsLen);
         for (int i = 0; i < l; i++) {
-            int c = Types.StringCompare(left.elems.get(i).key, right.elems.get(i).key);
+            int c = Types.StringCompare(left.elems[i].key, right.elems[i].key);
             if (c != 0) return c;
         }
-        int lenDiff = left.elems.size() - right.elems.size();
-        if (lenDiff != 0) return lenDiff;
+    
+        int lenDiff = left.elemsLen - right.elemsLen;
+        if (lenDiff != 0) {
+            return lenDiff;
+        }
+    
         for (int i = 0; i < l; i++) {
-            int c = AnyValue.compare(left.elems.get(i).value, right.elems.get(i).value);
+            int c = AnyValue.compare(left.elems[i].value, right.elems[i].value);
             if (c != 0) return c;
         }
         return 0;
@@ -165,27 +208,27 @@ public class KeyValueList {
     // mutateRandom mutates fields in a random, deterministic manner using random parameter as a deterministic generator.
     public void mutateRandom(Random random) {
         if (random.nextInt(20) == 0) {
-            ensureLen(size() + 1);
+            ensureLen(elemsLen + 1);
         }
-        if (random.nextInt(20) == 0 && size() > 0) {
-            ensureLen(size() - 1);
+        if (random.nextInt(20) == 0 && elemsLen > 0) {
+            ensureLen(elemsLen - 1);
         }
-        for (int i = 0; i < elems.size(); i++) {
-            if (random.nextInt(4 * elems.size()) == 0) {
-                // TODO: mutate key
+        for (int i = 0; i < elemsLen; i++) {
+            if (random.nextInt(4 * elemsLen) == 0) {
+                setKey(i, Types.StringRandom(random));
             }
-            if (random.nextInt(4 * elems.size()) == 0) {
-                // TODO: mutate value
+            if (random.nextInt(4 * elemsLen) == 0) {
+                elems[i].value.mutateRandom(random);
             }
         }
     }
 
     // Helper for copying multimaps
     public static void copyKeyValueList(KeyValueList dst, KeyValueList src) {
-        dst.ensureLen(src.elems.size());
-        for (int i = 0; i < src.elems.size(); i++) {
-            dst.elems.get(i).key = src.elems.get(i).key;
-            dst.elems.get(i).value = src.elems.get(i).value;
+        dst.ensureLen(src.elemsLen);
+        for (int i = 0; i < src.elemsLen; i++) {
+            dst.elems[i].key = src.elems[i].key;
+            dst.elems[i].value = src.elems[i].value;
         }
         dst.markModified();
     }

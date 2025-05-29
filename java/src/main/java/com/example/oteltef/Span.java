@@ -2,17 +2,16 @@
 // Span Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Span {
     
-    Bytes traceID;
-    Bytes spanID;
+    byte[] traceID;
+    byte[] spanID;
     StringValue traceState;
-    Bytes parentSpanID;
+    byte[] parentSpanID;
     long flags;
     StringValue name;
     long kind;
@@ -70,12 +69,12 @@ public class Span {
         this.status.init(this.modifiedFields, fieldModifiedStatus);
     }
     
-    public Bytes getTraceID() {
+    public byte[] getTraceID() {
         return this.traceID;
     }
 
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(Bytes v) {
+    public void setTraceID(byte[] v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -94,12 +93,12 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public Bytes getSpanID() {
+    public byte[] getSpanID() {
         return this.spanID;
     }
 
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(Bytes v) {
+    public void setSpanID(byte[] v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -142,12 +141,12 @@ public class Span {
         return (this.modifiedFields.mask & fieldModifiedTraceState) != 0;
     }
     
-    public Bytes getParentSpanID() {
+    public byte[] getParentSpanID() {
         return this.parentSpanID;
     }
 
     // setParentSpanID sets the value of ParentSpanID field.
-    public void setParentSpanID(Bytes v) {
+    public void setParentSpanID(byte[] v) {
         if (!Types.BytesEqual(this.parentSpanID, v)) {
             this.parentSpanID = v;
             this.markParentSpanIDModified();
@@ -441,11 +440,11 @@ public class Span {
         setKind(src.getKind());
         setStartTimeUnixNano(src.getStartTimeUnixNano());
         setEndTimeUnixNano(src.getEndTimeUnixNano());
-        attributes.copyFrom(src.attributes)
+        attributes.copyFrom(src.attributes);
         setDroppedAttributesCount(src.getDroppedAttributesCount());
-        events.copyFrom(src.events)
-        links.copyFrom(src.links)
-        status.copyFrom(src.status)
+        events.copyFrom(src.events);
+        links.copyFrom(src.links);
+        status.copyFrom(src.status);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

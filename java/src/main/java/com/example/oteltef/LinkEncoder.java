@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class LinkEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -46,19 +48,19 @@ public class LinkEncoder {
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-            this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+        this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-            this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+        this.flagsEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -66,7 +68,7 @@ public class LinkEncoder {
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -82,7 +84,7 @@ public class LinkEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Link val) {
+    public void encode(Link val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -109,32 +111,32 @@ public class LinkEncoder {
         
         if ((fieldMask & Link.fieldModifiedTraceID) != 0) {
             // Encode TraceID
-            this.traceIDEncoder.encode(val.getTraceID());
+            this.traceIDEncoder.encode(val.traceID);
         }
         
         if ((fieldMask & Link.fieldModifiedSpanID) != 0) {
             // Encode SpanID
-            this.spanIDEncoder.encode(val.getSpanID());
+            this.spanIDEncoder.encode(val.spanID);
         }
         
         if ((fieldMask & Link.fieldModifiedTraceState) != 0) {
             // Encode TraceState
-            this.traceStateEncoder.encode(val.getTraceState());
+            this.traceStateEncoder.encode(val.traceState);
         }
         
         if ((fieldMask & Link.fieldModifiedFlags) != 0) {
             // Encode Flags
-            this.flagsEncoder.encode(val.getFlags());
+            this.flagsEncoder.encode(val.flags);
         }
         
         if ((fieldMask & Link.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Link.fieldModifiedDroppedAttributesCount) != 0) {
             // Encode DroppedAttributesCount
-            this.droppedAttributesCountEncoder.encode(val.getDroppedAttributesCount());
+            this.droppedAttributesCountEncoder.encode(val.droppedAttributesCount);
         }
         
         // Account written bits in the limiter.

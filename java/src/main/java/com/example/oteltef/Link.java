@@ -2,15 +2,14 @@
 // Link Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
 
 public class Link {
     
-    Bytes traceID;
-    Bytes spanID;
+    byte[] traceID;
+    byte[] spanID;
     StringValue traceState;
     long flags;
     Attributes attributes;
@@ -51,12 +50,12 @@ public class Link {
         this.attributes.init(this.modifiedFields, fieldModifiedAttributes);
     }
     
-    public Bytes getTraceID() {
+    public byte[] getTraceID() {
         return this.traceID;
     }
 
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(Bytes v) {
+    public void setTraceID(byte[] v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -75,12 +74,12 @@ public class Link {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public Bytes getSpanID() {
+    public byte[] getSpanID() {
         return this.spanID;
     }
 
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(Bytes v) {
+    public void setSpanID(byte[] v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -227,7 +226,7 @@ public class Link {
         setSpanID(src.getSpanID());
         setTraceState(src.getTraceState());
         setFlags(src.getFlags());
-        attributes.copyFrom(src.attributes)
+        attributes.copyFrom(src.attributes);
         setDroppedAttributesCount(src.getDroppedAttributesCount());
     }
 

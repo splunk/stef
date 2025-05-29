@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ResourceEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -31,7 +33,7 @@ public class ResourceEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         state.ResourceEncoder = this;
         this.limiter = state.getLimiter();
-        this.dict = state.getResource();
+        this.dict = state.Resource;
 
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
@@ -46,7 +48,7 @@ public class ResourceEncoder {
         if (this.fieldCount <= 0) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-            this.schemaURLEncoder.init(state.getSchemaURL(), this.limiter, columns.addSubColumn());
+        this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -54,7 +56,7 @@ public class ResourceEncoder {
         if (this.fieldCount <= 2) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -67,16 +69,16 @@ public class ResourceEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Resource val) {
+    public void encode(Resource val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
         // Check if the Resource exists in the dictionary.
-        ResourceEntry entry = this.dict.get(val);
+        ResourceEncoderDict.Entry entry = this.dict.get(val);
         if (entry != null) {
             // The Resource exists, we will reference it.
             // Indicate a RefNum follows.
-            this.buf.writeBit(false);
+            this.buf.writeBit(0);
             // Encode refNum.
             this.buf.writeUvarintCompact(entry.refNum);
             // Account written bits in the limiter.
@@ -89,11 +91,11 @@ public class ResourceEncoder {
         }
         // The Resource does not exist in the dictionary. Add it to the dictionary.
         Resource valInDict = val.clone();
-        entry = new ResourceEntry(this.dict.size(), valInDict);
+        entry = new ResourceEncoderDict.Entry(this.dict.size(), valInDict);
         this.dict.set(valInDict, entry);
         this.limiter.addDictElemSize(valInDict.byteSize());
         // Indicate that an encoded Resource follows.
-        this.buf.writeBit(true);
+        this.buf.writeBit(1);
         // TODO: optimize and merge writeBit with the following writeBits.
         
 
@@ -116,17 +118,17 @@ public class ResourceEncoder {
         
         if ((fieldMask & Resource.fieldModifiedSchemaURL) != 0) {
             // Encode SchemaURL
-            this.schemaURLEncoder.encode(val.getSchemaURL());
+            this.schemaURLEncoder.encode(val.schemaURL);
         }
         
         if ((fieldMask & Resource.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Resource.fieldModifiedDroppedAttributesCount) != 0) {
             // Encode DroppedAttributesCount
-            this.droppedAttributesCountEncoder.encode(val.getDroppedAttributesCount());
+            this.droppedAttributesCountEncoder.encode(val.droppedAttributesCount);
         }
         
         // Account written bits in the limiter.

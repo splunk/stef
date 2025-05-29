@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class EnvelopeEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -52,7 +54,7 @@ public class EnvelopeEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Envelope val) {
+    public void encode(Envelope val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -74,7 +76,7 @@ public class EnvelopeEncoder {
         
         if ((fieldMask & Envelope.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         // Account written bits in the limiter.

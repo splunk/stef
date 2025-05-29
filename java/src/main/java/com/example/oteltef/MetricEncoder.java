@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class MetricEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -36,7 +38,7 @@ public class MetricEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         state.MetricEncoder = this;
         this.limiter = state.getLimiter();
-        this.dict = state.getMetric();
+        this.dict = state.Metric;
 
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
@@ -51,19 +53,19 @@ public class MetricEncoder {
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameEncoder.init(state.getMetricName(), this.limiter, columns.addSubColumn());
+        this.nameEncoder.init(state.MetricName, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-            this.descriptionEncoder.init(state.getMetricDescription(), this.limiter, columns.addSubColumn());
+        this.descriptionEncoder.init(state.MetricDescription, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-            this.unitEncoder.init(state.getMetricUnit(), this.limiter, columns.addSubColumn());
+        this.unitEncoder.init(state.MetricUnit, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-            this.type_Encoder.init(this.limiter, columns.addSubColumn());
+        this.type_Encoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
@@ -75,11 +77,11 @@ public class MetricEncoder {
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-            this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
+        this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-            this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
+        this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -97,16 +99,16 @@ public class MetricEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Metric val) {
+    public void encode(Metric val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
         // Check if the Metric exists in the dictionary.
-        MetricEntry entry = this.dict.get(val);
+        MetricEncoderDict.Entry entry = this.dict.get(val);
         if (entry != null) {
             // The Metric exists, we will reference it.
             // Indicate a RefNum follows.
-            this.buf.writeBit(false);
+            this.buf.writeBit(0);
             // Encode refNum.
             this.buf.writeUvarintCompact(entry.refNum);
             // Account written bits in the limiter.
@@ -119,11 +121,11 @@ public class MetricEncoder {
         }
         // The Metric does not exist in the dictionary. Add it to the dictionary.
         Metric valInDict = val.clone();
-        entry = new MetricEntry(this.dict.size(), valInDict);
+        entry = new MetricEncoderDict.Entry(this.dict.size(), valInDict);
         this.dict.set(valInDict, entry);
         this.limiter.addDictElemSize(valInDict.byteSize());
         // Indicate that an encoded Metric follows.
-        this.buf.writeBit(true);
+        this.buf.writeBit(1);
         // TODO: optimize and merge writeBit with the following writeBits.
         
 
@@ -151,42 +153,42 @@ public class MetricEncoder {
         
         if ((fieldMask & Metric.fieldModifiedName) != 0) {
             // Encode Name
-            this.nameEncoder.encode(val.getName());
+            this.nameEncoder.encode(val.name);
         }
         
         if ((fieldMask & Metric.fieldModifiedDescription) != 0) {
             // Encode Description
-            this.descriptionEncoder.encode(val.getDescription());
+            this.descriptionEncoder.encode(val.description);
         }
         
         if ((fieldMask & Metric.fieldModifiedUnit) != 0) {
             // Encode Unit
-            this.unitEncoder.encode(val.getUnit());
+            this.unitEncoder.encode(val.unit);
         }
         
         if ((fieldMask & Metric.fieldModifiedType) != 0) {
             // Encode Type
-            this.type_Encoder.encode(val.getType());
+            this.type_Encoder.encode(val.type_);
         }
         
         if ((fieldMask & Metric.fieldModifiedMetadata) != 0) {
             // Encode Metadata
-            this.metadataEncoder.encode(val.getMetadata());
+            this.metadataEncoder.encode(val.metadata);
         }
         
         if ((fieldMask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Encode HistogramBounds
-            this.histogramBoundsEncoder.encode(val.getHistogramBounds());
+            this.histogramBoundsEncoder.encode(val.histogramBounds);
         }
         
         if ((fieldMask & Metric.fieldModifiedAggregationTemporality) != 0) {
             // Encode AggregationTemporality
-            this.aggregationTemporalityEncoder.encode(val.getAggregationTemporality());
+            this.aggregationTemporalityEncoder.encode(val.aggregationTemporality);
         }
         
         if ((fieldMask & Metric.fieldModifiedMonotonic) != 0) {
             // Encode Monotonic
-            this.monotonicEncoder.encode(val.getMonotonic());
+            this.monotonicEncoder.encode(val.monotonic);
         }
         
         // Account written bits in the limiter.

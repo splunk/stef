@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class PointEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -44,11 +46,11 @@ public class PointEncoder {
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-            this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
+        this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+        this.timestampEncoder.init(this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
@@ -70,7 +72,7 @@ public class PointEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Point val) {
+    public void encode(Point val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -95,22 +97,22 @@ public class PointEncoder {
         
         if ((fieldMask & Point.fieldModifiedStartTimestamp) != 0) {
             // Encode StartTimestamp
-            this.startTimestampEncoder.encode(val.getStartTimestamp());
+            this.startTimestampEncoder.encode(val.startTimestamp);
         }
         
         if ((fieldMask & Point.fieldModifiedTimestamp) != 0) {
             // Encode Timestamp
-            this.timestampEncoder.encode(val.getTimestamp());
+            this.timestampEncoder.encode(val.timestamp);
         }
         
         if ((fieldMask & Point.fieldModifiedValue) != 0) {
             // Encode Value
-            this.valueEncoder.encode(val.getValue());
+            this.valueEncoder.encode(val.value);
         }
         
         if ((fieldMask & Point.fieldModifiedExemplars) != 0) {
             // Encode Exemplars
-            this.exemplarsEncoder.encode(val.getExemplars());
+            this.exemplarsEncoder.encode(val.exemplars);
         }
         
         // Account written bits in the limiter.

@@ -2,7 +2,6 @@
 // Event Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -169,7 +168,7 @@ public class Event {
     public void copyFrom(Event src) {
         setName(src.getName());
         setTimeUnixNano(src.getTimeUnixNano());
-        attributes.copyFrom(src.attributes)
+        attributes.copyFrom(src.attributes);
         setDroppedAttributesCount(src.getDroppedAttributesCount());
     }
 

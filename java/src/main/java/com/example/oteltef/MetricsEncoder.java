@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class MetricsEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -82,7 +84,7 @@ public class MetricsEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Metrics val) {
+    public void encode(Metrics val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -109,32 +111,32 @@ public class MetricsEncoder {
         
         if ((fieldMask & Metrics.fieldModifiedEnvelope) != 0) {
             // Encode Envelope
-            this.envelopeEncoder.encode(val.getEnvelope());
+            this.envelopeEncoder.encode(val.envelope);
         }
         
         if ((fieldMask & Metrics.fieldModifiedMetric) != 0) {
             // Encode Metric
-            this.metricEncoder.encode(val.getMetric());
+            this.metricEncoder.encode(val.metric);
         }
         
         if ((fieldMask & Metrics.fieldModifiedResource) != 0) {
             // Encode Resource
-            this.resourceEncoder.encode(val.getResource());
+            this.resourceEncoder.encode(val.resource);
         }
         
         if ((fieldMask & Metrics.fieldModifiedScope) != 0) {
             // Encode Scope
-            this.scopeEncoder.encode(val.getScope());
+            this.scopeEncoder.encode(val.scope);
         }
         
         if ((fieldMask & Metrics.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Metrics.fieldModifiedPoint) != 0) {
             // Encode Point
-            this.pointEncoder.encode(val.getPoint());
+            this.pointEncoder.encode(val.point);
         }
         
         // Account written bits in the limiter.

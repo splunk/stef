@@ -2,7 +2,6 @@
 // Spans Java class generated from template
 package com.example.oteltef;
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -154,10 +153,10 @@ public class Spans {
 
     // Performs a deep copy from src to dst.
     public void copyFrom(Spans src) {
-        envelope.copyFrom(src.envelope)
-        resource.copyFrom(src.resource)
-        scope.copyFrom(src.scope)
-        span.copyFrom(src.span)
+        envelope.copyFrom(src.envelope);
+        resource.copyFrom(src.resource);
+        scope.copyFrom(src.scope);
+        span.copyFrom(src.span);
     }
 
     // isEqual performs deep comparison and returns true if struct is equal to val.

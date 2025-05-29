@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class ScopeEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -33,7 +35,7 @@ public class ScopeEncoder {
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         state.ScopeEncoder = this;
         this.limiter = state.getLimiter();
-        this.dict = state.getScope();
+        this.dict = state.Scope;
 
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
@@ -48,15 +50,15 @@ public class ScopeEncoder {
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-            this.nameEncoder.init(state.getScopeName(), this.limiter, columns.addSubColumn());
+        this.nameEncoder.init(state.ScopeName, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-            this.versionEncoder.init(state.getScopeVersion(), this.limiter, columns.addSubColumn());
+        this.versionEncoder.init(state.ScopeVersion, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-            this.schemaURLEncoder.init(state.getSchemaURL(), this.limiter, columns.addSubColumn());
+        this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
@@ -64,7 +66,7 @@ public class ScopeEncoder {
         if (this.fieldCount <= 4) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
@@ -79,16 +81,16 @@ public class ScopeEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Scope val) {
+    public void encode(Scope val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
         // Check if the Scope exists in the dictionary.
-        ScopeEntry entry = this.dict.get(val);
+        ScopeEncoderDict.Entry entry = this.dict.get(val);
         if (entry != null) {
             // The Scope exists, we will reference it.
             // Indicate a RefNum follows.
-            this.buf.writeBit(false);
+            this.buf.writeBit(0);
             // Encode refNum.
             this.buf.writeUvarintCompact(entry.refNum);
             // Account written bits in the limiter.
@@ -101,11 +103,11 @@ public class ScopeEncoder {
         }
         // The Scope does not exist in the dictionary. Add it to the dictionary.
         Scope valInDict = val.clone();
-        entry = new ScopeEntry(this.dict.size(), valInDict);
+        entry = new ScopeEncoderDict.Entry(this.dict.size(), valInDict);
         this.dict.set(valInDict, entry);
         this.limiter.addDictElemSize(valInDict.byteSize());
         // Indicate that an encoded Scope follows.
-        this.buf.writeBit(true);
+        this.buf.writeBit(1);
         // TODO: optimize and merge writeBit with the following writeBits.
         
 
@@ -130,27 +132,27 @@ public class ScopeEncoder {
         
         if ((fieldMask & Scope.fieldModifiedName) != 0) {
             // Encode Name
-            this.nameEncoder.encode(val.getName());
+            this.nameEncoder.encode(val.name);
         }
         
         if ((fieldMask & Scope.fieldModifiedVersion) != 0) {
             // Encode Version
-            this.versionEncoder.encode(val.getVersion());
+            this.versionEncoder.encode(val.version);
         }
         
         if ((fieldMask & Scope.fieldModifiedSchemaURL) != 0) {
             // Encode SchemaURL
-            this.schemaURLEncoder.encode(val.getSchemaURL());
+            this.schemaURLEncoder.encode(val.schemaURL);
         }
         
         if ((fieldMask & Scope.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.getAttributes());
+            this.attributesEncoder.encode(val.attributes);
         }
         
         if ((fieldMask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
             // Encode DroppedAttributesCount
-            this.droppedAttributesCountEncoder.encode(val.getDroppedAttributesCount());
+            this.droppedAttributesCountEncoder.encode(val.droppedAttributesCount);
         }
         
         // Account written bits in the limiter.

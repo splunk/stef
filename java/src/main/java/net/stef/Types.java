@@ -1,5 +1,6 @@
 package net.stef;
 
+import java.util.Arrays;
 import java.util.Random;
 
 public class Types {
@@ -24,8 +25,8 @@ public class Types {
         return left.compareTo(right);
     }
 
-    public static int BytesCompare(Bytes left, Bytes right) {
-        return left.compareTo(right);
+    public static int BytesCompare(byte[] left, byte[] right) {
+        return Arrays.compare(left, right);
     }
 
     public static boolean Uint64Equal(long left, long right) {
@@ -48,8 +49,8 @@ public class Types {
         return left.equals(right);
     }
 
-    public static boolean BytesEqual(Bytes left, Bytes right) {
-        return left.getValue().equals(right.getValue());
+    public static boolean BytesEqual(byte[] left, byte[] right) {
+        return Arrays.equals(left, right);
     }
 
     public static long Uint64Random(Random random) {
@@ -72,9 +73,9 @@ public class Types {
         return new StringValue(String.valueOf(random.nextInt(10)));
     }
 
-    public static Bytes BytesRandom(Random random) {
+    public static byte[] BytesRandom(Random random) {
         byte[] randomBytes = new byte[4]; // Example size, can be adjusted
         random.nextBytes(randomBytes);
-        return new Bytes(randomBytes);
+        return randomBytes;
     }
 }

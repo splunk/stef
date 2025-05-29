@@ -1,7 +1,6 @@
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
-import net.stef.Bytes;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -39,11 +38,21 @@ public class {{ .StructName }} {
 
     // Type enum for oneof
     public enum Type {
-        TypeNone,
-        {{- range .Fields }}
-        Type{{.Name}},
+        TypeNone(0),
+        {{- range $index, $field := .Fields }}
+        Type{{.Name}}({{ $index }} + 1),
         {{- end }}
-        TypeCount
+        TypeCount({{len .Fields}} + 1);
+
+        private final int value;
+
+        Type(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
     }
 
     // Type returns the type of the value currently contained in {{ $.StructName }}.
@@ -174,7 +183,7 @@ public class {{ .StructName }} {
         return true;
     }
 
-    public static boolean {{.StructName}}Equal({{.StructName}} left, {{.StructName}} right) {
+    public static boolean isEqual({{.StructName}} left, {{.StructName}} right) {
         return left.isEqual(right);
     }
 

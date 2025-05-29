@@ -7,6 +7,8 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
+import java.io.IOException;
+
 public class SpansEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
@@ -70,7 +72,7 @@ public class SpansEncoder {
     }
 
     // encode encodes val into buf
-    public void encode(Spans val) {
+    public void encode(Spans val) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -95,22 +97,22 @@ public class SpansEncoder {
         
         if ((fieldMask & Spans.fieldModifiedEnvelope) != 0) {
             // Encode Envelope
-            this.envelopeEncoder.encode(val.getEnvelope());
+            this.envelopeEncoder.encode(val.envelope);
         }
         
         if ((fieldMask & Spans.fieldModifiedResource) != 0) {
             // Encode Resource
-            this.resourceEncoder.encode(val.getResource());
+            this.resourceEncoder.encode(val.resource);
         }
         
         if ((fieldMask & Spans.fieldModifiedScope) != 0) {
             // Encode Scope
-            this.scopeEncoder.encode(val.getScope());
+            this.scopeEncoder.encode(val.scope);
         }
         
         if ((fieldMask & Spans.fieldModifiedSpan) != 0) {
             // Encode Span
-            this.spanEncoder.encode(val.getSpan());
+            this.spanEncoder.encode(val.span);
         }
         
         // Account written bits in the limiter.

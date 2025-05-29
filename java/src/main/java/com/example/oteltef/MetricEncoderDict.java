@@ -7,25 +7,25 @@ import net.stef.SizeLimiter;
 import java.util.*;
 
 public class MetricEncoderDict {
-    private HashMap<Metric, MetricEntry> dict = new HashMap<>();
+    private HashMap<Metric, Entry> dict = new HashMap<>();
     private SizeLimiter limiter;
 
     public void init(SizeLimiter limiter) {
         this.dict.clear();
-        this.dict.put(null, new MetricEntry(0L, null)); // null Metric is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Metric is RefNum 0
         this.limiter = limiter;
     }
 
     public void reset() {
         this.dict.clear();
-        this.dict.put(null, new MetricEntry(0L, null)); // null Metric is RefNum 0
+        this.dict.put(null, new Entry(0L, null)); // null Metric is RefNum 0
     }
 
-    MetricEntry get(Metric key) {
+    Entry get(Metric key) {
         return this.dict.get(key);
     }
 
-    void set(Metric key, MetricEntry entry) {
+    void set(Metric key, Entry entry) {
         this.dict.put(key, entry);
     }
 
@@ -33,12 +33,12 @@ public class MetricEncoderDict {
         return this.dict.size();
     }
 
-    // MetricEntry for dictionary
-    static class MetricEntry {
+    // Entry for dictionary
+    static class Entry {
         public long refNum;
         public Metric val;
 
-        public MetricEntry(long refNum, Metric val) {
+        public Entry(long refNum, Metric val) {
             this.refNum = refNum;
             this.val = val;
         }

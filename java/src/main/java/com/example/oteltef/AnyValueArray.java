@@ -9,7 +9,9 @@ import java.util.Objects;
 // AnyValueArray is a variable size array.
 public class AnyValueArray {
     AnyValue[] elems = new AnyValue[0];
-    int size = 0;
+
+    // elemsLen is the number of elements contains in the elems, elemsLen<=elems.length.
+    int elemsLen = 0;
 
     private ModifiedFields parentModifiedFields;
     private long parentModifiedBit;
@@ -42,19 +44,10 @@ public class AnyValueArray {
 
     // Append a new element at the end of the array.
     public void append(AnyValue val) {
-        ensureElemsSize(size + 1);
-        elems[size] = val;
-        size++;
+        ensureElems(elemsLen + 1);
+        elems[elemsLen] = val;
+        elemsLen++;
         markModified();
-    }
-
-    void ensureElemsSize(int newSize) {
-        if (elems.length < newSize) {
-            newSize = Math.max(newSize, elems.length * 2);
-            AnyValue[] newElems = new AnyValue[newSize];
-            System.arraycopy(elems, 0, newElems, 0, elems.length);
-        }
-        size = newSize;
     }
 
     public void markModified() {
@@ -71,20 +64,20 @@ public class AnyValueArray {
 
     public void markUnmodifiedRecursively() {
         
-        for (int i=0; i<size; i++) {
+        for (int i=0; i<elemsLen; i++) {
             elems[i].markUnmodifiedRecursively();
         }
         
     }
 
     public void copyFrom(AnyValueArray src) {
-        if (elems.length != src.elems.length) {
-            ensureElemsSize(src.elems.length);
+        if (elemsLen != src.elemsLen) {
+            ensureElems(src.elemsLen);
             markModified();
         }
-        if (src.elems.length > 0) {
+        if (src.elemsLen > 0) {
             // Allocate all elements at once.
-            for (int i = 0; i < src.size; i++) {
+            for (int i = 0; i < src.elemsLen; i++) {
                 // Init the element.
                 elems[i].init(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
@@ -95,7 +88,7 @@ public class AnyValueArray {
 
     // Len returns the number of elements in the array.
     public int len() {
-        return size;
+        return elemsLen;
     }
 
     // At returns element at index i.
@@ -103,34 +96,48 @@ public class AnyValueArray {
         return elems[i];
     }
 
-    // EnsureLen ensures the length of the array is equal to newLen.
-    // It will grow or shrink the array if needed.
+    // ensureElems ensures that elems array has at least newLen elements allocated.
+    // It will grow/reallocate the array if needed.
+    // elemsLen will be set to newLen.
+    // This method does not call init() on new elements in the array.
+    void ensureElems(int newLen) {
+        if (elems.length < newLen) {
+            int allocLen = Math.max(newLen, elems.length * 2);
+            AnyValue[] newElems = new AnyValue[allocLen];
+            System.arraycopy(elems, 0, newElems, 0, elems.length);
+            elems = newElems;
+        }
+        elemsLen = newLen;
+    }
+
+    // ensureLen ensures the length of the array is equal to newLen.
+    // It will grow or shrink the array if needed, and initialize newly added elements
+    // if the element type requires initialization.
     public void ensureLen(int newLen) {
-        int oldLen = size;
-        if (newLen > oldLen) {
-            ensureElemsSize(newLen);
+        if (newLen > elemsLen) {
+            ensureElems(newLen);
             markModified();
             
-            // Initialize newlly added elements.
-            for (int i = oldLen; i < newLen; i++) {
+            // Initialize newly added elements.
+            for (int i = elemsLen; i < newLen; i++) {
                 AnyValue elem = new AnyValue();
                 elem.init(parentModifiedFields, parentModifiedBit);
-                elems[size++] = elem;
+                elems[elemsLen++] = elem;
             }
             
-        } else if (oldLen > newLen) {
+        } else if (elemsLen > newLen) {
             // Shrink it
-            size = newLen;
+            elemsLen = newLen;
             markModified();
         }
     }
 
     // IsEqual performs deep comparison and returns true if array is equal to val.
     public boolean isEqual(AnyValueArray val) {
-        if (size != val.size) {
+        if (elemsLen != val.elemsLen) {
             return false;
         }
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < elemsLen; i++) {
             
             if (!elems[i].isEqual(val.elems[i])) {
                 return false;
@@ -143,11 +150,11 @@ public class AnyValueArray {
     // compare performs deep comparison and returns an integer that
     // will be 0 if left == right, negative if left < right, positive if left > right.
     public static int compare(AnyValueArray left, AnyValueArray right) {
-        int c = left.size - right.size;
+        int c = left.elemsLen - right.elemsLen;
         if (c != 0) {
             return c;
         }
-        for (int i = 0; i < left.size; i++) {
+        for (int i = 0; i < left.elemsLen; i++) {
             int fc = AnyValue.compare(left.elems[i], right.elems[i]);
             if (fc < 0) {
                 return -1;
@@ -168,8 +175,8 @@ public class AnyValueArray {
         if (random.nextInt(20) == 0 && len() > 0) {
             ensureLen(len() - 1);
         }
-        for (int i = 0; i < size; i++) {
-            if (random.nextInt(2 * size) == 0) {
+        for (int i = 0; i < elemsLen; i++) {
+            if (random.nextInt(2 * elemsLen) == 0) {
                 
                 elems[i].mutateRandom(random);
                 

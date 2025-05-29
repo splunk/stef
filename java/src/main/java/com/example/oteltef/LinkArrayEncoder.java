@@ -12,16 +12,17 @@ import java.io.IOException;
 public class LinkArrayEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private  LinkEncoder encoder = new LinkEncoder(); 
+    private LinkEncoder encoder;
     private int prevLen = 0;
     private WriterState state;
     private Link lastVal;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         this.state = state;
-        this.limiter = state.limiter;
+        this.limiter = state.getLimiter();
         
         
+        encoder = new LinkEncoder();
         encoder.init(state, columns.addSubColumn());
         state.LinkEncoder = encoder;
         
@@ -38,7 +39,7 @@ public class LinkArrayEncoder {
     }
 
     public void encode(LinkArray arr) throws IOException {
-        int newLen = arr.size;
+        int newLen = arr.elemsLen;
         int oldBitLen = buf.bitCount();
         int lenDelta = newLen - prevLen;
         prevLen = newLen;

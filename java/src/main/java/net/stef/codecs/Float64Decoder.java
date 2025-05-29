@@ -49,6 +49,11 @@ public class Float64Decoder {
         trailingBits = 0;
     }
 
+    public void continueDecoding() {
+        buf.reset(column.getData());
+    }
+
+
     class Float64Constants {
         // Float64NonIdenticalBit indicates that the value is not identical to the previous value.
         public static final int FLOAT64_NON_IDENTICAL_BIT = 0b1000000000000;

@@ -12,15 +12,16 @@ import java.io.IOException;
 public class LongArrayEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private  Int64Encoder encoder = new Int64Encoder(); 
+    private Int64Encoder encoder;
     private int prevLen = 0;
     private WriterState state;
     private long lastVal;
 
     public void init(WriterState state, WriteColumnSet columns) throws Exception {
         this.state = state;
-        this.limiter = state.limiter;
+        this.limiter = state.getLimiter();
         
+        encoder = new Int64Encoder();
         encoder.init(limiter, columns.addSubColumn());
         
     }
@@ -33,7 +34,7 @@ public class LongArrayEncoder {
     }
 
     public void encode(LongArray arr) throws IOException {
-        int newLen = arr.size;
+        int newLen = arr.elemsLen;
         int oldBitLen = buf.bitCount();
         int lenDelta = newLen - prevLen;
         prevLen = newLen;
