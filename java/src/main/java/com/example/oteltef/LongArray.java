@@ -83,7 +83,7 @@ public class LongArray {
 
     public void copyFrom(LongArray src) {
         if (elemsLen != src.elemsLen) {
-            int n = Math.min(elemsLen, elemsLen);
+            int n = Math.min(elemsLen, src.elemsLen);
             ensureElems(src.elemsLen);
 
             int i = 0;

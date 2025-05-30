@@ -32,7 +32,9 @@ public class BytesEncoder {
             limiter.addDictElemSize((long) bytesLen + 24);
         }
         buf.writeVarint(bytesLen);
-        buf.writeBytes(val, 0, bytesLen);
+        if (val!=null) {
+            buf.writeBytes(val, 0, bytesLen);
+        }
         int newLen = buf.size();
         limiter.addFrameBytes(newLen - oldLen);
     }

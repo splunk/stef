@@ -48,8 +48,10 @@ public class ReadColumnSet {
         }
     }
 
+    private static byte[] emptyData = new byte[0];
+
     public void resetData() {
-        column.setData(null);
+        column.setData(emptyData);
         for (ReadColumnSet subColumn : subColumns) {
             subColumn.resetData();
         }
