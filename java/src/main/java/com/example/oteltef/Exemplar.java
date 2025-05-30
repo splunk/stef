@@ -46,7 +46,10 @@ public class Exemplar {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        
         value = new ExemplarValue(modifiedFields, fieldModifiedValue);
+        
+        
         filteredAttributes = new Attributes(modifiedFields, fieldModifiedFilteredAttributes);
     }
 

@@ -64,7 +64,17 @@ public class Span {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        
+        
+        traceState = StringValue.empty();
+        
+        
+        name = StringValue.empty();
+        
+        
+        
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
+        
         events = new EventArray(modifiedFields, fieldModifiedEvents);
         links = new LinkArray(modifiedFields, fieldModifiedLinks);
         status = new SpanStatus(modifiedFields, fieldModifiedStatus);

@@ -27,6 +27,11 @@ public class StringValue {
         this.utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
     }
 
+    private final static StringValue EMPTY = new StringValue(new byte[0]);
+    public static StringValue empty() {
+        return EMPTY;
+    }
+
     public String asString() {
         return new String(utf8Bytes, StandardCharsets.UTF_8);
     }

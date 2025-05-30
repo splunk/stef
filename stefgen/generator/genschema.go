@@ -162,6 +162,25 @@ func (r *genPrimitiveTypeRef) Storage() string {
 	return r.TypeName()
 }
 
+// InitVal returns the initial value for this type.
+// Return empty string if there is no need to assign an initial value
+// since the default initial value is good enough.
+func (r *genPrimitiveTypeRef) InitVal() string {
+	switch r.Lang {
+	case LangGo:
+		return "" // Go does not need initial values for primitive types.
+	case LangJava:
+		switch r.Type {
+		case schema.PrimitiveTypeString:
+			return "StringValue.empty()"
+		default:
+			return ""
+		}
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+}
+
 // ToStorage converts the argument to the underlying type
 // if the underlying type is different than the exported type.
 // If the types are the same, no conversion is performed.

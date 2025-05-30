@@ -37,6 +37,8 @@ public class PointValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
+        
+        
         histogram = new HistogramValue(parentModifiedFields, parentModifiedBit);
     }
 

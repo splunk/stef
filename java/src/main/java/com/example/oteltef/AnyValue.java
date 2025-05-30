@@ -41,8 +41,13 @@ public class AnyValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
+        string = StringValue.empty();
+        
+        
+        
         array = new AnyValueArray(parentModifiedFields, parentModifiedBit);
         kVList = new KeyValueList(parentModifiedFields, parentModifiedBit);
+        
     }
 
     // Type enum for oneof

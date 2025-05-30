@@ -80,6 +80,8 @@ public class EnvelopeAttributes {
         ensureElems(newLen);
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
+            elems[i].key = StringValue.empty();
+            
         }
         if (initedCount < newLen) {
             initedCount = newLen;

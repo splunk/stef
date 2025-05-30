@@ -44,7 +44,10 @@ public class Event {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        name = StringValue.empty();
+        
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
+        
     }
 
     

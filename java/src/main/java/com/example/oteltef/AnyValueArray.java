@@ -86,7 +86,7 @@ public class AnyValueArray {
         if (src.elemsLen > 0) {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
-                // Init the element.
+                
                 elems[i] = new AnyValue(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
                 elems[i].copyFrom(src.elems[i]);
@@ -133,6 +133,7 @@ public class AnyValueArray {
             
             // Initialize newly added elements.
             for (int i = oldLen; i < newLen; i++) {
+                
                 elems[i] = new AnyValue(parentModifiedFields, parentModifiedBit);
             }
             

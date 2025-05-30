@@ -55,6 +55,10 @@ public class HistogramValue {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        
+        
+        
+        
         bucketCounts = new LongArray(modifiedFields, fieldModifiedBucketCounts);
     }
 

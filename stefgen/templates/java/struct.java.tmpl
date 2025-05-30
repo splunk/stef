@@ -52,7 +52,9 @@ public class {{ .StructName }} {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         {{ range .Fields }}
-        {{- if not .Type.IsPrimitive }}
+        {{- if .Type.IsPrimitive }}
+        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
+        {{- else}}
         {{.name}} = new {{ .Type.Storage }}(modifiedFields, fieldModified{{.Name}});
         {{- end }}
         {{- end }}

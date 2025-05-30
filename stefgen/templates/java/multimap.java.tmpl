@@ -79,10 +79,14 @@ public class {{ .MultimapName }} {
         ensureElems(newLen);
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
-            {{- if not .Key.Type.IsPrimitive}}
+            {{- if .Key.Type.IsPrimitive}}
+            {{if .Key.Type.InitVal}}elems[i].key = {{.Key.Type.InitVal}};{{end}}
+            {{- else}}
             elems[i].key = new {{.Key.Type.Storage}}(parentModifiedFields, parentModifiedBit);
             {{- end}}
-            {{- if not .Value.Type.IsPrimitive}}
+            {{- if .Value.Type.IsPrimitive}}
+            {{if .Value.Type.InitVal}}elems[i].value = {{.Value.Type.InitVal}};{{end}}
+            {{- else}}
             elems[i].value = new {{.Value.Type.Storage}}(parentModifiedFields, parentModifiedBit);
             {{- end}}
         }

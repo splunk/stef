@@ -48,7 +48,12 @@ public class Link {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        
+        
+        traceState = StringValue.empty();
+        
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
+        
     }
 
     

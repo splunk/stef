@@ -97,8 +97,9 @@ public class {{ .ArrayName }} {
         if (src.elemsLen > 0) {
             // Allocate all elements at once.
             for (int i = 0; i < src.elemsLen; i++) {
-                {{if not .ElemType.IsPrimitive -}}
-                // Init the element.
+                {{if .ElemType.IsPrimitive -}}
+                {{if .ElemType.Storage.InitVal}}elems[i] = new {{.ElemType.Storage.InitVal}};{{end}}
+                {{- else}}
                 elems[i] = new {{.ElemType.Storage}}(parentModifiedFields, parentModifiedBit);
                 {{- end}}
                 // Copy the element.
@@ -174,7 +175,11 @@ public class {{ .ArrayName }} {
             {{if .IsStructType}}
             // Initialize newly added elements.
             for (int i = oldLen; i < newLen; i++) {
+                {{if .ElemType.IsPrimitive -}}
+                {{if .ElemType.Storage.InitVal}}elems[i] = new {{.ElemType.Storage.InitVal}};{{end}}
+                {{- else}}
                 elems[i] = new {{.ElemType.Storage}}(parentModifiedFields, parentModifiedBit);
+                {{- end}}
             }
             {{end}}
         } else if (oldLen > newLen) {

@@ -44,6 +44,8 @@ public class Point {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
+        
+        
         value = new PointValue(modifiedFields, fieldModifiedValue);
         exemplars = new ExemplarArray(modifiedFields, fieldModifiedExemplars);
     }
