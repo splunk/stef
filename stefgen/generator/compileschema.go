@@ -151,6 +151,10 @@ func (s *genSchema) resolveRefs() error {
 					return fmt.Errorf("multimap %s not found", ref.Name)
 				}
 			}
+			ref, ok := field.Type.(*genPrimitiveTypeRef)
+			if ok && ref.Enum != "" {
+				ref.EnumDef = s.Enums[ref.Enum]
+			}
 		}
 	}
 	for _, mp := range s.Multimaps {

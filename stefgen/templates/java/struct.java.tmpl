@@ -217,7 +217,7 @@ public class {{ .StructName }} {
             {{- if not .Type.IsPrimitive }}
             this.{{.name}}.mutateRandom(random);
             {{- else }}
-            this.set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc (print "(random)"))}});
+            this.set{{.Name}}({{.Type.RandomFunc}});
             {{- end }}
         }
         {{ end }}

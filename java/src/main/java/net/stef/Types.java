@@ -46,6 +46,9 @@ public class Types {
     }
 
     public static boolean StringEqual(StringValue left, StringValue right) {
+        if (left == null || right == null) {
+            return left == right; // handles null cases
+        }
         return left.equals(right);
     }
 

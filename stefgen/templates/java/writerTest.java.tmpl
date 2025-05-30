@@ -35,7 +35,7 @@ public class {{.StructName}}WriterTest {
     }
 
     @Test
-    void test{{.StructName}}WriteRead() {
+    void test{{.StructName}}WriteRead() throws Exception {
         List<WriterOptions.Builder> opts = Arrays.asList(
             WriterOptions.builder(),
             WriterOptions.builder().compression(Compression.Zstd),
@@ -66,7 +66,7 @@ public class {{.StructName}}WriterTest {
         Random random = new Random(seed1);
 
         for (WriterOptions.Builder opt : opts) {
-            try {
+{{/*            try {*/}}
                 MemChunkWriter buf = new MemChunkWriter();
                 {{.StructName}}Writer writer = new {{.StructName}}Writer(buf, opt.build());
 
@@ -86,9 +86,9 @@ public class {{.StructName}}WriterTest {
                     assertTrue(reader.record.isEqual(records.get(i)), "record " + i + " seed " + seed1);
                 }
                 assertThrows(EOFException.class, () -> reader.read(new ReadOptions()));
-            } catch (Exception e) {
-                fail("seed " + seed1 + ": " + e.getMessage());
-            }
+{{/*            } catch (Exception e) {*/}}
+{{/*                fail("seed " + seed1 + ": " + e.getMessage());*/}}
+{{/*            }*/}}
         }
     }
 }

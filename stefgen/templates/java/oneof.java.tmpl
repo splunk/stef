@@ -31,6 +31,7 @@ public class {{ .StructName }} {
     }
 
     public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        typ = Type.TypeNone;
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         {{ range .Fields }}
@@ -85,7 +86,7 @@ public class {{ .StructName }} {
     {{if .Type.IsPrimitive}}
     // Set{{.Name}} sets the value to the specified value and sets the type to Type{{.Name}}.
     public void set{{.Name}}({{.Type.Exported}} v) {
-        if (!Objects.equals(this.{{.name}}, v) || this.typ != Type.Type{{.Name}}) {
+        if (!{{ .Type.EqualFunc }}(this.{{.name}}, {{.Type.ToStorage "v"}}) || this.typ != Type.Type{{.Name}}) {
             this.{{.name}} = v;
             this.typ = Type.Type{{.Name}};
             this.markParentModified();
@@ -227,7 +228,7 @@ public class {{ .StructName }} {
                 {{- if not .Type.IsPrimitive }}
                     this.{{.name}}.mutateRandom(random);
                 {{- else }}
-                    this.set{{.Name}}({{.Type.RandomFunc}}(random));
+                    this.set{{.Name}}({{.Type.RandomFunc}});
                 {{- end }}
                 }
                 break;

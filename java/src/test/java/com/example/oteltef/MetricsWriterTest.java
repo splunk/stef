@@ -36,7 +36,7 @@ public class MetricsWriterTest {
     }
 
     @Test
-    void testMetricsWriteRead() {
+    void testMetricsWriteRead() throws Exception {
         List<WriterOptions.Builder> opts = Arrays.asList(
             WriterOptions.builder(),
             WriterOptions.builder().compression(Compression.Zstd),
@@ -67,7 +67,7 @@ public class MetricsWriterTest {
         Random random = new Random(seed1);
 
         for (WriterOptions.Builder opt : opts) {
-            try {
+
                 MemChunkWriter buf = new MemChunkWriter();
                 MetricsWriter writer = new MetricsWriter(buf, opt.build());
 
@@ -87,9 +87,9 @@ public class MetricsWriterTest {
                     assertTrue(reader.record.isEqual(records.get(i)), "record " + i + " seed " + seed1);
                 }
                 assertThrows(EOFException.class, () -> reader.read(new ReadOptions()));
-            } catch (Exception e) {
-                fail("seed " + seed1 + ": " + e.getMessage());
-            }
+
+
+
         }
     }
 }

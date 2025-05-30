@@ -111,10 +111,11 @@ type genFieldTypeRef interface {
 }
 
 type genPrimitiveTypeRef struct {
-	Lang Lang
-	Type schema.PrimitiveFieldType
-	Dict string
-	Enum string
+	Lang    Lang
+	Type    schema.PrimitiveFieldType
+	Dict    string
+	Enum    string
+	EnumDef *genEnumDef
 }
 
 func (r *genPrimitiveTypeRef) IsPrimitive() bool {
@@ -341,19 +342,32 @@ func (r *genPrimitiveTypeRef) EqualFunc() string {
 
 func (r *genPrimitiveTypeRef) RandomFunc() string {
 	prefix := r.pkgPrefix()
+
+	if r.Enum != "" {
+		// For enums we need to generate an unsigned random number in the range of the enum values.
+		switch r.Lang {
+		case LangGo:
+			return r.Enum + fmt.Sprintf("(pkg.Uint64Random(random) %% %d)", len(r.EnumDef.Fields))
+		case LangJava:
+			return r.Enum + fmt.Sprintf(".fromValue((Types.Uint64Random(random) & ~1) %% %d)", len(r.EnumDef.Fields))
+		default:
+			panic(fmt.Sprintf("unknown language %v", r.Lang))
+		}
+	}
+
 	switch r.Type {
 	case schema.PrimitiveTypeUint64:
-		return prefix + "Uint64Random"
+		return prefix + "Uint64Random(random)"
 	case schema.PrimitiveTypeInt64:
-		return prefix + "Int64Random"
+		return prefix + "Int64Random(random)"
 	case schema.PrimitiveTypeFloat64:
-		return prefix + "Float64Random"
+		return prefix + "Float64Random(random)"
 	case schema.PrimitiveTypeBool:
-		return prefix + "BoolRandom"
+		return prefix + "BoolRandom(random)"
 	case schema.PrimitiveTypeString:
-		return prefix + "StringRandom"
+		return prefix + "StringRandom(random)"
 	case schema.PrimitiveTypeBytes:
-		return prefix + "BytesRandom"
+		return prefix + "BytesRandom(random)"
 	default:
 		panic(fmt.Sprintf("unknown type %v", r.Type))
 	}

@@ -220,7 +220,7 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
 		{{- if not .ElemType.IsPrimitive }}
 			a.elems[i].mutateRandom(random)
 		{{- else}}
-			v := {{ .ElemType.RandomFunc }}(random)
+			v := {{ .ElemType.RandomFunc }}
 			if a.elems[i] != v {
 				a.elems[i] = v
 				a.markModified()

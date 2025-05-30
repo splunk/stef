@@ -231,7 +231,7 @@ public class {{ .ArrayName }} {
                 {{if not .ElemType.IsPrimitive}}
                 elems[i].mutateRandom(random);
                 {{else}}
-                var v = {{ .ElemType.RandomFunc }}(random);
+                var v = {{ .ElemType.RandomFunc }};
                 if (!Objects.equals(elems[i], v)) {
                     elems[i] = v;
                     markModified();

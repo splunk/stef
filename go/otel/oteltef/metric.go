@@ -326,7 +326,7 @@ func (s *Metric) mutateRandom(random *rand.Rand) {
 		s.SetUnit(pkg.StringRandom(random))
 	}
 	if random.IntN(fieldCount) == 0 {
-		s.SetType(MetricType(pkg.Uint64Random(random)))
+		s.SetType(MetricType(pkg.Uint64Random(random) % 5))
 	}
 	if random.IntN(fieldCount) == 0 {
 		s.metadata.mutateRandom(random)

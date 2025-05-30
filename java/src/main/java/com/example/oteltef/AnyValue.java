@@ -37,6 +37,7 @@ public class AnyValue {
     }
 
     public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        typ = Type.TypeNone;
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
@@ -89,7 +90,7 @@ public class AnyValue {
     
     // SetString sets the value to the specified value and sets the type to TypeString.
     public void setString(StringValue v) {
-        if (!Objects.equals(this.string, v) || this.typ != Type.TypeString) {
+        if (!Types.StringEqual(this.string, v) || this.typ != Type.TypeString) {
             this.string = v;
             this.typ = Type.TypeString;
             this.markParentModified();
@@ -105,7 +106,7 @@ public class AnyValue {
     
     // SetBool sets the value to the specified value and sets the type to TypeBool.
     public void setBool(boolean v) {
-        if (!Objects.equals(this.bool, v) || this.typ != Type.TypeBool) {
+        if (!Types.BoolEqual(this.bool, v) || this.typ != Type.TypeBool) {
             this.bool = v;
             this.typ = Type.TypeBool;
             this.markParentModified();
@@ -121,7 +122,7 @@ public class AnyValue {
     
     // SetInt64 sets the value to the specified value and sets the type to TypeInt64.
     public void setInt64(long v) {
-        if (!Objects.equals(this.int64, v) || this.typ != Type.TypeInt64) {
+        if (!Types.Int64Equal(this.int64, v) || this.typ != Type.TypeInt64) {
             this.int64 = v;
             this.typ = Type.TypeInt64;
             this.markParentModified();
@@ -137,7 +138,7 @@ public class AnyValue {
     
     // SetFloat64 sets the value to the specified value and sets the type to TypeFloat64.
     public void setFloat64(double v) {
-        if (!Objects.equals(this.float64, v) || this.typ != Type.TypeFloat64) {
+        if (!Types.Float64Equal(this.float64, v) || this.typ != Type.TypeFloat64) {
             this.float64 = v;
             this.typ = Type.TypeFloat64;
             this.markParentModified();
@@ -167,7 +168,7 @@ public class AnyValue {
     
     // SetBytes sets the value to the specified value and sets the type to TypeBytes.
     public void setBytes(byte[] v) {
-        if (!Objects.equals(this.bytes, v) || this.typ != Type.TypeBytes) {
+        if (!Types.BytesEqual(this.bytes, v) || this.typ != Type.TypeBytes) {
             this.bytes = v;
             this.typ = Type.TypeBytes;
             this.markParentModified();

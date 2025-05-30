@@ -63,6 +63,7 @@ public class Attributes {
             int allocLen = Math.max(newLen, elems.length * 2);
             Elem[] newElems = new Elem[allocLen];
             System.arraycopy(elems, 0, newElems, 0, elems.length);
+            elems = newElems;
         }
         elemsLen = newLen;
     }

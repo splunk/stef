@@ -33,6 +33,7 @@ public class PointValue {
     }
 
     public void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        typ = Type.TypeNone;
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
@@ -80,7 +81,7 @@ public class PointValue {
     
     // SetInt64 sets the value to the specified value and sets the type to TypeInt64.
     public void setInt64(long v) {
-        if (!Objects.equals(this.int64, v) || this.typ != Type.TypeInt64) {
+        if (!Types.Int64Equal(this.int64, v) || this.typ != Type.TypeInt64) {
             this.int64 = v;
             this.typ = Type.TypeInt64;
             this.markParentModified();
@@ -96,7 +97,7 @@ public class PointValue {
     
     // SetFloat64 sets the value to the specified value and sets the type to TypeFloat64.
     public void setFloat64(double v) {
-        if (!Objects.equals(this.float64, v) || this.typ != Type.TypeFloat64) {
+        if (!Types.Float64Equal(this.float64, v) || this.typ != Type.TypeFloat64) {
             this.float64 = v;
             this.typ = Type.TypeFloat64;
             this.markParentModified();

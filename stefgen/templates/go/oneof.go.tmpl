@@ -229,7 +229,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
         {{- if not .Type.IsPrimitive }}
             s.{{.name}}.mutateRandom(random)
         {{- else }}
-            s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc "(random)")}})
+            s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc)}})
         {{- end}}
         }
     {{- end }}

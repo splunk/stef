@@ -62,6 +62,7 @@ public class {{ .MultimapName }} {
             int allocLen = Math.max(newLen, elems.length * 2);
             Elem[] newElems = new Elem[allocLen];
             System.arraycopy(elems, 0, newElems, 0, elems.length);
+            elems = newElems;
         }
         elemsLen = newLen;
     }
@@ -263,14 +264,14 @@ public class {{ .MultimapName }} {
             {{- if not .Key.Type.IsPrimitive }}
                 elems[i].key.mutateRandom(random);
             {{- else }}
-                setKey(i, {{ .Key.Type.RandomFunc }}(random));
+                setKey(i, {{ .Key.Type.RandomFunc }});
             {{- end}}
             }
             if (random.nextInt(4 * elemsLen) == 0) {
             {{- if not .Value.Type.IsPrimitive }}
                 elems[i].value.mutateRandom(random);
             {{- else }}
-                setValue(i, {{ .Value.Type.RandomFunc }}(random));
+                setValue(i, {{ .Value.Type.RandomFunc }});
             {{- end}}
             }
         }
