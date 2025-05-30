@@ -38,19 +38,8 @@ public class KeyValueListDecoder {
         
     }
 
-    // Finish is called at the end of the stream to perform any cleanup if neede
-    public void finish() {
-        // If key/value decoders have finish, call them
-        // Example:
-        // if (keyDecoder != null) keyDecoder.finish();
-        // if (valueDecoder != null) valueDecoder.finish();
-    }
-
-    public void reset() {
-        // Reset key/value decoders if not recursive
-        // Example:
-        // if (keyDecoder != null) keyDecoder.reset();
-        // if (valueDecoder != null) valueDecoder.reset();
+    public void reset() {keyDecoder.reset();
+        
     }
 
     public KeyValueList decode(KeyValueList dst) throws IOException {

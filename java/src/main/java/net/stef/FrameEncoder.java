@@ -46,7 +46,7 @@ public class FrameEncoder extends OutputStream {
         Serde.writeUvarint(uncompressedSize, frameHdr);
 
         if (compression == Compression.Zstd) {
-            compressor.close();
+            compressor.flush();
             Serde.writeUvarint(compressedBuf.size(), frameHdr);
         }
 

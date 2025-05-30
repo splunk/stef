@@ -173,6 +173,8 @@ func (r *genPrimitiveTypeRef) InitVal() string {
 		switch r.Type {
 		case schema.PrimitiveTypeString:
 			return "StringValue.empty()"
+		case schema.PrimitiveTypeBytes:
+			return "new byte[0]"
 		default:
 			return ""
 		}

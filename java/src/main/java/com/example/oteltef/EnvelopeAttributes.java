@@ -81,7 +81,7 @@ public class EnvelopeAttributes {
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
             elems[i].key = StringValue.empty();
-            
+            elems[i].value = new byte[0];
         }
         if (initedCount < newLen) {
             initedCount = newLen;

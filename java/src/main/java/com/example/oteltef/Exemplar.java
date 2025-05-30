@@ -48,8 +48,8 @@ public class Exemplar {
         
         
         value = new ExemplarValue(modifiedFields, fieldModifiedValue);
-        
-        
+        spanID = new byte[0];
+        traceID = new byte[0];
         filteredAttributes = new Attributes(modifiedFields, fieldModifiedFilteredAttributes);
     }
 

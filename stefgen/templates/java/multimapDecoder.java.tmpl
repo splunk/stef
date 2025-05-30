@@ -60,19 +60,13 @@ public class {{ .MultimapName }}Decoder {
         {{- end }}
     }
 
-    // Finish is called at the end of the stream to perform any cleanup if neede
-    public void finish() {
-        // If key/value decoders have finish, call them
-        // Example:
-        // if (keyDecoder != null) keyDecoder.finish();
-        // if (valueDecoder != null) valueDecoder.finish();
-    }
-
     public void reset() {
-        // Reset key/value decoders if not recursive
-        // Example:
-        // if (keyDecoder != null) keyDecoder.reset();
-        // if (valueDecoder != null) valueDecoder.reset();
+        {{- if not .Key.Recursive -}}
+        keyDecoder.reset();
+        {{- end}}
+        {{if not .Value.Recursive -}}
+        valueDecoder.reset();
+        {{- end}}
     }
 
     public {{ .MultimapName }} decode({{ .MultimapName }} dst) throws IOException {

@@ -48,8 +48,8 @@ public class Link {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
+        traceID = new byte[0];
+        spanID = new byte[0];
         traceState = StringValue.empty();
         
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);

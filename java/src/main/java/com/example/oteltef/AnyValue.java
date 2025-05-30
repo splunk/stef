@@ -47,7 +47,7 @@ public class AnyValue {
         
         array = new AnyValueArray(parentModifiedFields, parentModifiedBit);
         kVList = new KeyValueList(parentModifiedFields, parentModifiedBit);
-        
+        bytes = new byte[0];
     }
 
     // Type enum for oneof

@@ -64,10 +64,10 @@ public class Span {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
+        traceID = new byte[0];
+        spanID = new byte[0];
         traceState = StringValue.empty();
-        
+        parentSpanID = new byte[0];
         
         name = StringValue.empty();
         
