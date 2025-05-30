@@ -80,10 +80,10 @@ public class {{ .MultimapName }} {
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
             {{- if not .Key.Type.IsPrimitive}}
-            elems[i].key.init(parentModifiedFields, parentModifiedBit);
+            elems[i].key = new {{.Key.Type.Storage}}(parentModifiedFields, parentModifiedBit);
             {{- end}}
             {{- if not .Value.Type.IsPrimitive}}
-            elems[i].value.init(parentModifiedFields, parentModifiedBit);
+            elems[i].value = new {{.Value.Type.Storage}}(parentModifiedFields, parentModifiedBit);
             {{- end}}
         }
         if (initedCount < newLen) {

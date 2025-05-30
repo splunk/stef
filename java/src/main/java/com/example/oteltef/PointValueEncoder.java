@@ -23,6 +23,7 @@ public class PointValueEncoder {
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.PointValueEncoder = this;
+        prevType = PointValue.Type.TypeNone;
         this.limiter = state.getLimiter();
 
         if (state.getOverrideSchema() != null) {

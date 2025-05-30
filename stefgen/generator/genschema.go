@@ -349,7 +349,9 @@ func (r *genPrimitiveTypeRef) RandomFunc() string {
 		case LangGo:
 			return r.Enum + fmt.Sprintf("(pkg.Uint64Random(random) %% %d)", len(r.EnumDef.Fields))
 		case LangJava:
-			return r.Enum + fmt.Sprintf(".fromValue((Types.Uint64Random(random) & ~1) %% %d)", len(r.EnumDef.Fields))
+			return r.Enum + fmt.Sprintf(
+				".fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) %% %d)", len(r.EnumDef.Fields),
+			)
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}

@@ -391,7 +391,7 @@ public class Metric {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setType(MetricType.fromValue((Types.Uint64Random(random) & ~1) % 5));
+            this.setType(MetricType.fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 5));
         }
         
         if (random.nextInt(fieldCount) == 0) {

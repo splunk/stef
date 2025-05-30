@@ -80,7 +80,7 @@ public class KeyValueList {
         ensureElems(newLen);
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
-            elems[i].value.init(parentModifiedFields, parentModifiedBit);
+            elems[i].value = new AnyValue(parentModifiedFields, parentModifiedBit);
         }
         if (initedCount < newLen) {
             initedCount = newLen;

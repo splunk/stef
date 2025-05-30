@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WriteColumnSet {
-    private ByteBuffer data;
+    private ByteBuffer data = ByteBuffer.wrap(new byte[0]);
     private final List<WriteColumnSet> subColumns = new ArrayList<>();
 
     public int totalCount() {

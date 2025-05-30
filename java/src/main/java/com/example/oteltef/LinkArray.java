@@ -122,16 +122,21 @@ public class LinkArray {
     // It will grow or shrink the array if needed, and initialize newly added elements
     // if the element type requires initialization.
     public void ensureLen(int newLen) {
-        if (newLen > elemsLen) {
+        int oldLen = elemsLen;
+        if (newLen==oldLen) {
+            return; // No change needed.
+        }
+
+        if (newLen > oldLen) {
             ensureElems(newLen);
             markModified();
             
             // Initialize newly added elements.
-            for (int i = elemsLen; i < newLen; i++) {
-                elems[elemsLen++] = new Link(parentModifiedFields, parentModifiedBit);
+            for (int i = oldLen; i < newLen; i++) {
+                elems[i] = new Link(parentModifiedFields, parentModifiedBit);
             }
             
-        } else if (elemsLen > newLen) {
+        } else if (oldLen > newLen) {
             // Shrink it
             elemsLen = newLen;
             markModified();

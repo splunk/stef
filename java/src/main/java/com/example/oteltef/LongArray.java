@@ -138,11 +138,16 @@ public class LongArray {
     // It will grow or shrink the array if needed, and initialize newly added elements
     // if the element type requires initialization.
     public void ensureLen(int newLen) {
-        if (newLen > elemsLen) {
+        int oldLen = elemsLen;
+        if (newLen==oldLen) {
+            return; // No change needed.
+        }
+
+        if (newLen > oldLen) {
             ensureElems(newLen);
             markModified();
             
-        } else if (elemsLen > newLen) {
+        } else if (oldLen > newLen) {
             // Shrink it
             elemsLen = newLen;
             markModified();

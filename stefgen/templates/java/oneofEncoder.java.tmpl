@@ -23,6 +23,7 @@ public class {{ .StructName }}Encoder {
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         state.{{.StructName}}Encoder = this;
+        prevType = {{.StructName}}.Type.TypeNone;
         this.limiter = state.getLimiter();
         {{- if .DictName}}
         this.dict = state.get{{.DictName}}();
