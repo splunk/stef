@@ -26,6 +26,7 @@ public class {{ .StructName }}Decoder {
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.{{ .StructName }}Decoder = this;
+        prevType = {{.StructName}}.Type.TypeNone;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
             this.fieldCount = fieldCount;

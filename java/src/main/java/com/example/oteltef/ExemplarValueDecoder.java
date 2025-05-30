@@ -25,6 +25,7 @@ public class ExemplarValueDecoder {
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.ExemplarValueDecoder = this;
+        prevType = ExemplarValue.Type.TypeNone;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
             this.fieldCount = fieldCount;

@@ -86,33 +86,32 @@ public class PointDecoder {
         this.exemplarsDecoder.reset();
     }
 
+    private static String out = "";
+
     public Point decode(Point dstPtr) throws IOException {
         Point val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedStartTimestamp) != 0) {
             // Field is changed and is present, decode it.
-
             val.startTimestamp = startTimestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
-
             val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-
             val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
-
             val.exemplars = exemplarsDecoder.decode(val.exemplars);
         }
         

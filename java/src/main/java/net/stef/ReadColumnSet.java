@@ -26,6 +26,7 @@ public class ReadColumnSet {
 
     public void readSizesFrom(BitsReader buf) throws IOException {
         long dataSize = buf.readUvarintCompact();
+        System.out.println("read size=" + dataSize);
         column.setData(new byte[(int) dataSize]);
 
         if (dataSize == 0) {

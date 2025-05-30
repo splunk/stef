@@ -122,13 +122,13 @@ public class ExemplarValue {
 
     // copy performs a deep copy from src.
     public void copyFrom(ExemplarValue src) {
-        typ = src.typ;
         switch (src.typ) {
         case Type.TypeInt64:
             setInt64(src.getInt64());
         case Type.TypeFloat64:
             setFloat64(src.getFloat64());
         }
+        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -153,16 +153,18 @@ public class ExemplarValue {
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(ExemplarValue val) {
-        if (this.typ != val.typ) return false;
+        if (this.typ != val.typ) {
+            return false;
+        }
         switch (this.typ) {
             case Type.TypeInt64:
                 if (!Types.Int64Equal(this.int64, val.int64)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeFloat64:
                 if (!Types.Float64Equal(this.float64, val.float64)) {
-                return false;
+                    return false;
                 }
                 break;
         default:

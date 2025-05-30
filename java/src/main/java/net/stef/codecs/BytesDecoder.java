@@ -36,11 +36,11 @@ public class BytesDecoder {
             if (dict == null) {
                 throw new IOException("Invalid RefNum, out of dictionary range");
             }
-            int refNum = (int) (-varint - 1);
+            long refNum = -varint - 1;
             if (refNum >= dict.size()) {
                 throw new IOException("Invalid RefNum, out of dictionary range");
             }
-            return dict.get(refNum);
+            return dict.get((int) refNum);
         }
     }
 }

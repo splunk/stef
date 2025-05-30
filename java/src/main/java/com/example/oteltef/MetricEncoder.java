@@ -98,6 +98,8 @@ public class MetricEncoder {
         this.monotonicEncoder.reset();
     }
 
+    private static String out = "";
+
     // encode encodes val into buf
     public void encode(Metric val) throws IOException {
         int oldLen = this.buf.bitCount();
@@ -119,14 +121,15 @@ public class MetricEncoder {
             val.markUnmodifiedRecursively();
             return;
         }
+
         // The Metric does not exist in the dictionary. Add it to the dictionary.
         Metric valInDict = val.clone();
         entry = new MetricEncoderDict.Entry(this.dict.size(), valInDict);
         this.dict.set(valInDict, entry);
         this.limiter.addDictElemSize(valInDict.byteSize());
         // Indicate that an encoded Metric follows.
-        this.buf.writeBit(1);
-        // TODO: optimize and merge writeBit with the following writeBits.
+        this.buf.writeBit(1); // TODO: optimize and merge writeBit with the following writeBits.
+        out += "1";
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
@@ -144,10 +147,13 @@ public class MetricEncoder {
                 Metric.fieldModifiedAggregationTemporality | 
                 Metric.fieldModifiedMonotonic | 0L;
         }
+
         // Only write fields that we want to write. See init() for keepFieldMask.
         fieldMask &= this.keepFieldMask;
+
         // Write bits to indicate which fields follow.
         this.buf.writeBits(fieldMask, this.fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(fieldMask));
         
         // Encode modified, present fields.
         
@@ -194,6 +200,7 @@ public class MetricEncoder {
         // Account written bits in the limiter.
         int newLen = this.buf.bitCount();
         this.limiter.addFrameBits(newLen - oldLen);
+
         // Mark all fields non-modified so that next encode() correctly
         // encodes only fields that change after this.
         val.getModifiedFields().mask = 0;

@@ -116,7 +116,6 @@ public class {{ .StructName }} {
 
     // copy performs a deep copy from src.
     public void copyFrom({{.StructName}} src) {
-        typ = src.typ;
         switch (src.typ) {
         {{- range .Fields }}
         case Type.Type{{.Name}}:
@@ -135,6 +134,7 @@ public class {{ .StructName }} {
             {{- end }}
         {{- end }}
         }
+        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -167,19 +167,21 @@ public class {{ .StructName }} {
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual({{.StructName}} val) {
-        if (this.typ != val.typ) return false;
+        if (this.typ != val.typ) {
+            return false;
+        }
         switch (this.typ) {
         {{- range .Fields }}
             case Type.Type{{.Name}}:
-            {{- if .Type.IsPrimitive }}
+                {{- if .Type.IsPrimitive }}
                 if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
-                return false;
+                    return false;
                 }
-            {{- else }}
+                {{- else }}
                 if (!this.{{.name}}.isEqual(val.{{.name}})) {
-                return false;
+                    return false;
                 }
-            {{- end }}
+                {{- end }}
                 break;
         {{- end }}
         default:

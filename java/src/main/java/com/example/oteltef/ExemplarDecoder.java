@@ -96,39 +96,37 @@ public class ExemplarDecoder {
         this.filteredAttributesDecoder.reset();
     }
 
+    private static String out = "";
+
     public Exemplar decode(Exemplar dstPtr) throws IOException {
         Exemplar val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTimestamp) != 0) {
             // Field is changed and is present, decode it.
-
             val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
-
             val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-
             val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-
             val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.filteredAttributes = filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         

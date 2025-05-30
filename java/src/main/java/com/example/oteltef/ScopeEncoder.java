@@ -80,6 +80,8 @@ public class ScopeEncoder {
         this.droppedAttributesCountEncoder.reset();
     }
 
+    private static String out = "";
+
     // encode encodes val into buf
     public void encode(Scope val) throws IOException {
         int oldLen = this.buf.bitCount();
@@ -101,14 +103,15 @@ public class ScopeEncoder {
             val.markUnmodifiedRecursively();
             return;
         }
+
         // The Scope does not exist in the dictionary. Add it to the dictionary.
         Scope valInDict = val.clone();
         entry = new ScopeEncoderDict.Entry(this.dict.size(), valInDict);
         this.dict.set(valInDict, entry);
         this.limiter.addDictElemSize(valInDict.byteSize());
         // Indicate that an encoded Scope follows.
-        this.buf.writeBit(1);
-        // TODO: optimize and merge writeBit with the following writeBits.
+        this.buf.writeBit(1); // TODO: optimize and merge writeBit with the following writeBits.
+        out += "1";
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
@@ -123,10 +126,13 @@ public class ScopeEncoder {
                 Scope.fieldModifiedAttributes | 
                 Scope.fieldModifiedDroppedAttributesCount | 0L;
         }
+
         // Only write fields that we want to write. See init() for keepFieldMask.
         fieldMask &= this.keepFieldMask;
+
         // Write bits to indicate which fields follow.
         this.buf.writeBits(fieldMask, this.fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(fieldMask));
         
         // Encode modified, present fields.
         
@@ -158,6 +164,7 @@ public class ScopeEncoder {
         // Account written bits in the limiter.
         int newLen = this.buf.bitCount();
         this.limiter.addFrameBits(newLen - oldLen);
+
         // Mark all fields non-modified so that next encode() correctly
         // encodes only fields that change after this.
         val.getModifiedFields().mask = 0;

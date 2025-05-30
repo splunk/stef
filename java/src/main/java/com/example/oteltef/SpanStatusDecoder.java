@@ -66,21 +66,22 @@ public class SpanStatusDecoder {
         this.codeDecoder.reset();
     }
 
+    private static String out = "";
+
     public SpanStatus decode(SpanStatus dstPtr) throws IOException {
         SpanStatus val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedMessage) != 0) {
             // Field is changed and is present, decode it.
-
             val.message = messageDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & SpanStatus.fieldModifiedCode) != 0) {
             // Field is changed and is present, decode it.
-
             val.code = codeDecoder.decode();
         }
         

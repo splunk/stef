@@ -93,6 +93,10 @@ public class FrameDecoder extends InputStream {
 
     @Override
     public int read(byte[] buffer) throws IOException {
+        if (buffer.length==0) {
+            return 0; // No data to read
+        }
+
         if (uncompressedSize == 0) {
             frameLoaded = false;
             throw new IOException("End of frame");

@@ -14,11 +14,11 @@ public class WriteBufs {
         columns.writeSizesTo(tempBuf);
         tempBuf.close();
 
-        long bufSize = tempBuf.toBytes().capacity();
+        long bufSize = tempBuf.toBytes().limit();
         Serde.writeUvarint(bufSize, buf);
 
         ByteBuffer src =tempBuf.toBytes();
-        buf.write(src.array(), src.arrayOffset(), src.capacity());
+        buf.write(src.array(), src.arrayOffset(), src.limit());
         columns.writeDataTo(buf);
     }
 }

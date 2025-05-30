@@ -106,45 +106,42 @@ public class MetricsDecoder {
         this.pointDecoder.reset();
     }
 
+    private static String out = "";
+
     public Metrics decode(Metrics dstPtr) throws IOException {
         Metrics val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-
             val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
-
             val.metric = metricDecoder.decode(val.metric);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-
             val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-
             val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
-
             val.point = pointDecoder.decode(val.point);
         }
         

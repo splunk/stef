@@ -106,45 +106,42 @@ public class LinkDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
+    private static String out = "";
+
     public Link decode(Link dstPtr) throws IOException {
         Link val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-
             val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-
             val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
-
             val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
-
             val.flags = flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         

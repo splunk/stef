@@ -206,7 +206,6 @@ public class AnyValue {
 
     // copy performs a deep copy from src.
     public void copyFrom(AnyValue src) {
-        typ = src.typ;
         switch (src.typ) {
         case Type.TypeString:
             setString(src.getString());
@@ -223,6 +222,7 @@ public class AnyValue {
         case Type.TypeBytes:
             setBytes(src.getBytes());
         }
+        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -261,41 +261,43 @@ public class AnyValue {
 
     // isEqual performs deep comparison and returns true if struct is equal to val.
     public boolean isEqual(AnyValue val) {
-        if (this.typ != val.typ) return false;
+        if (this.typ != val.typ) {
+            return false;
+        }
         switch (this.typ) {
             case Type.TypeString:
                 if (!Types.StringEqual(this.string, val.string)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeBool:
                 if (!Types.BoolEqual(this.bool, val.bool)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeInt64:
                 if (!Types.Int64Equal(this.int64, val.int64)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeFloat64:
                 if (!Types.Float64Equal(this.float64, val.float64)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeArray:
                 if (!this.array.isEqual(val.array)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeKVList:
                 if (!this.kVList.isEqual(val.kVList)) {
-                return false;
+                    return false;
                 }
                 break;
             case Type.TypeBytes:
                 if (!Types.BytesEqual(this.bytes, val.bytes)) {
-                return false;
+                    return false;
                 }
                 break;
         default:

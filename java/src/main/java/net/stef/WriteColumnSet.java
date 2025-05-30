@@ -37,6 +37,7 @@ public class WriteColumnSet {
 
     public void writeSizesTo(BitsWriter buf) {
         buf.writeUvarintCompact(data.limit());
+        System.out.println("write size=" + data.limit());
 
         if (data.limit() == 0) {
             return;
@@ -48,9 +49,9 @@ public class WriteColumnSet {
     }
 
     public void writeDataTo(OutputStream buf) throws IOException {
-        buf.write(data.array(), data.arrayOffset(), data.capacity());
+        buf.write(data.array(), data.arrayOffset(), data.limit());
 
-        if (data.capacity() == 0) {
+        if (data.limit() == 0) {
             return;
         }
 

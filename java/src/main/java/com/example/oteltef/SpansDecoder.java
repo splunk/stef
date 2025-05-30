@@ -86,33 +86,32 @@ public class SpansDecoder {
         this.spanDecoder.reset();
     }
 
+    private static String out = "";
+
     public Spans decode(Spans dstPtr) throws IOException {
         Spans val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
-
             val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
-
             val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
-
             val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.getModifiedFields().mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
-
             val.span = spanDecoder.decode(val.span);
         }
         

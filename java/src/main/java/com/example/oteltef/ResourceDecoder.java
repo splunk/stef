@@ -79,6 +79,8 @@ public class ResourceDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
+    private static String out = "";
+
     public Resource decode(Resource dstPtr) throws IOException {
         // Check if the Resource exists in the dictionary.
         int dictFlag = buf.readBit();
@@ -91,6 +93,8 @@ public class ResourceDecoder {
             dstPtr = lastVal;
             return dstPtr;
         }
+        out += "1";
+
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         Resource val = lastVal.clone();
@@ -98,23 +102,21 @@ public class ResourceDecoder {
         dstPtr = val;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
-
             val.schemaURL = schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Resource.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         

@@ -99,6 +99,8 @@ public class ScopeDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
+    private static String out = "";
+
     public Scope decode(Scope dstPtr) throws IOException {
         // Check if the Scope exists in the dictionary.
         int dictFlag = buf.readBit();
@@ -111,6 +113,8 @@ public class ScopeDecoder {
             dstPtr = lastVal;
             return dstPtr;
         }
+        out += "1";
+
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         Scope val = lastVal.clone();
@@ -118,35 +122,31 @@ public class ScopeDecoder {
         dstPtr = val;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-
             val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedVersion) != 0) {
             // Field is changed and is present, decode it.
-
             val.version = versionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedSchemaURL) != 0) {
             // Field is changed and is present, decode it.
-
             val.schemaURL = schemaURLDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         

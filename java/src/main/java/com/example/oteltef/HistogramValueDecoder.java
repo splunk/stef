@@ -96,41 +96,39 @@ public class HistogramValueDecoder {
         this.bucketCountsDecoder.reset();
     }
 
+    private static String out = "";
+
     public HistogramValue decode(HistogramValue dstPtr) throws IOException {
         HistogramValue val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         // Write bits to indicate which optional fields are set.
         val.optionalFieldsPresent = buf.readBits(3);
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.count = countDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
             // Field is changed and is present, decode it.
-
             val.sum = sumDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
             // Field is changed and is present, decode it.
-
             val.min = minDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
             // Field is changed and is present, decode it.
-
             val.max = maxDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
-
             val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         

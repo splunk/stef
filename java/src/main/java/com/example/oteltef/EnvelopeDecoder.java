@@ -56,15 +56,17 @@ public class EnvelopeDecoder {
         this.attributesDecoder.reset();
     }
 
+    private static String out = "";
+
     public Envelope decode(Envelope dstPtr) throws IOException {
         Envelope val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         

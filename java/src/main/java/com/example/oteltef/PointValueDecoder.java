@@ -26,6 +26,7 @@ public class PointValueDecoder {
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         state.PointValueDecoder = this;
+        prevType = PointValue.Type.TypeNone;
         if (state.getOverrideSchema() != null) {
             int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
             this.fieldCount = fieldCount;

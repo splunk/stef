@@ -50,5 +50,19 @@ public class StringValue {
     public int compareTo(StringValue right) {
         return Arrays.compare(this.utf8Bytes, right.utf8Bytes);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return equals((StringValue) o);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(utf8Bytes);
+    }
 }
 

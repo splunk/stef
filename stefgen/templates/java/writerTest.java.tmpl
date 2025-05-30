@@ -62,7 +62,7 @@ public class {{.StructName}}WriterTest {
 
         // Choose a seed (non-pseudo) randomly. We will print the seed
         // on failure for easy reproduction.
-        long seed1 = System.nanoTime();
+        long seed1 = 0; // System.nanoTime();
         Random random = new Random(seed1);
 
         for (WriterOptions.Builder opt : opts) {

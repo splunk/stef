@@ -78,6 +78,8 @@ public class {{ .StructName }}Decoder {
         {{- end}}
     }
 
+    private static String out = "";
+
     public {{.StructName}} decode({{.StructName}} dstPtr) throws IOException {
         {{- if .DictName}}
         // Check if the {{ .StructName }} exists in the dictionary.
@@ -91,6 +93,8 @@ public class {{ .StructName }}Decoder {
             dstPtr = lastVal;
             return dstPtr;
         }
+        out += "1";
+
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         {{.StructName}} val = lastVal.clone();
@@ -101,6 +105,7 @@ public class {{ .StructName }}Decoder {
         {{- end}}
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
         val.optionalFieldsPresent = buf.readBits({{ .OptionalFieldCount}});
@@ -109,7 +114,6 @@ public class {{ .StructName }}Decoder {
         if ((val.getModifiedFields().mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
-
             val.{{.name}} = {{.name}}Decoder.decode({{if not .Type.IsPrimitive}}val.{{.name}}{{end}});
         }
         {{ end }}

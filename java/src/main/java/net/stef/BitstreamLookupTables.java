@@ -30,15 +30,18 @@ class BitstreamLookupTables {
     public static final long[] readShiftByZeros = {
             0, 0, 0, 0, 0, 0, 0, 0,
             55, 52, 48, 40, 32, 24, 16, 0, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     };
 
     public static final long[] readMaskByZeros = {
             0, 0, 0, 0, 0, 0, 0, 0,
             0x0L, 0x3L, 0x1FL, 0xFFFL, 0x7FFFFL, 0x3FFFFFFL, 0x1FFFFFFFFL, 0xFFFFFFFFFFFFL,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     };
 
     public static final int[] readConsumeCountByZeros = {
             0, 0, 0, 0, 0, 0, 0, 0,
             1, 4, 8, 16, 24, 32, 40, 56,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     };
 }

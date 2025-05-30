@@ -129,6 +129,8 @@ public class MetricDecoder {
         this.monotonicDecoder.reset();
     }
 
+    private static String out = "";
+
     public Metric decode(Metric dstPtr) throws IOException {
         // Check if the Metric exists in the dictionary.
         int dictFlag = buf.readBit();
@@ -141,6 +143,8 @@ public class MetricDecoder {
             dstPtr = lastVal;
             return dstPtr;
         }
+        out += "1";
+
         // lastValPtr here is pointing to an element in the dictionary. We are not allowed
         // to modify it. Make a clone of it and decode into the clone.
         Metric val = lastVal.clone();
@@ -148,53 +152,46 @@ public class MetricDecoder {
         dstPtr = val;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-
             val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedDescription) != 0) {
             // Field is changed and is present, decode it.
-
             val.description = descriptionDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedUnit) != 0) {
             // Field is changed and is present, decode it.
-
             val.unit = unitDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedType) != 0) {
             // Field is changed and is present, decode it.
-
             val.type_ = type_Decoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
-
             val.metadata = metadataDecoder.decode(val.metadata);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
-
             val.histogramBounds = histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedAggregationTemporality) != 0) {
             // Field is changed and is present, decode it.
-
             val.aggregationTemporality = aggregationTemporalityDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Metric.fieldModifiedMonotonic) != 0) {
             // Field is changed and is present, decode it.
-
             val.monotonic = monotonicDecoder.decode();
         }
         

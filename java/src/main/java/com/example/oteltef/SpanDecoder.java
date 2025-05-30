@@ -186,93 +186,82 @@ public class SpanDecoder {
         this.statusDecoder.reset();
     }
 
+    private static String out = "";
+
     public Span decode(Span dstPtr) throws IOException {
         Span val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceID) != 0) {
             // Field is changed and is present, decode it.
-
             val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedSpanID) != 0) {
             // Field is changed and is present, decode it.
-
             val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedTraceState) != 0) {
             // Field is changed and is present, decode it.
-
             val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedParentSpanID) != 0) {
             // Field is changed and is present, decode it.
-
             val.parentSpanID = parentSpanIDDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedFlags) != 0) {
             // Field is changed and is present, decode it.
-
             val.flags = flagsDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-
             val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedKind) != 0) {
             // Field is changed and is present, decode it.
-
             val.kind = kindDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStartTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-
             val.startTimeUnixNano = startTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEndTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-
             val.endTimeUnixNano = endTimeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
-
             val.events = eventsDecoder.decode(val.events);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
-
             val.links = linksDecoder.decode(val.links);
         }
         
         if ((val.getModifiedFields().mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
-
             val.status = statusDecoder.decode(val.status);
         }
         

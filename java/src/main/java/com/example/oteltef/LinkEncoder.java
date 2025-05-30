@@ -83,6 +83,8 @@ public class LinkEncoder {
         this.droppedAttributesCountEncoder.reset();
     }
 
+    private static String out = "";
+
     // encode encodes val into buf
     public void encode(Link val) throws IOException {
         int oldLen = this.buf.bitCount();
@@ -102,10 +104,13 @@ public class LinkEncoder {
                 Link.fieldModifiedAttributes | 
                 Link.fieldModifiedDroppedAttributesCount | 0L;
         }
+
         // Only write fields that we want to write. See init() for keepFieldMask.
         fieldMask &= this.keepFieldMask;
+
         // Write bits to indicate which fields follow.
         this.buf.writeBits(fieldMask, this.fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(fieldMask));
         
         // Encode modified, present fields.
         
@@ -142,6 +147,7 @@ public class LinkEncoder {
         // Account written bits in the limiter.
         int newLen = this.buf.bitCount();
         this.limiter.addFrameBits(newLen - oldLen);
+
         // Mark all fields non-modified so that next encode() correctly
         // encodes only fields that change after this.
         val.getModifiedFields().mask = 0;

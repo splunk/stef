@@ -86,33 +86,32 @@ public class EventDecoder {
         this.droppedAttributesCountDecoder.reset();
     }
 
+    private static String out = "";
+
     public Event decode(Event dstPtr) throws IOException {
         Event val = dstPtr;
         // Read bits that indicate which fields follow.
         val.getModifiedFields().mask = buf.readBits(fieldCount);
+        out += String.format(" %s\n", Long.toBinaryString(val.getModifiedFields().mask));
         
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedName) != 0) {
             // Field is changed and is present, decode it.
-
             val.name = nameDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedTimeUnixNano) != 0) {
             // Field is changed and is present, decode it.
-
             val.timeUnixNano = timeUnixNanoDecoder.decode();
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
-
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.getModifiedFields().mask & Event.fieldModifiedDroppedAttributesCount) != 0) {
             // Field is changed and is present, decode it.
-
             val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
