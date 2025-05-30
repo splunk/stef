@@ -94,12 +94,12 @@ public class {{ .StructName }}Decoder {
         // Decode selected field
         switch (dst.typ) {
         {{- range .Fields }}
-            case {{$.StructName}}.Type.Type{{.Name}}:
-                dst.{{.name}} = this.{{.name}}Decoder.decode({{if not .Type.IsPrimitive }}dst.{{.name}}{{end}});
-                break;
+        case {{$.StructName}}.Type.Type{{.Name}}:
+            dst.{{.name}} = this.{{.name}}Decoder.decode({{if not .Type.IsPrimitive }}dst.{{.name}}{{end}});
+            break;
         {{- end }}
-            default:
-                break;
+        default:
+            break;
         }
         return dst;
     }

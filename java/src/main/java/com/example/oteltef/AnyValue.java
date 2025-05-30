@@ -209,18 +209,25 @@ public class AnyValue {
         switch (src.typ) {
         case Type.TypeString:
             setString(src.getString());
+            break;
         case Type.TypeBool:
             setBool(src.getBool());
+            break;
         case Type.TypeInt64:
             setInt64(src.getInt64());
+            break;
         case Type.TypeFloat64:
             setFloat64(src.getFloat64());
+            break;
         case Type.TypeArray:
             array.copyFrom(src.array);
+            break;
         case Type.TypeKVList:
             kVList.copyFrom(src.kVList);
+            break;
         case Type.TypeBytes:
             setBytes(src.getBytes());
+            break;
         }
         setType(src.typ);
     }
@@ -238,22 +245,22 @@ public class AnyValue {
 
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
-            case Type.TypeString:
-                break;
-            case Type.TypeBool:
-                break;
-            case Type.TypeInt64:
-                break;
-            case Type.TypeFloat64:
-                break;
-            case Type.TypeArray:
-                this.array.markUnmodifiedRecursively();
-                break;
-            case Type.TypeKVList:
-                this.kVList.markUnmodifiedRecursively();
-                break;
-            case Type.TypeBytes:
-                break;
+        case Type.TypeString:
+            break;
+        case Type.TypeBool:
+            break;
+        case Type.TypeInt64:
+            break;
+        case Type.TypeFloat64:
+            break;
+        case Type.TypeArray:
+            this.array.markUnmodifiedRecursively();
+            break;
+        case Type.TypeKVList:
+            this.kVList.markUnmodifiedRecursively();
+            break;
+        case Type.TypeBytes:
+            break;
         default:
             break;
         }
@@ -265,41 +272,41 @@ public class AnyValue {
             return false;
         }
         switch (this.typ) {
-            case Type.TypeString:
-                if (!Types.StringEqual(this.string, val.string)) {
-                    return false;
-                }
-                break;
-            case Type.TypeBool:
-                if (!Types.BoolEqual(this.bool, val.bool)) {
-                    return false;
-                }
-                break;
-            case Type.TypeInt64:
-                if (!Types.Int64Equal(this.int64, val.int64)) {
-                    return false;
-                }
-                break;
-            case Type.TypeFloat64:
-                if (!Types.Float64Equal(this.float64, val.float64)) {
-                    return false;
-                }
-                break;
-            case Type.TypeArray:
-                if (!this.array.isEqual(val.array)) {
-                    return false;
-                }
-                break;
-            case Type.TypeKVList:
-                if (!this.kVList.isEqual(val.kVList)) {
-                    return false;
-                }
-                break;
-            case Type.TypeBytes:
-                if (!Types.BytesEqual(this.bytes, val.bytes)) {
-                    return false;
-                }
-                break;
+        case Type.TypeString:
+            if (!Types.StringEqual(this.string, val.string)) {
+                return false;
+            }
+            break;
+        case Type.TypeBool:
+            if (!Types.BoolEqual(this.bool, val.bool)) {
+                return false;
+            }
+            break;
+        case Type.TypeInt64:
+            if (!Types.Int64Equal(this.int64, val.int64)) {
+                return false;
+            }
+            break;
+        case Type.TypeFloat64:
+            if (!Types.Float64Equal(this.float64, val.float64)) {
+                return false;
+            }
+            break;
+        case Type.TypeArray:
+            if (!this.array.isEqual(val.array)) {
+                return false;
+            }
+            break;
+        case Type.TypeKVList:
+            if (!this.kVList.isEqual(val.kVList)) {
+                return false;
+            }
+            break;
+        case Type.TypeBytes:
+            if (!Types.BytesEqual(this.bytes, val.bytes)) {
+                return false;
+            }
+            break;
         default:
             break;
         }
@@ -317,48 +324,48 @@ public class AnyValue {
         int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
         if (c != 0) return c;
         switch (left.typ) {
-            case Type.TypeString:
-                c = Types.StringCompare(left.string, right.string);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeBool:
-                c = Types.BoolCompare(left.bool, right.bool);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeInt64:
-                c = Types.Int64Compare(left.int64, right.int64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeFloat64:
-                c = Types.Float64Compare(left.float64, right.float64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeArray:
-                c = AnyValueArray.compare(left.array, right.array);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeKVList:
-                c = KeyValueList.compare(left.kVList, right.kVList);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeBytes:
-                c = Types.BytesCompare(left.bytes, right.bytes);
-                if (c != 0) {
-                    return c;
-                }
-                break;
+        case Type.TypeString:
+            c = Types.StringCompare(left.string, right.string);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeBool:
+            c = Types.BoolCompare(left.bool, right.bool);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeInt64:
+            c = Types.Int64Compare(left.int64, right.int64);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeFloat64:
+            c = Types.Float64Compare(left.float64, right.float64);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeArray:
+            c = AnyValueArray.compare(left.array, right.array);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeKVList:
+            c = KeyValueList.compare(left.kVList, right.kVList);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeBytes:
+            c = Types.BytesCompare(left.bytes, right.bytes);
+            if (c != 0) {
+                return c;
+            }
+            break;
         default:
             break;
         }
@@ -374,41 +381,41 @@ public class AnyValue {
             typeChanged = true;
         }
         switch (this.typ) {
-            case Type.TypeString:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setString(Types.StringRandom(random));
-                }
-                break;
-            case Type.TypeBool:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setBool(Types.BoolRandom(random));
-                }
-                break;
-            case Type.TypeInt64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setInt64(Types.Int64Random(random));
-                }
-                break;
-            case Type.TypeFloat64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setFloat64(Types.Float64Random(random));
-                }
-                break;
-            case Type.TypeArray:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.array.mutateRandom(random);
-                }
-                break;
-            case Type.TypeKVList:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.kVList.mutateRandom(random);
-                }
-                break;
-            case Type.TypeBytes:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setBytes(Types.BytesRandom(random));
-                }
-                break;
+        case Type.TypeString:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setString(Types.StringRandom(random));
+            }
+            break;
+        case Type.TypeBool:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setBool(Types.BoolRandom(random));
+            }
+            break;
+        case Type.TypeInt64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setInt64(Types.Int64Random(random));
+            }
+            break;
+        case Type.TypeFloat64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setFloat64(Types.Float64Random(random));
+            }
+            break;
+        case Type.TypeArray:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.array.mutateRandom(random);
+            }
+            break;
+        case Type.TypeKVList:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.kVList.mutateRandom(random);
+            }
+            break;
+        case Type.TypeBytes:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setBytes(Types.BytesRandom(random));
+            }
+            break;
         default:
             break;
         }

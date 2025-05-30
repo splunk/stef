@@ -84,14 +84,14 @@ public class ExemplarValueDecoder {
         this.lastValPtr = dst;
         // Decode selected field
         switch (dst.typ) {
-            case ExemplarValue.Type.TypeInt64:
-                dst.int64 = this.int64Decoder.decode();
-                break;
-            case ExemplarValue.Type.TypeFloat64:
-                dst.float64 = this.float64Decoder.decode();
-                break;
-            default:
-                break;
+        case ExemplarValue.Type.TypeInt64:
+            dst.int64 = this.int64Decoder.decode();
+            break;
+        case ExemplarValue.Type.TypeFloat64:
+            dst.float64 = this.float64Decoder.decode();
+            break;
+        default:
+            break;
         }
         return dst;
     }

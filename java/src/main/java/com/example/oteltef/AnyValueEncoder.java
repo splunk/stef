@@ -103,24 +103,31 @@ public class AnyValueEncoder {
         case AnyValue.Type.TypeString:
             // Encode String
             stringEncoder.encode(val.string);
+            break;
         case AnyValue.Type.TypeBool:
             // Encode Bool
             boolEncoder.encode(val.bool);
+            break;
         case AnyValue.Type.TypeInt64:
             // Encode Int64
             int64Encoder.encode(val.int64);
+            break;
         case AnyValue.Type.TypeFloat64:
             // Encode Float64
             float64Encoder.encode(val.float64);
+            break;
         case AnyValue.Type.TypeArray:
             // Encode Array
             arrayEncoder.encode(val.array);
+            break;
         case AnyValue.Type.TypeKVList:
             // Encode KVList
             kVListEncoder.encode(val.kVList);
+            break;
         case AnyValue.Type.TypeBytes:
             // Encode Bytes
             bytesEncoder.encode(val.bytes);
+            break;
         }
     }
 

@@ -134,29 +134,29 @@ public class AnyValueDecoder {
         this.lastValPtr = dst;
         // Decode selected field
         switch (dst.typ) {
-            case AnyValue.Type.TypeString:
-                dst.string = this.stringDecoder.decode();
-                break;
-            case AnyValue.Type.TypeBool:
-                dst.bool = this.boolDecoder.decode();
-                break;
-            case AnyValue.Type.TypeInt64:
-                dst.int64 = this.int64Decoder.decode();
-                break;
-            case AnyValue.Type.TypeFloat64:
-                dst.float64 = this.float64Decoder.decode();
-                break;
-            case AnyValue.Type.TypeArray:
-                dst.array = this.arrayDecoder.decode(dst.array);
-                break;
-            case AnyValue.Type.TypeKVList:
-                dst.kVList = this.kVListDecoder.decode(dst.kVList);
-                break;
-            case AnyValue.Type.TypeBytes:
-                dst.bytes = this.bytesDecoder.decode();
-                break;
-            default:
-                break;
+        case AnyValue.Type.TypeString:
+            dst.string = this.stringDecoder.decode();
+            break;
+        case AnyValue.Type.TypeBool:
+            dst.bool = this.boolDecoder.decode();
+            break;
+        case AnyValue.Type.TypeInt64:
+            dst.int64 = this.int64Decoder.decode();
+            break;
+        case AnyValue.Type.TypeFloat64:
+            dst.float64 = this.float64Decoder.decode();
+            break;
+        case AnyValue.Type.TypeArray:
+            dst.array = this.arrayDecoder.decode(dst.array);
+            break;
+        case AnyValue.Type.TypeKVList:
+            dst.kVList = this.kVListDecoder.decode(dst.kVList);
+            break;
+        case AnyValue.Type.TypeBytes:
+            dst.bytes = this.bytesDecoder.decode();
+            break;
+        default:
+            break;
         }
         return dst;
     }

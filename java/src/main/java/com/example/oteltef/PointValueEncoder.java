@@ -79,12 +79,15 @@ public class PointValueEncoder {
         case PointValue.Type.TypeInt64:
             // Encode Int64
             int64Encoder.encode(val.int64);
+            break;
         case PointValue.Type.TypeFloat64:
             // Encode Float64
             float64Encoder.encode(val.float64);
+            break;
         case PointValue.Type.TypeHistogram:
             // Encode Histogram
             histogramEncoder.encode(val.histogram);
+            break;
         }
     }
 

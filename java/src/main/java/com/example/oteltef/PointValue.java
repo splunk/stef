@@ -137,10 +137,13 @@ public class PointValue {
         switch (src.typ) {
         case Type.TypeInt64:
             setInt64(src.getInt64());
+            break;
         case Type.TypeFloat64:
             setFloat64(src.getFloat64());
+            break;
         case Type.TypeHistogram:
             histogram.copyFrom(src.histogram);
+            break;
         }
         setType(src.typ);
     }
@@ -157,13 +160,13 @@ public class PointValue {
 
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
-            case Type.TypeInt64:
-                break;
-            case Type.TypeFloat64:
-                break;
-            case Type.TypeHistogram:
-                this.histogram.markUnmodifiedRecursively();
-                break;
+        case Type.TypeInt64:
+            break;
+        case Type.TypeFloat64:
+            break;
+        case Type.TypeHistogram:
+            this.histogram.markUnmodifiedRecursively();
+            break;
         default:
             break;
         }
@@ -175,21 +178,21 @@ public class PointValue {
             return false;
         }
         switch (this.typ) {
-            case Type.TypeInt64:
-                if (!Types.Int64Equal(this.int64, val.int64)) {
-                    return false;
-                }
-                break;
-            case Type.TypeFloat64:
-                if (!Types.Float64Equal(this.float64, val.float64)) {
-                    return false;
-                }
-                break;
-            case Type.TypeHistogram:
-                if (!this.histogram.isEqual(val.histogram)) {
-                    return false;
-                }
-                break;
+        case Type.TypeInt64:
+            if (!Types.Int64Equal(this.int64, val.int64)) {
+                return false;
+            }
+            break;
+        case Type.TypeFloat64:
+            if (!Types.Float64Equal(this.float64, val.float64)) {
+                return false;
+            }
+            break;
+        case Type.TypeHistogram:
+            if (!this.histogram.isEqual(val.histogram)) {
+                return false;
+            }
+            break;
         default:
             break;
         }
@@ -207,24 +210,24 @@ public class PointValue {
         int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
         if (c != 0) return c;
         switch (left.typ) {
-            case Type.TypeInt64:
-                c = Types.Int64Compare(left.int64, right.int64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeFloat64:
-                c = Types.Float64Compare(left.float64, right.float64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeHistogram:
-                c = HistogramValue.compare(left.histogram, right.histogram);
-                if (c != 0) {
-                    return c;
-                }
-                break;
+        case Type.TypeInt64:
+            c = Types.Int64Compare(left.int64, right.int64);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeFloat64:
+            c = Types.Float64Compare(left.float64, right.float64);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeHistogram:
+            c = HistogramValue.compare(left.histogram, right.histogram);
+            if (c != 0) {
+                return c;
+            }
+            break;
         default:
             break;
         }
@@ -240,21 +243,21 @@ public class PointValue {
             typeChanged = true;
         }
         switch (this.typ) {
-            case Type.TypeInt64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setInt64(Types.Int64Random(random));
-                }
-                break;
-            case Type.TypeFloat64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setFloat64(Types.Float64Random(random));
-                }
-                break;
-            case Type.TypeHistogram:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.histogram.mutateRandom(random);
-                }
-                break;
+        case Type.TypeInt64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setInt64(Types.Int64Random(random));
+            }
+            break;
+        case Type.TypeFloat64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setFloat64(Types.Float64Random(random));
+            }
+            break;
+        case Type.TypeHistogram:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.histogram.mutateRandom(random);
+            }
+            break;
         default:
             break;
         }

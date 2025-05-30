@@ -125,8 +125,10 @@ public class ExemplarValue {
         switch (src.typ) {
         case Type.TypeInt64:
             setInt64(src.getInt64());
+            break;
         case Type.TypeFloat64:
             setFloat64(src.getFloat64());
+            break;
         }
         setType(src.typ);
     }
@@ -142,10 +144,10 @@ public class ExemplarValue {
 
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
-            case Type.TypeInt64:
-                break;
-            case Type.TypeFloat64:
-                break;
+        case Type.TypeInt64:
+            break;
+        case Type.TypeFloat64:
+            break;
         default:
             break;
         }
@@ -157,16 +159,16 @@ public class ExemplarValue {
             return false;
         }
         switch (this.typ) {
-            case Type.TypeInt64:
-                if (!Types.Int64Equal(this.int64, val.int64)) {
-                    return false;
-                }
-                break;
-            case Type.TypeFloat64:
-                if (!Types.Float64Equal(this.float64, val.float64)) {
-                    return false;
-                }
-                break;
+        case Type.TypeInt64:
+            if (!Types.Int64Equal(this.int64, val.int64)) {
+                return false;
+            }
+            break;
+        case Type.TypeFloat64:
+            if (!Types.Float64Equal(this.float64, val.float64)) {
+                return false;
+            }
+            break;
         default:
             break;
         }
@@ -184,18 +186,18 @@ public class ExemplarValue {
         int c = Integer.compare(left.typ.ordinal(), right.typ.ordinal());
         if (c != 0) return c;
         switch (left.typ) {
-            case Type.TypeInt64:
-                c = Types.Int64Compare(left.int64, right.int64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
-            case Type.TypeFloat64:
-                c = Types.Float64Compare(left.float64, right.float64);
-                if (c != 0) {
-                    return c;
-                }
-                break;
+        case Type.TypeInt64:
+            c = Types.Int64Compare(left.int64, right.int64);
+            if (c != 0) {
+                return c;
+            }
+            break;
+        case Type.TypeFloat64:
+            c = Types.Float64Compare(left.float64, right.float64);
+            if (c != 0) {
+                return c;
+            }
+            break;
         default:
             break;
         }
@@ -211,16 +213,16 @@ public class ExemplarValue {
             typeChanged = true;
         }
         switch (this.typ) {
-            case Type.TypeInt64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setInt64(Types.Int64Random(random));
-                }
-                break;
-            case Type.TypeFloat64:
-                if (typeChanged || random.nextInt(2) == 0) {
-                    this.setFloat64(Types.Float64Random(random));
-                }
-                break;
+        case Type.TypeInt64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setInt64(Types.Int64Random(random));
+            }
+            break;
+        case Type.TypeFloat64:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.setFloat64(Types.Float64Random(random));
+            }
+            break;
         default:
             break;
         }

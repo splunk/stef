@@ -132,6 +132,7 @@ public class {{ .StructName }} {
             set{{.Name}}(src.get{{.Name}}());
             {{- end }}
             {{- end }}
+            break;
         {{- end }}
         }
         setType(src.typ);
@@ -154,12 +155,12 @@ public class {{ .StructName }} {
     public void markUnmodifiedRecursively() {
         switch (this.typ) {
         {{- range .Fields }}
-            case Type.Type{{.Name}}:
+        case Type.Type{{.Name}}:
             {{- if not .Type.IsPrimitive }}
-                this.{{.name}}.markUnmodifiedRecursively();
+            this.{{.name}}.markUnmodifiedRecursively();
             {{- end }}
-                break;
-        {{- end }}
+            break;
+            {{- end }}
         default:
             break;
         }
@@ -172,17 +173,17 @@ public class {{ .StructName }} {
         }
         switch (this.typ) {
         {{- range .Fields }}
-            case Type.Type{{.Name}}:
-                {{- if .Type.IsPrimitive }}
-                if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
-                    return false;
-                }
-                {{- else }}
-                if (!this.{{.name}}.isEqual(val.{{.name}})) {
-                    return false;
-                }
-                {{- end }}
-                break;
+        case Type.Type{{.Name}}:
+            {{- if .Type.IsPrimitive }}
+            if (!{{ .Type.EqualFunc }}(this.{{.name}}, val.{{.name}})) {
+                return false;
+            }
+            {{- else }}
+            if (!this.{{.name}}.isEqual(val.{{.name}})) {
+                return false;
+            }
+            {{- end }}
+            break;
         {{- end }}
         default:
             break;
@@ -202,12 +203,12 @@ public class {{ .StructName }} {
         if (c != 0) return c;
         switch (left.typ) {
         {{- range .Fields }}
-            case Type.Type{{.Name}}:
-                c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
-                if (c != 0) {
-                    return c;
-                }
-                break;
+        case Type.Type{{.Name}}:
+            c = {{ .Type.CompareFunc }}(left.{{.name}}, right.{{.name}});
+            if (c != 0) {
+                return c;
+            }
+            break;
         {{- end }}
         default:
             break;
@@ -225,15 +226,15 @@ public class {{ .StructName }} {
         }
         switch (this.typ) {
         {{- range .Fields }}
-            case Type.Type{{.Name}}:
-                if (typeChanged || random.nextInt(2) == 0) {
-                {{- if not .Type.IsPrimitive }}
-                    this.{{.name}}.mutateRandom(random);
-                {{- else }}
-                    this.set{{.Name}}({{.Type.RandomFunc}});
-                {{- end }}
-                }
-                break;
+        case Type.Type{{.Name}}:
+            if (typeChanged || random.nextInt(2) == 0) {
+            {{- if not .Type.IsPrimitive }}
+                this.{{.name}}.mutateRandom(random);
+            {{- else }}
+                this.set{{.Name}}({{.Type.RandomFunc}});
+            {{- end }}
+            }
+            break;
         {{- end }}
         default:
             break;

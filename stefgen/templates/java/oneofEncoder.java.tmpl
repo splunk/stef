@@ -84,6 +84,7 @@ public class {{ .StructName }}Encoder {
         case {{ $.StructName }}.Type.Type{{.Name}}:
             // Encode {{.Name}}
             {{.name}}Encoder.encode(val.{{.name}});
+            break;
         {{- end }}
         }
     }

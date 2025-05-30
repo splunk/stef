@@ -94,17 +94,17 @@ public class PointValueDecoder {
         this.lastValPtr = dst;
         // Decode selected field
         switch (dst.typ) {
-            case PointValue.Type.TypeInt64:
-                dst.int64 = this.int64Decoder.decode();
-                break;
-            case PointValue.Type.TypeFloat64:
-                dst.float64 = this.float64Decoder.decode();
-                break;
-            case PointValue.Type.TypeHistogram:
-                dst.histogram = this.histogramDecoder.decode(dst.histogram);
-                break;
-            default:
-                break;
+        case PointValue.Type.TypeInt64:
+            dst.int64 = this.int64Decoder.decode();
+            break;
+        case PointValue.Type.TypeFloat64:
+            dst.float64 = this.float64Decoder.decode();
+            break;
+        case PointValue.Type.TypeHistogram:
+            dst.histogram = this.histogramDecoder.decode(dst.histogram);
+            break;
+        default:
+            break;
         }
         return dst;
     }
