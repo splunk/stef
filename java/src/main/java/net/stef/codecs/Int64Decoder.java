@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class Int64Decoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private ReadableColumn column;
     private long lastVal = 0;
     private long lastDelta = 0;

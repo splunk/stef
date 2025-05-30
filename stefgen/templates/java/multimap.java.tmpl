@@ -261,18 +261,18 @@ public class {{ .MultimapName }} {
         }
         for (int i = 0; i < elemsLen; i++) {
             if (random.nextInt(4 * elemsLen) == 0) {
-            {{- if not .Key.Type.IsPrimitive }}
+                {{- if not .Key.Type.IsPrimitive }}
                 elems[i].key.mutateRandom(random);
-            {{- else }}
+                {{- else }}
                 setKey(i, {{ .Key.Type.RandomFunc }});
-            {{- end}}
+                {{- end}}
             }
             if (random.nextInt(4 * elemsLen) == 0) {
-            {{- if not .Value.Type.IsPrimitive }}
+                {{- if not .Value.Type.IsPrimitive }}
                 elems[i].value.mutateRandom(random);
-            {{- else }}
+                {{- else }}
                 setValue(i, {{ .Value.Type.RandomFunc }});
-            {{- end}}
+                {{- end}}
             }
         }
     }
@@ -285,5 +285,19 @@ public class {{ .MultimapName }} {
             dst.elems[i].value = src.elems[i].value;
         }
         dst.markModified();
+    }
+
+    boolean isSameKeys({{ .MultimapName }} val2) {
+        if (elemsLen != val2.elemsLen) {
+            return false;
+        }
+
+        for (int i=0; i<elemsLen; i++) {
+            if (elems[i].key != val2.elems[i].key) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

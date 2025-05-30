@@ -36,9 +36,9 @@ public class WriteColumnSet {
     }
 
     public void writeSizesTo(BitsWriter buf) {
-        buf.writeUvarintCompact(data.capacity());
+        buf.writeUvarintCompact(data.limit());
 
-        if (data.capacity() == 0) {
+        if (data.limit() == 0) {
             return;
         }
 

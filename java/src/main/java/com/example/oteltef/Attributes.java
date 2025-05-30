@@ -241,4 +241,18 @@ public class Attributes {
         }
         dst.markModified();
     }
+
+    boolean isSameKeys(Attributes val2) {
+        if (elemsLen != val2.elemsLen) {
+            return false;
+        }
+
+        for (int i=0; i<elemsLen; i++) {
+            if (elems[i].key != val2.elems[i].key) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

@@ -10,7 +10,7 @@ import java.io.IOException;
 
 // Encoder for EnvelopeAttributes
 public class EnvelopeAttributesEncoder {
-    private BytesWriter buf;
+    private BytesWriter buf = new BytesWriter(0);
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
@@ -39,26 +39,98 @@ public class EnvelopeAttributesEncoder {
         return lastVal.isEqual(list);
     }
 
-    public boolean encode(EnvelopeAttributes list) {
-        // Implement encoding logic as in Go template
-        return false;
+    public boolean encode(EnvelopeAttributes list) throws IOException {
+        int oldLen = buf.size();
+        if (list.elemsLen == 0) {
+            buf.writeUvarint(0b1);
+            boolean changed = lastVal.elemsLen != 0;
+            lastVal.ensureLen(0);
+            int newLen = buf.size();
+            limiter.addFrameBytes(newLen - oldLen);
+            return changed;
+        }
+        if (list.isSameKeys(lastVal) && lastVal.elemsLen < 63) {
+            return encodeValuesOnly(list);
+        } else {
+            encodeFull(list);
+            return true;
+        }
     }
 
-    private boolean encodeValuesOnly(EnvelopeAttributes list) {
-        // Implement value-only encoding logic
-        return false;
+    private boolean encodeValuesOnly(EnvelopeAttributes list) throws IOException {
+        if (list.elemsLen > 62) {
+            throw new UnsupportedOperationException("Not implemented for >62 elements");
+        }
+
+        // Calculate changed values.
+        long changedValuesBits = 0;
+        for (int i = 0; i < list.elemsLen; i++) {
+            changedValuesBits <<= 1;
+            if (lastVal.elems[i].value != list.elems[i].value) {
+                changedValuesBits |= 1;
+            }
+            
+        }
+
+        buf.writeUvarint(changedValuesBits << 1);
+
+        // Encode changed values first.
+        long bitToRead = 1L << (list.elemsLen - 1);
+        for (int i = 0; i < list.elemsLen; i++) {
+            if ((bitToRead & changedValuesBits) != 0) {
+                valueEncoder.encode(list.elems[i].value);
+            }
+            bitToRead >>>= 1;
+            if (bitToRead == 0) {
+                break;
+            }
+        }
+
+        // Store changed values in lastVal after encoding.
+        lastVal.ensureLen(list.elemsLen);
+        bitToRead = 1L << (list.elemsLen - 1);
+        for (int i = 0; i < list.elemsLen; i++) {
+            if ((bitToRead & changedValuesBits) != 0) {
+                lastVal.elems[i].value = list.elems[i].value;
+                
+            }
+            bitToRead >>>= 1;
+            if (bitToRead == 0) {
+                break;
+            }
+        }
+        return changedValuesBits != 0;
     }
 
-    private void encodeFull(EnvelopeAttributes list) {
-        // Implement full encoding logic
+    private void encodeFull(EnvelopeAttributes list) throws IOException {
+        buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
+
+        // Encode values first.
+        for (int i = 0; i < list.elemsLen; i++) {
+            keyEncoder.encode(list.elems[i].key);
+            valueEncoder.encode(list.elems[i].value);
+        }
+
+        lastVal.ensureLen(list.elemsLen);
+        for (int i = 0; i < list.elemsLen; i++) {
+            lastVal.elems[i].key = list.elems[i].key;
+            lastVal.elems[i].value = list.elems[i].value;
+        }
     }
 
-    public void rencodeLast() {
-        // Implement re-encoding of last value
+    public void rencodeLast() throws IOException {
+        EnvelopeAttributes list = lastVal;
+        buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
+        for (int i = 0; i < list.elemsLen; i++) {
+            keyEncoder.encode(list.elems[i].key);
+            valueEncoder.encode(list.elems[i].value);
+        }
     }
 
     public void collectColumns(WriteColumnSet columnSet) {
-        // Implement column collection logic
+        columnSet.setBytes(buf);
+        keyEncoder.collectColumns(columnSet.at(0));
+        valueEncoder.collectColumns(columnSet.at(1));
     }
 }
 

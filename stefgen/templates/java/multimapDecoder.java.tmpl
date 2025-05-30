@@ -10,7 +10,7 @@ import java.io.IOException;
 
 // Decoder for {{ .MultimapName }}
 public class {{ .MultimapName }}Decoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private ReadableColumn column;
     private {{.Key.Type.EncoderType}}Decoder keyDecoder;
     private {{.Value.Type.EncoderType}}Decoder valueDecoder;

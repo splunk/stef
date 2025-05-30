@@ -11,7 +11,7 @@ import java.io.IOException;
 
 // Decoder for EnvelopeAttributes
 public class EnvelopeAttributesDecoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private ReadableColumn column;
     private StringDecoder keyDecoder;
     private BytesDecoder valueDecoder;

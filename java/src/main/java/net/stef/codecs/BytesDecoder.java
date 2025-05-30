@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class BytesDecoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private BytesDecoderDict dict;
     private ReadableColumn column;
 

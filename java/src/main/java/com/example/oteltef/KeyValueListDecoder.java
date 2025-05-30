@@ -11,7 +11,7 @@ import java.io.IOException;
 
 // Decoder for KeyValueList
 public class KeyValueListDecoder {
-    private BytesReader buf;
+    private BytesReader buf = new BytesReader();
     private ReadableColumn column;
     private StringDecoder keyDecoder;
     private AnyValueDecoder valueDecoder;

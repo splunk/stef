@@ -14,6 +14,10 @@ public class StringEncoder {
     }
 
     public void encode(StringValue value) {
+        if (value == null) {
+            encoder.encode(null);
+            return;
+        }
         encoder.encode(value.getBytes());
     }
 
