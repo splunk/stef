@@ -5,6 +5,8 @@ import java.util.Random;
 
 public class Types {
 
+    public static final byte[] emptyBytes = new byte[0];
+
     public static int Uint64Compare(long left, long right) {
         return Long.compareUnsigned(left, right);
     }

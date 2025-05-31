@@ -40,7 +40,7 @@ public class SpanStatus {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        message = StringValue.empty();
+        message = StringValue.empty;
         
     }
 

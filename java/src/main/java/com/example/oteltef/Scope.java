@@ -46,9 +46,9 @@ public class Scope {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        name = StringValue.empty();
-        version = StringValue.empty();
-        schemaURL = StringValue.empty();
+        name = StringValue.empty;
+        version = StringValue.empty;
+        schemaURL = StringValue.empty;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
         
     }

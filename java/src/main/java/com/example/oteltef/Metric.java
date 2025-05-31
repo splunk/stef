@@ -52,9 +52,9 @@ public class Metric {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        name = StringValue.empty();
-        description = StringValue.empty();
-        unit = StringValue.empty();
+        name = StringValue.empty;
+        description = StringValue.empty;
+        unit = StringValue.empty;
         
         metadata = new Attributes(modifiedFields, fieldModifiedMetadata);
         histogramBounds = new DoubleArray(modifiedFields, fieldModifiedHistogramBounds);

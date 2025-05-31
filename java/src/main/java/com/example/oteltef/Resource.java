@@ -42,7 +42,7 @@ public class Resource {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        schemaURL = StringValue.empty();
+        schemaURL = StringValue.empty;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
         
     }
