@@ -24,6 +24,7 @@ import (
 var speedEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
+	&stef.STEFUEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
 	&otelarrow.OtelArrowEncoding{},
 }
@@ -146,6 +147,9 @@ func BenchmarkDeserializeNative(b *testing.B) {
 }
 
 func BenchmarkSerializeFromPdata(b *testing.B) {
+	chart.BeginChart("Serialization From pdata Speed", b)
+	defer chart.EndChart("ns/point", "CPU time to serialize one data point")
+
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
@@ -170,9 +174,10 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 								testutils.CompressZstd(bodyBytes)
 							}
 						}
-						b.ReportMetric(
+						chart.Record(
+							b,
+							encoding.LongName(),
 							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-							"ns/point",
 						)
 					},
 				)
@@ -183,6 +188,9 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 }
 
 func BenchmarkDeserializeToPdata(b *testing.B) {
+	chart.BeginChart("Deserialization To pdata Speed", b)
+	defer chart.EndChart("ns/point", "CPU time to deserialize one data point")
+
 	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
@@ -218,9 +226,10 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 								log.Fatal(err)
 							}
 						}
-						b.ReportMetric(
+						chart.Record(
+							b,
+							encoding.LongName(),
 							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-							"ns/point",
 						)
 					},
 				)
