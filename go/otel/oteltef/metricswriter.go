@@ -205,7 +205,7 @@ func (w *MetricsWriter) Flush() error {
 	return w.restartFrame(w.opts.FrameRestartFlags)
 }
 
-const wireSchemaMetrics = "\v\bAnyValue\a\bEnvelope\x01\bExemplar\x05\rExemplarValue\x02\x0eHistogramValue\x05\x06Metric\b\aMetrics\x06\x05Point\x04\nPointValue\x03\bResource\x03\x05Scope\x05"
+const wireSchemaMetrics = "\r\bAnyValue\a\bEnvelope\x01\bExemplar\x05\rExemplarValue\x02\x13ExpHistogramBuckets\x02\x11ExpHistogramValue\t\x0eHistogramValue\x05\x06Metric\b\aMetrics\x06\x05Point\x04\nPointValue\x04\bResource\x03\x05Scope\x05"
 
 func MetricsWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

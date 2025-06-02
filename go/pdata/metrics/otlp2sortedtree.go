@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"fmt"
-	"log"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
@@ -43,6 +42,11 @@ func (c *OtlpToSortedTree) FromOtlp(rms pmetric.ResourceMetricsSlice) (*sortedby
 					)
 				case pmetric.MetricTypeHistogram:
 					err := c.covertHistogramDataPoints(sm, rm, sms, metric, metric.Histogram())
+					if err != nil {
+						return nil, err
+					}
+				case pmetric.MetricTypeExponentialHistogram:
+					err := c.covertExponentialHistogramDataPoints(sm, rm, sms, metric, metric.ExponentialHistogram())
 					if err != nil {
 						return nil, err
 					}
@@ -131,7 +135,7 @@ func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
 	case pmetric.MetricTypeSum:
 		return oteltef.MetricTypeSum
 	default:
-		log.Fatalf("Unsupported value type: %v", metric.Type())
+		panic("Unsupported metric type")
 	}
 	return 0
 }
@@ -166,6 +170,43 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
 
 		err := c.ConvertHistogram(dstPoint, srcPoint)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
+	sm *sortedbymetric.SortedTree,
+	rm pmetric.ResourceMetrics,
+	sms pmetric.ScopeMetrics,
+	metric pmetric.Metric,
+	hist pmetric.ExponentialHistogram,
+) error {
+	var byMetric *sortedbymetric.ByMetric
+	var byScope *sortedbymetric.ByScope
+	flags := calcMetricFlags(false, hist.AggregationTemporality())
+	srcPoints := hist.DataPoints()
+
+	for l := 0; l < srcPoints.Len(); l++ {
+		srcPoint := srcPoints.At(l)
+
+		c.recordCount++
+
+		byMetric = sm.ByMetric(metric, oteltef.MetricTypeExpHistogram, flags, nil)
+		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
+		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
+
+		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
+		dstPoints := byScope.ByAttrs(&c.TempAttrs)
+		dstPoint := oteltef.NewPoint()
+		*dstPoints = append(*dstPoints, dstPoint)
+
+		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
+
+		err := c.ConvertExpHistogram(dstPoint, srcPoint)
 		if err != nil {
 			return err
 		}
