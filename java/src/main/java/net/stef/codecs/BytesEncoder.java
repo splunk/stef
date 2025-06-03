@@ -5,7 +5,7 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 
 public class BytesEncoder {
-    private BytesWriter buf;
+    private final BytesWriter buf = new BytesWriter(0);
     private BytesEncoderDict dict;
     private SizeLimiter limiter;
 
@@ -25,14 +25,16 @@ public class BytesEncoder {
                 return;
             }
         }
-        int bytesLen = val.length;
+        int bytesLen = val==null ? 0 : val.length;
         if (dict != null && bytesLen > 1) {
             int refNum = dict.size();
             dict.put(val, refNum);
             limiter.addDictElemSize((long) bytesLen + 24);
         }
         buf.writeVarint(bytesLen);
-        buf.writeBytes(val, 0, bytesLen);
+        if (val!=null) {
+            buf.writeBytes(val, 0, bytesLen);
+        }
         int newLen = buf.size();
         limiter.addFrameBytes(newLen - oldLen);
     }

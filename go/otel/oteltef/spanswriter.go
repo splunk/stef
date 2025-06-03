@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/schema"
 )
 
 type SpansWriter struct {
@@ -203,14 +202,4 @@ func (w *SpansWriter) Flush() error {
 		return nil
 	}
 	return w.restartFrame(w.opts.FrameRestartFlags)
-}
-
-const wireSchemaSpans = "\t\bAnyValue\a\bEnvelope\x01\x05Event\x04\x04Link\x06\bResource\x03\x05Scope\x05\x04Span\x0e\nSpanStatus\x02\x05Spans\x04"
-
-func SpansWireSchema() (schema.WireSchema, error) {
-	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaSpans))); err != nil {
-		return w, err
-	}
-	return w, nil
 }

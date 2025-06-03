@@ -93,13 +93,13 @@ func TestSchemaSelfCompatible(t *testing.T) {
 	p := PrimitiveTypeString
 	schemas := []*Schema{
 		{
-			PackageName: "pkg",
+			PackageName: []string{"pkg"},
 			Structs: map[string]*Struct{
 				"Root": {Name: "Root"},
 			},
 		},
 		{
-			PackageName: "pkg",
+			PackageName: []string{"pkg"},
 			Structs: map[string]*Struct{
 				"Root": {
 					Name: "Root",
@@ -139,7 +139,7 @@ func TestSchemaSuperset(t *testing.T) {
 	}{
 		{
 			old: &Schema{
-				PackageName: "abc",
+				PackageName: []string{"abc"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
@@ -156,7 +156,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Multimaps: nil,
 			},
 			new: &Schema{
-				PackageName: "def",
+				PackageName: []string{"def"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
@@ -181,7 +181,7 @@ func TestSchemaSuperset(t *testing.T) {
 		},
 		{
 			old: &Schema{
-				PackageName: "abc",
+				PackageName: []string{"abc"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
@@ -251,7 +251,7 @@ func TestSchemaSuperset(t *testing.T) {
 				},
 			},
 			new: &Schema{
-				PackageName: "def",
+				PackageName: []string{"def"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
@@ -366,7 +366,7 @@ func TestSchemaIncompatible(t *testing.T) {
 	}{
 		{
 			old: &Schema{
-				PackageName: "abc",
+				PackageName: []string{"abc"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
@@ -389,7 +389,7 @@ func TestSchemaIncompatible(t *testing.T) {
 				Multimaps: nil,
 			},
 			new: &Schema{
-				PackageName: "def",
+				PackageName: []string{"def"},
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",

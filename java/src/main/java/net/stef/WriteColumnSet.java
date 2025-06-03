@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WriteColumnSet {
-    private ByteBuffer data;
+    private ByteBuffer data = ByteBuffer.wrap(new byte[0]);
     private final List<WriteColumnSet> subColumns = new ArrayList<>();
 
     public int totalCount() {
@@ -36,9 +36,9 @@ public class WriteColumnSet {
     }
 
     public void writeSizesTo(BitsWriter buf) {
-        buf.writeUvarintCompact(data.capacity());
+        buf.writeUvarintCompact(data.limit());
 
-        if (data.capacity() == 0) {
+        if (data.limit() == 0) {
             return;
         }
 
@@ -48,9 +48,9 @@ public class WriteColumnSet {
     }
 
     public void writeDataTo(OutputStream buf) throws IOException {
-        buf.write(data.array(), data.arrayOffset(), data.capacity());
+        buf.write(data.array(), data.arrayOffset(), data.limit());
 
-        if (data.capacity() == 0) {
+        if (data.limit() == 0) {
             return;
         }
 

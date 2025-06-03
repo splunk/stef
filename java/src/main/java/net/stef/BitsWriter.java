@@ -22,7 +22,7 @@ public class BitsWriter {
 
     public void close() {
         int targetLen = bufSize + (bitsBufUsed+7)/8;
-        writeLong(bitsBuf);
+        writeUint64(bitsBuf);
         bufSize = targetLen;
     }
 
@@ -61,7 +61,7 @@ public class BitsWriter {
         bitsBuf |= val >>> (nbits - bitsBufFree);
 
         // And append 64 bits to stream.
-        writeLong(bitsBuf);
+        writeUint64(bitsBuf);
 
         // Write the rest of bits
         nbits -= bitsBufFree;
@@ -93,7 +93,7 @@ public class BitsWriter {
     }
 
     private void ensureSpace(int len) {
-        if (bufSize + len < buf.length) {
+        if (bufSize + len <= buf.length) {
             return;
         }
 
@@ -111,7 +111,7 @@ public class BitsWriter {
         buf[bufSize++] = b;
     }
 
-    private void writeLong(long l) {
+    private void writeUint64(long l) {
         ensureSpace(8);
         buf[bufSize] = (byte)(l>>>56);
         buf[bufSize+1] = (byte)(l>>>48);

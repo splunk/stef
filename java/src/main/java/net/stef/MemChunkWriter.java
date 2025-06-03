@@ -9,7 +9,9 @@ public class MemChunkWriter implements ChunkWriter {
     @Override
     public void writeChunk(byte[] header, byte[] content) throws IOException {
         buf.write(header);
-        buf.write(content);
+        if (content != null) {
+            buf.write(content);
+        }
     }
 
     public byte[] getBytes() {

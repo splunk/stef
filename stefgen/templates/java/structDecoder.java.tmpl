@@ -1,6 +1,122 @@
+// {{ .StructName }}Decoder implements decoding of {{ .StructName }}
 package {{ .PackageName }};
 
-public class {{ .StructName }}Decoder {
-    // TODO: Implement the decoder logic for {{ .StructName }}.
+import net.stef.BitsReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+class {{ .StructName }}Decoder {
+    private final BitsReader buf = new BitsReader();
+    private ReadableColumn column;
+    private {{.StructName}} lastVal;
+    private int fieldCount;
+
+    {{ range .Fields }}
+    private {{ .Type.EncoderType }}Decoder {{.name}}Decoder = new {{ .Type.EncoderType }}Decoder();
+    {{- end }}
+    {{if .DictName}}
+    private {{ .StructName }}DecoderDict dict;
+    {{end}}
+
+    // Init is called once in the lifetime of the stream.
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        state.{{ .StructName }}Decoder = this;
+        if (state.getOverrideSchema() != null) {
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+            fieldCount = fieldCount;
+        } else {
+            fieldCount = {{len .Fields}};
+        }
+        column = columns.getColumn();
+        {{if .IsMainStruct}}
+        lastVal = new {{.StructName}}();
+        {{- else}}
+        lastVal = new {{.StructName}}(null, 0);
+        {{- end}}
+        {{- if .DictName}}
+        dict = state.{{.DictName}};
+        {{- end}}
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .Type.IsPrimitive}}
+            {{- if .Type.DictName}}
+        {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
+            {{- else if .Type.IsDictPossible}}
+        {{.name}}Decoder.init(null, columns.addSubColumn());
+            {{- else}}
+        {{.name}}Decoder.init(columns.addSubColumn());
+            {{- end}}
+        {{- else}}
+        {{.name}}Decoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end }}
+    }
+
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        this.buf.reset(this.column.getData());
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        this.{{.name}}Decoder.continueDecoding();
+        {{- end }}
+    }
+
+    public void reset() {
+        {{- range .Fields}}
+        this.{{.name}}Decoder.reset();
+        {{- end}}
+    }
+
+    public {{.StructName}} decode({{.StructName}} dstPtr) throws IOException {
+        {{- if .DictName}}
+        // Check if the {{ .StructName }} exists in the dictionary.
+        int dictFlag = buf.readBit();
+        if (dictFlag == 0) {
+            long refNum = buf.readUvarintCompact();
+            if (refNum >= dict.size()) {
+                throw new IOException("Invalid refNum");
+            }
+            lastVal = dict.getByIndex((int)refNum);
+            dstPtr = lastVal;
+            return dstPtr;
+        }
+
+        // lastValPtr here is pointing to an element in the dictionary. We are not allowed
+        // to modify it. Make a clone of it and decode into the clone.
+        {{.StructName}} val = lastVal.clone();
+        lastVal = val;
+        dstPtr = val;
+        {{- else}}
+        {{.StructName}} val = dstPtr;
+        {{- end}}
+        // Read bits that indicate which fields follow.
+        val.modifiedFields.mask = buf.readBits(fieldCount);
+        {{ if .OptionalFieldCount}}
+        // Write bits to indicate which optional fields are set.
+        val.optionalFieldsPresent = buf.readBits({{ .OptionalFieldCount}});
+        {{- end}}
+        {{ range .Fields }}
+        if ((val.modifiedFields.mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
+            {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
+            // Field is changed and is present, decode it.
+            val.{{.name}} = {{.name}}Decoder.decode({{if not .Type.IsPrimitive}}val.{{.name}}{{end}});
+        }
+        {{ end }}
+        {{if .DictName}}
+        dict.add(val);
+        {{end}}
+        return val;
+    }
 }
 

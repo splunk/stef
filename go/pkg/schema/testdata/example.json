@@ -1,5 +1,5 @@
 {
-  "package": "oteltef",
+  "package": ["oteltef"],
   "structs": {
     "AnyValue": {
       "name": "AnyValue",

@@ -41,13 +41,13 @@ func (g *Generator) oArray(array *genStructFieldDef) error {
 
 	_, isStructType := arrtype.ElemType.(*genStructTypeRef)
 	data := map[string]any{
-		"PackageName":  g.compiledSchema.PackageName,
-		"ArrayName":    arrtype.TypeName(),
+		"PackageName":  g.compiledSchema.PackageNameStr,
+		"ArrayName":    arrtype.IDLMangledName(),
 		"ElemType":     arrtype.ElemType,
 		"PassByPtr":    passByPointer,
 		"IsStructType": isStructType,
 		"Recursive":    array.Recursive,
 	}
 
-	return g.oTemplates("array", g.stefSymbol2FileName(array.Type.TypeName()), data)
+	return g.oTemplates("array", g.stefSymbol2FileName(array.Type.IDLMangledName()), data)
 }

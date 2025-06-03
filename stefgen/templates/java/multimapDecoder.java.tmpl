@@ -1,0 +1,183 @@
+package {{ .PackageName }};
+
+import net.stef.BytesReader;
+import net.stef.Limits;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+// Decoder for {{ .MultimapName }}
+class {{ .MultimapName }}Decoder {
+    private final BytesReader buf = new BytesReader();
+    private ReadableColumn column;
+    private {{.Key.Type.EncoderType}}Decoder keyDecoder;
+    private {{.Value.Type.EncoderType}}Decoder valueDecoder;
+    private final {{ .MultimapName }} lastVal = new {{ .MultimapName }}();
+
+    // Init is called once in the lifetime of the stream.
+    public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        this.column = columns.getColumn();
+        // Key decoder init
+        {{- if .Key.Type.IsPrimitive}}
+        this.keyDecoder = new {{.Key.Type.EncoderType}}Decoder();
+        this.keyDecoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, columns.addSubColumn());
+        {{- else}}
+        {{- if .Key.Recursive}}
+        this.keyDecoder = state.{{.Key.Type.EncoderType}}Decoder;
+        {{- else}}
+        this.keyDecoder = new {{.Key.Type.EncoderType}}Decoder();
+        this.keyDecoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end}}
+        // Value decoder init
+        {{- if .Value.Type.IsPrimitive}}
+        this.valueDecoder = new {{.Value.Type.EncoderType}}Decoder();
+        this.valueDecoder.init({{if .Value.Type.DictName}}state.{{.Value.Type.DictName}}{{else}}null{{end}}, columns.addSubColumn());
+        {{- else}}
+        {{- if .Value.Recursive}}
+        this.valueDecoder = state.{{.Value.Type.EncoderType}}Decoder;
+        {{- else}}
+        this.valueDecoder = new {{.Value.Type.EncoderType}}Decoder();
+        this.valueDecoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end}}
+    }
+
+    // continueDecoding is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    public void continueDecoding() {
+        buf.reset(column.getData());
+        {{ if not .Key.Recursive -}}
+        keyDecoder.continueDecoding();
+        {{- end}}
+        {{ if not .Value.Recursive -}}
+        valueDecoder.continueDecoding();
+        {{- end }}
+    }
+
+    public void reset() {
+        {{- if not .Key.Recursive -}}
+        keyDecoder.reset();
+        {{- end}}
+        {{if not .Value.Recursive -}}
+        valueDecoder.reset();
+        {{- end}}
+    }
+
+    public {{ .MultimapName }} decode({{ .MultimapName }} dst) throws IOException {
+        long countOrChangedValues = buf.readUvarint();
+        if (countOrChangedValues == 0) {
+            decodeCopyOfLast(dst);
+            return dst;
+        }
+        if ((countOrChangedValues & 0b1) == 0) {
+            decodeValuesOnly(countOrChangedValues >>> 1, dst);
+            return dst;
+        }
+        if ((countOrChangedValues & 0b1) == 0b1) {
+            decodeFull((int)(countOrChangedValues >>> 1), dst);
+            return dst;
+        }
+        throw new RuntimeException("Multimap decode error");
+    }
+
+    private void decodeCopyOfLast({{ .MultimapName }} dst) {
+        dst.ensureLen(lastVal.elemsLen);
+        for (int i=0; i<dst.elemsLen; i++) {
+            {{- if .Key.Type.IsPrimitive}}
+            dst.elems[i].key = lastVal.elems[i].key;
+            {{- else}}
+            copy{{.Key.Type.TypeName}}(lastVal.elems[i].key, dst.elems[i].key);
+            {{- end}}
+
+            {{- if .Value.Type.IsPrimitive}}
+            dst.elems[i].value = lastVal.elems[i].value;
+            {{- else}}
+            dst.elems[i].value.copyFrom(lastVal.elems[i].value);
+            {{- end}}
+        }
+    }
+
+    private void decodeValuesOnly(long changedValuesBits, {{ .MultimapName }} dst) throws IOException {
+        if (lastVal.elemsLen == 0) {
+            throw new RuntimeException("Multimap decode error: lastVal empty");
+        }
+        int count = lastVal.elemsLen;
+        dst.ensureLen(count);
+        long bitToRead = 1L << (dst.elemsLen - 1);
+        for (int i = 0; i < dst.elemsLen; i++) {
+            // Copy the key from lastVal. All keys are the same.
+            dst.elems[i].key = lastVal.elems[i].key;
+            if ((bitToRead & changedValuesBits) == 0) {
+                // Value is not changed, copy from lastVal.
+                {{- if .Value.Type.IsPrimitive}}
+                dst.elems[i].value = lastVal.elems[i].value;
+                {{- else}}
+                dst.elems[i].value.copyFrom(lastVal.elems[i].value);
+                {{- end}}
+            }
+            bitToRead >>= 1;
+        }
+
+        // Decode changed values
+        bitToRead = (long)1 << (dst.elemsLen - 1);
+        for (int i = 0; i<dst.elemsLen; i++) {
+            if ((bitToRead & changedValuesBits) != 0) {
+                // Value is changed, decode it.
+                dst.elems[i].value = valueDecoder.decode({{if not .Value.Type.IsPrimitive}}dst.elems[i].value{{end}});
+            }
+            bitToRead >>= 1;
+        }
+
+        // Decode() calls above may have changed lastVal len if we have a recursive data type.
+        // Set the correct length again.
+        lastVal.ensureLen(count);
+
+        // Store the values in lastVal.
+        bitToRead = (long)1 << (dst.elemsLen - 1);
+        for (int i = 0; i<dst.elemsLen; i++) {
+            if ((bitToRead & changedValuesBits) != 0) {
+                {{- if .Value.Type.IsPrimitive}}
+                lastVal.elems[i].value = dst.elems[i].value;
+                {{- else}}
+                lastVal.elems[i].value.copyFrom(dst.elems[i].value);
+                {{- end}}
+            }
+            bitToRead >>= 1;
+        }
+    }
+
+    private void decodeFull(int count, {{ .MultimapName }} dst) throws IOException {
+        if (count < 0 || count >= Limits.MultimapElemCountLimit) {
+            throw new RuntimeException("Multimap decode error: invalid count " + count);
+        }
+        
+        dst.ensureLen(count);
+        // Decode values first.
+        for (int i = 0; i < count; i++) {
+            dst.elems[i].key = keyDecoder.decode({{if not .Key.Type.IsPrimitive }}dst.elems[i].key{{end}});
+            dst.elems[i].value = valueDecoder.decode({{if not .Value.Type.IsPrimitive }}dst.elems[i].value{{end}});
+        }
+        
+        // Store decoded values in lastVal.
+        lastVal.ensureLen(count);
+        for (int i = 0; i < count; i++) {
+            {{- if .Key.Type.IsPrimitive}}
+            lastVal.elems[i].key = dst.elems[i].key;
+            {{- else}}
+            lastVal.elems[i].key.copyFrom(dst.elems[i].key);
+            {{- end}}
+        
+            {{- if .Value.Type.IsPrimitive}}
+            lastVal.elems[i].value = dst.elems[i].value;
+            {{- else}}
+            lastVal.elems[i].value.copyFrom(dst.elems[i].value);
+            {{- end}}
+        }
+    }
+}

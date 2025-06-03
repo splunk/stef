@@ -1,5 +1,7 @@
 package net.stef.schema;
 
+import net.stef.Serde;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -39,10 +41,8 @@ public class WireSchema {
     }
 
     public void deserialize(InputStream src) throws IOException {
-        DataInputStream dataIn = new DataInputStream(src);
-
         // Read the number of structs
-        int count = dataIn.readInt();
+        long count = Serde.readUvarint(src);
         if (count > MAX_STRUCT_OR_MULTIMAP_COUNT) {
             throw new IOException("Struct count limit exceeded");
         }
@@ -50,12 +50,12 @@ public class WireSchema {
         structFieldCount = new HashMap<>();
         for (int i = 0; i < count; i++) {
             // Read struct name
-            String structName = readString(dataIn);
+            String structName = readString(src);
 
             // Read field count
-            int fieldCount = dataIn.readInt();
+            long fieldCount = Serde.readUvarint(src);
 
-            structFieldCount.put(structName, fieldCount);
+            structFieldCount.put(structName, (int) fieldCount);
         }
     }
 
@@ -77,7 +77,7 @@ public class WireSchema {
             }
         }
 
-        return exactCompat ? Compatibility.EXACT : Compatibility.SUPERSET;
+        return exactCompat ? Compatibility.Exact : Compatibility.Superset;
     }
 
     private void writeString(DataOutputStream out, String value) throws IOException {
@@ -86,10 +86,10 @@ public class WireSchema {
         out.write(bytes);
     }
 
-    private String readString(DataInputStream in) throws IOException {
-        int length = in.readInt();
-        byte[] bytes = new byte[length];
-        in.readFully(bytes);
+    private String readString(InputStream in) throws IOException {
+        long length = Serde.readUvarint(in);
+        byte[] bytes = new byte[(int) length];
+        in.read(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
     }
 }

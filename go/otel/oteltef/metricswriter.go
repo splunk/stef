@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/schema"
 )
 
 type MetricsWriter struct {
@@ -203,14 +202,4 @@ func (w *MetricsWriter) Flush() error {
 		return nil
 	}
 	return w.restartFrame(w.opts.FrameRestartFlags)
-}
-
-const wireSchemaMetrics = "\r\bAnyValue\a\bEnvelope\x01\bExemplar\x05\rExemplarValue\x02\x13ExpHistogramBuckets\x02\x11ExpHistogramValue\t\x0eHistogramValue\x05\x06Metric\b\aMetrics\x06\x05Point\x04\nPointValue\x04\bResource\x03\x05Scope\x05"
-
-func MetricsWireSchema() (schema.WireSchema, error) {
-	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
-		return w, err
-	}
-	return w, nil
 }

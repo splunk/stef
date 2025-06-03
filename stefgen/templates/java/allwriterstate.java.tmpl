@@ -1,0 +1,65 @@
+// filepath: /Users/tnajaryan/work/repos/stef/stefgen/templates/java/allwriterstate.java.tmpl
+package {{ .PackageName }};
+
+import net.stef.SizeLimiter;
+import net.stef.WriterOptions;
+import net.stef.codecs.*;
+import net.stef.schema.WireSchema;
+
+public class WriterState {
+    private SizeLimiter limiter;
+
+    // overrideSchema is set if encoding should perform a translation into the target
+    // schema. The specified schema must be compatible with endoders' schema.
+    private WireSchema overrideSchema;
+
+    // Dictionaries
+    {{range .Dicts -}}
+    final {{.DictTypeNamePrefix}}EncoderDict {{.DictName}};
+    {{end}}
+
+    // Encoders
+    {{range $name, $val := .Encoders -}}
+    {{$name}}Encoder {{$name}}Encoder;
+    {{end}}
+
+    public WriterState() {
+        limiter = new SizeLimiter();
+        {{range .Dicts -}}
+        {{.DictName}} = new {{.DictTypeNamePrefix}}EncoderDict();
+        {{end}}
+        {{range $name, $val := .Encoders -}}
+        {{$name}}Encoder = new {{$name}}Encoder();
+        {{end}}
+    }
+
+    public void init(WriterOptions opts) {
+        limiter.init(opts);
+        overrideSchema = opts.getSchema();
+
+        // Init dictionaries
+        {{range .Dicts -}}
+        {{.DictName}}.init(limiter);
+        {{end}}
+    }
+
+    public void resetDicts() {
+        limiter.resetDict();
+        {{range .Dicts -}}
+        {{.DictName}}.reset();
+        {{end}}
+    }
+
+    // Getters and setters for overrideSchema
+    public WireSchema getOverrideSchema() {
+        return overrideSchema;
+    }
+
+    public void setOverrideSchema(WireSchema overrideSchema) {
+        this.overrideSchema = overrideSchema;
+    }
+
+    public SizeLimiter getLimiter() {
+        return limiter;
+    }
+}

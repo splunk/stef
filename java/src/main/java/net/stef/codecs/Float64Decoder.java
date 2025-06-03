@@ -1,15 +1,18 @@
 package net.stef.codecs;
 
 import net.stef.BitsReader;
+import net.stef.ReadColumnSet;
+import net.stef.ReadableColumn;
 
 public class Float64Decoder {
-    private BitsReader buf;
+    private BitsReader buf = new BitsReader();
+    private ReadableColumn column;
     private double lastVal = 0.0;
     private long leadingBits = 0;
     private long trailingBits = 0;
 
-    public void init(BitsReader buf) {
-        this.buf = buf;
+    public void init(ReadColumnSet columns) {
+        this.column = columns.getColumn();
     }
 
     public double decode() {
@@ -45,6 +48,11 @@ public class Float64Decoder {
         leadingBits = 0;
         trailingBits = 0;
     }
+
+    public void continueDecoding() {
+        buf.reset(column.getData());
+    }
+
 
     class Float64Constants {
         // Float64NonIdenticalBit indicates that the value is not identical to the previous value.

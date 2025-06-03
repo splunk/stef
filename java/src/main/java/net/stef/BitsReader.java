@@ -3,7 +3,6 @@ package net.stef;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-// TODO: need to convert fast reading methods from Go.
 public class BitsReader {
     private ByteBuffer buf;
     // Position to read next from the buf.
@@ -20,6 +19,8 @@ public class BitsReader {
         buf = data;
         bitBuf = 0;
         availBitCount = 0;
+        byteIndex = 0;
+        isEOF = false;
     }
 
     public void reset(byte[] data) {
@@ -41,7 +42,7 @@ public class BitsReader {
         return refillAndPeekBits(nbits);
     }
 
-    public long refillAndPeekBits(int nbits)  {
+    private long refillAndPeekBits(int nbits)  {
         if (nbits > 56) {
             throw new RuntimeException("at most 56 bits can be peeked");
         }

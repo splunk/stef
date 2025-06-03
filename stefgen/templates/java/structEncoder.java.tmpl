@@ -1,6 +1,150 @@
+// {{ .StructName }}Encoder implements encoding of {{ .StructName }}
 package {{ .PackageName }};
 
-public class {{ .StructName }}Encoder {
-    // TODO: Implement the encoder logic for {{ .StructName }}.
+import net.stef.BitsWriter;
+import net.stef.SizeLimiter;
+import net.stef.WriteColumnSet;
+import net.stef.codecs.*;
+
+import java.io.IOException;
+
+class {{ .StructName }}Encoder {
+    private BitsWriter buf = new BitsWriter();
+    private SizeLimiter limiter;
+
+    // forceModifiedFields is set to true if the next encoding operation
+    // must write all fields, whether they are modified or not.
+    // This is used after frame restarts so that the data can be decoded
+    // from the frame start.
+    private boolean forceModifiedFields;
+
+    {{ range .Fields }}
+    private {{ .Type.EncoderType }}Encoder {{.name}}Encoder = new {{ .Type.EncoderType }}Encoder();
+    {{- end }}
+    {{if .DictName}}
+    private {{ .StructName }}EncoderDict dict;
+    {{end}}
+
+    private long keepFieldMask;
+    private int fieldCount;
+
+    public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        state.{{.StructName}}Encoder = this;
+        this.limiter = state.getLimiter();
+        {{- if .DictName}}
+        this.dict = state.{{.DictName}};
+        {{- end}}
+
+        if (state.getOverrideSchema() != null) {
+            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+            this.fieldCount = fieldCount;
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
+        } else {
+            this.fieldCount = {{len .Fields}};
+            this.keepFieldMask = ~0L;
+        }
+
+        {{ range $i, $e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .IsPrimitive}}
+        {{- if .Type.DictName}}
+        this.{{.name}}Encoder.init(state.{{.Type.DictName}}, this.limiter, columns.addSubColumn());
+        {{- else}}
+        this.{{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}this.limiter, columns.addSubColumn());
+        {{- end}}
+        {{- else}}
+        this.{{.name}}Encoder.init(state, columns.addSubColumn());
+        {{- end}}
+        {{- end }}
+    }
+
+    public void reset() {
+        // Since we are resetting the state of encoder make sure the next encode()
+        // call forcedly writes all fields and does not attempt to skip.
+        this.forceModifiedFields = true;
+        {{- range .Fields}}
+        this.{{.name}}Encoder.reset();
+        {{- end}}
+    }
+
+    // encode encodes val into buf
+    public void encode({{ .StructName }} val) throws IOException {
+        int oldLen = this.buf.bitCount();
+
+        {{if .DictName}}
+        // Check if the {{ .StructName }} exists in the dictionary.
+        {{ .StructName }}EncoderDict.Entry entry = this.dict.get(val);
+        if (entry != null) {
+            // The {{ .StructName }} exists, we will reference it.
+            // Indicate a RefNum follows.
+            this.buf.writeBit(0);
+            // Encode refNum.
+            this.buf.writeUvarintCompact(entry.refNum);
+            // Account written bits in the limiter.
+            int newLen = this.buf.bitCount();
+            this.limiter.addFrameBits(newLen - oldLen);
+            // Mark all fields non-modified recursively so that next encode() correctly
+            // encodes only fields that change after this.
+            val.markUnmodifiedRecursively();
+            return;
+        }
+
+        // The {{ .StructName }} does not exist in the dictionary. Add it to the dictionary.
+        {{ .StructName }} valInDict = val.clone();
+        entry = new {{ .StructName }}EncoderDict.Entry(this.dict.size(), valInDict);
+        this.dict.set(valInDict, entry);
+        this.limiter.addDictElemSize(valInDict.byteSize());
+        // Indicate that an encoded {{ .StructName }} follows.
+        this.buf.writeBit(1); // TODO: optimize and merge writeBit with the following writeBits.
+        {{end}}
+
+        // Mask that describes what fields are encoded. Start with all modified fields.
+        long fieldMask = val.modifiedFields.mask;
+        // If forceModifiedFields we need to set to 1 all bits so that we
+        // force writing of all fields.
+        if (this.forceModifiedFields) {
+            fieldMask =
+                {{- range .Fields }}
+                {{ $.StructName }}.fieldModified{{.Name}} | {{end}}0L;
+        }
+
+        // Only write fields that we want to write. See init() for keepFieldMask.
+        fieldMask &= this.keepFieldMask;
+
+        // Write bits to indicate which fields follow.
+        this.buf.writeBits(fieldMask, this.fieldCount);
+        {{ if .OptionalFieldCount}}
+        // Write bits to indicate which optional fields are set.
+        this.buf.writeBits(val.optionalFieldsPresent, {{ .OptionalFieldCount}});
+        {{- end}}
+        // Encode modified, present fields.
+        {{ range .Fields }}
+        if ((fieldMask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
+            {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
+            // Encode {{.Name}}
+            this.{{.name}}Encoder.encode(val.{{.name}});
+        }
+        {{ end }}
+        // Account written bits in the limiter.
+        int newLen = this.buf.bitCount();
+        this.limiter.addFrameBits(newLen - oldLen);
+
+        // Mark all fields non-modified so that next encode() correctly
+        // encodes only fields that change after this.
+        val.modifiedFields.mask = 0;
+    }
+
+    // collectColumns collects all buffers from all encoders into buf.
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBits(this.buf);
+        {{ range $i,$e := .Fields }}
+        if (this.fieldCount <= {{$i}}) {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        this.{{.name}}Encoder.collectColumns(columnSet.at({{$i}}));
+        {{- end }}
+    }
 }
 

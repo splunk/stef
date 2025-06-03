@@ -48,7 +48,7 @@ public class Struct {
             }
         }
 
-        return exact ? Compatibility.EXACT : Compatibility.SUPERSET;
+        return exact ? Compatibility.Exact : Compatibility.Superset;
     }
 
     // Getters and setters omitted for brevity
