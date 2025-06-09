@@ -137,6 +137,13 @@ func normalizeMetricData(metric pmetric.Metric) {
 				return cmpExponentialHistogramDataPoint(a, b) < 0
 			},
 		)
+	case pmetric.MetricTypeSummary:
+		normalizeSummaryDatapointAttrs(metric.Summary().DataPoints())
+		metric.Summary().DataPoints().Sort(
+			func(a, b pmetric.SummaryDataPoint) bool {
+				return cmpSummaryDataPoint(a, b) < 0
+			},
+		)
 	default:
 		panic("not implemented")
 	}
@@ -178,6 +185,13 @@ func normalizeExponentialHistogramDatapointAttrs(points pmetric.ExponentialHisto
 	}
 }
 
+func normalizeSummaryDatapointAttrs(points pmetric.SummaryDataPointSlice) {
+	for i := 0; i < points.Len(); i++ {
+		point := points.At(i)
+		sortAttrs(point.Attributes())
+	}
+}
+
 func cmpHistogramDataPoint(left pmetric.HistogramDataPoint, right pmetric.HistogramDataPoint) int {
 	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
 	if c != 0 {
@@ -210,6 +224,20 @@ func cmpExponentialHistogramDataPoint(
 	return 0
 }
 
+func cmpSummaryDataPoint(left, right pmetric.SummaryDataPoint) int {
+	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
+	if c != 0 {
+		return c
+	}
+	if left.Timestamp() < right.Timestamp() {
+		return -1
+	}
+	if left.Timestamp() > right.Timestamp() {
+		return 1
+	}
+	return 0
+}
+
 func cmpNumberDataPoint(left pmetric.NumberDataPoint, right pmetric.NumberDataPoint) int {
 	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
 	if c != 0 {
@@ -233,6 +261,8 @@ func appendMetricData(left, right pmetric.Metric) {
 		right.Sum().DataPoints().MoveAndAppendTo(left.Sum().DataPoints())
 	case pmetric.MetricTypeHistogram:
 		right.Histogram().DataPoints().MoveAndAppendTo(left.Histogram().DataPoints())
+	case pmetric.MetricTypeSummary:
+		right.Summary().DataPoints().MoveAndAppendTo(left.Summary().DataPoints())
 	default:
 		panic("not implemented")
 	}
