@@ -20,6 +20,7 @@ class PointValueEncoder {
     private Float64Encoder float64Encoder = new Float64Encoder();
     private HistogramValueEncoder histogramEncoder = new HistogramValueEncoder();
     private ExpHistogramValueEncoder expHistogramEncoder = new ExpHistogramValueEncoder();
+    private SummaryValueEncoder summaryEncoder = new SummaryValueEncoder();
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
@@ -31,7 +32,7 @@ class PointValueEncoder {
             int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
             this.fieldCount = fieldCount;
         } else {
-            this.fieldCount = 4;
+            this.fieldCount = 5;
         }
 
         
@@ -51,6 +52,10 @@ class PointValueEncoder {
             return; // ExpHistogram and subsequent fields are skipped.
         }
         expHistogramEncoder.init(state, columns.addSubColumn());
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        summaryEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {
@@ -59,6 +64,7 @@ class PointValueEncoder {
         this.float64Encoder.reset();
         this.histogramEncoder.reset();
         this.expHistogramEncoder.reset();
+        this.summaryEncoder.reset();
     }
 
     // Encode encodes val into buf
@@ -98,6 +104,10 @@ class PointValueEncoder {
             // Encode ExpHistogram
             expHistogramEncoder.encode(val.expHistogram);
             break;
+        case TypeSummary:
+            // Encode Summary
+            summaryEncoder.encode(val.summary);
+            break;
         }
     }
 
@@ -121,6 +131,10 @@ class PointValueEncoder {
             return; // ExpHistogram and subsequent fields are skipped.
         }
         this.expHistogramEncoder.collectColumns(columnSet.at(3));
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        this.summaryEncoder.collectColumns(columnSet.at(4));
     }
 }
 

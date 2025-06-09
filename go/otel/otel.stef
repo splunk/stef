@@ -57,7 +57,7 @@ oneof PointValue {
   Float64 float64
   Histogram HistogramValue
   ExpHistogram ExpHistogramValue
-  // TODO: Add Summary value support.
+  Summary SummaryValue
 }
 
 struct Metric dict(Metric) {
@@ -128,6 +128,17 @@ struct ExpHistogramValue {
 struct ExpHistogramBuckets {
   Offset int64
   BucketCounts []uint64
+}
+
+struct SummaryValue {
+  Count uint64
+  Sum float64
+  QuantileValues []QuantileValue
+}
+
+struct QuantileValue {
+  Quantile float64
+  Value float64
 }
 
 oneof AnyValue {

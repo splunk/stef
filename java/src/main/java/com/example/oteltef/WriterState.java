@@ -53,11 +53,14 @@ public class WriterState {
     MetricsEncoder MetricsEncoder;
     PointEncoder PointEncoder;
     PointValueEncoder PointValueEncoder;
+    QuantileValueEncoder QuantileValueEncoder;
+    QuantileValueArrayEncoder QuantileValueArrayEncoder;
     ResourceEncoder ResourceEncoder;
     ScopeEncoder ScopeEncoder;
     SpanEncoder SpanEncoder;
     SpanStatusEncoder SpanStatusEncoder;
     SpansEncoder SpansEncoder;
+    SummaryValueEncoder SummaryValueEncoder;
     Uint64ArrayEncoder Uint64ArrayEncoder;
     
 
@@ -99,11 +102,14 @@ public class WriterState {
         MetricsEncoder = new MetricsEncoder();
         PointEncoder = new PointEncoder();
         PointValueEncoder = new PointValueEncoder();
+        QuantileValueEncoder = new QuantileValueEncoder();
+        QuantileValueArrayEncoder = new QuantileValueArrayEncoder();
         ResourceEncoder = new ResourceEncoder();
         ScopeEncoder = new ScopeEncoder();
         SpanEncoder = new SpanEncoder();
         SpanStatusEncoder = new SpanStatusEncoder();
         SpansEncoder = new SpansEncoder();
+        SummaryValueEncoder = new SummaryValueEncoder();
         Uint64ArrayEncoder = new Uint64ArrayEncoder();
         
     }

@@ -48,11 +48,14 @@ public class ReaderState {
     MetricsDecoder MetricsDecoder = new MetricsDecoder();
     PointDecoder PointDecoder = new PointDecoder();
     PointValueDecoder PointValueDecoder = new PointValueDecoder();
+    QuantileValueDecoder QuantileValueDecoder = new QuantileValueDecoder();
+    QuantileValueArrayDecoder QuantileValueArrayDecoder = new QuantileValueArrayDecoder();
     ResourceDecoder ResourceDecoder = new ResourceDecoder();
     ScopeDecoder ScopeDecoder = new ScopeDecoder();
     SpanDecoder SpanDecoder = new SpanDecoder();
     SpanStatusDecoder SpanStatusDecoder = new SpanStatusDecoder();
     SpansDecoder SpansDecoder = new SpansDecoder();
+    SummaryValueDecoder SummaryValueDecoder = new SummaryValueDecoder();
     Uint64ArrayDecoder Uint64ArrayDecoder = new Uint64ArrayDecoder();
     
 

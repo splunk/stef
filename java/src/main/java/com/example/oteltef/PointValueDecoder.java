@@ -22,6 +22,7 @@ class PointValueDecoder {
     private Float64Decoder float64Decoder = new Float64Decoder();
     private HistogramValueDecoder histogramDecoder = new HistogramValueDecoder();
     private ExpHistogramValueDecoder expHistogramDecoder = new ExpHistogramValueDecoder();
+    private SummaryValueDecoder summaryDecoder = new SummaryValueDecoder();
     
 
     // Init is called once in the lifetime of the stream.
@@ -32,7 +33,7 @@ class PointValueDecoder {
             int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
             this.fieldCount = fieldCount;
         } else {
-            this.fieldCount = 4;
+            this.fieldCount = 5;
         }
         this.column = columns.getColumn();
         this.lastVal.init(null, 0);
@@ -55,6 +56,10 @@ class PointValueDecoder {
             return; // ExpHistogram and subsequent fields are skipped.
         }
         this.expHistogramDecoder.init(state, columns.addSubColumn());
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        this.summaryDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -81,6 +86,10 @@ class PointValueDecoder {
             return; // ExpHistogram and subsequent fields are skipped.
         }
         this.expHistogramDecoder.continueDecoding();
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        this.summaryDecoder.continueDecoding();
     }
 
     public void reset() {
@@ -89,6 +98,7 @@ class PointValueDecoder {
         float64Decoder.reset();
         histogramDecoder.reset();
         expHistogramDecoder.reset();
+        summaryDecoder.reset();
     }
 
     // Decode decodes a value from the buffer into dst.
@@ -115,6 +125,9 @@ class PointValueDecoder {
             break;
         case TypeExpHistogram:
             dst.expHistogram = this.expHistogramDecoder.decode(dst.expHistogram);
+            break;
+        case TypeSummary:
+            dst.summary = this.summaryDecoder.decode(dst.summary);
             break;
         default:
             break;
