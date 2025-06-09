@@ -137,6 +137,13 @@ func normalizeMetricData(metric pmetric.Metric) {
 				return cmpExponentialHistogramDataPoint(a, b) < 0
 			},
 		)
+	case pmetric.MetricTypeSummary:
+		normalizeSummaryDatapointAttrs(metric.Summary().DataPoints())
+		metric.Summary().DataPoints().Sort(
+			func(a, b pmetric.SummaryDataPoint) bool {
+				return cmpSummaryDataPoint(a, b) < 0
+			},
+		)
 	default:
 		panic("not implemented")
 	}
@@ -178,6 +185,13 @@ func normalizeExponentialHistogramDatapointAttrs(points pmetric.ExponentialHisto
 	}
 }
 
+func normalizeSummaryDatapointAttrs(points pmetric.SummaryDataPointSlice) {
+	for i := 0; i < points.Len(); i++ {
+		point := points.At(i)
+		sortAttrs(point.Attributes())
+	}
+}
+
 func cmpHistogramDataPoint(left pmetric.HistogramDataPoint, right pmetric.HistogramDataPoint) int {
 	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
 	if c != 0 {
@@ -210,6 +224,20 @@ func cmpExponentialHistogramDataPoint(
 	return 0
 }
 
+func cmpSummaryDataPoint(left, right pmetric.SummaryDataPoint) int {
+	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
+	if c != 0 {
+		return c
+	}
+	if left.Timestamp() < right.Timestamp() {
+		return -1
+	}
+	if left.Timestamp() > right.Timestamp() {
+		return 1
+	}
+	return 0
+}
+
 func cmpNumberDataPoint(left pmetric.NumberDataPoint, right pmetric.NumberDataPoint) int {
 	c := otlptools.CmpAttrs(left.Attributes(), right.Attributes())
 	if c != 0 {
@@ -233,6 +261,8 @@ func appendMetricData(left, right pmetric.Metric) {
 		right.Sum().DataPoints().MoveAndAppendTo(left.Sum().DataPoints())
 	case pmetric.MetricTypeHistogram:
 		right.Histogram().DataPoints().MoveAndAppendTo(left.Histogram().DataPoints())
+	case pmetric.MetricTypeSummary:
+		right.Summary().DataPoints().MoveAndAppendTo(left.Summary().DataPoints())
 	default:
 		panic("not implemented")
 	}
@@ -409,6 +439,8 @@ func diffMetric(left pmetric.Metric, right pmetric.Metric) error {
 		err = diffHistogram(left.Histogram(), right.Histogram())
 	case pmetric.MetricTypeExponentialHistogram:
 		err = diffExpHistogram(left.ExponentialHistogram(), right.ExponentialHistogram())
+	case pmetric.MetricTypeSummary:
+		err = diffExpSummary(left.Summary(), right.Summary())
 	default:
 		panic("unknown metric data")
 	}
@@ -681,4 +713,48 @@ func diffAttrs(a, b pcommon.Map) error {
 		}
 	}
 	return nil
+}
+
+func diffExpSummary(left, right pmetric.Summary) error {
+	if left.DataPoints().Len() != right.DataPoints().Len() {
+		return errors.New("DataPoints count mismatch")
+	}
+	for i := 0; i < left.DataPoints().Len(); i++ {
+		if err := diffSummaryDataPoint(left.DataPoints().At(i), right.DataPoints().At(i)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func diffSummaryDataPoint(left, right pmetric.SummaryDataPoint) error {
+	if str := cmp.Diff(left.StartTimestamp(), right.StartTimestamp()); str != "" {
+		return errors.New(str)
+	}
+	if str := cmp.Diff(left.Timestamp(), right.Timestamp()); str != "" {
+		return errors.New(str)
+	}
+	if str := cmp.Diff(left.Flags(), right.Flags()); str != "" {
+		return errors.New(str)
+	}
+	if str := cmp.Diff(left.Count(), right.Count()); str != "" {
+		return errors.New("Count is different: " + str)
+	}
+	if str := cmp.Diff(left.Sum(), right.Sum()); str != "" {
+		return errors.New("Sum is different: " + str)
+	}
+	if left.QuantileValues().Len() != right.QuantileValues().Len() {
+		return errors.New("QuantileValues count mismatch")
+	}
+	for i := 0; i < left.QuantileValues().Len(); i++ {
+		lq := left.QuantileValues().At(i)
+		rq := right.QuantileValues().At(i)
+		if str := cmp.Diff(lq.Quantile(), rq.Quantile()); str != "" {
+			return errors.New("Quantile is different: " + str)
+		}
+		if str := cmp.Diff(lq.Value(), rq.Value()); str != "" {
+			return errors.New("Quantile value is different: " + str)
+		}
+	}
+	return diffAttrs(left.Attributes(), right.Attributes())
 }

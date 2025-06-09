@@ -97,6 +97,12 @@ func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 		}
 		otlpAttrs.MoveTo(point.Attributes())
 		dstMetric.ExponentialHistogram().SetAggregationTemporality(aggregationTemporalityToOtlp(MetricFlags(srcMetric.AggregationTemporality())))
+	case pmetric.MetricTypeSummary:
+		point := dstMetric.Summary().DataPoints().AppendEmpty()
+		if err := s.convertSumaryPoint(srcPoint, point); err != nil {
+			return err
+		}
+		otlpAttrs.MoveTo(point.Attributes())
 	default:
 		panic("not implemented")
 	}
@@ -208,5 +214,33 @@ func expBucketsFromStef(
 	dst.BucketCounts().EnsureCapacity(src.BucketCounts().Len())
 	for i := 0; i < src.BucketCounts().Len(); i++ {
 		dst.BucketCounts().Append(uint64(src.BucketCounts().At(i)))
+	}
+}
+
+func (c *BaseSTEFToOTLP) convertSumaryPoint(
+	srcPoint *oteltef.Point, dstPoint pmetric.SummaryDataPoint,
+) error {
+	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
+	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
+
+	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
+		return nil
+	}
+
+	dstPoint.SetCount(srcPoint.Value().Summary().Count())
+	dstPoint.SetSum(srcPoint.Value().Summary().Sum())
+
+	quantilesFromStef(dstPoint.QuantileValues(), srcPoint.Value().Summary().QuantileValues())
+
+	return nil
+}
+
+func quantilesFromStef(dst pmetric.SummaryDataPointValueAtQuantileSlice, src *oteltef.QuantileValueArray) {
+	dst.EnsureCapacity(src.Len())
+	for i := 0; i < src.Len(); i++ {
+		dstQ := dst.AppendEmpty()
+		dstQ.SetQuantile(src.At(i).Quantile())
+		dstQ.SetValue(src.At(i).Value())
 	}
 }

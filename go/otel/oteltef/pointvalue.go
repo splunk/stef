@@ -23,6 +23,7 @@ type PointValue struct {
 	float64      float64
 	histogram    HistogramValue
 	expHistogram ExpHistogramValue
+	summary      SummaryValue
 
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
@@ -41,6 +42,7 @@ func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 
 	s.histogram.init(parentModifiedFields, parentModifiedBit)
 	s.expHistogram.init(parentModifiedFields, parentModifiedBit)
+	s.summary.init(parentModifiedFields, parentModifiedBit)
 }
 
 type PointValueType byte
@@ -51,6 +53,7 @@ const (
 	PointValueTypeFloat64
 	PointValueTypeHistogram
 	PointValueTypeExpHistogram
+	PointValueTypeSummary
 	PointValueTypeCount
 )
 
@@ -111,12 +114,19 @@ func (s *PointValue) ExpHistogram() *ExpHistogramValue {
 	return &s.expHistogram
 }
 
+// Summary returns the value if the contained type is currently PointValueTypeSummary.
+// The caller must check the type via Type() before attempting to call this function.
+func (s *PointValue) Summary() *SummaryValue {
+	return &s.summary
+}
+
 func (s *PointValue) Clone() PointValue {
 	return PointValue{
 		int64:        s.int64,
 		float64:      s.float64,
 		histogram:    s.histogram.Clone(),
 		expHistogram: s.expHistogram.Clone(),
+		summary:      s.summary.Clone(),
 	}
 }
 
@@ -124,7 +134,7 @@ func (s *PointValue) Clone() PointValue {
 // memory used by dictionaries.
 func (s *PointValue) byteSize() uint {
 	return uint(unsafe.Sizeof(*s)) +
-		s.histogram.byteSize() + s.expHistogram.byteSize() + 0
+		s.histogram.byteSize() + s.expHistogram.byteSize() + s.summary.byteSize() + 0
 }
 
 func copyPointValue(dst *PointValue, src *PointValue) {
@@ -139,6 +149,9 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 	case PointValueTypeExpHistogram:
 		dst.SetType(src.typ)
 		copyExpHistogramValue(&dst.expHistogram, &src.expHistogram)
+	case PointValueTypeSummary:
+		dst.SetType(src.typ)
+		copySummaryValue(&dst.summary, &src.summary)
 	case PointValueTypeNone:
 		dst.SetType(src.typ)
 	default:
@@ -158,6 +171,7 @@ func (s *PointValue) markParentModified() {
 func (s *PointValue) markUnmodified() {
 	s.histogram.markUnmodified()
 	s.expHistogram.markUnmodified()
+	s.summary.markUnmodified()
 }
 
 func (s *PointValue) markModifiedRecursively() {
@@ -168,6 +182,8 @@ func (s *PointValue) markModifiedRecursively() {
 		s.histogram.markModifiedRecursively()
 	case PointValueTypeExpHistogram:
 		s.expHistogram.markModifiedRecursively()
+	case PointValueTypeSummary:
+		s.summary.markModifiedRecursively()
 	}
 }
 
@@ -179,6 +195,8 @@ func (s *PointValue) markUnmodifiedRecursively() {
 		s.histogram.markUnmodifiedRecursively()
 	case PointValueTypeExpHistogram:
 		s.expHistogram.markUnmodifiedRecursively()
+	case PointValueTypeSummary:
+		s.summary.markUnmodifiedRecursively()
 	}
 }
 
@@ -212,6 +230,11 @@ func (s *PointValue) markDiffModified(v *PointValue) (modified bool) {
 			s.markParentModified()
 			modified = true
 		}
+	case PointValueTypeSummary:
+		if s.summary.markDiffModified(&v.summary) {
+			s.markParentModified()
+			modified = true
+		}
 	}
 	return modified
 }
@@ -230,6 +253,8 @@ func (e *PointValue) IsEqual(val *PointValue) bool {
 		return e.histogram.IsEqual(&val.histogram)
 	case PointValueTypeExpHistogram:
 		return e.expHistogram.IsEqual(&val.expHistogram)
+	case PointValueTypeSummary:
+		return e.summary.IsEqual(&val.summary)
 	}
 
 	return true
@@ -265,6 +290,8 @@ func CmpPointValue(left, right *PointValue) int {
 		return CmpHistogramValue(&left.histogram, &right.histogram)
 	case PointValueTypeExpHistogram:
 		return CmpExpHistogramValue(&left.expHistogram, &right.expHistogram)
+	case PointValueTypeSummary:
+		return CmpSummaryValue(&left.summary, &right.summary)
 	}
 
 	return 0
@@ -273,7 +300,7 @@ func CmpPointValue(left, right *PointValue) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *PointValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = 5
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(PointValueType(random.IntN(fieldCount + 1)))
@@ -297,6 +324,10 @@ func (s *PointValue) mutateRandom(random *rand.Rand) {
 		if typeChanged || random.IntN(2) == 0 {
 			s.expHistogram.mutateRandom(random)
 		}
+	case PointValueTypeSummary:
+		if typeChanged || random.IntN(2) == 0 {
+			s.summary.mutateRandom(random)
+		}
 	}
 }
 
@@ -318,6 +349,9 @@ type PointValueEncoder struct {
 
 	expHistogramEncoder     *ExpHistogramValueEncoder
 	isExpHistogramRecursive bool // Indicates ExpHistogram field's type is recursive.
+
+	summaryEncoder     *SummaryValueEncoder
+	isSummaryRecursive bool // Indicates Summary field's type is recursive.
 
 }
 
@@ -341,7 +375,7 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 		e.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
-		e.fieldCount = 4
+		e.fieldCount = 5
 	}
 
 	var err error
@@ -400,6 +434,23 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 		return err
 	}
 
+	// Init encoder for Summary field.
+	if e.fieldCount <= 4 {
+		// Summary and all subsequent fields are skipped.
+		return nil
+	}
+	if state.SummaryValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.summaryEncoder = state.SummaryValueEncoder
+		e.isSummaryRecursive = true
+	} else {
+		e.summaryEncoder = new(SummaryValueEncoder)
+		err = e.summaryEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -414,6 +465,10 @@ func (e *PointValueEncoder) Reset() {
 
 	if !e.isExpHistogramRecursive {
 		e.expHistogramEncoder.Reset()
+	}
+
+	if !e.isSummaryRecursive {
+		e.summaryEncoder.Reset()
 	}
 
 }
@@ -448,6 +503,9 @@ func (e *PointValueEncoder) Encode(val *PointValue) {
 	case PointValueTypeExpHistogram:
 		// Encode ExpHistogram
 		e.expHistogramEncoder.Encode(&val.expHistogram)
+	case PointValueTypeSummary:
+		// Encode Summary
+		e.summaryEncoder.Encode(&val.summary)
 	}
 }
 
@@ -489,6 +547,15 @@ func (e *PointValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.expHistogramEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
+
+	// Collect Summary field.
+	if e.fieldCount <= 4 {
+		return // Summary and subsequent fields are skipped.
+	}
+	if !e.isSummaryRecursive {
+		e.summaryEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // PointValueDecoder implements decoding of PointValue
@@ -512,6 +579,9 @@ type PointValueDecoder struct {
 
 	expHistogramDecoder     *ExpHistogramValueDecoder
 	isExpHistogramRecursive bool
+
+	summaryDecoder     *SummaryValueDecoder
+	isSummaryRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -533,7 +603,7 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 		d.fieldCount = fieldCount
 	} else {
 		// Keep all fields when encoding.
-		d.fieldCount = 4
+		d.fieldCount = 5
 	}
 
 	d.column = columns.Column()
@@ -584,6 +654,20 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 4 {
+		return nil // Summary and subsequent fields are skipped.
+	}
+	if state.SummaryValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.summaryDecoder = state.SummaryValueDecoder
+		d.isSummaryRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.summaryDecoder = new(SummaryValueDecoder)
+		err = d.summaryDecoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -622,6 +706,14 @@ func (d *PointValueDecoder) Continue() {
 		d.expHistogramDecoder.Continue()
 	}
 
+	if d.fieldCount <= 4 {
+		return // Summary and subsequent fields are skipped.
+	}
+
+	if !d.isSummaryRecursive {
+		d.summaryDecoder.Continue()
+	}
+
 }
 
 func (d *PointValueDecoder) Reset() {
@@ -635,6 +727,10 @@ func (d *PointValueDecoder) Reset() {
 
 	if !d.isExpHistogramRecursive {
 		d.expHistogramDecoder.Reset()
+	}
+
+	if !d.isSummaryRecursive {
+		d.summaryDecoder.Reset()
 	}
 
 }
@@ -676,6 +772,12 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	case PointValueTypeExpHistogram:
 		// Decode ExpHistogram
 		err := d.expHistogramDecoder.Decode(&dst.expHistogram)
+		if err != nil {
+			return err
+		}
+	case PointValueTypeSummary:
+		// Decode Summary
+		err := d.summaryDecoder.Decode(&dst.summary)
 		if err != nil {
 			return err
 		}
