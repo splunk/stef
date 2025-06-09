@@ -30,6 +30,7 @@ const (
 	MetricTypeDoubleExemplarsHistogram PICTMetricType = "DoubleExemplarsHistogram"
 	MetricTypeIntExemplarsHistogram    PICTMetricType = "IntExemplarsHistogram"
 	MetricTypeExponentialHistogram     PICTMetricType = "ExponentialHistogram"
+	MetricTypeSummary                  PICTMetricType = "Summary"
 )
 
 // PICTNumPtLabels enumerates the number of labels on each datapoint.

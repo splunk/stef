@@ -35,6 +35,8 @@ func metricType(typ pmetric.MetricType) oteltef.MetricType {
 		return oteltef.MetricTypeHistogram
 	case pmetric.MetricTypeExponentialHistogram:
 		return oteltef.MetricTypeExpHistogram
+	case pmetric.MetricTypeSummary:
+		return oteltef.MetricTypeSummary
 	default:
 		panic("Unsupported metric value")
 	}
@@ -79,6 +81,8 @@ func (d *OtlpToSTEFUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.M
 				case pmetric.MetricTypeExponentialHistogram:
 					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.ExponentialHistogram().AggregationTemporality())))
 					err = d.writeExpHistogram(writer, m.ExponentialHistogram().DataPoints())
+				case pmetric.MetricTypeSummary:
+					err = d.writeSummary(writer, m.Summary().DataPoints())
 				default:
 					panic("Unsupported metric type")
 				}
@@ -144,6 +148,26 @@ func (d *OtlpToSTEFUnsorted) writeExpHistogram(
 
 		d.Otlp2tef.MapUnsorted(src.Attributes(), writer.Record.Attributes())
 		d.ConvertExemplars(dst.Exemplars(), src.Exemplars())
+
+		err = writer.Write()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *OtlpToSTEFUnsorted) writeSummary(writer *oteltef.MetricsWriter, src pmetric.SummaryDataPointSlice) error {
+	for i := 0; i < src.Len(); i++ {
+		srcPoint := src.At(i)
+		dstPoint := writer.Record.Point()
+
+		err := d.ConvertSummary(dstPoint, srcPoint)
+		if err != nil {
+			return err
+		}
+
+		d.Otlp2tef.MapUnsorted(srcPoint.Attributes(), writer.Record.Attributes())
 
 		err = writer.Write()
 		if err != nil {

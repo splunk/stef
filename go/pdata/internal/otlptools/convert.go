@@ -59,6 +59,8 @@ func MetricToOtlp(metric *oteltef.Metric, out pmetric.Metric) error {
 		out.SetEmptyHistogram()
 	case oteltef.MetricTypeExpHistogram:
 		out.SetEmptyExponentialHistogram()
+	case oteltef.MetricTypeSummary:
+		out.SetEmptySummary()
 	default:
 		panic("not implemented")
 	}

@@ -15,6 +15,7 @@ public class PointValue {
     double float64;
     HistogramValue histogram;
     ExpHistogramValue expHistogram;
+    SummaryValue summary;
 
     // Pointer to parent's modifiedFields
     ModifiedFields parentModifiedFields;
@@ -45,7 +46,8 @@ public class PointValue {
         TypeFloat64(1 + 1),
         TypeHistogram(2 + 1),
         TypeExpHistogram(3 + 1),
-        TypeCount(4 + 1);
+        TypeSummary(4 + 1),
+        TypeCount(5 + 1);
 
         private final int value;
 
@@ -76,6 +78,11 @@ public class PointValue {
             case TypeExpHistogram:
                 if (expHistogram == null) {
                     expHistogram = new ExpHistogramValue(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            case TypeSummary:
+                if (summary == null) {
+                    summary = new SummaryValue(parentModifiedFields, parentModifiedBit);
                 }
                 break;
             }
@@ -130,6 +137,13 @@ public class PointValue {
     }
     
     
+    // Summary returns the value if the contained type is currently TypeSummary.
+    // The caller must check the type via getType() before attempting to call this function.
+    public SummaryValue getSummary() {
+        return this.summary;
+    }
+    
+    
 
     // Clone returns a deep copy of this oneof.
     public PointValue clone() {
@@ -139,6 +153,7 @@ public class PointValue {
         cpy.float64 = this.float64;
         cpy.histogram = this.histogram.clone();
         cpy.expHistogram = this.expHistogram.clone();
+        cpy.summary = this.summary.clone();
         return cpy;
     }
 
@@ -149,6 +164,7 @@ public class PointValue {
         
         size += this.histogram.byteSize();
         size += this.expHistogram.byteSize();
+        size += this.summary.byteSize();
         return size;
     }
 
@@ -169,6 +185,10 @@ public class PointValue {
             setType(src.typ);
             expHistogram.copyFrom(src.expHistogram);
             break;
+        case TypeSummary:
+            setType(src.typ);
+            summary.copyFrom(src.summary);
+            break;
         case TypeNone:
             setType(Type.TypeNone);
             break;
@@ -184,6 +204,7 @@ public class PointValue {
     void markUnmodified() {
         this.histogram.markUnmodified();
         this.expHistogram.markUnmodified();
+        this.summary.markUnmodified();
     }
 
     void markModifiedRecursively() {
@@ -197,6 +218,9 @@ public class PointValue {
             break;
         case TypeExpHistogram:
             this.expHistogram.markModifiedRecursively();
+            break;
+        case TypeSummary:
+            this.summary.markModifiedRecursively();
             break;
         default:
             break;
@@ -214,6 +238,9 @@ public class PointValue {
             break;
         case TypeExpHistogram:
             this.expHistogram.markUnmodifiedRecursively();
+            break;
+        case TypeSummary:
+            this.summary.markUnmodifiedRecursively();
             break;
         default:
             break;
@@ -254,6 +281,12 @@ public class PointValue {
                 modified = true;
             }
             break;
+        case TypeSummary:
+            if (this.summary.markDiffModified(v.summary)) {
+                this.markParentModified();
+                modified = true;
+            }
+            break;
         }
         return modified;
     }
@@ -281,6 +314,11 @@ public class PointValue {
             break;
         case TypeExpHistogram:
             if (!this.expHistogram.equals(val.expHistogram)) {
+                return false;
+            }
+            break;
+        case TypeSummary:
+            if (!this.summary.equals(val.summary)) {
                 return false;
             }
             break;
@@ -325,6 +363,12 @@ public class PointValue {
                 return c;
             }
             break;
+        case TypeSummary:
+            c = SummaryValue.compare(left.summary, right.summary);
+            if (c != 0) {
+                return c;
+            }
+            break;
         default:
             break;
         }
@@ -333,7 +377,7 @@ public class PointValue {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        int fieldCount = 4;
+        int fieldCount = 5;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
             this.setType(Type.values()[random.nextInt(fieldCount + 1)]);
@@ -360,6 +404,11 @@ public class PointValue {
                 this.expHistogram.mutateRandom(random);
             }
             break;
+        case TypeSummary:
+            if (typeChanged || random.nextInt(2) == 0) {
+                this.summary.mutateRandom(random);
+            }
+            break;
         default:
             break;
         }
@@ -381,6 +430,7 @@ public class PointValue {
             float64,
             histogram,
             expHistogram,
+            summary,
             typ
         );
     }
