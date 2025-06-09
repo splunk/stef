@@ -432,17 +432,29 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	d.lastValPtr = &d.lastVal
 
 	var err error
+	if d.fieldCount <= 0 {
+		return nil // Int64 and subsequent fields are skipped.
+	}
 	err = d.int64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 1 {
+		return nil // Float64 and subsequent fields are skipped.
 	}
 	err = d.float64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 2 {
+		return nil // Histogram and subsequent fields are skipped.
+	}
 	err = d.histogramDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 3 {
+		return nil // ExpHistogram and subsequent fields are skipped.
 	}
 	err = d.expHistogramDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {

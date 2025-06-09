@@ -407,7 +407,10 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     d.lastValPtr = &d.lastVal
 
     var err error
-    {{- range .Fields }}
+    {{- range $i,$e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return nil // {{.Name}} and subsequent fields are skipped.
+    }
     {{- if .Type.IsPrimitive}}
         {{- if .Type.DictName}}
         err = d.{{.name}}Decoder.Init(&state.{{.Type.DictName}}, columns.AddSubColumn())
