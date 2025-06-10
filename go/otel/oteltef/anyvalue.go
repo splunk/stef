@@ -582,29 +582,50 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	d.lastValPtr = &d.lastVal
 
 	var err error
+	if d.fieldCount <= 0 {
+		return nil // String and subsequent fields are skipped.
+	}
 	err = d.stringDecoder.Init(&state.AnyValueString, columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 1 {
+		return nil // Bool and subsequent fields are skipped.
 	}
 	err = d.boolDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 2 {
+		return nil // Int64 and subsequent fields are skipped.
+	}
 	err = d.int64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 3 {
+		return nil // Float64 and subsequent fields are skipped.
 	}
 	err = d.float64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 4 {
+		return nil // Array and subsequent fields are skipped.
+	}
 	err = d.arrayDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+	if d.fieldCount <= 5 {
+		return nil // KVList and subsequent fields are skipped.
+	}
 	err = d.kVListDecoder.Init(state, columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 6 {
+		return nil // Bytes and subsequent fields are skipped.
 	}
 	err = d.bytesDecoder.Init(nil, columns.AddSubColumn())
 	if err != nil {

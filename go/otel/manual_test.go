@@ -349,6 +349,11 @@ func TestWriteOverrideSchema(t *testing.T) {
 	// Remove "Float64" field (field #2) from "PointValue" oneof struct in the schema.
 	schem.StructFieldCount["PointValue"] = 1
 
+	// Remove HistogramValue and ExpHistogramValue structs from the schema.
+	// This verifies bug fix https://github.com/splunk/stef/issues/86
+	delete(schem.StructFieldCount, "HistogramValue")
+	delete(schem.StructFieldCount, "ExpHistogramValue")
+
 	// Write/read using reduced schema
 	readRecord = writeReadRecord(t, &schem)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())

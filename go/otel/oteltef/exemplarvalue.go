@@ -344,9 +344,15 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	d.lastValPtr = &d.lastVal
 
 	var err error
+	if d.fieldCount <= 0 {
+		return nil // Int64 and subsequent fields are skipped.
+	}
 	err = d.int64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
+	}
+	if d.fieldCount <= 1 {
+		return nil // Float64 and subsequent fields are skipped.
 	}
 	err = d.float64Decoder.Init(columns.AddSubColumn())
 	if err != nil {
