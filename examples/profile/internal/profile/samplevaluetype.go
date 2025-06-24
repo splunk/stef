@@ -168,13 +168,31 @@ func (s *SampleValueType) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *SampleValueType) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *SampleValueType) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("SampleValueType")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "SampleValueType", err))
+	}
+
+	const randRange = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Type and all subsequent fields are skipped.
+	}
+	// Maybe mutate Type
+	if random.IntN(randRange) == 0 {
 		s.SetType(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
+	// Maybe mutate Unit
+	if random.IntN(randRange) == 0 {
 		s.SetUnit(pkg.StringRandom(random))
 	}
 }
@@ -277,30 +295,19 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	e.limiter = &state.limiter
 	e.dict = &state.SampleValueType
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SampleValueType")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SampleValueType")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 2
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.SampleValueTypeFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "SampleValueType", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Type field.
 	if e.fieldCount <= 0 {
-		// Type and all subsequent fields are skipped.
-		return nil
+		return nil // Type and all subsequent fields are skipped.
 	}
 	err = e.type_Encoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -309,8 +316,7 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 
 	// Init encoder for Unit field.
 	if e.fieldCount <= 1 {
-		// Unit and all subsequent fields are skipped.
-		return nil
+		return nil // Unit and all subsequent fields are skipped.
 	}
 	err = e.unitEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -324,7 +330,14 @@ func (e *SampleValueTypeEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Type and all subsequent fields are skipped.
+	}
 	e.type_Encoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	e.unitEncoder.Reset()
 }
 
@@ -444,17 +457,11 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	state.SampleValueTypeDecoder = d
 	defer func() { state.SampleValueTypeDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SampleValueType")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SampleValueType")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 2
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.SampleValueTypeFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "SampleValueType", err)
 	}
 
 	d.column = columns.Column()
@@ -462,8 +469,6 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	d.dict = &state.SampleValueType
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Type and subsequent fields are skipped.
@@ -502,7 +507,14 @@ func (d *SampleValueTypeDecoder) Continue() {
 }
 
 func (d *SampleValueTypeDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Type and all subsequent fields are skipped.
+	}
 	d.type_Decoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	d.unitDecoder.Reset()
 }
 

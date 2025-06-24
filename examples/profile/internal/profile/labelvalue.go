@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
@@ -213,9 +214,17 @@ func CmpLabelValue(left, right *LabelValue) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *LabelValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+// random parameter as a deterministic generator. Only fields that exist
+// in the schema are mutated, allowing to generate data for specified schema.
+func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this oneof from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// the type of the oneof to the choices that are not in the schema.
+	fieldCount, err := schem.FieldCount("LabelValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "LabelValue", err))
+	}
+
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(LabelValueType(random.IntN(fieldCount + 1)))
@@ -229,7 +238,7 @@ func (s *LabelValue) mutateRandom(random *rand.Rand) {
 		}
 	case LabelValueTypeNum:
 		if typeChanged || random.IntN(2) == 0 {
-			s.num.mutateRandom(random)
+			s.num.mutateRandom(random, schem)
 		}
 	}
 }
@@ -260,20 +269,11 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("LabelValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "LabelValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 2
-	}
-
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.LabelValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "LabelValue", err)
+	}
 
 	// Init encoder for Str field.
 	if e.fieldCount <= 0 {
@@ -307,7 +307,14 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 func (e *LabelValueEncoder) Reset() {
 	e.prevType = 0
+
+	if e.fieldCount <= 0 {
+		return // Str and all subsequent fields are skipped.
+	}
 	e.strEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Num and all subsequent fields are skipped.
+	}
 
 	if !e.isNumRecursive {
 		e.numEncoder.Reset()
@@ -392,25 +399,16 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	state.LabelValueDecoder = d
 	defer func() { state.LabelValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("LabelValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "LabelValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 2
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.LabelValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "LabelValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 	if d.fieldCount <= 0 {
 		return nil // Str and subsequent fields are skipped.
 	}
@@ -461,7 +459,14 @@ func (d *LabelValueDecoder) Continue() {
 
 func (d *LabelValueDecoder) Reset() {
 	d.prevType = 0
+
+	if d.fieldCount <= 0 {
+		return // Str and all subsequent fields are skipped.
+	}
 	d.strDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Num and all subsequent fields are skipped.
+	}
 
 	if !d.isNumRecursive {
 		d.numDecoder.Reset()

@@ -31,12 +31,8 @@ class SpanStatusDecoder {
         state.SpanStatusDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 2;
-            }
+            fieldCount = state.getStructFieldCounts().getSpanStatusFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new SpanStatus(null, 0);
@@ -75,7 +71,16 @@ class SpanStatusDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Message and all subsequent fields are skipped.
+            return;
+        }
         messageDecoder.reset();
+        if (fieldCount <= 1) {
+            // Code and all subsequent fields are skipped.
+            return;
+        }
         codeDecoder.reset();
     }
 

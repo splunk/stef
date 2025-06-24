@@ -45,15 +45,8 @@ class ExemplarEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 5;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getExemplarFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Timestamp field.
             if (this.fieldCount <= 0) {
@@ -106,14 +99,30 @@ class ExemplarEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Timestamp and all subsequent fields are skipped.
+        }
         timestampEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Value and all subsequent fields are skipped.
+        }
         
         if (!isValueRecursive) {
             valueEncoder.reset();
         }
         
+        if (fieldCount <= 2) {
+            return; // SpanID and all subsequent fields are skipped.
+        }
         spanIDEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // TraceID and all subsequent fields are skipped.
+        }
         traceIDEncoder.reset();
+        if (fieldCount <= 4) {
+            return; // FilteredAttributes and all subsequent fields are skipped.
+        }
         
         if (!isFilteredAttributesRecursive) {
             filteredAttributesEncoder.reset();

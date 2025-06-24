@@ -12,19 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/idl"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 // genSampleRecords generates a number of records pseudo-randomly
 // using the supplied Rand generator. Generated records will be always
 // the same for the same input state of Rand generator.
-func genSampleRecords(random *rand.Rand) (records []Sample) {
+// Generated records will only have fields set (mutated) that are defined
+// in the supplied schema. This allows testing schema evolution.
+func genSampleRecords(random *rand.Rand, schem *schema.Schema) (records []Sample) {
 	const recCount = 1000
 	var record Sample
 	record.Init()
 
 	records = make([]Sample, recCount)
 	for i := 0; i < recCount; i++ {
-		record.mutateRandom(random)
+		record.mutateRandom(random, schem)
 		records[i].Init()
 		records[i].CopyFrom(&record)
 	}
@@ -62,6 +66,20 @@ func TestSampleWriteRead(t *testing.T) {
 	seed1 := uint64(time.Now().UnixNano())
 	random := rand.New(rand.NewPCG(seed1, 0))
 
+	// Load the schema from the allSchemaContent variable.
+	schem, err := idl.Parse([]byte(allSchemaContent), "")
+	require.NoError(t, err, "seed %v", seed1)
+
+	schem, err = schem.PrunedForRoot("Sample")
+	require.NoError(t, err, "seed %v", seed1)
+
+	if random.IntN(2) == 0 {
+		// Randomly shrink the schema in approximately half of the test runs.
+		// This is to test that the writer/reader can handle schema changes.
+		schema.ShrinkRandomly(random, schem)
+	}
+	wireSchema := schema.NewWireSchema(schem, "Sample")
+
 	for _, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
@@ -72,12 +90,15 @@ func TestSampleWriteRead(t *testing.T) {
 					}
 				}()
 
+				// Write data according to (possibly modified) schema
+				opt.Schema = &wireSchema
+
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewSampleWriter(buf, opt)
 				require.NoError(t, err, "seed %v", seed1)
 
 				// Generate records pseudo-randomly
-				records := genSampleRecords(random)
+				records := genSampleRecords(random, schem)
 				// Write the records
 				for i := 0; i < len(records); i++ {
 					writer.Record.CopyFrom(&records[i])

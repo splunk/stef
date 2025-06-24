@@ -36,6 +36,10 @@ public class SpansReader {
         base.readVarHeader(ownSchema);
         state.init(base.getSchema());
         decoder.init(state, base.readBufs.columns);
+
+        if (!state.getStructFieldCounts().allFetched()) {
+            throw new IOException("override schema iterator is not done, decoded data schema is likely incompatible");
+        }
     }
 
     public FixedHeader getHeader() {

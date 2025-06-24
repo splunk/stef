@@ -384,31 +384,73 @@ func (s *Metric) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Metric) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(8, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Metric) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Metric")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Metric", err))
+	}
+
+	const randRange = max(8, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
+	// Maybe mutate Name
+	if random.IntN(randRange) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // Description and all subsequent fields are skipped.
+	}
+	// Maybe mutate Description
+	if random.IntN(randRange) == 0 {
 		s.SetDescription(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 2 {
+		return // Unit and all subsequent fields are skipped.
+	}
+	// Maybe mutate Unit
+	if random.IntN(randRange) == 0 {
 		s.SetUnit(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 3 {
+		return // Type and all subsequent fields are skipped.
+	}
+	// Maybe mutate Type
+	if random.IntN(randRange) == 0 {
 		s.SetType(MetricType(pkg.Uint64Random(random) % 5))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.metadata.mutateRandom(random)
+	if fieldCount <= 4 {
+		return // Metadata and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.histogramBounds.mutateRandom(random)
+	// Maybe mutate Metadata
+	if random.IntN(randRange) == 0 {
+		s.metadata.mutateRandom(random, schem)
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 5 {
+		return // HistogramBounds and all subsequent fields are skipped.
+	}
+	// Maybe mutate HistogramBounds
+	if random.IntN(randRange) == 0 {
+		s.histogramBounds.mutateRandom(random, schem)
+	}
+	if fieldCount <= 6 {
+		return // AggregationTemporality and all subsequent fields are skipped.
+	}
+	// Maybe mutate AggregationTemporality
+	if random.IntN(randRange) == 0 {
 		s.SetAggregationTemporality(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 7 {
+		return // Monotonic and all subsequent fields are skipped.
+	}
+	// Maybe mutate Monotonic
+	if random.IntN(randRange) == 0 {
 		s.SetMonotonic(pkg.BoolRandom(random))
 	}
 }
@@ -579,30 +621,19 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	e.limiter = &state.limiter
 	e.dict = &state.Metric
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metric")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metric")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 8
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.MetricFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Metric", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		// Name and all subsequent fields are skipped.
-		return nil
+		return nil // Name and all subsequent fields are skipped.
 	}
 	err = e.nameEncoder.Init(&state.MetricName, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -611,8 +642,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Description field.
 	if e.fieldCount <= 1 {
-		// Description and all subsequent fields are skipped.
-		return nil
+		return nil // Description and all subsequent fields are skipped.
 	}
 	err = e.descriptionEncoder.Init(&state.MetricDescription, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -621,8 +651,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Unit field.
 	if e.fieldCount <= 2 {
-		// Unit and all subsequent fields are skipped.
-		return nil
+		return nil // Unit and all subsequent fields are skipped.
 	}
 	err = e.unitEncoder.Init(&state.MetricUnit, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -631,8 +660,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Type field.
 	if e.fieldCount <= 3 {
-		// Type and all subsequent fields are skipped.
-		return nil
+		return nil // Type and all subsequent fields are skipped.
 	}
 	err = e.type_Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -641,8 +669,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Metadata field.
 	if e.fieldCount <= 4 {
-		// Metadata and all subsequent fields are skipped.
-		return nil
+		return nil // Metadata and all subsequent fields are skipped.
 	}
 	if state.AttributesEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -658,8 +685,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for HistogramBounds field.
 	if e.fieldCount <= 5 {
-		// HistogramBounds and all subsequent fields are skipped.
-		return nil
+		return nil // HistogramBounds and all subsequent fields are skipped.
 	}
 	if state.Float64ArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -675,8 +701,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for AggregationTemporality field.
 	if e.fieldCount <= 6 {
-		// AggregationTemporality and all subsequent fields are skipped.
-		return nil
+		return nil // AggregationTemporality and all subsequent fields are skipped.
 	}
 	err = e.aggregationTemporalityEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -685,8 +710,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Monotonic field.
 	if e.fieldCount <= 7 {
-		// Monotonic and all subsequent fields are skipped.
-		return nil
+		return nil // Monotonic and all subsequent fields are skipped.
 	}
 	err = e.monotonicEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -700,20 +724,46 @@ func (e *MetricEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	e.nameEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Description and all subsequent fields are skipped.
+	}
 	e.descriptionEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	e.unitEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // Type and all subsequent fields are skipped.
+	}
 	e.type_Encoder.Reset()
+	if e.fieldCount <= 4 {
+		return // Metadata and all subsequent fields are skipped.
+	}
 
 	if !e.isMetadataRecursive {
 		e.metadataEncoder.Reset()
+	}
+
+	if e.fieldCount <= 5 {
+		return // HistogramBounds and all subsequent fields are skipped.
 	}
 
 	if !e.isHistogramBoundsRecursive {
 		e.histogramBoundsEncoder.Reset()
 	}
 
+	if e.fieldCount <= 6 {
+		return // AggregationTemporality and all subsequent fields are skipped.
+	}
 	e.aggregationTemporalityEncoder.Reset()
+	if e.fieldCount <= 7 {
+		return // Monotonic and all subsequent fields are skipped.
+	}
 	e.monotonicEncoder.Reset()
 }
 
@@ -933,17 +983,11 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	state.MetricDecoder = d
 	defer func() { state.MetricDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metric")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metric")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 8
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.MetricFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Metric", err)
 	}
 
 	d.column = columns.Column()
@@ -951,8 +995,6 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	d.dict = &state.Metric
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -1079,20 +1121,46 @@ func (d *MetricDecoder) Continue() {
 }
 
 func (d *MetricDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	d.nameDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Description and all subsequent fields are skipped.
+	}
 	d.descriptionDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	d.unitDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // Type and all subsequent fields are skipped.
+	}
 	d.type_Decoder.Reset()
+	if d.fieldCount <= 4 {
+		return // Metadata and all subsequent fields are skipped.
+	}
 
 	if !d.isMetadataRecursive {
 		d.metadataDecoder.Reset()
+	}
+
+	if d.fieldCount <= 5 {
+		return // HistogramBounds and all subsequent fields are skipped.
 	}
 
 	if !d.isHistogramBoundsRecursive {
 		d.histogramBoundsDecoder.Reset()
 	}
 
+	if d.fieldCount <= 6 {
+		return // AggregationTemporality and all subsequent fields are skipped.
+	}
 	d.aggregationTemporalityDecoder.Reset()
+	if d.fieldCount <= 7 {
+		return // Monotonic and all subsequent fields are skipped.
+	}
 	d.monotonicDecoder.Reset()
 }
 

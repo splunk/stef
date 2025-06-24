@@ -45,12 +45,7 @@ class AnyValueDecoder {
 
         try {
             prevType = AnyValue.Type.TypeNone;
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = 7;
-            }
+            this.fieldCount = state.getStructFieldCounts().getAnyValueFieldCount();
             this.column = columns.getColumn();
             this.lastVal.init(null, 0);
             this.lastValPtr = this.lastVal;
@@ -157,15 +152,36 @@ class AnyValueDecoder {
     public void reset() {
         prevType = AnyValue.Type.TypeNone;
         
+        if (fieldCount <= 0) {
+            return; // String and all subsequent fields are skipped.
+        }
         stringDecoder.reset();
+        if (fieldCount <= 1) {
+            return; // Bool and all subsequent fields are skipped.
+        }
         boolDecoder.reset();
+        if (fieldCount <= 2) {
+            return; // Int64 and all subsequent fields are skipped.
+        }
         int64Decoder.reset();
+        if (fieldCount <= 3) {
+            return; // Float64 and all subsequent fields are skipped.
+        }
         float64Decoder.reset();
+        if (fieldCount <= 4) {
+            return; // Array and all subsequent fields are skipped.
+        }
         if (!isArrayRecursive) {
             arrayDecoder.reset();
         }
+        if (fieldCount <= 5) {
+            return; // KVList and all subsequent fields are skipped.
+        }
         if (!isKVListRecursive) {
             kVListDecoder.reset();
+        }
+        if (fieldCount <= 6) {
+            return; // Bytes and all subsequent fields are skipped.
         }
         bytesDecoder.reset();
     }

@@ -166,13 +166,31 @@ func (s *NumValue) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *NumValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *NumValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("NumValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "NumValue", err))
+	}
+
+	const randRange = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Val and all subsequent fields are skipped.
+	}
+	// Maybe mutate Val
+	if random.IntN(randRange) == 0 {
 		s.SetVal(pkg.Int64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
+	// Maybe mutate Unit
+	if random.IntN(randRange) == 0 {
 		s.SetUnit(pkg.StringRandom(random))
 	}
 }
@@ -250,30 +268,19 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("NumValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "NumValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 2
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.NumValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "NumValue", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Val field.
 	if e.fieldCount <= 0 {
-		// Val and all subsequent fields are skipped.
-		return nil
+		return nil // Val and all subsequent fields are skipped.
 	}
 	err = e.valEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -282,8 +289,7 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for Unit field.
 	if e.fieldCount <= 1 {
-		// Unit and all subsequent fields are skipped.
-		return nil
+		return nil // Unit and all subsequent fields are skipped.
 	}
 	err = e.unitEncoder.Init(&state.NumValueUnit, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -297,7 +303,14 @@ func (e *NumValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Val and all subsequent fields are skipped.
+	}
 	e.valEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	e.unitEncoder.Reset()
 }
 
@@ -387,25 +400,17 @@ func (d *NumValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	state.NumValueDecoder = d
 	defer func() { state.NumValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("NumValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "NumValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 2
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.NumValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "NumValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Val and subsequent fields are skipped.
@@ -444,7 +449,14 @@ func (d *NumValueDecoder) Continue() {
 }
 
 func (d *NumValueDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Val and all subsequent fields are skipped.
+	}
 	d.valDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Unit and all subsequent fields are skipped.
+	}
 	d.unitDecoder.Reset()
 }
 

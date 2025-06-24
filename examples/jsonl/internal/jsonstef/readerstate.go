@@ -9,9 +9,7 @@ import (
 var _ = (*encoders.StringEncoder)(nil)
 
 type ReaderState struct {
-	// OverrideSchema is set if decoding should perform a translation from specified
-	// schema. OverrideSchema must be compatible with decoders' schema.
-	OverrideSchema *schema.WireSchema
+	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
 
@@ -23,7 +21,8 @@ type ReaderState struct {
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
-	d.OverrideSchema = overrideSchema
+	d.StructFieldCounts.Init(overrideSchema)
+
 }
 
 // ResetDicts resets all dictionaries to initial state. Used when a frame is

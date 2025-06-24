@@ -39,15 +39,8 @@ class QuantileValueEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("QuantileValue");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 2;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getQuantileValueFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Quantile field.
             if (this.fieldCount <= 0) {
@@ -70,7 +63,14 @@ class QuantileValueEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Quantile and all subsequent fields are skipped.
+        }
         quantileEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Value and all subsequent fields are skipped.
+        }
         valueEncoder.reset();
     }
 

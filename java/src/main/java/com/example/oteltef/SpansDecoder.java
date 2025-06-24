@@ -35,12 +35,8 @@ class SpansDecoder {
         state.SpansDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 4;
-            }
+            fieldCount = state.getStructFieldCounts().getSpansFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Spans();
@@ -137,14 +133,31 @@ class SpansDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Envelope and all subsequent fields are skipped.
+            return;
+        }
         if (!isEnvelopeRecursive) {
             envelopeDecoder.reset();
+        }
+        if (fieldCount <= 1) {
+            // Resource and all subsequent fields are skipped.
+            return;
         }
         if (!isResourceRecursive) {
             resourceDecoder.reset();
         }
+        if (fieldCount <= 2) {
+            // Scope and all subsequent fields are skipped.
+            return;
+        }
         if (!isScopeRecursive) {
             scopeDecoder.reset();
+        }
+        if (fieldCount <= 3) {
+            // Span and all subsequent fields are skipped.
+            return;
         }
         if (!isSpanRecursive) {
             spanDecoder.reset();

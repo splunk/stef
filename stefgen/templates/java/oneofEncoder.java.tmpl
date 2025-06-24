@@ -37,13 +37,7 @@ class {{ .StructName }}Encoder {
             this.dict = state.get{{.DictName}}();
             {{- end}}
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = {{len .Fields}};
-            }
-
+            this.fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
             {{ range $i, $e := .Fields }}
             // Init encoder for {{.Name}} field.
             if (this.fieldCount <= {{$i}}) {
@@ -74,7 +68,10 @@ class {{ .StructName }}Encoder {
 
     public void reset() {
         prevType = {{ .StructName }}.Type.TypeNone;
-        {{- range .Fields}}
+        {{ range $i, $e := .Fields }}
+        if (fieldCount <= {{$i}}) {
+            return; // {{.Name}} and all subsequent fields are skipped.
+        }
         {{if not .IsPrimitive}}
         if (!is{{.Name}}Recursive) {
             {{.name}}Encoder.reset();

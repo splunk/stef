@@ -39,12 +39,8 @@ class MetricsDecoder {
         state.MetricsDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 6;
-            }
+            fieldCount = state.getStructFieldCounts().getMetricsFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Metrics();
@@ -179,20 +175,45 @@ class MetricsDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Envelope and all subsequent fields are skipped.
+            return;
+        }
         if (!isEnvelopeRecursive) {
             envelopeDecoder.reset();
+        }
+        if (fieldCount <= 1) {
+            // Metric and all subsequent fields are skipped.
+            return;
         }
         if (!isMetricRecursive) {
             metricDecoder.reset();
         }
+        if (fieldCount <= 2) {
+            // Resource and all subsequent fields are skipped.
+            return;
+        }
         if (!isResourceRecursive) {
             resourceDecoder.reset();
+        }
+        if (fieldCount <= 3) {
+            // Scope and all subsequent fields are skipped.
+            return;
         }
         if (!isScopeRecursive) {
             scopeDecoder.reset();
         }
+        if (fieldCount <= 4) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
+        }
+        if (fieldCount <= 5) {
+            // Point and all subsequent fields are skipped.
+            return;
         }
         if (!isPointRecursive) {
             pointDecoder.reset();

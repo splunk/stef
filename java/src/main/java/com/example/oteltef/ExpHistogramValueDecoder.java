@@ -45,12 +45,8 @@ class ExpHistogramValueDecoder {
         state.ExpHistogramValueDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 9;
-            }
+            fieldCount = state.getStructFieldCounts().getExpHistogramValueFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new ExpHistogramValue(null, 0);
@@ -172,17 +168,54 @@ class ExpHistogramValueDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Count and all subsequent fields are skipped.
+            return;
+        }
         countDecoder.reset();
+        if (fieldCount <= 1) {
+            // Sum and all subsequent fields are skipped.
+            return;
+        }
         sumDecoder.reset();
+        if (fieldCount <= 2) {
+            // Min and all subsequent fields are skipped.
+            return;
+        }
         minDecoder.reset();
+        if (fieldCount <= 3) {
+            // Max and all subsequent fields are skipped.
+            return;
+        }
         maxDecoder.reset();
+        if (fieldCount <= 4) {
+            // Scale and all subsequent fields are skipped.
+            return;
+        }
         scaleDecoder.reset();
+        if (fieldCount <= 5) {
+            // ZeroCount and all subsequent fields are skipped.
+            return;
+        }
         zeroCountDecoder.reset();
+        if (fieldCount <= 6) {
+            // PositiveBuckets and all subsequent fields are skipped.
+            return;
+        }
         if (!isPositiveBucketsRecursive) {
             positiveBucketsDecoder.reset();
         }
+        if (fieldCount <= 7) {
+            // NegativeBuckets and all subsequent fields are skipped.
+            return;
+        }
         if (!isNegativeBucketsRecursive) {
             negativeBucketsDecoder.reset();
+        }
+        if (fieldCount <= 8) {
+            // ZeroThreshold and all subsequent fields are skipped.
+            return;
         }
         zeroThresholdDecoder.reset();
     }

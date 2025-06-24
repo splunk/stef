@@ -427,34 +427,80 @@ func (s *Mapping) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Mapping) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(9, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Mapping) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Mapping")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Mapping", err))
+	}
+
+	const randRange = max(9, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // MemoryStart and all subsequent fields are skipped.
+	}
+	// Maybe mutate MemoryStart
+	if random.IntN(randRange) == 0 {
 		s.SetMemoryStart(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // MemoryLimit and all subsequent fields are skipped.
+	}
+	// Maybe mutate MemoryLimit
+	if random.IntN(randRange) == 0 {
 		s.SetMemoryLimit(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 2 {
+		return // FileOffset and all subsequent fields are skipped.
+	}
+	// Maybe mutate FileOffset
+	if random.IntN(randRange) == 0 {
 		s.SetFileOffset(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 3 {
+		return // Filename and all subsequent fields are skipped.
+	}
+	// Maybe mutate Filename
+	if random.IntN(randRange) == 0 {
 		s.SetFilename(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 4 {
+		return // BuildId and all subsequent fields are skipped.
+	}
+	// Maybe mutate BuildId
+	if random.IntN(randRange) == 0 {
 		s.SetBuildId(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 5 {
+		return // HasFunctions and all subsequent fields are skipped.
+	}
+	// Maybe mutate HasFunctions
+	if random.IntN(randRange) == 0 {
 		s.SetHasFunctions(pkg.BoolRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 6 {
+		return // HasFilenames and all subsequent fields are skipped.
+	}
+	// Maybe mutate HasFilenames
+	if random.IntN(randRange) == 0 {
 		s.SetHasFilenames(pkg.BoolRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 7 {
+		return // HasLineNumbers and all subsequent fields are skipped.
+	}
+	// Maybe mutate HasLineNumbers
+	if random.IntN(randRange) == 0 {
 		s.SetHasLineNumbers(pkg.BoolRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 8 {
+		return // HasInlineFrames and all subsequent fields are skipped.
+	}
+	// Maybe mutate HasInlineFrames
+	if random.IntN(randRange) == 0 {
 		s.SetHasInlineFrames(pkg.BoolRandom(random))
 	}
 }
@@ -634,30 +680,19 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 	e.limiter = &state.limiter
 	e.dict = &state.Mapping
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Mapping")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Mapping")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 9
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.MappingFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Mapping", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for MemoryStart field.
 	if e.fieldCount <= 0 {
-		// MemoryStart and all subsequent fields are skipped.
-		return nil
+		return nil // MemoryStart and all subsequent fields are skipped.
 	}
 	err = e.memoryStartEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -666,8 +701,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for MemoryLimit field.
 	if e.fieldCount <= 1 {
-		// MemoryLimit and all subsequent fields are skipped.
-		return nil
+		return nil // MemoryLimit and all subsequent fields are skipped.
 	}
 	err = e.memoryLimitEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -676,8 +710,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for FileOffset field.
 	if e.fieldCount <= 2 {
-		// FileOffset and all subsequent fields are skipped.
-		return nil
+		return nil // FileOffset and all subsequent fields are skipped.
 	}
 	err = e.fileOffsetEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -686,8 +719,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Filename field.
 	if e.fieldCount <= 3 {
-		// Filename and all subsequent fields are skipped.
-		return nil
+		return nil // Filename and all subsequent fields are skipped.
 	}
 	err = e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -696,8 +728,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for BuildId field.
 	if e.fieldCount <= 4 {
-		// BuildId and all subsequent fields are skipped.
-		return nil
+		return nil // BuildId and all subsequent fields are skipped.
 	}
 	err = e.buildIdEncoder.Init(&state.BuildID, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -706,8 +737,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for HasFunctions field.
 	if e.fieldCount <= 5 {
-		// HasFunctions and all subsequent fields are skipped.
-		return nil
+		return nil // HasFunctions and all subsequent fields are skipped.
 	}
 	err = e.hasFunctionsEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -716,8 +746,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for HasFilenames field.
 	if e.fieldCount <= 6 {
-		// HasFilenames and all subsequent fields are skipped.
-		return nil
+		return nil // HasFilenames and all subsequent fields are skipped.
 	}
 	err = e.hasFilenamesEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -726,8 +755,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for HasLineNumbers field.
 	if e.fieldCount <= 7 {
-		// HasLineNumbers and all subsequent fields are skipped.
-		return nil
+		return nil // HasLineNumbers and all subsequent fields are skipped.
 	}
 	err = e.hasLineNumbersEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -736,8 +764,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for HasInlineFrames field.
 	if e.fieldCount <= 8 {
-		// HasInlineFrames and all subsequent fields are skipped.
-		return nil
+		return nil // HasInlineFrames and all subsequent fields are skipped.
 	}
 	err = e.hasInlineFramesEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -751,14 +778,42 @@ func (e *MappingEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // MemoryStart and all subsequent fields are skipped.
+	}
 	e.memoryStartEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // MemoryLimit and all subsequent fields are skipped.
+	}
 	e.memoryLimitEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // FileOffset and all subsequent fields are skipped.
+	}
 	e.fileOffsetEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // Filename and all subsequent fields are skipped.
+	}
 	e.filenameEncoder.Reset()
+	if e.fieldCount <= 4 {
+		return // BuildId and all subsequent fields are skipped.
+	}
 	e.buildIdEncoder.Reset()
+	if e.fieldCount <= 5 {
+		return // HasFunctions and all subsequent fields are skipped.
+	}
 	e.hasFunctionsEncoder.Reset()
+	if e.fieldCount <= 6 {
+		return // HasFilenames and all subsequent fields are skipped.
+	}
 	e.hasFilenamesEncoder.Reset()
+	if e.fieldCount <= 7 {
+		return // HasLineNumbers and all subsequent fields are skipped.
+	}
 	e.hasLineNumbersEncoder.Reset()
+	if e.fieldCount <= 8 {
+		return // HasInlineFrames and all subsequent fields are skipped.
+	}
 	e.hasInlineFramesEncoder.Reset()
 }
 
@@ -990,17 +1045,11 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	state.MappingDecoder = d
 	defer func() { state.MappingDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Mapping")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Mapping")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 9
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.MappingFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Mapping", err)
 	}
 
 	d.column = columns.Column()
@@ -1008,8 +1057,6 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	d.dict = &state.Mapping
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // MemoryStart and subsequent fields are skipped.
@@ -1125,14 +1172,42 @@ func (d *MappingDecoder) Continue() {
 }
 
 func (d *MappingDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // MemoryStart and all subsequent fields are skipped.
+	}
 	d.memoryStartDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // MemoryLimit and all subsequent fields are skipped.
+	}
 	d.memoryLimitDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // FileOffset and all subsequent fields are skipped.
+	}
 	d.fileOffsetDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // Filename and all subsequent fields are skipped.
+	}
 	d.filenameDecoder.Reset()
+	if d.fieldCount <= 4 {
+		return // BuildId and all subsequent fields are skipped.
+	}
 	d.buildIdDecoder.Reset()
+	if d.fieldCount <= 5 {
+		return // HasFunctions and all subsequent fields are skipped.
+	}
 	d.hasFunctionsDecoder.Reset()
+	if d.fieldCount <= 6 {
+		return // HasFilenames and all subsequent fields are skipped.
+	}
 	d.hasFilenamesDecoder.Reset()
+	if d.fieldCount <= 7 {
+		return // HasLineNumbers and all subsequent fields are skipped.
+	}
 	d.hasLineNumbersDecoder.Reset()
+	if d.fieldCount <= 8 {
+		return // HasInlineFrames and all subsequent fields are skipped.
+	}
 	d.hasInlineFramesDecoder.Reset()
 }
 

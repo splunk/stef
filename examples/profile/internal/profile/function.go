@@ -242,19 +242,45 @@ func (s *Function) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Function) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Function) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Function")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Function", err))
+	}
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
+	// Maybe mutate Name
+	if random.IntN(randRange) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // SystemName and all subsequent fields are skipped.
+	}
+	// Maybe mutate SystemName
+	if random.IntN(randRange) == 0 {
 		s.SetSystemName(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 2 {
+		return // Filename and all subsequent fields are skipped.
+	}
+	// Maybe mutate Filename
+	if random.IntN(randRange) == 0 {
 		s.SetFilename(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 3 {
+		return // StartLine and all subsequent fields are skipped.
+	}
+	// Maybe mutate StartLine
+	if random.IntN(randRange) == 0 {
 		s.SetStartLine(pkg.Uint64Random(random))
 	}
 }
@@ -379,30 +405,19 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	e.limiter = &state.limiter
 	e.dict = &state.Function
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Function")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Function")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.FunctionFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Function", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		// Name and all subsequent fields are skipped.
-		return nil
+		return nil // Name and all subsequent fields are skipped.
 	}
 	err = e.nameEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -411,8 +426,7 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for SystemName field.
 	if e.fieldCount <= 1 {
-		// SystemName and all subsequent fields are skipped.
-		return nil
+		return nil // SystemName and all subsequent fields are skipped.
 	}
 	err = e.systemNameEncoder.Init(&state.SystemName, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -421,8 +435,7 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for Filename field.
 	if e.fieldCount <= 2 {
-		// Filename and all subsequent fields are skipped.
-		return nil
+		return nil // Filename and all subsequent fields are skipped.
 	}
 	err = e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -431,8 +444,7 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for StartLine field.
 	if e.fieldCount <= 3 {
-		// StartLine and all subsequent fields are skipped.
-		return nil
+		return nil // StartLine and all subsequent fields are skipped.
 	}
 	err = e.startLineEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -446,9 +458,22 @@ func (e *FunctionEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	e.nameEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // SystemName and all subsequent fields are skipped.
+	}
 	e.systemNameEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Filename and all subsequent fields are skipped.
+	}
 	e.filenameEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // StartLine and all subsequent fields are skipped.
+	}
 	e.startLineEncoder.Reset()
 }
 
@@ -600,17 +625,11 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	state.FunctionDecoder = d
 	defer func() { state.FunctionDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Function")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Function")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.FunctionFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Function", err)
 	}
 
 	d.column = columns.Column()
@@ -618,8 +637,6 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	d.dict = &state.Function
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -680,9 +697,22 @@ func (d *FunctionDecoder) Continue() {
 }
 
 func (d *FunctionDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	d.nameDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // SystemName and all subsequent fields are skipped.
+	}
 	d.systemNameDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Filename and all subsequent fields are skipped.
+	}
 	d.filenameDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // StartLine and all subsequent fields are skipped.
+	}
 	d.startLineDecoder.Reset()
 }
 

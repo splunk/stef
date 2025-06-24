@@ -5,9 +5,7 @@ import net.stef.codecs.*;
 import net.stef.schema.*;
 
 public class ReaderState {
-    // overrideSchema is set if decoding should perform a translation from specified
-    // schema. OverrideSchema must be compatible with decoders' schema.
-    private WireSchema overrideSchema;
+    private final CommonFieldCounts structFieldCounts = new CommonFieldCounts();
 
     // Dictionaries
     final StringDecoderDict AnyValueString = new StringDecoderDict();
@@ -24,7 +22,6 @@ public class ReaderState {
     final StringDecoderDict SpanEventName = new StringDecoderDict();
     final StringDecoderDict SpanName = new StringDecoderDict();
     
-
     // Decoders
     AnyValueDecoder AnyValueDecoder;
     AnyValueArrayDecoder AnyValueArrayDecoder;
@@ -58,9 +55,8 @@ public class ReaderState {
     SummaryValueDecoder SummaryValueDecoder;
     Uint64ArrayDecoder Uint64ArrayDecoder;
     
-
     public void init(WireSchema overrideSchema) {
-        this.overrideSchema = overrideSchema;
+        structFieldCounts.init(overrideSchema);
         this.AnyValueString.init();
         this.AttributeKey.init();
         this.Metric.init();
@@ -74,7 +70,8 @@ public class ReaderState {
         this.ScopeVersion.init();
         this.SpanEventName.init();
         this.SpanName.init();
-        }
+        
+    }
 
     // resetDicts resets all dictionaries to initial state. Used when a frame is
     // started with RestartDictionaries flag.
@@ -92,14 +89,10 @@ public class ReaderState {
         this.ScopeVersion.reset();
         this.SpanEventName.reset();
         this.SpanName.reset();
-        }
-
-    // Getter and Setter for OverrideSchema
-    public WireSchema getOverrideSchema() {
-        return overrideSchema;
+        
     }
 
-    public void setOverrideSchema(WireSchema overrideSchema) {
-        this.overrideSchema = overrideSchema;
+    CommonFieldCounts getStructFieldCounts() {
+        return structFieldCounts;
     }
 }

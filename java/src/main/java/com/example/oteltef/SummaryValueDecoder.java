@@ -33,12 +33,8 @@ class SummaryValueDecoder {
         state.SummaryValueDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("SummaryValue");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 3;
-            }
+            fieldCount = state.getStructFieldCounts().getSummaryValueFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new SummaryValue(null, 0);
@@ -96,8 +92,21 @@ class SummaryValueDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Count and all subsequent fields are skipped.
+            return;
+        }
         countDecoder.reset();
+        if (fieldCount <= 1) {
+            // Sum and all subsequent fields are skipped.
+            return;
+        }
         sumDecoder.reset();
+        if (fieldCount <= 2) {
+            // QuantileValues and all subsequent fields are skipped.
+            return;
+        }
         if (!isQuantileValuesRecursive) {
             quantileValuesDecoder.reset();
         }

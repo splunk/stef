@@ -253,11 +253,25 @@ func (s* {{.StructName}}) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
-    const fieldCount = max({{len .Fields}},2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-{{- range .Fields }}
-    if random.IntN(fieldCount)==0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+    // Get the field count for this struct from the schema. If the schema specifies
+    // fewer field count than the one we have in this code then we will not mutate
+    // fields that are not in the schema.
+    fieldCount, err := schem.FieldCount({{printf "%q" .StructName}})
+    if err != nil {
+        panic(fmt.Sprintf("cannot get field count for %s: %v", {{printf "%q" .StructName}}, err))
+    }
+
+    const randRange = max({{len .Fields}},2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+{{ range $i, $e := .Fields }}
+    if fieldCount <= {{$i}} {
+        return // {{.Name}} and all subsequent fields are skipped.
+    }
+    // Maybe mutate {{.Name}}
+    if random.IntN(randRange)==0 {
     {{- if not .Type.IsPrimitive }}
         {{- if .Optional}}
         // Flip the optional field presence bit.
@@ -268,10 +282,10 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
                 s.{{.name}} = &{{ .Type.Storage }}{}
                 s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             }
-            s.{{.name}}.mutateRandom(random)
+            s.{{.name}}.mutateRandom(random, schem)
         }
         {{- else}}
-        s.{{.name}}.mutateRandom(random)
+        s.{{.name}}.mutateRandom(random, schem)
         {{- end}}
     {{- else }}
         s.Set{{.Name}}({{.Type.RandomFunc}})
@@ -406,30 +420,20 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 	e.dict = &state.{{.DictName}}
     {{- end}}
 
-    if state.OverrideSchema != nil {
-        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
-        if !ok {
-            return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
-        }
-
-        // Number of fields in the target schema.
-        e.fieldCount = fieldCount
-
-        // Set that many 1 bits in the keepFieldMask. All fields with higher number
-        // will be skipped when encoding.
-        e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-    } else {
-        // Keep all fields when encoding.
-        e.fieldCount = {{len .Fields}}
-        e.keepFieldMask = ^uint64(0)
-    }
-
+    // Number of fields in the output data schema.
     var err error
+    e.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
+    if err != nil {
+        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
+    }
+    // Set that many 1 bits in the keepFieldMask. All fields with higher number
+    // will be skipped when encoding.
+    e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
+
     {{ range $i, $e := .Fields }}
     // Init encoder for {{.Name}} field.
     if e.fieldCount <= {{$i}} {
-        // {{.Name}} and all subsequent fields are skipped.
-        return nil
+        return nil // {{.Name}} and all subsequent fields are skipped.
     }
     {{- if .IsPrimitive}}
         {{- if .Type.DictName}}
@@ -459,7 +463,10 @@ func (e *{{ .StructName }}Encoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
     e.forceModifiedFields = true
 
-    {{- range .Fields}}
+    {{ range $i, $e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return // {{.Name}} and all subsequent fields are skipped.
+    }
     {{if not .IsPrimitive}}
     if !e.is{{.Name}}Recursive {
         e.{{.name}}Encoder.Reset()
@@ -594,17 +601,11 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     state.{{.StructName}}Decoder = d
     defer func() { state.{{.StructName}}Decoder = nil }()
 
-    if state.OverrideSchema != nil {
-        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
-        if !ok {
-            return fmt.Errorf("cannot find struct in override schema: %s", {{printf "%q" .StructName}})
-        }
-
-        // Number of fields in the target schema.
-        d.fieldCount = fieldCount
-    } else {
-        // Keep all fields when encoding.
-        d.fieldCount = {{len .Fields}}
+    // Number of fields in the input data schema.
+    var err error
+    d.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
+    if err != nil {
+        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
     }
 
     d.column = columns.Column()
@@ -620,7 +621,6 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     d.dict = &state.{{.DictName}}
     {{- end}}
 
-    var err error
     {{ range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
         return nil // {{.Name}} and subsequent fields are skipped.
@@ -672,7 +672,10 @@ func (d *{{ .StructName }}Decoder) Continue() {
 }
 
 func (d *{{ .StructName }}Decoder) Reset() {
-    {{- range .Fields}}
+    {{ range $i, $e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return // {{.Name}} and all subsequent fields are skipped.
+    }
     {{if not .IsPrimitive}}
     if !d.is{{.Name}}Recursive {
         d.{{.name}}Decoder.Reset()

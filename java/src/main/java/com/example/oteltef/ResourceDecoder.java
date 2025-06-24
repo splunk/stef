@@ -35,12 +35,8 @@ class ResourceDecoder {
         state.ResourceDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 3;
-            }
+            fieldCount = state.getStructFieldCounts().getResourceFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Resource(null, 0);
@@ -99,9 +95,22 @@ class ResourceDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // SchemaURL and all subsequent fields are skipped.
+            return;
+        }
         schemaURLDecoder.reset();
+        if (fieldCount <= 1) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
+        }
+        if (fieldCount <= 2) {
+            // DroppedAttributesCount and all subsequent fields are skipped.
+            return;
         }
         droppedAttributesCountDecoder.reset();
     }

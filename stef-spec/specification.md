@@ -465,8 +465,91 @@ the Content field in bytes.
 
 ### VarHeader Frame
 
-VarHeader is a Frame with a `Content` field that contains JSON-encoded Schema of STEF data. 
-TODO: specify JSON fields.
+VarHeader is a Frame with a `Content` field that contains the Schema of STEF 
+data and a list of user-specified key/value pairs. 
+
+```
+VarHeader {
+    WireSchemaSize: U64
+    WireSchema: 0..
+    UserDataCount: U64
+    *UserDataKey: LenPrefixedString
+    *UserDataValue: LenPrefixedString
+}
+
+LenPrefixedString {
+    BytesSize: U64
+    Bytes: 0..
+}
+```
+
+`WireSchemaSize` is the size of `WireSchema` field in bytes. `WireSchemaSize` may be 0,
+which indicates that the `WireSchema` field is empty and no schema is recorded
+for this STEF data stream.
+
+`UserDataCount` is the number of user-specified key/value pairs in the VarHeader frame,
+i.e. the number of repetitions of `UserDataKey` and `UserDataValue` fields. Arbitrary 
+information may be recorded in these key/value pairs.
+
+`WireSchema` is the STEF schema of the data stream in the following format:
+
+```
+WireSchema {
+    StructCounts: U64
+    *StructFieldCount: U64 
+}
+```
+
+`StructCounts` field is the number of repetitions of `StructFieldCount` fields.
+`StructFieldCount` is the number of fields in a struct.
+
+`WireSchema` caries only the parts of the schema, which are necessary to be
+communicated between readers and writers that work with evolving versions
+of the same schema.
+
+`StructFieldCount` values are a linearized list of the number of fields in each 
+struct/oneof in the schema. The order of the structs in this list is the same as 
+the order in which the structs are encountered by depth-first traversal of the
+[Schema Tree](#schema-tree), starting with the root struct for this particular
+STEF stream. The distinction is important with multi-root schemas: the `WireSchema`
+may look differently for different root structs defined in the same schema.
+Only the first encounter of a struct/oneof in the schema tree is recorded
+when linearizing the list of field counts, subsequent encounters of the same
+struct/oneof are not recorded in the `WireSchema`.
+
+Let's illustrate using the example schema with recursive types in
+the [Schema Tree](#schema-tree) section, with `Measurement` root struct. The 
+struct/oneof field counts tree will look like this:
+
+```
+Schema part                      Struct Field Count
+===================================================
+root Measurement                        4
+ |- MetricName string                   -
+ |- Attributes Attributes               -
+ |   |- key string                      -
+ |   |- value AnyValue                  3
+ |       |- String string               -
+ |       |- Array []                    -
+ |           |- AnyValue                3 <-- repeat encounter of AnyValue, skipped.
+ |       |- KVList KVList               -
+ |           |- key string              -
+ |           |- value AnyValue          3
+ |- Timestamp uint64                    -
+ |- Value PointValue                    2
+     |- Int64 int64                     -
+     |- Float64 float64                 -
+```
+
+(a dash `-` is shown next to fields that are not structs or oneofs).
+
+The linearized list of field counts for this schema will be:
+
+```
+4, 3, 2
+```
+
+This linearized list of field counts will be recorded in `WireSchema`.
 
 ## Data Frame
 

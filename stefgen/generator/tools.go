@@ -5,16 +5,16 @@ func (g *Generator) oTools() error {
 		return nil
 	}
 
-	structs := []string{}
+	rootStructs := []string{}
 
 	for _, struc := range g.compiledSchema.Structs {
 		if struc.IsRoot {
-			structs = append(structs, struc.Name)
+			rootStructs = append(rootStructs, struc.Name)
 		}
 	}
 
 	data := map[string]any{
-		"Structs": structs,
+		"RootStructs": rootStructs,
 	}
 	return g.oTemplates("tools", g.stefSymbol2FileName("Tools"), data)
 }
