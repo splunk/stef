@@ -76,7 +76,7 @@ func (p *Parser) Parse() error {
 			break
 		}
 	}
-	return p.resolveFieldTypes()
+	return p.schema.ResolveRefs()
 }
 
 func (p *Parser) isTopLevelNameUsed(name string) bool {
@@ -261,8 +261,8 @@ func (p *Parser) parseStructField(str *schema.Struct) (error, bool) {
 		return nil, false
 	}
 
-	str.Fields = append(str.Fields, schema.StructField{Name: p.lexer.Ident()})
-	field := &str.Fields[len(str.Fields)-1]
+	str.Fields = append(str.Fields, &schema.StructField{Name: p.lexer.Ident()})
+	field := str.Fields[len(str.Fields)-1]
 
 	p.lexer.Next()
 
@@ -380,62 +380,6 @@ func (p *Parser) parseMultimapField(field *schema.MultimapField) error {
 		field.Type.DictName = dictName
 	}
 
-	return nil
-}
-
-func (p *Parser) resolveFieldTypes() error {
-	for _, v := range p.schema.Structs {
-		for i := range v.Fields {
-			field := &v.Fields[i]
-			if err := p.resolveFieldType(&field.FieldType); err != nil {
-				return err
-			}
-		}
-	}
-	for _, v := range p.schema.Multimaps {
-		if err := p.resolveFieldType(&v.Key.Type); err != nil {
-			return err
-		}
-		if err := p.resolveFieldType(&v.Value.Type); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *Parser) resolveFieldType(fieldType *schema.FieldType) error {
-	typeName := fieldType.Struct
-	if typeName != "" {
-		matches := 0
-		_, isStruct := p.schema.Structs[typeName]
-		if isStruct {
-			matches++
-		}
-
-		_, isMultimap := p.schema.Multimaps[typeName]
-		if isMultimap {
-			fieldType.MultiMap = typeName
-			fieldType.Struct = ""
-			matches++
-		}
-
-		_, isEnum := p.schema.Enums[typeName]
-		if isEnum {
-			// All enums are uint64.
-			t := schema.PrimitiveTypeUint64
-			fieldType.Primitive = &t
-			fieldType.Enum = typeName
-			fieldType.Struct = ""
-			matches++
-		}
-
-		if matches == 0 {
-			return p.error("unknown type: " + typeName)
-		}
-		if matches > 1 {
-			return p.error("ambiguous type: " + typeName)
-		}
-	}
 	return nil
 }
 

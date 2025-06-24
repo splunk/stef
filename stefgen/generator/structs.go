@@ -85,7 +85,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		if err != nil {
 			return err
 		}
-		wireSchema := prunedSchema.ToWire()
+		wireSchema := prunedSchema.ToWireForRoot(str.Name)
 
 		var wireBin bytes.Buffer
 		if err := wireSchema.Serialize(&wireBin); err != nil {
