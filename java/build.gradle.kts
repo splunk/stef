@@ -16,9 +16,9 @@ dependencies {
     implementation("com.github.luben:zstd-jni:1.5.7-3")
 
     // gRPC dependencies
-    implementation("io.grpc:grpc-netty-shaded:1.72.0")
-    implementation("io.grpc:grpc-protobuf:1.72.0")
-    implementation ("io.grpc:grpc-stub:1.72.0")
+    runtimeOnly("io.grpc:grpc-netty-shaded:1.73.0")
+    implementation("io.grpc:grpc-protobuf:1.73.0")
+    implementation ("io.grpc:grpc-stub:1.73.0")
     implementation("com.google.protobuf:protobuf-java:4.31.1")
     compileOnly("org.apache.tomcat:annotations-api:6.0.53")
 
