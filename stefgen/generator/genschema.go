@@ -52,10 +52,6 @@ func (s *genSchema) SchemaStr() string {
 	return str
 }
 
-type recursable interface {
-	SetRecursive()
-}
-
 type genStructFieldDef struct {
 	Name      string
 	Type      genFieldTypeRef

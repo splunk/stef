@@ -29,6 +29,12 @@ import (
 type WireSchema struct {
 	// Number of fields in each struct (by struct name)
 	StructFieldCount map[string]uint
+	StructWireSchema
+}
+
+type StructWireSchema struct {
+	FieldCount   uint
+	StructFields []StructWireSchema
 }
 
 func (w *WireSchema) FieldCount(structName string) (uint, bool) {
