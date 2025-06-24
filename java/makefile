@@ -1,3 +1,6 @@
+# Install protoc-gen-grpc-java plugin before running this file 
+# brew install protoc-gen-grpc-java
+
 # Directories
 PARENT_PATH := $(abspath $(CURDIR)/..)
 PROTO_DIR := $(PARENT_PATH)/go/grpc/proto
