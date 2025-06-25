@@ -103,7 +103,7 @@ func (c *BarOutput) Begin() {
 	}
 	c.enabled = true
 
-	output, err := os.Create("results/benchmarks.html")
+	output, err := os.Create("../docs/benchmarks.html")
 	if err != nil {
 		panic(err)
 	}
