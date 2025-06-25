@@ -14,6 +14,15 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     implementation("com.google.code.gson:gson:2.13.1")
     implementation("com.github.luben:zstd-jni:1.5.7-3")
+
+    // gRPC dependencies
+    runtimeOnly("io.grpc:grpc-netty-shaded:1.73.0")
+    implementation("io.grpc:grpc-protobuf:1.73.0")
+    implementation ("io.grpc:grpc-stub:1.73.0")
+    implementation("com.google.protobuf:protobuf-java:4.31.1")
+    compileOnly("org.apache.tomcat:annotations-api:6.0.53")
+
+
     // JMH dependencies for benchmarking
     implementation("org.openjdk.jmh:jmh-core:1.37")
     annotationProcessor("org.openjdk.jmh:jmh-generator-annprocess:1.37")
