@@ -4,7 +4,8 @@
 # Directories
 PARENT_PATH := $(abspath $(CURDIR)/..)
 PROTO_DIR := $(PARENT_PATH)/go/grpc/proto
-OUT_DIR   := generated/source
+OUT_DIR   := $(PARENT_PATH)/java/src/main/java
+CLEAN_GENERATED_CODE := $(PARENT_PATH)/java/src/main/java/net/stef/grpc
 
 # Find all .proto files
 PROTO_FILES := $(wildcard $(PROTO_DIR)/*.proto)
@@ -15,8 +16,10 @@ JAVA_FILES := $(PROTO_FILES:$(PROTO_DIR)/%.proto=$(OUT_DIR)/%.java)
 
 # protoc command and flags
 PROTOC     := protoc
+
+# In case of errors such as "program not found or is not executable", please specify a program using absolute path or make sure the program is available in your PATH system variable
 GRPC_JAVA_PLUGIN := protoc-gen-grpc-java
-PROTO_FLAGS := -I$(PROTO_DIR) --java_out=$(OUT_DIR)
+PROTO_FLAGS := -I$(PROTO_DIR) --java_out=$(OUT_DIR) --grpc-java_out=$(OUT_DIR)
 
 .PHONY: all generate clean
 
@@ -28,11 +31,10 @@ generate: $(JAVA_FILES)
 
 # Implicit rule: how to generate each .java from .proto
 $(OUT_DIR)/%.java: $(PROTO_DIR)/%.proto
-	@mkdir -p $(OUT_DIR)
 	$(PROTOC) --plugin=protoc-gen-grpc-java=$(GRPC_JAVA_PLUGIN) $(PROTO_FLAGS) $<
 	@echo "Generated $@"
 
 # Clean generated sources
 clean:
-	@rm -rf $(OUT_DIR)
+	@rm -rf $(CLEAN_GENERATED_CODE)
 	@echo "🧹 Cleaned generated code."
