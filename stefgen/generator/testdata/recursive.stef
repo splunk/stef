@@ -1,0 +1,34 @@
+package com.example.recursive
+
+struct Root1 root {
+  Rec1 Rec1
+}
+
+struct Rec1 {
+  Rec2 []Rec2 // This triggers bug https://github.com/splunk/stef/issues/93
+}
+
+struct Rec2 {
+  Rec1 []Rec1
+}
+
+struct Root2 root {
+  Rec2 Rec2
+}
+
+struct Root3 root {
+  RecMap RecMap
+}
+
+multimap RecMap {
+  key string
+  value Rec3
+}
+
+struct Rec3 {
+  Maps RecMap // This triggers bug https://github.com/splunk/stef/issues/93
+}
+
+struct Root4 root {
+  Rec3 Rec3
+}

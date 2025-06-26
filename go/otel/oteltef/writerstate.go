@@ -7,6 +7,8 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
+var _ = (*encoders.StringEncoder)(nil)
+
 type WriterState struct {
 	limiter pkg.SizeLimiter
 
