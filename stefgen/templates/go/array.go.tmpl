@@ -233,7 +233,8 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
 type {{ .ArrayName }}Encoder struct {
     buf pkg.BitsWriter
 	limiter *pkg.SizeLimiter
-	encoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Encoder
+	encoder *{{.ElemType.EncoderType}}Encoder
+    isRecursive bool
 	prevLen int
 	state* WriterState
 	lastVal {{.ElemType.Storage}}
@@ -247,14 +248,19 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 		return err
 	}
 	{{- else -}}
-	{{if .Recursive -}}
-	e.encoder = state.{{.ElemType.EncoderType}}Encoder
-	{{else}}
-	if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
-		return err
+	if state.{{.ElemType.EncoderType}}Encoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.encoder = state.{{.ElemType.EncoderType}}Encoder
+		e.isRecursive = true
+	} else {
+		e.encoder = new({{.ElemType.EncoderType}}Encoder)
+		state.{{.ElemType.EncoderType}}Encoder = e.encoder // Store to detect recursion.
+		if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+		// Reset so that further fields of the same type get their own encoder.
+		state.{{.ElemType.EncoderType}}Encoder = nil
 	}
-	state.{{.ElemType.EncoderType}}Encoder = &e.encoder
-	{{end}}
 	e.lastVal.init(nil,0)
 	{{- end}}
 	return nil
@@ -262,9 +268,9 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 
 func (e *{{ .ArrayName }}Encoder) Reset() {
 	e.prevLen = 0
-	{{- if not .Recursive}}
-	e.encoder.Reset()
-	{{- end}}
+	if !e.isRecursive {
+		e.encoder.Reset()
+	}
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
@@ -299,9 +305,9 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 
 func (e *{{ .ArrayName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
-	{{- if not .Recursive}}
-	e.encoder.CollectColumns(columnSet.At(0))
-	{{- end}}
+	if !e.isRecursive {
+		e.encoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type {{ .ArrayName }}Decoder struct {

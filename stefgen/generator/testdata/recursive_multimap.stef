@@ -1,0 +1,14 @@
+package com.example.recursive_multimap
+
+multimap RecMap {
+  key string
+  value Rec3
+}
+
+struct Rec3 {
+  Maps RecMap // This triggers bug https://github.com/splunk/stef/issues/93
+}
+
+struct Root4 root {
+  Rec3 Rec3
+}

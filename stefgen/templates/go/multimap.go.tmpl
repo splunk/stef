@@ -302,8 +302,10 @@ type {{ .MultimapName }}Encoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder   {{if .Key.Recursive}}*{{end}}{{.Key.Type.EncoderType}}Encoder
-	valueEncoder {{if .Value.Recursive}}*{{end}}{{.Value.Type.EncoderType}}Encoder
+	keyEncoder   *{{.Key.Type.EncoderType}}Encoder
+	isKeyRecursive bool
+	valueEncoder *{{.Value.Type.EncoderType}}Encoder
+	isValueRecursive bool
 
 	lastVal {{ .MultimapName }}
 }
@@ -311,32 +313,50 @@ type {{ .MultimapName }}Encoder struct {
 func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
 	e.limiter = &state.limiter
     {{- if .Key.Type.IsPrimitive}}
+		e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
         err := e.keyEncoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
     {{- else}}
-		err := e.keyEncoder.Init(state, columns.AddSubColumn())
+		if state.{{.Key.Type.EncoderType}}Encoder != nil {
+			// Recursion detected, use the existing encoder.
+			e.keyEncoder = state.{{.Key.Type.EncoderType}}Encoder
+			e.isKeyRecursive = true
+		} else {
+			e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
+			state.{{.Key.Type.EncoderType}}Encoder = e.keyEncoder // Store to detect recursion.
+			err = e.keyEncoder.Init(state, columns.AddSubColumn())
+			// Reset so that further fields of the same type get their own encoder.
+			state.{{.Key.Type.EncoderType}}Encoder = nil
+		}
     {{- end}}
 	if err != nil {
 		return nil
 	}
     {{- if .Value.Type.IsPrimitive}}
+		e.valueEncoder = new({{.Value.Type.EncoderType}}Encoder)
 		err = e.valueEncoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
     {{- else}}
-		{{- if .Value.Recursive}}
-		e.valueEncoder = state.{{.Value.Type.EncoderType}}Encoder
-		{{- else}}
-		err = e.valueEncoder.Init(state, columns.AddSubColumn())
-		{{- end}}
+		if state.{{.Value.Type.EncoderType}}Encoder != nil {
+			// Recursion detected, use the existing encoder.
+			e.valueEncoder = state.{{.Value.Type.EncoderType}}Encoder
+			e.isValueRecursive = true
+		} else {
+			e.valueEncoder = new({{.Value.Type.EncoderType}}Encoder)
+			state.{{.Value.Type.EncoderType}}Encoder = e.valueEncoder // Store to detect recursion.
+			err = e.valueEncoder.Init(state, columns.AddSubColumn())
+			// Reset so that further fields of the same type get their own encoder.
+			state.{{.Value.Type.EncoderType}}Encoder = nil
+		}
     {{- end}}
 	return err
 }
 
 func (e *{{ .MultimapName }}Encoder) Reset() {
-{{- if not .Key.Recursive -}}
-	e.keyEncoder.Reset()
-{{- end}}
-{{ if not .Value.Recursive -}}
-	e.valueEncoder.Reset()
-{{end -}}
+	if !e.isKeyRecursive {
+		e.keyEncoder.Reset()
+	}
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
 }
 
 // IsEqual performs deep comparison and returns true if encoder's previously encoded
@@ -483,19 +503,23 @@ func (val1 *{{ .MultimapName }}) isSameKeys(val2 *{{ .MultimapName }}) bool {
 
 func (e *{{ .MultimapName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBytes(&e.buf)
-{{if not .Key.Recursive -}}
- 	e.keyEncoder.CollectColumns(columnSet.At(0))
-{{- end}}
-{{ if not .Value.Recursive -}}
-	e.valueEncoder.CollectColumns(columnSet.At(1))
-{{- end}}
+	if !e.isKeyRecursive {
+ 		e.keyEncoder.CollectColumns(columnSet.At(0))
+ 	}
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(1))
+	}
 }
 
 type {{.MultimapName}}Decoder struct {
     buf pkg.BytesReader
 	column *pkg.ReadableColumn
-	keyDecoder   {{if .Key.Recursive -}}*{{end}}{{.Key.Type.EncoderType}}Decoder
-	valueDecoder {{if .Value.Recursive -}}*{{end}}{{.Value.Type.EncoderType}}Decoder
+
+	keyDecoder   *{{.Key.Type.EncoderType}}Decoder
+	isKeyRecursive bool
+	valueDecoder *{{.Value.Type.EncoderType}}Decoder
+	isValueRecursive bool
+
 	lastVal {{.MultimapName}}
 }
 
@@ -504,22 +528,40 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 	d.column = columns.Column()
 
 {{- if .Key.Type.IsPrimitive}}
+	d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
 	err := d.keyDecoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
 {{- else}}
-	err := d.keyDecoder.Init(state, columns.AddSubColumn())
+	if state.{{.Key.Type.EncoderType}}Decoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.keyDecoder = state.{{.Key.Type.EncoderType}}Decoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
+		state.{{.Key.Type.EncoderType}}Decoder = d.keyDecoder // Store to detect recursion.
+		err = d.keyDecoder.Init(state, columns.AddSubColumn())
+		// Reset so that further fields of the same type get their own decoder.
+		state.{{.Key.Type.EncoderType}}Decoder = nil
+	}
 {{- end}}
 	if err != nil {
 		return nil
 	}
 
 {{- if .Value.Type.IsPrimitive}}
-	err = d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
+	d.valueDecoder = new({{.Value.Type.EncoderType}}Decoder)
+	err := d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
 {{- else}}
-	{{- if .Value.Recursive}}
-	d.valueDecoder = state.{{.Value.Type.EncoderType}}Decoder
-	{{- else}}
-	err = d.valueDecoder.Init(state, columns.AddSubColumn())
-	{{- end}}
+	if state.{{.Value.Type.EncoderType}}Decoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valueDecoder = state.{{.Value.Type.EncoderType}}Decoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valueDecoder = new({{.Value.Type.EncoderType}}Decoder)
+	 	state.{{.Value.Type.EncoderType}}Decoder = d.valueDecoder // Store to detect recursion.
+		err = d.valueDecoder.Init(state, columns.AddSubColumn())
+		// Reset so that further fields of the same type get their own decoder.
+		state.{{.Value.Type.EncoderType}}Decoder = nil
+	}
 {{- end}}
 	return err
 }
@@ -531,21 +573,21 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 // continuation of that same column in the previous frame.
 func (d *{{ .MultimapName }}Decoder) Continue() {
     d.buf.Reset(d.column.Data())
-{{ if not .Key.Recursive -}}
-	d.keyDecoder.Continue()
-{{- end}}
-{{ if not .Value.Recursive -}}
-    d.valueDecoder.Continue()
-{{- end -}}
+	if !d.isKeyRecursive {
+		d.keyDecoder.Continue()
+	}
+	if !d.isValueRecursive {
+    	d.valueDecoder.Continue()
+	}
 }
 
 func (d *{{ .MultimapName }}Decoder) Reset() {
-{{- if not .Key.Recursive -}}
-	d.keyDecoder.Reset()
-{{- end}}
-{{if not .Value.Recursive -}}
-	d.valueDecoder.Reset()
-{{end -}}
+	if !d.isKeyRecursive {
+		d.keyDecoder.Reset()
+	}
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
 }
 
 func (d *{{ .MultimapName }}Decoder) Decode(dst *{{.MultimapName}}) error {
