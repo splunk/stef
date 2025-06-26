@@ -66,7 +66,8 @@ class MetricsWriterTest {
         long seed1 = System.nanoTime();
         Random random = new Random(seed1);
 
-        for (WriterOptions.Builder opt : opts) {
+        for (int optIdx=0; optIdx < opts.size(); optIdx++) {
+            WriterOptions.Builder opt = opts.get(optIdx);
             try {
                 MemChunkWriter buf = new MemChunkWriter();
                 MetricsWriter writer = new MetricsWriter(buf, opt.build());
@@ -84,11 +85,11 @@ class MetricsWriterTest {
                 MetricsReader reader = new MetricsReader(new ByteArrayInputStream(buf.getBytes()));
                 for (int i = 0; i < records.size(); i++) {
                     assertEquals(ReadResult.Success, reader.read(ReadOptions.none));
-                    assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed1);
+                    assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed1 + " optIdx " + optIdx);
                 }
                 assertThrows(EOFException.class, () -> reader.read(ReadOptions.none));
             } catch (Exception e) {
-                fail("seed " + seed1 + ": " + e.getMessage());
+                fail("seed " + seed1 + " optIdx " + optIdx + ": " + e.getMessage());
             }
         }
     }

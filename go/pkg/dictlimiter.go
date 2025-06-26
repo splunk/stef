@@ -7,9 +7,8 @@ type SizeLimiter struct {
 	dictByteSizeLimit    uint
 	dictSizeLimitReached bool
 
-	frameBitSize          uint
-	frameBitSizeLimit     uint
-	frameSizeLimitReached bool
+	frameBitSize      uint
+	frameBitSizeLimit uint
 }
 
 // Init prepares limiter operation.
@@ -34,12 +33,7 @@ func (d *SizeLimiter) AddDictElemSize(elemByteSize uint) {
 
 // AddFrameBits accounts for adding bytes to the frame buffer.
 func (d *SizeLimiter) AddFrameBits(bitCount uint) {
-	if d.frameBitSizeLimit != 0 {
-		d.frameBitSize += bitCount
-		if d.frameBitSize >= d.frameBitSizeLimit {
-			d.frameSizeLimitReached = true
-		}
-	}
+	d.frameBitSize += bitCount
 }
 
 func (d *SizeLimiter) AddFrameBytes(byteCount uint) {
@@ -57,7 +51,7 @@ func (d *SizeLimiter) DictLimitReached() bool {
 // previously defined limit. If specified limit was 0 the limit is never reached
 // and this function will always return false.
 func (d *SizeLimiter) FrameLimitReached() bool {
-	return d.frameSizeLimitReached
+	return d.frameBitSizeLimit != 0 && d.frameBitSize >= d.frameBitSizeLimit
 }
 
 // ResetDict resets accumulated sizes to 0 and DictLimitReached indicator to false.
@@ -71,5 +65,4 @@ func (d *SizeLimiter) ResetDict() {
 // Normally used after restarting the frame.
 func (d *SizeLimiter) ResetFrameSize() {
 	d.frameBitSize = 0
-	d.frameSizeLimitReached = false
 }

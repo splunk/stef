@@ -87,10 +87,66 @@ func (m *KeyValueList) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m *KeyValueList) markModifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+		m.elems[i].value.markModifiedRecursively()
+	}
+}
+
 func (m *KeyValueList) markUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 		m.elems[i].value.markUnmodifiedRecursively()
 	}
+}
+
+// markDiffModified marks fields in each key and value of this multimap modified if they
+// differ from the corresponding fields in v.
+func (m *KeyValueList) markDiffModified(v *KeyValueList) (modified bool) {
+	if len(m.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(m.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if !pkg.StringEqual(m.elems[i].key, v.elems[i].key) {
+			modified = true
+		}
+
+		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
+			modified = true
+		}
+	}
+
+	// Mark the rest of the elements as modified.
+	for i := minLen; i < len(m.elems); i++ {
+		m.elems[i].value.markModifiedRecursively()
+	}
+
+	if modified {
+		m.markModified()
+	}
+
+	return modified
+}
+
+// markDiffModified marks fields in each value of this multimap modified if they
+// differ from the corresponding fields in v.
+// This function assumes the keys are the same and the lengths of multimaps are the same.
+func (m *KeyValueList) markValueDiffModified(v *KeyValueList) (modified bool) {
+	// Scan the elements and mark them as modified if they are different.
+	for i := 0; i < len(m.elems); i++ {
+		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
+			modified = true
+		}
+	}
+
+	if modified {
+		m.markModified()
+	}
+
+	return modified
 }
 
 // SetKey sets the key of the element at index i.
@@ -155,6 +211,10 @@ func (e *KeyValueList) IsEqual(val *KeyValueList) bool {
 	return true
 }
 
+func KeyValueListEqual(left, right *KeyValueList) bool {
+	return left.IsEqual(right)
+}
+
 func CmpKeyValueList(left, right *KeyValueList) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
@@ -207,41 +267,122 @@ type KeyValueListEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder   encoders.StringEncoder
-	valueEncoder *AnyValueEncoder
+	keyEncoder       *encoders.StringEncoder
+	isKeyRecursive   bool
+	valueEncoder     *AnyValueEncoder
+	isValueRecursive bool
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack KeyValueListLastValStack
+}
+type KeyValueListLastValStack []*KeyValueListLastValElem
 
-	lastVal KeyValueList
+func (s *KeyValueListLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *KeyValueListLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *KeyValueListLastValStack) top() *KeyValueListLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *KeyValueListLastValStack) addOnTopSlow() {
+	elem := &KeyValueListLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &KeyValueListLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *KeyValueListLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *KeyValueListLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type KeyValueListLastValElem struct {
+	val            KeyValueList
+	modifiedFields modifiedFields
+}
+
+func (e *KeyValueListLastValElem) init() {
+	e.val.init(&e.modifiedFields, 1)
+}
+
+func (e *KeyValueListLastValElem) reset() {
+	e.val = KeyValueList{}
 }
 
 func (e *KeyValueListEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.KeyValueListEncoder != nil {
+		panic("cannot initialize KeyValueListEncoder: already initialized")
+	}
+	state.KeyValueListEncoder = e
+	defer func() { state.KeyValueListEncoder = nil }()
+
 	e.limiter = &state.limiter
-	err := e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+
+	var err error
+	e.keyEncoder = new(encoders.StringEncoder)
+	err = e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
-	e.valueEncoder = state.AnyValueEncoder
+	if state.AnyValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.valueEncoder = state.AnyValueEncoder
+		e.isValueRecursive = true
+	} else {
+		e.valueEncoder = new(AnyValueEncoder)
+		err = e.valueEncoder.Init(state, columns.AddSubColumn())
+	}
+	e.lastValStack.init()
+
 	return err
 }
 
 func (e *KeyValueListEncoder) Reset() {
-	e.keyEncoder.Reset()
-}
-
-// IsEqual performs deep comparison and returns true if encoder's previously encoded
-// value is equal to list.
-func (e *KeyValueListEncoder) IsEqual(list *KeyValueList) bool {
-	return e.lastVal.IsEqual(list)
+	if !e.isKeyRecursive {
+		e.keyEncoder.Reset()
+	}
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
+	e.lastValStack.reset()
 }
 
 func (e *KeyValueListEncoder) Encode(list *KeyValueList) (changed bool) {
 	oldLen := len(e.buf.Bytes())
+	lastVal := &e.lastValStack.top().val
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
 
 	if len(list.elems) == 0 {
 		// Zero-length attr list.
 		e.buf.WriteUvarint(0b1)
 
-		changed = len(e.lastVal.elems) != 0
-		e.lastVal.elems = pkg.EnsureLen(e.lastVal.elems, 0)
+		changed = len(lastVal.elems) != 0
+		lastVal.elems = pkg.EnsureLen(lastVal.elems, 0)
 
 		newLen := len(e.buf.Bytes())
 		e.limiter.AddFrameBytes(uint(newLen - oldLen))
@@ -249,10 +390,12 @@ func (e *KeyValueListEncoder) Encode(list *KeyValueList) (changed bool) {
 		return changed
 	}
 
-	if list.isSameKeys(&e.lastVal) && len(e.lastVal.elems) < 63 {
-		changed = e.encodeValuesOnly(list)
+	if list.isSameKeys(lastVal) && len(lastVal.elems) < 63 {
+		list.markValueDiffModified(lastVal)
+		changed = e.encodeValuesOnly(lastVal, list)
 	} else {
-		e.encodeFull(list)
+		list.markDiffModified(lastVal)
+		e.encodeFull(lastVal, list)
 		changed = true
 	}
 
@@ -262,7 +405,7 @@ func (e *KeyValueListEncoder) Encode(list *KeyValueList) (changed bool) {
 	return changed
 }
 
-func (e *KeyValueListEncoder) encodeValuesOnly(list *KeyValueList) (changed bool) {
+func (e *KeyValueListEncoder) encodeValuesOnly(lastVal *KeyValueList, list *KeyValueList) (changed bool) {
 	if len(list.elems) > 62 {
 		// TODO: implement this case.
 		panic("not implemented")
@@ -272,7 +415,7 @@ func (e *KeyValueListEncoder) encodeValuesOnly(list *KeyValueList) (changed bool
 	changedValuesBits := uint64(0)
 	for i := range list.elems {
 		changedValuesBits <<= 1
-		if !AnyValueEqual(&e.lastVal.elems[i].value, &list.elems[i].value) {
+		if !AnyValueEqual(&lastVal.elems[i].value, &list.elems[i].value) {
 			changedValuesBits |= 1
 		}
 	}
@@ -292,11 +435,11 @@ func (e *KeyValueListEncoder) encodeValuesOnly(list *KeyValueList) (changed bool
 	}
 
 	// Store changed values in lastVal after encoding.
-	e.lastVal.EnsureLen(len(list.elems))
+	lastVal.EnsureLen(len(list.elems))
 	bitToRead = uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			copyAnyValue(&e.lastVal.elems[i].value, &list.elems[i].value)
+			copyAnyValue(&lastVal.elems[i].value, &list.elems[i].value)
 		}
 		bitToRead >>= 1
 		if bitToRead == 0 {
@@ -307,7 +450,7 @@ func (e *KeyValueListEncoder) encodeValuesOnly(list *KeyValueList) (changed bool
 	return changedValuesBits != 0
 }
 
-func (e *KeyValueListEncoder) encodeFull(list *KeyValueList) {
+func (e *KeyValueListEncoder) encodeFull(lastVal *KeyValueList, list *KeyValueList) {
 	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
 
 	// Encode values first.
@@ -317,19 +460,10 @@ func (e *KeyValueListEncoder) encodeFull(list *KeyValueList) {
 	}
 
 	// Store changed values in lastVal.
-	e.lastVal.EnsureLen(len(list.elems))
+	lastVal.EnsureLen(len(list.elems))
 	for i := range list.elems {
-		e.lastVal.elems[i].key = list.elems[i].key
-		copyAnyValue(&e.lastVal.elems[i].value, &list.elems[i].value)
-	}
-}
-
-func (e *KeyValueListEncoder) RencodeLast() {
-	list := e.lastVal
-	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
-	for i := range list.elems {
-		e.keyEncoder.Encode(list.elems[i].key)
-		e.valueEncoder.Encode(&list.elems[i].value)
+		lastVal.elems[i].key = list.elems[i].key
+		copyAnyValue(&lastVal.elems[i].value, &list.elems[i].value)
 	}
 }
 
@@ -350,26 +484,53 @@ func (val1 *KeyValueList) isSameKeys(val2 *KeyValueList) bool {
 
 func (e *KeyValueListEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBytes(&e.buf)
-	e.keyEncoder.CollectColumns(columnSet.At(0))
-
+	if !e.isKeyRecursive {
+		e.keyEncoder.CollectColumns(columnSet.At(0))
+	}
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(1))
+	}
 }
 
 type KeyValueListDecoder struct {
-	buf          pkg.BytesReader
-	column       *pkg.ReadableColumn
-	keyDecoder   encoders.StringDecoder
-	valueDecoder *AnyValueDecoder
-	lastVal      KeyValueList
+	buf    pkg.BytesReader
+	column *pkg.ReadableColumn
+
+	keyDecoder       *encoders.StringDecoder
+	isKeyRecursive   bool
+	valueDecoder     *AnyValueDecoder
+	isValueRecursive bool
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack KeyValueListLastValStack
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *KeyValueListDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.KeyValueListDecoder != nil {
+		panic("cannot initialize KeyValueListDecoder: already initialized")
+	}
+	state.KeyValueListDecoder = d
+	defer func() { state.KeyValueListDecoder = nil }()
+
 	d.column = columns.Column()
-	err := d.keyDecoder.Init(nil, columns.AddSubColumn())
+
+	var err error
+	d.keyDecoder = new(encoders.StringDecoder)
+	err = d.keyDecoder.Init(nil, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
-	d.valueDecoder = state.AnyValueDecoder
+	if state.AnyValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valueDecoder = state.AnyValueDecoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valueDecoder = new(AnyValueDecoder)
+		err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	}
+	d.lastValStack.init()
+
 	return err
 }
 
@@ -380,60 +541,74 @@ func (d *KeyValueListDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 // continuation of that same column in the previous frame.
 func (d *KeyValueListDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	d.keyDecoder.Continue()
+	if !d.isKeyRecursive {
+		d.keyDecoder.Continue()
+	}
+	if !d.isValueRecursive {
+		d.valueDecoder.Continue()
+	}
 }
 
 func (d *KeyValueListDecoder) Reset() {
-	d.keyDecoder.Reset()
+	if !d.isKeyRecursive {
+		d.keyDecoder.Reset()
+	}
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
+	d.lastValStack.reset()
 }
 
 func (d *KeyValueListDecoder) Decode(dst *KeyValueList) error {
+	lastVal := &d.lastValStack.top().val
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
+
 	countOrChangedValues, err := d.buf.ReadUvarint()
 	if err != nil {
 		return err
 	}
 	if countOrChangedValues == 0 {
 		// Nothing changed.
-		d.decodeCopyOfLast(dst)
-		return nil
+		return d.decodeCopyOfLast(lastVal, dst)
 	}
 
 	if countOrChangedValues&0b1 == 0 {
-		return d.decodeValuesOnly(countOrChangedValues>>1, dst)
+		return d.decodeValuesOnly(lastVal, countOrChangedValues>>1, dst)
 	}
 
 	if countOrChangedValues&0b1 == 0b1 {
-		return d.decodeFull(int(countOrChangedValues>>1), dst)
+		return d.decodeFull(lastVal, int(countOrChangedValues>>1), dst)
 	}
 	return pkg.ErrMultimap
 }
 
-func (d *KeyValueListDecoder) decodeCopyOfLast(dst *KeyValueList) error {
-	dst.EnsureLen(len(d.lastVal.elems))
+func (d *KeyValueListDecoder) decodeCopyOfLast(lastVal *KeyValueList, dst *KeyValueList) error {
+	dst.EnsureLen(len(lastVal.elems))
 	for i := range dst.elems {
-		dst.elems[i].key = d.lastVal.elems[i].key
-		copyAnyValue(&dst.elems[i].value, &d.lastVal.elems[i].value)
+		dst.elems[i].key = lastVal.elems[i].key
+		copyAnyValue(&dst.elems[i].value, &lastVal.elems[i].value)
 	}
 	return nil
 }
 
-func (d *KeyValueListDecoder) decodeValuesOnly(changedValuesBits uint64, dst *KeyValueList) error {
-	if len(d.lastVal.elems) == 0 {
+func (d *KeyValueListDecoder) decodeValuesOnly(lastVal *KeyValueList, changedValuesBits uint64, dst *KeyValueList) error {
+	if len(lastVal.elems) == 0 {
 		// The last attrs empty so value-only encoding does not make sense.
 		return pkg.ErrMultimap
 	}
 
-	count := len(d.lastVal.elems)
+	count := len(lastVal.elems)
 	dst.EnsureLen(count)
 
 	// Copy unchanged values from lastVal
 	bitToRead := uint64(1) << (len(dst.elems) - 1)
 	for i := range dst.elems {
 		// Copy the key from lastVal. All keys are the same.
-		dst.elems[i].key = d.lastVal.elems[i].key
+		dst.elems[i].key = lastVal.elems[i].key
 		if (bitToRead & changedValuesBits) == 0 {
 			// Value is not changed, copy from lastVal.
-			copyAnyValue(&dst.elems[i].value, &d.lastVal.elems[i].value)
+			copyAnyValue(&dst.elems[i].value, &lastVal.elems[i].value)
 		}
 		bitToRead >>= 1
 	}
@@ -448,19 +623,8 @@ func (d *KeyValueListDecoder) decodeValuesOnly(changedValuesBits uint64, dst *Ke
 			if err != nil {
 				return err
 			}
-		}
-		bitToRead >>= 1
-	}
-
-	// Decode() calls above may have changed lastVal len if we have a recursive data type.
-	// Set the correct length again.
-	d.lastVal.EnsureLen(count)
-
-	// Store the values in lastVal.
-	bitToRead = uint64(1) << (len(dst.elems) - 1)
-	for i := range dst.elems {
-		if (bitToRead & changedValuesBits) != 0 {
-			copyAnyValue(&d.lastVal.elems[i].value, &dst.elems[i].value)
+			// Store the values in lastVal
+			copyAnyValue(&lastVal.elems[i].value, &dst.elems[i].value)
 		}
 		bitToRead >>= 1
 	}
@@ -468,12 +632,14 @@ func (d *KeyValueListDecoder) decodeValuesOnly(changedValuesBits uint64, dst *Ke
 	return nil
 }
 
-func (d *KeyValueListDecoder) decodeFull(count int, dst *KeyValueList) error {
+func (d *KeyValueListDecoder) decodeFull(lastVal *KeyValueList, count int, dst *KeyValueList) error {
 	if count < 0 || count >= pkg.MultimapElemCountLimit {
 		return pkg.ErrMultimapCountLimit
 	}
 
 	dst.EnsureLen(count)
+	lastVal.EnsureLen(count)
+
 	// Decode values first.
 	var err error
 	for i := 0; i < count; i++ {
@@ -485,13 +651,10 @@ func (d *KeyValueListDecoder) decodeFull(count int, dst *KeyValueList) error {
 		if err != nil {
 			return err
 		}
-	}
 
-	// Store decoded values in lastVal.
-	d.lastVal.EnsureLen(count)
-	for i := 0; i < count; i++ {
-		d.lastVal.elems[i].key = dst.elems[i].key
-		copyAnyValue(&d.lastVal.elems[i].value, &dst.elems[i].value)
+		// Store decoded values in lastVal.
+		lastVal.elems[i].key = dst.elems[i].key
+		copyAnyValue(&lastVal.elems[i].value, &dst.elems[i].value)
 	}
 
 	return nil

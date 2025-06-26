@@ -1,0 +1,10 @@
+package com.example.gentest.multimap_recurse_self
+
+multimap RecMap {
+  key string
+  value RecMap
+}
+
+struct Root root {
+  RecMap RecMap
+}

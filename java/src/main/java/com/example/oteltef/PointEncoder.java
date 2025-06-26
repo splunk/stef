@@ -30,35 +30,44 @@ class PointEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.PointEncoder != null) {
+            throw new IllegalStateException("cannot initialize PointEncoder: already initialized");
+        }
         state.PointEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Point");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 4;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // StartTimestamp and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Point");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 4;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // StartTimestamp and subsequent fields are skipped.
+            }
+            this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Timestamp and subsequent fields are skipped.
+            }
+            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Value and subsequent fields are skipped.
+            }
+            this.valueEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Exemplars and subsequent fields are skipped.
+            }
+            this.exemplarsEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.PointEncoder = null;
         }
-        this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Timestamp and subsequent fields are skipped.
-        }
-        this.timestampEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Value and subsequent fields are skipped.
-        }
-        this.valueEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Exemplars and subsequent fields are skipped.
-        }
-        this.exemplarsEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

@@ -22,25 +22,34 @@ class ExpHistogramBucketsDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExpHistogramBucketsDecoder != null) {
+            throw new IllegalStateException("cannot initialize ExpHistogramBucketsDecoder: already initialized");
+        }
         state.ExpHistogramBucketsDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 2;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 2;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new ExpHistogramBuckets(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Offset and subsequent fields are skipped.
+            }
+            offsetDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // BucketCounts and subsequent fields are skipped.
+            }
+            bucketCountsDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.ExpHistogramBucketsDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new ExpHistogramBuckets(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Offset and subsequent fields are skipped.
-        }
-        offsetDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // BucketCounts and subsequent fields are skipped.
-        }
-        bucketCountsDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

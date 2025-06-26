@@ -23,38 +23,47 @@ class {{ .StructName }}Decoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
-        state.{{ .StructName }}Decoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = {{len .Fields}};
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.{{.StructName}}Decoder != null) {
+            throw new IllegalStateException("cannot initialize {{ .StructName }}Decoder: already initialized");
         }
-        column = columns.getColumn();
-        {{if .IsMainStruct}}
-        lastVal = new {{.StructName}}();
-        {{- else}}
-        lastVal = new {{.StructName}}(null, 0);
-        {{- end}}
-        {{- if .DictName}}
-        dict = state.{{.DictName}};
-        {{- end}}
-        {{ range $i,$e := .Fields }}
-        if (this.fieldCount <= {{$i}}) {
-            return; // {{.Name}} and subsequent fields are skipped.
-        }
-        {{- if .Type.IsPrimitive}}
-            {{- if .Type.DictName}}
-        {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
-            {{- else if .Type.IsDictPossible}}
-        {{.name}}Decoder.init(null, columns.addSubColumn());
+        state.{{.StructName}}Decoder = this;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = {{len .Fields}};
+            }
+            column = columns.getColumn();
+            {{if .IsMainStruct}}
+            lastVal = new {{.StructName}}();
             {{- else}}
-        {{.name}}Decoder.init(columns.addSubColumn());
+            lastVal = new {{.StructName}}(null, 0);
             {{- end}}
-        {{- else}}
-        {{.name}}Decoder.init(state, columns.addSubColumn());
-        {{- end}}
-        {{- end }}
+            {{- if .DictName}}
+            dict = state.{{.DictName}};
+            {{- end}}
+            {{ range $i,$e := .Fields }}
+            if (this.fieldCount <= {{$i}}) {
+                return; // {{.Name}} and subsequent fields are skipped.
+            }
+            {{- if .Type.IsPrimitive}}
+                {{- if .Type.DictName}}
+            {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
+                {{- else if .Type.IsDictPossible}}
+            {{.name}}Decoder.init(null, columns.addSubColumn());
+                {{- else}}
+            {{.name}}Decoder.init(columns.addSubColumn());
+                {{- end}}
+            {{- else}}
+            {{.name}}Decoder.init(state, columns.addSubColumn());
+            {{- end}}
+            {{- end }}
+        } finally {
+            state.{{.StructName}}Decoder = null;
+        }
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

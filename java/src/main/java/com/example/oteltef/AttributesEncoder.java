@@ -3,6 +3,7 @@ package com.example.oteltef;
 
 import net.stef.BytesWriter;
 import net.stef.SizeLimiter;
+import net.stef.Types;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
@@ -16,48 +17,84 @@ class AttributesEncoder {
 
     private StringEncoder keyEncoder;
     private AnyValueEncoder valueEncoder;
+    private boolean isKeyRecursive = false;
+    private boolean isValueRecursive = false;
 
-    private final Attributes lastVal = new Attributes();
+    
+    // lastValStack are last encoded values stacked by the level of recursion.
+    LastValStack lastValStack;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
-        this.limiter = state.getLimiter();
-        keyEncoder = new StringEncoder();
-        keyEncoder.init(state.AttributeKey, limiter, columns.addSubColumn());
-        valueEncoder = new AnyValueEncoder();
-        valueEncoder.init(state, columns.addSubColumn());
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.AttributesEncoder != null) {
+            throw new IllegalStateException("cannot initialize AttributesEncoder: already initialized");
+        }
+        state.AttributesEncoder = this;
+        try {
+            this.limiter = state.getLimiter();
+            keyEncoder = new StringEncoder();
+            keyEncoder.init(state.AttributeKey, limiter, columns.addSubColumn());
+            if (state.AnyValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                valueEncoder = state.AnyValueEncoder;
+                isValueRecursive = true;
+            } else {
+                valueEncoder = new AnyValueEncoder();
+                valueEncoder.init(state, columns.addSubColumn());
+            }
+            lastValStack = new LastValStack();
+        } finally {
+            state.AttributesEncoder = null;
+        }
     }
 
     public void reset() {
-    
-        keyEncoder.reset();
-    
-        valueEncoder.reset();
-    }
-
-    // equals performs deep comparison and returns true if encoder's previously encoded value is equal to list.
-    public boolean equals(Attributes list) {
-        return lastVal.equals(list);
+        if (!isKeyRecursive) {
+            keyEncoder.reset();
+        }
+        if (!isValueRecursive) {
+            valueEncoder.reset();
+        }
+        lastValStack.reset();
     }
 
     public boolean encode(Attributes list) throws IOException {
         int oldLen = buf.size();
-        if (list.elemsLen == 0) {
-            buf.writeUvarint(0b1);
-            boolean changed = lastVal.elemsLen != 0;
-            lastVal.ensureLen(0);
-            int newLen = buf.size();
-            limiter.addFrameBytes(newLen - oldLen);
+        Attributes lastVal = lastValStack.top();
+        lastValStack.addOnTop();
+        try {
+            if (list.elemsLen == 0) {
+                // Zero-length attr list.
+                buf.writeUvarint(0b1);
+
+                boolean changed = lastVal.elemsLen != 0;
+                lastVal.ensureLen(0);
+
+                limiter.addFrameBytes(buf.size() - oldLen);
+
+                return changed;
+            }
+
+            boolean changed;
+            if (list.isSameKeys(lastVal) && lastVal.elemsLen < 63) {
+                list.markValueDiffModified(lastVal);
+                changed = encodeValuesOnly(lastVal, list);
+            } else {
+                list.markDiffModified(lastVal);
+                encodeFull(lastVal, list);
+                changed = true;
+            }
+
+            limiter.addFrameBytes(buf.size() - oldLen);
+
             return changed;
-        }
-        if (list.isSameKeys(lastVal) && lastVal.elemsLen < 63) {
-            return encodeValuesOnly(list);
-        } else {
-            encodeFull(list);
-            return true;
+
+        } finally {
+            lastValStack.removeFromTop();
         }
     }
 
-    private boolean encodeValuesOnly(Attributes list) throws IOException {
+    private boolean encodeValuesOnly(Attributes lastVal, Attributes list) throws IOException {
         if (list.elemsLen > 62) {
             throw new UnsupportedOperationException("Not implemented for >62 elements");
         }
@@ -66,7 +103,7 @@ class AttributesEncoder {
         long changedValuesBits = 0;
         for (int i = 0; i < list.elemsLen; i++) {
             changedValuesBits <<= 1;
-            if (!AnyValue.equals(lastVal.elems[i].value, list.elems[i].value)) {
+            if (!lastVal.elems[i].value.equals(list.elems[i].value)) {
                 changedValuesBits |= 1;
             }
         }
@@ -100,7 +137,7 @@ class AttributesEncoder {
         return changedValuesBits != 0;
     }
 
-    private void encodeFull(Attributes list) throws IOException {
+    private void encodeFull(Attributes lastVal, Attributes list) throws IOException {
         buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
 
         // Encode values first.
@@ -116,19 +153,58 @@ class AttributesEncoder {
         }
     }
 
-    public void rencodeLast() throws IOException {
-        Attributes list = lastVal;
-        buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
-        for (int i = 0; i < list.elemsLen; i++) {
-            keyEncoder.encode(list.elems[i].key);
-            valueEncoder.encode(list.elems[i].value);
+    public void collectColumns(WriteColumnSet columnSet) {
+        columnSet.setBytes(buf);
+        if (!isKeyRecursive) {
+            keyEncoder.collectColumns(columnSet.at(0));
+        }
+        if (!isValueRecursive) {
+            valueEncoder.collectColumns(columnSet.at(1));
         }
     }
 
-    public void collectColumns(WriteColumnSet columnSet) {
-        columnSet.setBytes(buf);
-        keyEncoder.collectColumns(columnSet.at(0));
-        valueEncoder.collectColumns(columnSet.at(1));
+    
+    static class LastValStack {
+        private Attributes []stack;
+        private int stackIndex;
+
+        LastValStack() {
+            // We need one top-level element in the stack to store the last value initially.
+            stack = new Attributes[1];
+            stack[0] = new Attributes();
+            stackIndex = 0;
+        }
+
+        void reset() {
+            // Reset all elements in the stack.
+            for (int i=0; i < stack.length; i++) {
+                stack[i] = new Attributes();
+            }
+            // Reset the stack to have one element for top-level.
+            stackIndex = 0;
+        }
+
+        Attributes top() {
+            return stack[stackIndex];
+        }
+    
+        void addOnTop() {
+            stackIndex++;
+            if (stackIndex >= stack.length) {
+                // Double the stack size if we run out of space.
+                Attributes[] newStack = new Attributes[stack.length * 2];
+                System.arraycopy(stack, 0, newStack, 0, stack.length);
+                stack = newStack;
+                // Initialize new elements in the stack.
+                for (int i = stackIndex; i < stack.length; i++) {
+                    stack[i] = new Attributes();
+                }
+            }
+        }
+
+        void removeFromTop() {
+            stackIndex--;
+        }
     }
 }
 

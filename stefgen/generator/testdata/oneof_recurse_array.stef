@@ -1,0 +1,18 @@
+package com.example.gentest.oneof_recurse_array
+
+struct Root1 root {
+  Rec1 Rec1
+}
+
+oneof Rec1 {
+  Rec2 []Rec2
+}
+
+oneof Rec2 {
+  Rec1 []Rec1
+  Val int64
+}
+
+struct Root2 root {
+  Rec2 Rec2
+}

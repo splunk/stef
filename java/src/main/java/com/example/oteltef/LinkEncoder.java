@@ -32,43 +32,52 @@ class LinkEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.LinkEncoder != null) {
+            throw new IllegalStateException("cannot initialize LinkEncoder: already initialized");
+        }
         state.LinkEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Link");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 6;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // TraceID and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Link");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 6;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // TraceID and subsequent fields are skipped.
+            }
+            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // SpanID and subsequent fields are skipped.
+            }
+            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // TraceState and subsequent fields are skipped.
+            }
+            this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Flags and subsequent fields are skipped.
+            }
+            this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.LinkEncoder = null;
         }
-        this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // SpanID and subsequent fields are skipped.
-        }
-        this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // TraceState and subsequent fields are skipped.
-        }
-        this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Flags and subsequent fields are skipped.
-        }
-        this.flagsEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        this.attributesEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

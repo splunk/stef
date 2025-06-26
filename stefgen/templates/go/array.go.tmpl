@@ -76,6 +76,14 @@ func (e* {{.ArrayName}}) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e* {{.ArrayName}}) markModifiedRecursively() {
+{{if not .ElemType.IsPrimitive -}}
+	for i:=0; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+{{end}}
+}
+
 func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 {{if not .ElemType.IsPrimitive -}}
 	for i:=0; i < len(e.elems); i++ {
@@ -84,54 +92,94 @@ func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 {{end}}
 }
 
-func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
-    {{- if .ElemType.MustClone}}
-	if len(dst.elems)!=len(src.elems) {
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-		dst.markModified()
+// markDiffModified marks fields in each element of this array modified if they differ from
+// the corresponding fields in v.
+func (e* {{.ArrayName}}) markDiffModified(v *{{.ArrayName}}) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
 	}
-	if len(src.elems)>0 {
-		// Allocate all elements at once.
-		elems := make([]{{.ElemType.Storage}}, len(src.elems))
-		for i := range src.elems {
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i:=0; i < minLen; i++ {
+		{{- if .ElemType.IsPrimitive -}}
+		if !{{ .ElemType.EqualFunc }}(e.elems[i], {{.ElemType.ToStorage "v.elems[i]"}}) {
+			modified = true
+		}
+		{{else}}
+		if e.elems[i].markDiffModified(v.elems[i]) {
+			modified = true
+		}
+		{{- end}}
+	}
+
+	{{if not .ElemType.IsPrimitive -}}
+	// Mark the rest of the elements as modified.
+	for i:=minLen; i<len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+	{{end}}
+
+	if modified {
+		e.markModified()
+	}
+
+	return modified
+}
+
+func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		isModified = true
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		{{- if .ElemType.MustClone}}
+		copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		isModified = true
+		{{- else}}
+		if dst.elems[i] != src.elems[i] {
+			dst.elems[i] = src.elems[i]
+			isModified = true
+		}
+		{{- end}}
+	}
+
+	{{- if .ElemType.MustClone}}
+	if minLen < len(dst.elems) {
+		isModified = true
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]{{.ElemType.Storage}}, len(dst.elems) - minLen)
+		for j := range elems {
 			{{if not .ElemType.IsPrimitive -}}
 			// Init the element.
-			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			{{- end}}
-			// Point to allocated element.
-			dst.elems[i] = &elems[i]
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+			copy{{.ElemType.TypeName}}(dst.elems[i+j], src.elems[i+j])
 		}
 	}
 	{{- else}}
-	if len(dst.elems) != len(src.elems) {
-		n := min(len(dst.elems), len(src.elems))
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-
-		i := 0
-		for ; i < n; i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-			}
-		}
-		for ; i < len(dst.elems); i++ {
+	for ; i < len(dst.elems); i++ {
+		if dst.elems[i] != src.elems[i] {
 			dst.elems[i] = src.elems[i]
-		}
-		dst.markModified()
-	} else {
-		modified := false
-		for i:=0; i < len(dst.elems); i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-				modified = true
-			}
-		}
-		if modified {
-			dst.markModified()
+			isModified = true
 		}
 	}
-    {{- end}}
+	{{- end}}
+	if isModified {
+		dst.markModified()
+	}
 }
 
 // Len returns the number of elements in the array.
@@ -233,62 +281,165 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
 type {{ .ArrayName }}Encoder struct {
     buf pkg.BitsWriter
 	limiter *pkg.SizeLimiter
-	encoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Encoder
-	prevLen int
+	elemEncoder *{{.ElemType.EncoderType}}Encoder
+    isRecursive bool
 	state* WriterState
-	lastVal {{.ElemType.Storage}}
+
+	{{- if .ElemType.IsPrimitive}}
+	prevLen int
+	{{- else}}
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack {{ .ArrayName }}EncoderLastValStack
+	{{- end}}
 }
 
+{{- if not .ElemType.IsPrimitive}}
+type {{ .ArrayName }}EncoderLastValStack []*{{ .ArrayName }}EncoderLastValElem
+
+func (s* {{ .ArrayName }}EncoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i:=0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) top() *{{ .ArrayName }}EncoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) addOnTopSlow() {
+	elem := &{{ .ArrayName }}EncoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i:=len(*s); i< len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &{{ .ArrayName }}EncoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type {{ .ArrayName }}EncoderLastValElem struct {
+	prevLen int
+	elem {{.ElemType.Storage}}
+	modifiedFields modifiedFields
+}
+
+func (e *{{ .ArrayName }}EncoderLastValElem) init() {
+	e.elem.init(&e.modifiedFields, 1)
+}
+
+func (e *{{ .ArrayName }}EncoderLastValElem) reset() {
+	e.elem = {{.ElemType.Storage}}{}
+	e.prevLen = 0
+}
+{{- end}}
+
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
-    e.state = state
+	e.state = state
 	e.limiter = &state.limiter
+
 	{{ if .ElemType.IsPrimitive -}}
-	if err := e.encoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
+	e.elemEncoder = new({{.ElemType.EncoderType}}Encoder)
+	if err := e.elemEncoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
 		return err
 	}
 	{{- else -}}
-	{{if .Recursive -}}
-	e.encoder = state.{{.ElemType.EncoderType}}Encoder
-	{{else}}
-	if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
-		return err
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .ArrayName }}Encoder != nil {
+		panic("cannot initialize {{ .ArrayName }}Encoder: already initialized")
 	}
-	state.{{.ElemType.EncoderType}}Encoder = &e.encoder
-	{{end}}
-	e.lastVal.init(nil,0)
+	state.{{ .ArrayName }}Encoder = e
+	defer func() { state.{{ .ArrayName }}Encoder = nil }()
+
+	if state.{{.ElemType.EncoderType}}Encoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.elemEncoder = state.{{.ElemType.EncoderType}}Encoder
+		e.isRecursive = true
+	} else {
+		e.elemEncoder = new({{.ElemType.EncoderType}}Encoder)
+		if err := e.elemEncoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	e.lastValStack.init()
 	{{- end}}
+
 	return nil
 }
 
 func (e *{{ .ArrayName }}Encoder) Reset() {
+	if !e.isRecursive {
+		e.elemEncoder.Reset()
+	}
+	{{if .ElemType.IsPrimitive -}}
 	e.prevLen = 0
-	{{- if not .Recursive}}
-	e.encoder.Reset()
+	{{- else}}
+	e.lastValStack.reset()
 	{{- end}}
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
+	{{- if not .ElemType.IsPrimitive -}}
+	lastVal := e.lastValStack.top()
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
+	{{- end}}
+
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
+	{{if .ElemType.IsPrimitive -}}
 	lenDelta := newLen - e.prevLen
 	e.prevLen = newLen
+	{{- else}}
+	lenDelta := newLen - lastVal.prevLen
+	lastVal.prevLen = newLen
+	{{- end}}
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
-	for i := 0; i < newLen; i++ {
-		{{- if .ElemType.IsPrimitive}}
-		e.encoder.Encode(arr.elems[i])
-		{{- else}}
-		// Copy into last encoded value. This will correctly set "modified" field flags.
-		copy{{.ElemType.TypeName}}(&e.lastVal, arr.elems[i])
-		// Encode it.
-		e.encoder.Encode(&e.lastVal)
-		// Reset modified flags so that next modification attempt correctly sets
-		// the modified flags and the next encoding attempt is not skipped.
-		// Normally the flags would be reset by encoder.Encode() call above, but
-		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
-		// so we have to do it explicitly.
-		arr.elems[i].markUnmodified()
+	if newLen > 0 {
+		for i := 0; i < newLen; i++ {
+			{{- if .ElemType.IsPrimitive}}
+			e.elemEncoder.Encode(arr.elems[i])
+			{{- else}}
+			if i == 0 {
+				// Compute and mark fields that are modified compared to the last encoded value.
+				arr.elems[i].markDiffModified(&lastVal.elem)
+			} else {
+				// Compute and mark fields that are modified compared to the previous element.
+				arr.elems[i].markDiffModified(arr.elems[i-1])
+			}
+
+			// Encode the element.
+			e.elemEncoder.Encode(arr.elems[i])
+			{{- end}}
+		}
+
+		{{- if not .ElemType.IsPrimitive}}
+		// Remember last encoded element.
+		copy{{.ElemType.TypeName}}(&lastVal.elem, arr.elems[len(arr.elems)-1])
 		{{- end}}
 	}
 
@@ -299,47 +450,124 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 
 func (e *{{ .ArrayName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
-	{{- if not .Recursive}}
-	e.encoder.CollectColumns(columnSet.At(0))
-	{{- end}}
+	if !e.isRecursive {
+		e.elemEncoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type {{ .ArrayName }}Decoder struct {
     buf pkg.BitsReader
 	column *pkg.ReadableColumn
-	decoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Decoder
+	elemDecoder *{{.ElemType.EncoderType}}Decoder
+	isRecursive bool
+
+	{{- if .ElemType.IsPrimitive}}
 	prevLen int
-	lastVal {{.ElemType.Storage}}
-	lastValPtr *{{.ElemType.Storage}}
+	{{- else}}
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack {{ .ArrayName }}DecoderLastValStack
+	{{- end}}
 }
+
+{{- if not .ElemType.IsPrimitive}}
+type {{ .ArrayName }}DecoderLastValStack []*{{ .ArrayName }}DecoderLastValElem
+
+func (s* {{ .ArrayName }}DecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i:=0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) top() *{{ .ArrayName }}DecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) addOnTopSlow() {
+	elem := &{{ .ArrayName }}DecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i:=len(*s); i< len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &{{ .ArrayName }}DecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type {{ .ArrayName }}DecoderLastValElem struct {
+	prevLen int
+	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
+}
+
+func (e *{{ .ArrayName }}DecoderLastValElem) init() {
+}
+
+func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
+	e.prevLen = 0
+	{{if .ElemType.Flags.StoreByPtr}}
+	e.elem = nil
+	{{else}}
+	e.elem = {{.ElemType.Storage}}{}
+	{{end}}
+}
+{{- end}}
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
 
 {{- if .ElemType.IsPrimitive}}
+	d.elemDecoder = new({{.ElemType.EncoderType}}Decoder)
 {{- if .ElemType.DictName}}
-	err := d.decoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
+	err := d.elemDecoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
 {{- else if .ElemType.IsDictPossible}}
-	err := d.decoder.Init(nil, columns.AddSubColumn())
+	err := d.elemDecoder.Init(nil, columns.AddSubColumn())
 {{- else}}
-	err := d.decoder.Init(columns.AddSubColumn())
+	err := d.elemDecoder.Init(columns.AddSubColumn())
 {{- end}}
 	if err != nil {
 		return err
 	}
 {{- else}}
-	{{if .Recursive -}}
-		d.decoder = state.{{.ElemType.EncoderType}}Decoder
-	{{else}}
-		if err := d.decoder.Init(state, columns.AddSubColumn()); err != nil {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .ArrayName }}Decoder != nil {
+		panic("cannot initialize {{ .ArrayName }}Decoder: already initialized")
+	}
+	state.{{ .ArrayName }}Decoder = d
+	defer func() { state.{{ .ArrayName }}Decoder = nil }()
+
+	if state.{{.ElemType.EncoderType}}Decoder != nil {
+		d.elemDecoder = state.{{.ElemType.EncoderType}}Decoder
+		d.isRecursive = true
+	} else {
+		d.elemDecoder = new({{.ElemType.EncoderType}}Decoder)
+		if err := d.elemDecoder.Init(state, columns.AddSubColumn()); err != nil {
 			return err
 		}
-		state.{{.ElemType.EncoderType}}Decoder = &d.decoder
-	{{end}}
-	d.lastVal.init(nil,0)
+	}
+	d.lastValStack.init()
 {{- end}}
-	d.lastValPtr = &d.lastVal
 
 	return nil
 }
@@ -351,43 +579,53 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 // continuation of that same column in the previous frame.
 func (d *{{ .ArrayName }}Decoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	{{- if not .Recursive}}
-	d.decoder.Continue()
-	{{- end}}
+	if !d.isRecursive {
+		d.elemDecoder.Continue()
+	}
 }
 
 func (d *{{ .ArrayName }}Decoder) Reset() {
+	if !d.isRecursive {
+		d.elemDecoder.Reset()
+	}
+	{{if .ElemType.IsPrimitive -}}
 	d.prevLen = 0
-	{{- if not .Recursive}}
-	d.decoder.Reset()
+	{{- else -}}
+	d.lastValStack.reset()
 	{{- end}}
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
-	lenDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	{{- if not .ElemType.IsPrimitive -}}
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
+	{{- end}}
 
+	lenDelta := d.buf.ReadVarintCompact()
+
+	{{if .ElemType.IsPrimitive -}}
 	newLen := d.prevLen + int(lenDelta)
+	d.prevLen = newLen
+	{{- else}}
+	newLen := lastVal.prevLen + int(lenDelta)
+	lastVal.prevLen = newLen
+	{{- end}}
 
 	dst.EnsureLen(newLen)
 
-	d.prevLen = newLen
-
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
-		err = d.decoder.Decode(&d.lastVal)
+		err := d.elemDecoder.Decode(&dst.elems[i])
 		if err != nil {
 			return err
 		}
-		dst.elems[i] = d.lastVal
 		{{- else}}
-		err = d.decoder.Decode({{if .ElemType.Flags.StoreByPtr}}&{{end}}d.lastValPtr)
+		err := d.elemDecoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], d.lastValPtr)
+		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
 		{{- end}}
 	}
 

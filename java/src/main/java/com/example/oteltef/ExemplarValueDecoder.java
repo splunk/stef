@@ -24,27 +24,36 @@ class ExemplarValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this decoder in the state so that we can detect recursion.
+        if (state.ExemplarValueDecoder != null) {
+            throw new IllegalStateException("cannot initialize ExemplarValueDecoder: already initialized");
+        }
         state.ExemplarValueDecoder = this;
-        prevType = ExemplarValue.Type.TypeNone;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
-            this.fieldCount = fieldCount;
-        } else {
-            this.fieldCount = 2;
+
+        try {
+            prevType = ExemplarValue.Type.TypeNone;
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
+                this.fieldCount = fieldCount;
+            } else {
+                this.fieldCount = 2;
+            }
+            this.column = columns.getColumn();
+            this.lastVal.init(null, 0);
+            this.lastValPtr = this.lastVal;
+            Exception err = null;
+            
+            if (this.fieldCount <= 0) {
+                return; // Int64 and subsequent fields are skipped.
+            }
+            this.int64Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Float64 and subsequent fields are skipped.
+            }
+            this.float64Decoder.init(columns.addSubColumn());
+        } finally {
+            state.ExemplarValueDecoder = null;
         }
-        this.column = columns.getColumn();
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
-        Exception err = null;
-        
-        if (this.fieldCount <= 0) {
-            return; // Int64 and subsequent fields are skipped.
-        }
-        this.int64Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Float64 and subsequent fields are skipped.
-        }
-        this.float64Decoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

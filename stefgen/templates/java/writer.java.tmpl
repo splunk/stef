@@ -78,7 +78,7 @@ public class {{.StructName}}Writer {
                 opts.getSchema().serialize(buf);
                 hdr.setSchemaWireBytes(buf.toByteArray());
             } else {
-                hdr.setSchemaWireBytes(Metrics.wireSchemaBytes);
+                hdr.setSchemaWireBytes({{.StructName}}.wireSchemaBytes);
             }
         }
         if (opts.getUserData() != null && !opts.getUserData().isEmpty()) {
@@ -101,11 +101,6 @@ public class {{.StructName}}Writer {
             nextFrameFlags = this.opts.getFrameRestartFlags() | FrameFlags.RestartDictionaries;
             restartFrame = true;
         }
-        if ((nextFrameFlags & FrameFlags.RestartCodecs) != 0) {
-            encoder.reset();
-            nextFrameFlags = this.opts.getFrameRestartFlags() | FrameFlags.RestartCodecs;
-            restartFrame = true;
-        }
         if (state.getLimiter().isFrameLimitReached()) {
             restartFrame = true;
         }
@@ -120,6 +115,10 @@ public class {{.StructName}}Writer {
     }
 
     private void restartFrame(int nextFrameFlags) throws IOException {
+        if ((nextFrameFlags & FrameFlags.RestartCodecs) != 0) {
+            encoder.reset();
+        }
+
         Serde.writeUvarint(frameRecordCount, frameEncoder);
         frameRecordCount = 0;
         encoder.collectColumns(writeBufs.columns);

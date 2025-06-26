@@ -81,7 +81,7 @@ func (s *AnyValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to AnyValueTypeString.
 func (s *AnyValue) SetString(v string) {
-	if !pkg.StringEqual(s.string, v) || s.typ != AnyValueTypeString {
+	if s.typ != AnyValueTypeString || !pkg.StringEqual(s.string, v) {
 		s.string = v
 		s.typ = AnyValueTypeString
 		s.markParentModified()
@@ -96,7 +96,7 @@ func (s *AnyValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to AnyValueTypeBool.
 func (s *AnyValue) SetBool(v bool) {
-	if !pkg.BoolEqual(s.bool, v) || s.typ != AnyValueTypeBool {
+	if s.typ != AnyValueTypeBool || !pkg.BoolEqual(s.bool, v) {
 		s.bool = v
 		s.typ = AnyValueTypeBool
 		s.markParentModified()
@@ -111,7 +111,7 @@ func (s *AnyValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to AnyValueTypeInt64.
 func (s *AnyValue) SetInt64(v int64) {
-	if !pkg.Int64Equal(s.int64, v) || s.typ != AnyValueTypeInt64 {
+	if s.typ != AnyValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
 		s.int64 = v
 		s.typ = AnyValueTypeInt64
 		s.markParentModified()
@@ -126,7 +126,7 @@ func (s *AnyValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to AnyValueTypeFloat64.
 func (s *AnyValue) SetFloat64(v float64) {
-	if !pkg.Float64Equal(s.float64, v) || s.typ != AnyValueTypeFloat64 {
+	if s.typ != AnyValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
 		s.float64 = v
 		s.typ = AnyValueTypeFloat64
 		s.markParentModified()
@@ -153,7 +153,7 @@ func (s *AnyValue) Bytes() pkg.Bytes {
 
 // SetBytes sets the value to the specified value and sets the type to AnyValueTypeBytes.
 func (s *AnyValue) SetBytes(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.bytes, v) || s.typ != AnyValueTypeBytes {
+	if s.typ != AnyValueTypeBytes || !pkg.BytesEqual(s.bytes, v) {
 		s.bytes = v
 		s.typ = AnyValueTypeBytes
 		s.markParentModified()
@@ -190,13 +190,18 @@ func copyAnyValue(dst *AnyValue, src *AnyValue) {
 	case AnyValueTypeFloat64:
 		dst.SetFloat64(src.float64)
 	case AnyValueTypeArray:
+		dst.SetType(src.typ)
 		copyAnyValueArray(&dst.array, &src.array)
 	case AnyValueTypeKVList:
+		dst.SetType(src.typ)
 		copyKeyValueList(&dst.kVList, &src.kVList)
 	case AnyValueTypeBytes:
 		dst.SetBytes(src.bytes)
+	case AnyValueTypeNone:
+		dst.SetType(src.typ)
+	default:
+		panic("copyAnyValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
-	dst.SetType(src.typ)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -213,6 +218,20 @@ func (s *AnyValue) markUnmodified() {
 	s.kVList.markUnmodified()
 }
 
+func (s *AnyValue) markModifiedRecursively() {
+	switch s.typ {
+	case AnyValueTypeString:
+	case AnyValueTypeBool:
+	case AnyValueTypeInt64:
+	case AnyValueTypeFloat64:
+	case AnyValueTypeArray:
+		s.array.markModifiedRecursively()
+	case AnyValueTypeKVList:
+		s.kVList.markModifiedRecursively()
+	case AnyValueTypeBytes:
+	}
+}
+
 func (s *AnyValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case AnyValueTypeString:
@@ -227,6 +246,55 @@ func (s *AnyValue) markUnmodifiedRecursively() {
 	}
 }
 
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *AnyValue) markDiffModified(v *AnyValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case AnyValueTypeString:
+		if !pkg.StringEqual(s.string, v.string) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeBool:
+		if !pkg.BoolEqual(s.bool, v.bool) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeInt64:
+		if !pkg.Int64Equal(s.int64, v.int64) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeFloat64:
+		if !pkg.Float64Equal(s.float64, v.float64) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeArray:
+		if s.array.markDiffModified(&v.array) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeKVList:
+		if s.kVList.markDiffModified(&v.kVList) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeBytes:
+		if !pkg.BytesEqual(s.bytes, v.bytes) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
+}
+
 // IsEqual performs deep comparison and returns true if struct is equal to val.
 func (e *AnyValue) IsEqual(val *AnyValue) bool {
 	if e.typ != val.typ {
@@ -234,33 +302,19 @@ func (e *AnyValue) IsEqual(val *AnyValue) bool {
 	}
 	switch e.typ {
 	case AnyValueTypeString:
-		if !pkg.StringEqual(e.string, val.string) {
-			return false
-		}
+		return pkg.StringEqual(e.string, val.string)
 	case AnyValueTypeBool:
-		if !pkg.BoolEqual(e.bool, val.bool) {
-			return false
-		}
+		return pkg.BoolEqual(e.bool, val.bool)
 	case AnyValueTypeInt64:
-		if !pkg.Int64Equal(e.int64, val.int64) {
-			return false
-		}
+		return pkg.Int64Equal(e.int64, val.int64)
 	case AnyValueTypeFloat64:
-		if !pkg.Float64Equal(e.float64, val.float64) {
-			return false
-		}
+		return pkg.Float64Equal(e.float64, val.float64)
 	case AnyValueTypeArray:
-		if !e.array.IsEqual(&val.array) {
-			return false
-		}
+		return e.array.IsEqual(&val.array)
 	case AnyValueTypeKVList:
-		if !e.kVList.IsEqual(&val.kVList) {
-			return false
-		}
+		return e.kVList.IsEqual(&val.kVList)
 	case AnyValueTypeBytes:
-		if !pkg.BytesEqual(e.bytes, val.bytes) {
-			return false
-		}
+		return pkg.BytesEqual(e.bytes, val.bytes)
 	}
 
 	return true
@@ -289,33 +343,19 @@ func CmpAnyValue(left, right *AnyValue) int {
 	}
 	switch left.typ {
 	case AnyValueTypeString:
-		if c := strings.Compare(left.string, right.string); c != 0 {
-			return c
-		}
+		return strings.Compare(left.string, right.string)
 	case AnyValueTypeBool:
-		if c := pkg.BoolCompare(left.bool, right.bool); c != 0 {
-			return c
-		}
+		return pkg.BoolCompare(left.bool, right.bool)
 	case AnyValueTypeInt64:
-		if c := pkg.Int64Compare(left.int64, right.int64); c != 0 {
-			return c
-		}
+		return pkg.Int64Compare(left.int64, right.int64)
 	case AnyValueTypeFloat64:
-		if c := pkg.Float64Compare(left.float64, right.float64); c != 0 {
-			return c
-		}
+		return pkg.Float64Compare(left.float64, right.float64)
 	case AnyValueTypeArray:
-		if c := CmpAnyValueArray(&left.array, &right.array); c != 0 {
-			return c
-		}
+		return CmpAnyValueArray(&left.array, &right.array)
 	case AnyValueTypeKVList:
-		if c := CmpKeyValueList(&left.kVList, &right.kVList); c != 0 {
-			return c
-		}
+		return CmpKeyValueList(&left.kVList, &right.kVList)
 	case AnyValueTypeBytes:
-		if c := pkg.BytesCompare(left.bytes, right.bytes); c != 0 {
-			return c
-		}
+		return pkg.BytesCompare(left.bytes, right.bytes)
 	}
 
 	return 0
@@ -380,7 +420,13 @@ type AnyValueEncoder struct {
 }
 
 func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.AnyValueEncoder != nil {
+		panic("cannot initialize AnyValueEncoder: already initialized")
+	}
 	state.AnyValueEncoder = e
+	defer func() { state.AnyValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -463,8 +509,6 @@ func (e *AnyValueEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *AnyValueEncoder) Encode(val *AnyValue) {
-	oldLen := e.buf.BitCount()
-
 	typ := val.typ
 	if uint(typ) > e.fieldCount {
 		// The current field type is not supported in target schema. Encode the type as None.
@@ -474,11 +518,10 @@ func (e *AnyValueEncoder) Encode(val *AnyValue) {
 	// Compute type delta. 0 means the type is the same as the last time.
 	typDelta := int(typ) - int(e.prevType)
 	e.prevType = typ
-	e.buf.WriteVarintCompact(int64(typDelta))
+	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -561,7 +604,12 @@ type AnyValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.AnyValueDecoder != nil {
+		panic("cannot initialize AnyValueDecoder: already initialized")
+	}
 	state.AnyValueDecoder = d
+	defer func() { state.AnyValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("AnyValue")
@@ -686,10 +734,7 @@ func (d *AnyValueDecoder) Reset() {
 
 func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 	// Read Type delta
-	typeDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	typeDelta := d.buf.ReadVarintCompact()
 
 	// Calculate and validate the new Type
 	typ := int(d.prevType) + int(typeDelta)
@@ -705,43 +750,43 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 	switch dst.typ {
 	case AnyValueTypeString:
 		// Decode String
-		err = d.stringDecoder.Decode(&dst.string)
+		err := d.stringDecoder.Decode(&dst.string)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeBool:
 		// Decode Bool
-		err = d.boolDecoder.Decode(&dst.bool)
+		err := d.boolDecoder.Decode(&dst.bool)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeInt64:
 		// Decode Int64
-		err = d.int64Decoder.Decode(&dst.int64)
+		err := d.int64Decoder.Decode(&dst.int64)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeFloat64:
 		// Decode Float64
-		err = d.float64Decoder.Decode(&dst.float64)
+		err := d.float64Decoder.Decode(&dst.float64)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeArray:
 		// Decode Array
-		err = d.arrayDecoder.Decode(&dst.array)
+		err := d.arrayDecoder.Decode(&dst.array)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeKVList:
 		// Decode KVList
-		err = d.kVListDecoder.Decode(&dst.kVList)
+		err := d.kVListDecoder.Decode(&dst.kVList)
 		if err != nil {
 			return err
 		}
 	case AnyValueTypeBytes:
 		// Decode Bytes
-		err = d.bytesDecoder.Decode(&dst.bytes)
+		err := d.bytesDecoder.Decode(&dst.bytes)
 		if err != nil {
 			return err
 		}

@@ -15,7 +15,7 @@ public class ReaderState {
 
     // Decoders
     {{range $name, $val := .Encoders -}}
-    {{$name}}Decoder {{$name}}Decoder = new {{$name}}Decoder();
+    {{$name}}Decoder {{$name}}Decoder;
     {{end}}
 
     public void init(WireSchema overrideSchema) {

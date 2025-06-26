@@ -35,55 +35,64 @@ class ExpHistogramValueEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExpHistogramValueEncoder != null) {
+            throw new IllegalStateException("cannot initialize ExpHistogramValueEncoder: already initialized");
+        }
         state.ExpHistogramValueEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 9;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Count and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 9;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Count and subsequent fields are skipped.
+            }
+            this.countEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Sum and subsequent fields are skipped.
+            }
+            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Min and subsequent fields are skipped.
+            }
+            this.minEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Max and subsequent fields are skipped.
+            }
+            this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Scale and subsequent fields are skipped.
+            }
+            this.scaleEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // ZeroCount and subsequent fields are skipped.
+            }
+            this.zeroCountEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // PositiveBuckets and subsequent fields are skipped.
+            }
+            this.positiveBucketsEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 7) {
+                return; // NegativeBuckets and subsequent fields are skipped.
+            }
+            this.negativeBucketsEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 8) {
+                return; // ZeroThreshold and subsequent fields are skipped.
+            }
+            this.zeroThresholdEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.ExpHistogramValueEncoder = null;
         }
-        this.countEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Sum and subsequent fields are skipped.
-        }
-        this.sumEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Min and subsequent fields are skipped.
-        }
-        this.minEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Max and subsequent fields are skipped.
-        }
-        this.maxEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Scale and subsequent fields are skipped.
-        }
-        this.scaleEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // ZeroCount and subsequent fields are skipped.
-        }
-        this.zeroCountEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // PositiveBuckets and subsequent fields are skipped.
-        }
-        this.positiveBucketsEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 7) {
-            return; // NegativeBuckets and subsequent fields are skipped.
-        }
-        this.negativeBucketsEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 8) {
-            return; // ZeroThreshold and subsequent fields are skipped.
-        }
-        this.zeroThresholdEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

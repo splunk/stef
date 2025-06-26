@@ -116,20 +116,59 @@ public class Spans {
         }
     }
 
+    void markModifiedRecursively() {
+        envelope.markModifiedRecursively();
+        resource.markModifiedRecursively();
+        scope.markModifiedRecursively();
+        span.markModifiedRecursively();
+        modifiedFields.mask =
+            fieldModifiedEnvelope | 
+            fieldModifiedResource | 
+            fieldModifiedScope | 
+            fieldModifiedSpan | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        if (this.isEnvelopeModified()) {
-            this.envelope.markUnmodifiedRecursively();
+        if (isEnvelopeModified()) {
+            envelope.markUnmodifiedRecursively();
         }
-        if (this.isResourceModified()) {
-            this.resource.markUnmodifiedRecursively();
+        if (isResourceModified()) {
+            resource.markUnmodifiedRecursively();
         }
-        if (this.isScopeModified()) {
-            this.scope.markUnmodifiedRecursively();
+        if (isScopeModified()) {
+            scope.markUnmodifiedRecursively();
         }
-        if (this.isSpanModified()) {
-            this.span.markUnmodifiedRecursively();
+        if (isSpanModified()) {
+            span.markUnmodifiedRecursively();
         }
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Spans v) {
+        boolean modified = false;
+        if (envelope.markDiffModified(v.envelope)) {
+            modifiedFields.markModified(fieldModifiedEnvelope);
+            modified = true;
+        }
+        
+        if (resource.markDiffModified(v.resource)) {
+            modifiedFields.markModified(fieldModifiedResource);
+            modified = true;
+        }
+        
+        if (scope.markDiffModified(v.scope)) {
+            modifiedFields.markModified(fieldModifiedScope);
+            modified = true;
+        }
+        
+        if (span.markDiffModified(v.span)) {
+            modifiedFields.markModified(fieldModifiedSpan);
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public Spans clone() {

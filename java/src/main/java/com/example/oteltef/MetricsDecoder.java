@@ -26,41 +26,50 @@ class MetricsDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.MetricsDecoder != null) {
+            throw new IllegalStateException("cannot initialize MetricsDecoder: already initialized");
+        }
         state.MetricsDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 6;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 6;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Metrics();
+            
+            if (this.fieldCount <= 0) {
+                return; // Envelope and subsequent fields are skipped.
+            }
+            envelopeDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Metric and subsequent fields are skipped.
+            }
+            metricDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Resource and subsequent fields are skipped.
+            }
+            resourceDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Scope and subsequent fields are skipped.
+            }
+            scopeDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // Point and subsequent fields are skipped.
+            }
+            pointDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.MetricsDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Metrics();
-        
-        if (this.fieldCount <= 0) {
-            return; // Envelope and subsequent fields are skipped.
-        }
-        envelopeDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Metric and subsequent fields are skipped.
-        }
-        metricDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Resource and subsequent fields are skipped.
-        }
-        resourceDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Scope and subsequent fields are skipped.
-        }
-        scopeDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // Point and subsequent fields are skipped.
-        }
-        pointDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

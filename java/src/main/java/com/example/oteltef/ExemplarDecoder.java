@@ -25,37 +25,46 @@ class ExemplarDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExemplarDecoder != null) {
+            throw new IllegalStateException("cannot initialize ExemplarDecoder: already initialized");
+        }
         state.ExemplarDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 5;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 5;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Exemplar(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Timestamp and subsequent fields are skipped.
+            }
+            timestampDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Value and subsequent fields are skipped.
+            }
+            valueDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // SpanID and subsequent fields are skipped.
+            }
+            spanIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // TraceID and subsequent fields are skipped.
+            }
+            traceIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // FilteredAttributes and subsequent fields are skipped.
+            }
+            filteredAttributesDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.ExemplarDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Exemplar(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Timestamp and subsequent fields are skipped.
-        }
-        timestampDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Value and subsequent fields are skipped.
-        }
-        valueDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // SpanID and subsequent fields are skipped.
-        }
-        spanIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // TraceID and subsequent fields are skipped.
-        }
-        traceIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // FilteredAttributes and subsequent fields are skipped.
-        }
-        filteredAttributesDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

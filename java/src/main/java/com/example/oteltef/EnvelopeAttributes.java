@@ -113,10 +113,65 @@ public class EnvelopeAttributes {
         }
     }
 
+    void markModifiedRecursively() {
+        for (int i=0; i<elemsLen; i++) {
+        }
+    }
+
     void markUnmodifiedRecursively() {
         for (int i=0; i<elemsLen; i++) {
         }
     }
+
+    // markDiffModified marks fields in each key and value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    boolean markDiffModified(EnvelopeAttributes v) {
+        boolean modified = false;
+
+        if (elemsLen != v.elemsLen) {
+            // Array lengths are different, so they are definitely different.
+            modified = true;
+        }
+        
+        // Scan the elements and mark them as modified if they are different.
+        int minLen = Math.min(elemsLen, v.elemsLen);
+        for (int i=0; i < minLen; i++) {
+            if (!Types.StringEqual(elems[i].key, v.elems[i].key)) {
+                modified = true;
+            }
+            if (!Types.BytesEqual(elems[i].value, v.elems[i].value)) {
+                modified = true;
+            }
+        }
+        
+        
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+    
+    // markDiffModified marks fields in each value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    // This function assumes the keys are the same and the lengths of multimaps are the same.
+    boolean markValueDiffModified(EnvelopeAttributes v) {
+        boolean modified = false;
+        // Scan the elements and mark them as modified if they are different.
+        for (int i=0; i < elemsLen; i++) {
+            if (!Types.BytesEqual(elems[i].value, v.elems[i].value)) {
+                modified = true;
+            }
+        }
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+
 
     // Append adds a key-value pair to the multimap.
     public void append(StringValue k, byte[] v) {

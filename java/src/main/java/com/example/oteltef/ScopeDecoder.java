@@ -27,38 +27,47 @@ class ScopeDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ScopeDecoder != null) {
+            throw new IllegalStateException("cannot initialize ScopeDecoder: already initialized");
+        }
         state.ScopeDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 5;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 5;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Scope(null, 0);
+            dict = state.Scope;
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            nameDecoder.init(state.ScopeName, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Version and subsequent fields are skipped.
+            }
+            versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // SchemaURL and subsequent fields are skipped.
+            }
+            schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            droppedAttributesCountDecoder.init(columns.addSubColumn());
+        } finally {
+            state.ScopeDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Scope(null, 0);
-        dict = state.Scope;
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
-        }
-        nameDecoder.init(state.ScopeName, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Version and subsequent fields are skipped.
-        }
-        versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // SchemaURL and subsequent fields are skipped.
-        }
-        schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

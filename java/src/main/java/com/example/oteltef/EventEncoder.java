@@ -30,35 +30,44 @@ class EventEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.EventEncoder != null) {
+            throw new IllegalStateException("cannot initialize EventEncoder: already initialized");
+        }
         state.EventEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Event");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 4;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Event");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 4;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            this.nameEncoder.init(state.SpanEventName, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // TimeUnixNano and subsequent fields are skipped.
+            }
+            this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.EventEncoder = null;
         }
-        this.nameEncoder.init(state.SpanEventName, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // TimeUnixNano and subsequent fields are skipped.
-        }
-        this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        this.attributesEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

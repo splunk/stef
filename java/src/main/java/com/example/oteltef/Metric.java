@@ -242,14 +242,75 @@ public class Metric {
         }
     }
 
+    void markModifiedRecursively() {
+        metadata.markModifiedRecursively();
+        histogramBounds.markModifiedRecursively();
+        modifiedFields.mask =
+            fieldModifiedName | 
+            fieldModifiedDescription | 
+            fieldModifiedUnit | 
+            fieldModifiedType | 
+            fieldModifiedMetadata | 
+            fieldModifiedHistogramBounds | 
+            fieldModifiedAggregationTemporality | 
+            fieldModifiedMonotonic | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        if (this.isMetadataModified()) {
-            this.metadata.markUnmodifiedRecursively();
+        if (isMetadataModified()) {
+            metadata.markUnmodifiedRecursively();
         }
-        if (this.isHistogramBoundsModified()) {
-            this.histogramBounds.markUnmodifiedRecursively();
+        if (isHistogramBoundsModified()) {
+            histogramBounds.markUnmodifiedRecursively();
         }
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Metric v) {
+        boolean modified = false;
+        if (!Types.StringEqual(name, v.name)) {
+            markNameModified();
+            modified = true;
+        }
+        
+        if (!Types.StringEqual(description, v.description)) {
+            markDescriptionModified();
+            modified = true;
+        }
+        
+        if (!Types.StringEqual(unit, v.unit)) {
+            markUnitModified();
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(type_, v.type_)) {
+            markTypeModified();
+            modified = true;
+        }
+        
+        if (metadata.markDiffModified(v.metadata)) {
+            modifiedFields.markModified(fieldModifiedMetadata);
+            modified = true;
+        }
+        
+        if (histogramBounds.markDiffModified(v.histogramBounds)) {
+            modifiedFields.markModified(fieldModifiedHistogramBounds);
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(aggregationTemporality, v.aggregationTemporality)) {
+            markAggregationTemporalityModified();
+            modified = true;
+        }
+        
+        if (!Types.BoolEqual(monotonic, v.monotonic)) {
+            markMonotonicModified();
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public Metric clone() {

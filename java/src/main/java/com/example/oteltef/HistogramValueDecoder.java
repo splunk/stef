@@ -25,37 +25,46 @@ class HistogramValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.HistogramValueDecoder != null) {
+            throw new IllegalStateException("cannot initialize HistogramValueDecoder: already initialized");
+        }
         state.HistogramValueDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 5;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 5;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new HistogramValue(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Count and subsequent fields are skipped.
+            }
+            countDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Sum and subsequent fields are skipped.
+            }
+            sumDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Min and subsequent fields are skipped.
+            }
+            minDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Max and subsequent fields are skipped.
+            }
+            maxDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // BucketCounts and subsequent fields are skipped.
+            }
+            bucketCountsDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.HistogramValueDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new HistogramValue(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Count and subsequent fields are skipped.
-        }
-        countDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Sum and subsequent fields are skipped.
-        }
-        sumDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Min and subsequent fields are skipped.
-        }
-        minDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Max and subsequent fields are skipped.
-        }
-        maxDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // BucketCounts and subsequent fields are skipped.
-        }
-        bucketCountsDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

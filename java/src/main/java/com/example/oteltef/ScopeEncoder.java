@@ -33,40 +33,49 @@ class ScopeEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ScopeEncoder != null) {
+            throw new IllegalStateException("cannot initialize ScopeEncoder: already initialized");
+        }
         state.ScopeEncoder = this;
-        this.limiter = state.getLimiter();
-        this.dict = state.Scope;
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 5;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
+            this.dict = state.Scope;
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 5;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            this.nameEncoder.init(state.ScopeName, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Version and subsequent fields are skipped.
+            }
+            this.versionEncoder.init(state.ScopeVersion, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // SchemaURL and subsequent fields are skipped.
+            }
+            this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.ScopeEncoder = null;
         }
-        this.nameEncoder.init(state.ScopeName, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Version and subsequent fields are skipped.
-        }
-        this.versionEncoder.init(state.ScopeVersion, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // SchemaURL and subsequent fields are skipped.
-        }
-        this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        this.attributesEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

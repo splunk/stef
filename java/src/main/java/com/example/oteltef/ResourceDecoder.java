@@ -25,30 +25,39 @@ class ResourceDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ResourceDecoder != null) {
+            throw new IllegalStateException("cannot initialize ResourceDecoder: already initialized");
+        }
         state.ResourceDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 3;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 3;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Resource(null, 0);
+            dict = state.Resource;
+            
+            if (this.fieldCount <= 0) {
+                return; // SchemaURL and subsequent fields are skipped.
+            }
+            schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            droppedAttributesCountDecoder.init(columns.addSubColumn());
+        } finally {
+            state.ResourceDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Resource(null, 0);
-        dict = state.Resource;
-        
-        if (this.fieldCount <= 0) {
-            return; // SchemaURL and subsequent fields are skipped.
-        }
-        schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

@@ -102,11 +102,6 @@ public class MetricsWriter {
             nextFrameFlags = this.opts.getFrameRestartFlags() | FrameFlags.RestartDictionaries;
             restartFrame = true;
         }
-        if ((nextFrameFlags & FrameFlags.RestartCodecs) != 0) {
-            encoder.reset();
-            nextFrameFlags = this.opts.getFrameRestartFlags() | FrameFlags.RestartCodecs;
-            restartFrame = true;
-        }
         if (state.getLimiter().isFrameLimitReached()) {
             restartFrame = true;
         }
@@ -121,6 +116,10 @@ public class MetricsWriter {
     }
 
     private void restartFrame(int nextFrameFlags) throws IOException {
+        if ((nextFrameFlags & FrameFlags.RestartCodecs) != 0) {
+            encoder.reset();
+        }
+
         Serde.writeUvarint(frameRecordCount, frameEncoder);
         frameRecordCount = 0;
         encoder.collectColumns(writeBufs.columns);

@@ -598,7 +598,7 @@ func (r *genArrayTypeRef) ToExported(arg string) string {
 }
 
 func (r *genArrayTypeRef) ToStorage(arg string) string {
-	return r.ToStorage(arg)
+	return arg
 }
 
 func (r *genArrayTypeRef) TypeName() string {

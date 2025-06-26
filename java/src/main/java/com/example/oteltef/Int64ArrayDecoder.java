@@ -12,19 +12,15 @@ import java.io.IOException;
 class Int64ArrayDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Int64Decoder decoder;
-    private int prevLen = 0;
-    private long lastVal;
+    private Int64Decoder elemDecoder;
+    private boolean isRecursive = false;
+    private long prevLen = 0;
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
-    
-        decoder = new Int64Decoder();
-    
-        decoder.init(columns.addSubColumn());
-    
-    
+        elemDecoder = new Int64Decoder();
+        elemDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -34,36 +30,37 @@ class Int64ArrayDecoder {
     // continuation of that same column in the previous frame.
     public void continueDecoding() {
         buf.reset(column.getData());
-        
-        decoder.continueDecoding();
-        
+        if (!isRecursive) {
+            elemDecoder.continueDecoding();
+        }
     }
 
     public void reset() {
+        if (!isRecursive) {
+            elemDecoder.reset();
+        }
         prevLen = 0;
-        
-        decoder.reset();
-        
     }
 
     public Int64Array decode(Int64Array dst) throws IOException {
-        long lenDelta = buf.readVarintCompact();
-        long newLen = prevLen + lenDelta;
-        if (newLen < 0) {
-            throw new IllegalStateException("Invalid array length: " + newLen);
-        }
-        if (newLen > Integer.MAX_VALUE) {
-            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
-        }
+        
+            long lenDelta = buf.readVarintCompact();
+            long newLen = prevLen + lenDelta;
+            prevLen = newLen;
 
-        dst.ensureLen((int)newLen);
-        prevLen = (int)newLen;
-        for (int i = 0; i < newLen; i++) {
-            
-            lastVal = decoder.decode();
-            dst.elems[i] = lastVal;
-            
-        }
+            if (newLen < 0) {
+                throw new IllegalStateException("Invalid array length: " + newLen);
+            }
+            if (newLen > Integer.MAX_VALUE) {
+                throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+            }
+
+            dst.ensureLen((int)newLen);
+            for (int i = 0; i < newLen; i++) {
+                
+                dst.elems[i] = elemDecoder.decode();
+                
+            }
 
         return dst;
     }

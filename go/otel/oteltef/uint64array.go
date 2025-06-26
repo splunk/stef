@@ -71,36 +71,64 @@ func (e *Uint64Array) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *Uint64Array) markModifiedRecursively() {
+
+}
+
 func (e *Uint64Array) markUnmodifiedRecursively() {
 
 }
 
-func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
-	if len(dst.elems) != len(src.elems) {
-		n := min(len(dst.elems), len(src.elems))
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+// markDiffModified marks fields in each element of this array modified if they differ from
+// the corresponding fields in v.
+func (e *Uint64Array) markDiffModified(v *Uint64Array) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
 
-		i := 0
-		for ; i < n; i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-			}
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if !pkg.Uint64Equal(e.elems[i], v.elems[i]) {
+			modified = true
 		}
-		for ; i < len(dst.elems); i++ {
+
+	}
+
+	if modified {
+		e.markModified()
+	}
+
+	return modified
+}
+
+func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		isModified = true
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		if dst.elems[i] != src.elems[i] {
 			dst.elems[i] = src.elems[i]
+			isModified = true
 		}
+	}
+	for ; i < len(dst.elems); i++ {
+		if dst.elems[i] != src.elems[i] {
+			dst.elems[i] = src.elems[i]
+			isModified = true
+		}
+	}
+	if isModified {
 		dst.markModified()
-	} else {
-		modified := false
-		for i := 0; i < len(dst.elems); i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-				modified = true
-			}
-		}
-		if modified {
-			dst.markModified()
-		}
 	}
 }
 
@@ -184,38 +212,47 @@ func (a *Uint64Array) mutateRandom(random *rand.Rand) {
 }
 
 type Uint64ArrayEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
-	encoder encoders.Uint64Encoder
-	prevLen int
-	state   *WriterState
-	lastVal uint64
+	buf         pkg.BitsWriter
+	limiter     *pkg.SizeLimiter
+	elemEncoder *encoders.Uint64Encoder
+	isRecursive bool
+	state       *WriterState
+	prevLen     int
 }
 
 func (e *Uint64ArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
 	e.state = state
 	e.limiter = &state.limiter
-	if err := e.encoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+
+	e.elemEncoder = new(encoders.Uint64Encoder)
+	if err := e.elemEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (e *Uint64ArrayEncoder) Reset() {
+	if !e.isRecursive {
+		e.elemEncoder.Reset()
+	}
 	e.prevLen = 0
-	e.encoder.Reset()
 }
 
 func (e *Uint64ArrayEncoder) Encode(arr *Uint64Array) {
+
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
 	lenDelta := newLen - e.prevLen
 	e.prevLen = newLen
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
-	for i := 0; i < newLen; i++ {
-		e.encoder.Encode(arr.elems[i])
+	if newLen > 0 {
+		for i := 0; i < newLen; i++ {
+			e.elemEncoder.Encode(arr.elems[i])
+		}
 	}
 
 	// Account written bits in the limiter.
@@ -225,26 +262,27 @@ func (e *Uint64ArrayEncoder) Encode(arr *Uint64Array) {
 
 func (e *Uint64ArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
-	e.encoder.CollectColumns(columnSet.At(0))
+	if !e.isRecursive {
+		e.elemEncoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type Uint64ArrayDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	decoder    encoders.Uint64Decoder
-	prevLen    int
-	lastVal    uint64
-	lastValPtr *uint64
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	elemDecoder *encoders.Uint64Decoder
+	isRecursive bool
+	prevLen     int
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *Uint64ArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	err := d.decoder.Init(columns.AddSubColumn())
+	d.elemDecoder = new(encoders.Uint64Decoder)
+	err := d.elemDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
-	d.lastValPtr = &d.lastVal
 
 	return nil
 }
@@ -256,32 +294,32 @@ func (d *Uint64ArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 // continuation of that same column in the previous frame.
 func (d *Uint64ArrayDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	d.decoder.Continue()
+	if !d.isRecursive {
+		d.elemDecoder.Continue()
+	}
 }
 
 func (d *Uint64ArrayDecoder) Reset() {
+	if !d.isRecursive {
+		d.elemDecoder.Reset()
+	}
 	d.prevLen = 0
-	d.decoder.Reset()
 }
 
 func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
-	lenDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+
+	lenDelta := d.buf.ReadVarintCompact()
 
 	newLen := d.prevLen + int(lenDelta)
+	d.prevLen = newLen
 
 	dst.EnsureLen(newLen)
 
-	d.prevLen = newLen
-
 	for i := 0; i < newLen; i++ {
-		err = d.decoder.Decode(&d.lastVal)
+		err := d.elemDecoder.Decode(&dst.elems[i])
 		if err != nil {
 			return err
 		}
-		dst.elems[i] = d.lastVal
 	}
 
 	return nil

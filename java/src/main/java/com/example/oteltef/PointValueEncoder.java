@@ -23,34 +23,43 @@ class PointValueEncoder {
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.PointValueEncoder != null) {
+            throw new IllegalStateException("cannot initialize PointValueEncoder: already initialized");
+        }
         state.PointValueEncoder = this;
-        prevType = PointValue.Type.TypeNone;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
-            this.fieldCount = fieldCount;
-        } else {
-            this.fieldCount = 4;
-        }
+        try {
+            prevType = PointValue.Type.TypeNone;
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Int64 and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
+                this.fieldCount = fieldCount;
+            } else {
+                this.fieldCount = 4;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Int64 and subsequent fields are skipped.
+            }
+            int64Encoder.init(limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Float64 and subsequent fields are skipped.
+            }
+            float64Encoder.init(limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Histogram and subsequent fields are skipped.
+            }
+            histogramEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // ExpHistogram and subsequent fields are skipped.
+            }
+            expHistogramEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.PointValueEncoder = null;
         }
-        int64Encoder.init(limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Float64 and subsequent fields are skipped.
-        }
-        float64Encoder.init(limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Histogram and subsequent fields are skipped.
-        }
-        histogramEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // ExpHistogram and subsequent fields are skipped.
-        }
-        expHistogramEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

@@ -192,6 +192,19 @@ func (s *Link) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0
 }
 
+func (s *Link) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedLinkTraceID |
+			fieldModifiedLinkSpanID |
+			fieldModifiedLinkTraceState |
+			fieldModifiedLinkFlags |
+			fieldModifiedLinkAttributes |
+			fieldModifiedLinkDroppedAttributesCount | 0
+}
+
 func (s *Link) markUnmodifiedRecursively() {
 
 	if s.IsTraceIDModified() {
@@ -214,6 +227,42 @@ func (s *Link) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Link) markDiffModified(v *Link) (modified bool) {
+	if !pkg.BytesEqual(s.traceID, v.traceID) {
+		s.markTraceIDModified()
+		modified = true
+	}
+
+	if !pkg.BytesEqual(s.spanID, v.spanID) {
+		s.markSpanIDModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.traceState, v.traceState) {
+		s.markTraceStateModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.flags, v.flags) {
+		s.markFlagsModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedLinkAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Link) Clone() Link {
@@ -367,7 +416,13 @@ type LinkEncoder struct {
 }
 
 func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.LinkEncoder != nil {
+		panic("cannot initialize LinkEncoder: already initialized")
+	}
 	state.LinkEncoder = e
+	defer func() { state.LinkEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -442,7 +497,7 @@ func (e *LinkEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *LinkEncoder) Encode(val *Link) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -464,6 +519,7 @@ func (e *LinkEncoder) Encode(val *Link) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -498,8 +554,7 @@ func (e *LinkEncoder) Encode(val *Link) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -554,7 +609,12 @@ type LinkDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.LinkDecoder != nil {
+		panic("cannot initialize LinkDecoder: already initialized")
+	}
 	state.LinkDecoder = d
+	defer func() { state.LinkDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Link")

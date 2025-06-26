@@ -70,6 +70,14 @@ public class AnyValueArray {
         }
     }
 
+    public void markModifiedRecursively() {
+        
+        for (int i=0; i<elemsLen; i++) {
+            elems[i].markModifiedRecursively();
+        }
+        
+    }
+
     public void markUnmodifiedRecursively() {
         
         for (int i=0; i<elemsLen; i++) {
@@ -78,19 +86,65 @@ public class AnyValueArray {
         
     }
 
+    // markDiffModified marks fields in each element of this array modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(AnyValueArray v) {
+        boolean modified = false;
+        if (elemsLen != v.elemsLen) {
+            // Array lengths are different, so they are definitely different.
+            modified = true;
+        }
+    
+        // Scan the elements and mark them as modified if they are different.
+        int minLen = Math.min(elemsLen, v.elemsLen);
+        int i=0;
+        for (; i < minLen; i++) {
+            if (this.elems[i].markDiffModified(v.elems[i])) {
+                modified = true;
+            }
+        }
+        // Mark the rest of the elements as modified.
+        for (; i<elemsLen; i++) {
+            this.elems[i].markModifiedRecursively();
+        }
+        
+    
+        if (modified) {
+            this.markModified();
+        }
+    
+        return modified;
+    }
+
     public void copyFrom(AnyValueArray src) {
+        boolean isModified = false;
+        
+        int minLen = Math.min(elemsLen, src.elemsLen);
         if (elemsLen != src.elemsLen) {
             ensureElems(src.elemsLen);
-            markModified();
+            isModified = true;
         }
-        if (src.elemsLen > 0) {
-            // Allocate all elements at once.
-            for (int i = 0; i < src.elemsLen; i++) {
-                
-                elems[i] = new AnyValue(parentModifiedFields, parentModifiedBit);
+        
+        int i = 0;
+        
+        // Copy elements in the part of the array that already had the necessary room.
+        for (; i < minLen; i++) {
+            elems[i].copyFrom(src.elems[i]);
+            isModified = true;
+        }
+        if (minLen < elemsLen) {
+            isModified = true;
+            // Need to allocate new elements for the part of the array that has grown.
+            int addLen = elemsLen - minLen;
+            for (int j=0; j < addLen; j++) {
+                // Init the element.
+                elems[i+j] = new AnyValue(parentModifiedFields, parentModifiedBit);
                 // Copy the element.
-                elems[i].copyFrom(src.elems[i]);
+                elems[i+j].copyFrom(src.elems[i+j]);
             }
+        }
+        if (isModified) {
+            markModified();
         }
     }
 

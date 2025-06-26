@@ -21,21 +21,30 @@ class EnvelopeDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.EnvelopeDecoder != null) {
+            throw new IllegalStateException("cannot initialize EnvelopeDecoder: already initialized");
+        }
         state.EnvelopeDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 1;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 1;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Envelope(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.EnvelopeDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Envelope(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

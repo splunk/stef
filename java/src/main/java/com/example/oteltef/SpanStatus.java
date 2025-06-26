@@ -98,8 +98,31 @@ public class SpanStatus {
         modifiedFields.markUnmodified();
     }
 
+    void markModifiedRecursively() {
+        modifiedFields.mask =
+            fieldModifiedMessage | 
+            fieldModifiedCode | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(SpanStatus v) {
+        boolean modified = false;
+        if (!Types.StringEqual(message, v.message)) {
+            markMessageModified();
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(code, v.code)) {
+            markCodeModified();
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public SpanStatus clone() {

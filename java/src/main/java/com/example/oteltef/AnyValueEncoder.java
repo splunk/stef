@@ -26,46 +26,55 @@ class AnyValueEncoder {
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.AnyValueEncoder != null) {
+            throw new IllegalStateException("cannot initialize AnyValueEncoder: already initialized");
+        }
         state.AnyValueEncoder = this;
-        prevType = AnyValue.Type.TypeNone;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
-            this.fieldCount = fieldCount;
-        } else {
-            this.fieldCount = 7;
-        }
+        try {
+            prevType = AnyValue.Type.TypeNone;
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // String and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
+                this.fieldCount = fieldCount;
+            } else {
+                this.fieldCount = 7;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // String and subsequent fields are skipped.
+            }
+            stringEncoder.init(state.AnyValueString, limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Bool and subsequent fields are skipped.
+            }
+            boolEncoder.init(limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Int64 and subsequent fields are skipped.
+            }
+            int64Encoder.init(limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Float64 and subsequent fields are skipped.
+            }
+            float64Encoder.init(limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Array and subsequent fields are skipped.
+            }
+            arrayEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // KVList and subsequent fields are skipped.
+            }
+            kVListEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // Bytes and subsequent fields are skipped.
+            }
+            bytesEncoder.init(null, limiter, columns.addSubColumn());
+        } finally {
+            state.AnyValueEncoder = null;
         }
-        stringEncoder.init(state.AnyValueString, limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Bool and subsequent fields are skipped.
-        }
-        boolEncoder.init(limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Int64 and subsequent fields are skipped.
-        }
-        int64Encoder.init(limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Float64 and subsequent fields are skipped.
-        }
-        float64Encoder.init(limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Array and subsequent fields are skipped.
-        }
-        arrayEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // KVList and subsequent fields are skipped.
-        }
-        kVListEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // Bytes and subsequent fields are skipped.
-        }
-        bytesEncoder.init(null, limiter, columns.addSubColumn());
     }
 
     public void reset() {

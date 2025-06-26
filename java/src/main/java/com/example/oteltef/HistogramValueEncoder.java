@@ -31,39 +31,48 @@ class HistogramValueEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.HistogramValueEncoder != null) {
+            throw new IllegalStateException("cannot initialize HistogramValueEncoder: already initialized");
+        }
         state.HistogramValueEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 5;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Count and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 5;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Count and subsequent fields are skipped.
+            }
+            this.countEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Sum and subsequent fields are skipped.
+            }
+            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Min and subsequent fields are skipped.
+            }
+            this.minEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Max and subsequent fields are skipped.
+            }
+            this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // BucketCounts and subsequent fields are skipped.
+            }
+            this.bucketCountsEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.HistogramValueEncoder = null;
         }
-        this.countEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Sum and subsequent fields are skipped.
-        }
-        this.sumEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Min and subsequent fields are skipped.
-        }
-        this.minEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Max and subsequent fields are skipped.
-        }
-        this.maxEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // BucketCounts and subsequent fields are skipped.
-        }
-        this.bucketCountsEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

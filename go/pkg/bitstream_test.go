@@ -161,10 +161,7 @@ func BenchmarkBstreamReadUvarintCompactSmall(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		br.Reset(byts)
 		for j := 0; j < 47; j++ {
-			v, err := br.ReadUvarintCompact()
-			if err != nil {
-				panic(err)
-			}
+			v := br.ReadUvarintCompact()
 			if v != uint64(j) {
 				panic("invalid value")
 			}
@@ -196,10 +193,7 @@ func BenchmarkBstreamReadUvarintCompact(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		br.Reset(byts)
 		for j := 0; j < 47; j++ {
-			v, err := br.ReadUvarintCompact()
-			if err != nil {
-				panic(err)
-			}
+			v := br.ReadUvarintCompact()
 			if v != uint64(1<<j) {
 				panic("invalid value")
 			}

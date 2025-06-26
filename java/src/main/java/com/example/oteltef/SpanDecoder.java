@@ -34,73 +34,82 @@ class SpanDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.SpanDecoder != null) {
+            throw new IllegalStateException("cannot initialize SpanDecoder: already initialized");
+        }
         state.SpanDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Span");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 14;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Span");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 14;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Span(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // TraceID and subsequent fields are skipped.
+            }
+            traceIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // SpanID and subsequent fields are skipped.
+            }
+            spanIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // TraceState and subsequent fields are skipped.
+            }
+            traceStateDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // ParentSpanID and subsequent fields are skipped.
+            }
+            parentSpanIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Flags and subsequent fields are skipped.
+            }
+            flagsDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // Name and subsequent fields are skipped.
+            }
+            nameDecoder.init(state.SpanName, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // Kind and subsequent fields are skipped.
+            }
+            kindDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 7) {
+                return; // StartTimeUnixNano and subsequent fields are skipped.
+            }
+            startTimeUnixNanoDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 8) {
+                return; // EndTimeUnixNano and subsequent fields are skipped.
+            }
+            endTimeUnixNanoDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 9) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 10) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            droppedAttributesCountDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 11) {
+                return; // Events and subsequent fields are skipped.
+            }
+            eventsDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 12) {
+                return; // Links and subsequent fields are skipped.
+            }
+            linksDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 13) {
+                return; // Status and subsequent fields are skipped.
+            }
+            statusDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.SpanDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Span(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // TraceID and subsequent fields are skipped.
-        }
-        traceIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // SpanID and subsequent fields are skipped.
-        }
-        spanIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // TraceState and subsequent fields are skipped.
-        }
-        traceStateDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // ParentSpanID and subsequent fields are skipped.
-        }
-        parentSpanIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Flags and subsequent fields are skipped.
-        }
-        flagsDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // Name and subsequent fields are skipped.
-        }
-        nameDecoder.init(state.SpanName, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // Kind and subsequent fields are skipped.
-        }
-        kindDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 7) {
-            return; // StartTimeUnixNano and subsequent fields are skipped.
-        }
-        startTimeUnixNanoDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 8) {
-            return; // EndTimeUnixNano and subsequent fields are skipped.
-        }
-        endTimeUnixNanoDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 9) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 10) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        droppedAttributesCountDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 11) {
-            return; // Events and subsequent fields are skipped.
-        }
-        eventsDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 12) {
-            return; // Links and subsequent fields are skipped.
-        }
-        linksDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 13) {
-            return; // Status and subsequent fields are skipped.
-        }
-        statusDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

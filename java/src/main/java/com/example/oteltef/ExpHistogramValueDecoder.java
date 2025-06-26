@@ -29,53 +29,62 @@ class ExpHistogramValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExpHistogramValueDecoder != null) {
+            throw new IllegalStateException("cannot initialize ExpHistogramValueDecoder: already initialized");
+        }
         state.ExpHistogramValueDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 9;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 9;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new ExpHistogramValue(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Count and subsequent fields are skipped.
+            }
+            countDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Sum and subsequent fields are skipped.
+            }
+            sumDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Min and subsequent fields are skipped.
+            }
+            minDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Max and subsequent fields are skipped.
+            }
+            maxDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Scale and subsequent fields are skipped.
+            }
+            scaleDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // ZeroCount and subsequent fields are skipped.
+            }
+            zeroCountDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // PositiveBuckets and subsequent fields are skipped.
+            }
+            positiveBucketsDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 7) {
+                return; // NegativeBuckets and subsequent fields are skipped.
+            }
+            negativeBucketsDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 8) {
+                return; // ZeroThreshold and subsequent fields are skipped.
+            }
+            zeroThresholdDecoder.init(columns.addSubColumn());
+        } finally {
+            state.ExpHistogramValueDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new ExpHistogramValue(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Count and subsequent fields are skipped.
-        }
-        countDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Sum and subsequent fields are skipped.
-        }
-        sumDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Min and subsequent fields are skipped.
-        }
-        minDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Max and subsequent fields are skipped.
-        }
-        maxDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Scale and subsequent fields are skipped.
-        }
-        scaleDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // ZeroCount and subsequent fields are skipped.
-        }
-        zeroCountDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // PositiveBuckets and subsequent fields are skipped.
-        }
-        positiveBucketsDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 7) {
-            return; // NegativeBuckets and subsequent fields are skipped.
-        }
-        negativeBucketsDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 8) {
-            return; // ZeroThreshold and subsequent fields are skipped.
-        }
-        zeroThresholdDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

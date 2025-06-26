@@ -24,33 +24,42 @@ class SpansDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.SpansDecoder != null) {
+            throw new IllegalStateException("cannot initialize SpansDecoder: already initialized");
+        }
         state.SpansDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 4;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 4;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Spans();
+            
+            if (this.fieldCount <= 0) {
+                return; // Envelope and subsequent fields are skipped.
+            }
+            envelopeDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Resource and subsequent fields are skipped.
+            }
+            resourceDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Scope and subsequent fields are skipped.
+            }
+            scopeDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Span and subsequent fields are skipped.
+            }
+            spanDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.SpansDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Spans();
-        
-        if (this.fieldCount <= 0) {
-            return; // Envelope and subsequent fields are skipped.
-        }
-        envelopeDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Resource and subsequent fields are skipped.
-        }
-        resourceDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Scope and subsequent fields are skipped.
-        }
-        scopeDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Span and subsequent fields are skipped.
-        }
-        spanDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

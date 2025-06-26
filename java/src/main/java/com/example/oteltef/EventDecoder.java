@@ -24,33 +24,42 @@ class EventDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.EventDecoder != null) {
+            throw new IllegalStateException("cannot initialize EventDecoder: already initialized");
+        }
         state.EventDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Event");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 4;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Event");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 4;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Event(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            nameDecoder.init(state.SpanEventName, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // TimeUnixNano and subsequent fields are skipped.
+            }
+            timeUnixNanoDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            droppedAttributesCountDecoder.init(columns.addSubColumn());
+        } finally {
+            state.EventDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Event(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
-        }
-        nameDecoder.init(state.SpanEventName, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // TimeUnixNano and subsequent fields are skipped.
-        }
-        timeUnixNanoDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

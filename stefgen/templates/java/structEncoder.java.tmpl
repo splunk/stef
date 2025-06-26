@@ -29,35 +29,44 @@ class {{ .StructName }}Encoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.{{.StructName}}Encoder != null) {
+            throw new IllegalStateException("cannot initialize {{ .StructName }}Encoder: already initialized");
+        }
         state.{{.StructName}}Encoder = this;
-        this.limiter = state.getLimiter();
-        {{- if .DictName}}
-        this.dict = state.{{.DictName}};
-        {{- end}}
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = {{len .Fields}};
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
+            {{- if .DictName}}
+            this.dict = state.{{.DictName}};
+            {{- end}}
 
-        {{ range $i, $e := .Fields }}
-        if (this.fieldCount <= {{$i}}) {
-            return; // {{.Name}} and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = {{len .Fields}};
+                this.keepFieldMask = ~0L;
+            }
+
+            {{ range $i, $e := .Fields }}
+            if (this.fieldCount <= {{$i}}) {
+                return; // {{.Name}} and subsequent fields are skipped.
+            }
+            {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+            this.{{.name}}Encoder.init(state.{{.Type.DictName}}, this.limiter, columns.addSubColumn());
+            {{- else}}
+            this.{{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}this.limiter, columns.addSubColumn());
+            {{- end}}
+            {{- else}}
+            this.{{.name}}Encoder.init(state, columns.addSubColumn());
+            {{- end}}
+            {{- end }}
+        } finally {
+            state.{{.StructName}}Encoder = null;
         }
-        {{- if .IsPrimitive}}
-        {{- if .Type.DictName}}
-        this.{{.name}}Encoder.init(state.{{.Type.DictName}}, this.limiter, columns.addSubColumn());
-        {{- else}}
-        this.{{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}this.limiter, columns.addSubColumn());
-        {{- end}}
-        {{- else}}
-        this.{{.name}}Encoder.init(state, columns.addSubColumn());
-        {{- end}}
-        {{- end }}
     }
 
     public void reset() {

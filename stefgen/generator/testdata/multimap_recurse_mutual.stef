@@ -1,0 +1,14 @@
+package com.example.gentest.multimap_recurse_mutual
+
+multimap RecMap {
+  key string
+  value RecStruct
+}
+
+struct RecStruct {
+  Maps RecMap
+}
+
+struct Root root {
+  RecStruct RecStruct
+}

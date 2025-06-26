@@ -148,10 +148,7 @@ func (s *ReadColumnSet) SubColumnLen() int {
 
 func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader) error {
 	// Read data size
-	dataSize, err := buf.ReadUvarintCompact()
-	if err != nil {
-		return err
-	}
+	dataSize := buf.ReadUvarintCompact()
 	s.column.data = EnsureLen(s.column.data, int(dataSize))
 
 	if dataSize == 0 {

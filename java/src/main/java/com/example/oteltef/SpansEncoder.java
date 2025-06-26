@@ -30,35 +30,44 @@ class SpansEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.SpansEncoder != null) {
+            throw new IllegalStateException("cannot initialize SpansEncoder: already initialized");
+        }
         state.SpansEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 4;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Envelope and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Spans");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 4;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Envelope and subsequent fields are skipped.
+            }
+            this.envelopeEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Resource and subsequent fields are skipped.
+            }
+            this.resourceEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Scope and subsequent fields are skipped.
+            }
+            this.scopeEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Span and subsequent fields are skipped.
+            }
+            this.spanEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.SpansEncoder = null;
         }
-        this.envelopeEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Resource and subsequent fields are skipped.
-        }
-        this.resourceEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Scope and subsequent fields are skipped.
-        }
-        this.scopeEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Span and subsequent fields are skipped.
-        }
-        this.spanEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

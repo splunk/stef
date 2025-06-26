@@ -61,6 +61,13 @@ func (e *AnyValueArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *AnyValueArray) markModifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+}
+
 func (e *AnyValueArray) markUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markUnmodifiedRecursively()
@@ -68,22 +75,66 @@ func (e *AnyValueArray) markUnmodifiedRecursively() {
 
 }
 
+// markDiffModified marks fields in each element of this array modified if they differ from
+// the corresponding fields in v.
+func (e *AnyValueArray) markDiffModified(v *AnyValueArray) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if e.elems[i].markDiffModified(v.elems[i]) {
+			modified = true
+		}
+	}
+
+	// Mark the rest of the elements as modified.
+	for i := minLen; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+	if modified {
+		e.markModified()
+	}
+
+	return modified
+}
+
 func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-		dst.markModified()
+		isModified = true
 	}
-	if len(src.elems) > 0 {
-		// Allocate all elements at once.
-		elems := make([]AnyValue, len(src.elems))
-		for i := range src.elems {
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyAnyValue(dst.elems[i], src.elems[i])
+		isModified = true
+	}
+	if minLen < len(dst.elems) {
+		isModified = true
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]AnyValue, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			// Point to allocated element.
-			dst.elems[i] = &elems[i]
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyAnyValue(dst.elems[i], src.elems[i])
+			copyAnyValue(dst.elems[i+j], src.elems[i+j])
 		}
+	}
+	if isModified {
+		dst.markModified()
 	}
 }
 
@@ -168,46 +219,136 @@ func (a *AnyValueArray) mutateRandom(random *rand.Rand) {
 }
 
 type AnyValueArrayEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
-	encoder *AnyValueEncoder
-	prevLen int
-	state   *WriterState
-	lastVal AnyValue
+	buf         pkg.BitsWriter
+	limiter     *pkg.SizeLimiter
+	elemEncoder *AnyValueEncoder
+	isRecursive bool
+	state       *WriterState
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack AnyValueArrayEncoderLastValStack
+}
+type AnyValueArrayEncoderLastValStack []*AnyValueArrayEncoderLastValElem
+
+func (s *AnyValueArrayEncoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *AnyValueArrayEncoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *AnyValueArrayEncoderLastValStack) top() *AnyValueArrayEncoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *AnyValueArrayEncoderLastValStack) addOnTopSlow() {
+	elem := &AnyValueArrayEncoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &AnyValueArrayEncoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *AnyValueArrayEncoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *AnyValueArrayEncoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type AnyValueArrayEncoderLastValElem struct {
+	prevLen        int
+	elem           AnyValue
+	modifiedFields modifiedFields
+}
+
+func (e *AnyValueArrayEncoderLastValElem) init() {
+	e.elem.init(&e.modifiedFields, 1)
+}
+
+func (e *AnyValueArrayEncoderLastValElem) reset() {
+	e.elem = AnyValue{}
+	e.prevLen = 0
 }
 
 func (e *AnyValueArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
 	e.state = state
 	e.limiter = &state.limiter
-	e.encoder = state.AnyValueEncoder
 
-	e.lastVal.init(nil, 0)
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.AnyValueArrayEncoder != nil {
+		panic("cannot initialize AnyValueArrayEncoder: already initialized")
+	}
+	state.AnyValueArrayEncoder = e
+	defer func() { state.AnyValueArrayEncoder = nil }()
+
+	if state.AnyValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.elemEncoder = state.AnyValueEncoder
+		e.isRecursive = true
+	} else {
+		e.elemEncoder = new(AnyValueEncoder)
+		if err := e.elemEncoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	e.lastValStack.init()
+
 	return nil
 }
 
 func (e *AnyValueArrayEncoder) Reset() {
-	e.prevLen = 0
+	if !e.isRecursive {
+		e.elemEncoder.Reset()
+	}
+
+	e.lastValStack.reset()
 }
 
 func (e *AnyValueArrayEncoder) Encode(arr *AnyValueArray) {
+	lastVal := e.lastValStack.top()
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
+
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
+	lenDelta := newLen - lastVal.prevLen
+	lastVal.prevLen = newLen
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
-	for i := 0; i < newLen; i++ {
-		// Copy into last encoded value. This will correctly set "modified" field flags.
-		copyAnyValue(&e.lastVal, arr.elems[i])
-		// Encode it.
-		e.encoder.Encode(&e.lastVal)
-		// Reset modified flags so that next modification attempt correctly sets
-		// the modified flags and the next encoding attempt is not skipped.
-		// Normally the flags would be reset by encoder.Encode() call above, but
-		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
-		// so we have to do it explicitly.
-		arr.elems[i].markUnmodified()
+	if newLen > 0 {
+		for i := 0; i < newLen; i++ {
+			if i == 0 {
+				// Compute and mark fields that are modified compared to the last encoded value.
+				arr.elems[i].markDiffModified(&lastVal.elem)
+			} else {
+				// Compute and mark fields that are modified compared to the previous element.
+				arr.elems[i].markDiffModified(arr.elems[i-1])
+			}
+
+			// Encode the element.
+			e.elemEncoder.Encode(arr.elems[i])
+		}
+		// Remember last encoded element.
+		copyAnyValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.
@@ -217,24 +358,99 @@ func (e *AnyValueArrayEncoder) Encode(arr *AnyValueArray) {
 
 func (e *AnyValueArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	if !e.isRecursive {
+		e.elemEncoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type AnyValueArrayDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	decoder    *AnyValueDecoder
-	prevLen    int
-	lastVal    AnyValue
-	lastValPtr *AnyValue
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	elemDecoder *AnyValueDecoder
+	isRecursive bool
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack AnyValueArrayDecoderLastValStack
+}
+type AnyValueArrayDecoderLastValStack []*AnyValueArrayDecoderLastValElem
+
+func (s *AnyValueArrayDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *AnyValueArrayDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *AnyValueArrayDecoderLastValStack) top() *AnyValueArrayDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *AnyValueArrayDecoderLastValStack) addOnTopSlow() {
+	elem := &AnyValueArrayDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &AnyValueArrayDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *AnyValueArrayDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *AnyValueArrayDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type AnyValueArrayDecoderLastValElem struct {
+	prevLen int
+	elem    AnyValue
+}
+
+func (e *AnyValueArrayDecoderLastValElem) init() {
+}
+
+func (e *AnyValueArrayDecoderLastValElem) reset() {
+	e.prevLen = 0
+
+	e.elem = AnyValue{}
+
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *AnyValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.decoder = state.AnyValueDecoder
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.AnyValueArrayDecoder != nil {
+		panic("cannot initialize AnyValueArrayDecoder: already initialized")
+	}
+	state.AnyValueArrayDecoder = d
+	defer func() { state.AnyValueArrayDecoder = nil }()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	if state.AnyValueDecoder != nil {
+		d.elemDecoder = state.AnyValueDecoder
+		d.isRecursive = true
+	} else {
+		d.elemDecoder = new(AnyValueDecoder)
+		if err := d.elemDecoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	d.lastValStack.init()
 
 	return nil
 }
@@ -246,30 +462,36 @@ func (d *AnyValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 // continuation of that same column in the previous frame.
 func (d *AnyValueArrayDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
+	if !d.isRecursive {
+		d.elemDecoder.Continue()
+	}
 }
 
 func (d *AnyValueArrayDecoder) Reset() {
-	d.prevLen = 0
+	if !d.isRecursive {
+		d.elemDecoder.Reset()
+	}
+	d.lastValStack.reset()
 }
 
 func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
-	lenDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 
-	newLen := d.prevLen + int(lenDelta)
+	lenDelta := d.buf.ReadVarintCompact()
+
+	newLen := lastVal.prevLen + int(lenDelta)
+	lastVal.prevLen = newLen
 
 	dst.EnsureLen(newLen)
 
-	d.prevLen = newLen
-
 	for i := 0; i < newLen; i++ {
-		err = d.decoder.Decode(d.lastValPtr)
+		err := d.elemDecoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copyAnyValue(dst.elems[i], d.lastValPtr)
+		copyAnyValue(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

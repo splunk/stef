@@ -7,48 +7,57 @@ import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 // Encoder for Float64Array
 class Float64ArrayEncoder {
     private final BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private Float64Encoder encoder;
-    private int prevLen = 0;
+    private Float64Encoder elemEncoder;
     private WriterState state;
-    private double lastVal;
+    private boolean isRecursive = false;
+    private int prevLen = 0;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        encoder = new Float64Encoder();
-        encoder.init(limiter, columns.addSubColumn());
+
+        elemEncoder = new Float64Encoder();
+        elemEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {
+        if (!isRecursive) {
+            elemEncoder.reset();
+        }
         prevLen = 0;
-        encoder.reset();
     }
 
     public void encode(Float64Array arr) throws IOException {
-        int newLen = arr.elemsLen;
-        int oldBitLen = buf.bitCount();
-        int lenDelta = newLen - prevLen;
-        prevLen = newLen;
-        buf.writeVarintCompact(lenDelta);
-        for (int i = 0; i < newLen; i++) {
-            
-            encoder.encode(arr.elems[i]);
-            
-        }
-        int newBitLen = buf.bitCount();
-        limiter.addFrameBits(newBitLen - oldBitLen);
+            int newLen = arr.elemsLen;
+            int oldBitLen = buf.bitCount();
+            int lenDelta = newLen - prevLen;
+            prevLen = newLen;
+
+            buf.writeVarintCompact(lenDelta);
+
+            if (newLen > 0) {
+                for (int i = 0; i < newLen; i++) {
+                    elemEncoder.encode(arr.elems[i]);
+                }
+            }
+
+            // Account written bits in the limiter.
+            int newBitLen = buf.bitCount();
+            limiter.addFrameBits(newBitLen - oldBitLen);
     }
 
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(buf);
-        
-        encoder.collectColumns(columnSet.at(0));
-        
+        if (!isRecursive) {
+            elemEncoder.collectColumns(columnSet.at(0));
+        }
     }
 }
 

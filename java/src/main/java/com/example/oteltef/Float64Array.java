@@ -77,36 +77,65 @@ public class Float64Array {
         }
     }
 
+    public void markModifiedRecursively() {
+        
+    }
+
     public void markUnmodifiedRecursively() {
         
     }
 
-    public void copyFrom(Float64Array src) {
-        if (elemsLen != src.elemsLen) {
-            int n = Math.min(elemsLen, src.elemsLen);
-            ensureElems(src.elemsLen);
+    // markDiffModified marks fields in each element of this array modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Float64Array v) {
+        boolean modified = false;
+        if (elemsLen != v.elemsLen) {
+            // Array lengths are different, so they are definitely different.
+            modified = true;
+        }
+    
+        // Scan the elements and mark them as modified if they are different.
+        int minLen = Math.min(elemsLen, v.elemsLen);
+        int i=0;
+        for (; i < minLen; i++) {
+            if (!Types.Float64Equal(this.elems[i], v.elems[i])) {
+                modified = true;
+            }
+        }
+    
+        if (modified) {
+            this.markModified();
+        }
+    
+        return modified;
+    }
 
-            int i = 0;
-            for (; i < n; i++) {
-                if (elems[i] != src.elems[i]) {
-                    elems[i] = src.elems[i];
-                }
-            }
-            for (; i < elemsLen; i++) {
+    public void copyFrom(Float64Array src) {
+        boolean isModified = false;
+        
+        int minLen = Math.min(elemsLen, src.elemsLen);
+        if (elemsLen != src.elemsLen) {
+            ensureElems(src.elemsLen);
+            isModified = true;
+        }
+        
+        int i = 0;
+        
+        // Copy elements in the part of the array that already had the necessary room.
+        for (; i < minLen; i++) {
+            if (elems[i] != src.elems[i]) {
                 elems[i] = src.elems[i];
+                isModified = true;
             }
+        }
+        for (; i < elemsLen; i++) {
+            if (elems[i] != src.elems[i]) {
+                elems[i] = src.elems[i];
+                isModified = true;
+            }
+        }
+        if (isModified) {
             markModified();
-        } else {
-            boolean modified = false;
-            for (int i=0; i < elemsLen; i++) {
-                if (elems[i] != src.elems[i]) {
-                    elems[i] = src.elems[i];
-                    modified = true;
-                }
-            }
-            if (modified) {
-                markModified();
-            }
         }
     }
 

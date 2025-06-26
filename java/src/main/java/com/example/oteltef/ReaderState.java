@@ -26,34 +26,34 @@ public class ReaderState {
     
 
     // Decoders
-    AnyValueDecoder AnyValueDecoder = new AnyValueDecoder();
-    AnyValueArrayDecoder AnyValueArrayDecoder = new AnyValueArrayDecoder();
-    AttributesDecoder AttributesDecoder = new AttributesDecoder();
-    EnvelopeDecoder EnvelopeDecoder = new EnvelopeDecoder();
-    EnvelopeAttributesDecoder EnvelopeAttributesDecoder = new EnvelopeAttributesDecoder();
-    EventDecoder EventDecoder = new EventDecoder();
-    EventArrayDecoder EventArrayDecoder = new EventArrayDecoder();
-    ExemplarDecoder ExemplarDecoder = new ExemplarDecoder();
-    ExemplarArrayDecoder ExemplarArrayDecoder = new ExemplarArrayDecoder();
-    ExemplarValueDecoder ExemplarValueDecoder = new ExemplarValueDecoder();
-    ExpHistogramBucketsDecoder ExpHistogramBucketsDecoder = new ExpHistogramBucketsDecoder();
-    ExpHistogramValueDecoder ExpHistogramValueDecoder = new ExpHistogramValueDecoder();
-    Float64ArrayDecoder Float64ArrayDecoder = new Float64ArrayDecoder();
-    HistogramValueDecoder HistogramValueDecoder = new HistogramValueDecoder();
-    Int64ArrayDecoder Int64ArrayDecoder = new Int64ArrayDecoder();
-    KeyValueListDecoder KeyValueListDecoder = new KeyValueListDecoder();
-    LinkDecoder LinkDecoder = new LinkDecoder();
-    LinkArrayDecoder LinkArrayDecoder = new LinkArrayDecoder();
-    MetricDecoder MetricDecoder = new MetricDecoder();
-    MetricsDecoder MetricsDecoder = new MetricsDecoder();
-    PointDecoder PointDecoder = new PointDecoder();
-    PointValueDecoder PointValueDecoder = new PointValueDecoder();
-    ResourceDecoder ResourceDecoder = new ResourceDecoder();
-    ScopeDecoder ScopeDecoder = new ScopeDecoder();
-    SpanDecoder SpanDecoder = new SpanDecoder();
-    SpanStatusDecoder SpanStatusDecoder = new SpanStatusDecoder();
-    SpansDecoder SpansDecoder = new SpansDecoder();
-    Uint64ArrayDecoder Uint64ArrayDecoder = new Uint64ArrayDecoder();
+    AnyValueDecoder AnyValueDecoder;
+    AnyValueArrayDecoder AnyValueArrayDecoder;
+    AttributesDecoder AttributesDecoder;
+    EnvelopeDecoder EnvelopeDecoder;
+    EnvelopeAttributesDecoder EnvelopeAttributesDecoder;
+    EventDecoder EventDecoder;
+    EventArrayDecoder EventArrayDecoder;
+    ExemplarDecoder ExemplarDecoder;
+    ExemplarArrayDecoder ExemplarArrayDecoder;
+    ExemplarValueDecoder ExemplarValueDecoder;
+    ExpHistogramBucketsDecoder ExpHistogramBucketsDecoder;
+    ExpHistogramValueDecoder ExpHistogramValueDecoder;
+    Float64ArrayDecoder Float64ArrayDecoder;
+    HistogramValueDecoder HistogramValueDecoder;
+    Int64ArrayDecoder Int64ArrayDecoder;
+    KeyValueListDecoder KeyValueListDecoder;
+    LinkDecoder LinkDecoder;
+    LinkArrayDecoder LinkArrayDecoder;
+    MetricDecoder MetricDecoder;
+    MetricsDecoder MetricsDecoder;
+    PointDecoder PointDecoder;
+    PointValueDecoder PointValueDecoder;
+    ResourceDecoder ResourceDecoder;
+    ScopeDecoder ScopeDecoder;
+    SpanDecoder SpanDecoder;
+    SpanStatusDecoder SpanStatusDecoder;
+    SpansDecoder SpansDecoder;
+    Uint64ArrayDecoder Uint64ArrayDecoder;
     
 
     public void init(WireSchema overrideSchema) {

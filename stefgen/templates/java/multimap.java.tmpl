@@ -120,6 +120,17 @@ public class {{ .MultimapName }} {
         }
     }
 
+    void markModifiedRecursively() {
+        for (int i=0; i<elemsLen; i++) {
+            {{- if not .Key.Type.IsPrimitive}}
+            elems[i].key.markModifiedRecursively();
+            {{- end}}
+            {{- if not .Value.Type.IsPrimitive}}
+            elems[i].value.markModifiedRecursively();
+            {{- end}}
+        }
+    }
+
     void markUnmodifiedRecursively() {
         for (int i=0; i<elemsLen; i++) {
             {{- if not .Key.Type.IsPrimitive}}
@@ -130,6 +141,85 @@ public class {{ .MultimapName }} {
             {{- end}}
         }
     }
+
+    // markDiffModified marks fields in each key and value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    boolean markDiffModified({{.MultimapName}} v) {
+        boolean modified = false;
+
+        if (elemsLen != v.elemsLen) {
+            // Array lengths are different, so they are definitely different.
+            modified = true;
+        }
+        
+        // Scan the elements and mark them as modified if they are different.
+        int minLen = Math.min(elemsLen, v.elemsLen);
+        for (int i=0; i < minLen; i++) {
+            {{- if .Key.Type.IsPrimitive}}
+            if (!{{ .Key.Type.EqualFunc }}(elems[i].key, {{.Key.Type.ToStorage "v.elems[i].key"}})) {
+                modified = true;
+            }
+            {{- else}}
+            if (elems[i].key.markDiffModified(v.elems[i].key)) {
+                modified = true;
+            }
+            {{- end}}
+        
+            {{- if .Value.Type.IsPrimitive}}
+            if (!{{ .Value.Type.EqualFunc }}(elems[i].value, {{.Value.Type.ToStorage "v.elems[i].value"}})) {
+                modified = true;
+            }
+            {{- else}}
+            if (elems[i].value.markDiffModified(v.elems[i].value)) {
+                modified = true;
+            }
+            {{- end}}
+        }
+        
+        {{if or (not .Key.Type.IsPrimitive) (not .Value.Type.IsPrimitive) -}}
+        // Mark the rest of the elements as modified.
+        for (int i=minLen; i<elemsLen; i++) {
+            {{- if not .Key.Type.IsPrimitive -}}
+            elems[i].key.markModifiedRecursively();
+            {{- end}}
+            {{if not .Value.Type.IsPrimitive -}}
+            elems[i].value.markModifiedRecursively();
+            {{- end}}
+        }
+        {{end}}
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+    
+    // markDiffModified marks fields in each value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    // This function assumes the keys are the same and the lengths of multimaps are the same.
+    boolean markValueDiffModified({{.MultimapName}} v) {
+        boolean modified = false;
+        // Scan the elements and mark them as modified if they are different.
+        for (int i=0; i < elemsLen; i++) {
+            {{- if .Value.Type.IsPrimitive}}
+            if (!{{ .Value.Type.EqualFunc }}(elems[i].value, {{.Value.Type.ToStorage "v.elems[i].value"}})) {
+                modified = true;
+            }
+            {{- else}}
+            if (elems[i].value.markDiffModified(v.elems[i].value)) {
+                modified = true;
+            }
+            {{- end}}
+        }
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+
 
     // Append adds a key-value pair to the multimap.
     public void append({{.Key.Type.Exported}} k, {{.Value.Type.Exported}} v) {
@@ -151,7 +241,11 @@ public class {{ .MultimapName }} {
 
     // setValue sets the value of the element at index i.
     public void setValue(int i, {{.Value.Type.Exported}} v) {
+        {{- if .Value.Type.IsPrimitive }}
         if (!{{.Value.Type.EqualFunc}}(elems[i].value, {{.Value.Type.ToStorage "v"}})) {
+        {{- else }}
+        if (!elems[i].value.equals({{.Value.Type.ToStorage "v"}})) {
+        {{- end }}
             elems[i].value = {{.Value.Type.ToStorage "v"}};
             markModified();
         }
@@ -191,24 +285,24 @@ public class {{ .MultimapName }} {
         {{else}}
         for (int i=0; i < src.elemsLen; i++) {
         {{- if .Key.Type.IsPrimitive}}
-            if (elems[i].key != src.elems[i].key) {
+            if (!{{.Key.Type.EqualFunc}}(elems[i].key, src.elems[i].key)) {
                 elems[i].key = src.elems[i].key;
                 modified = true;
             }
         {{else}}
-            if (!{{.Key.Type.EqualFunc}}(elems[i].key, src.elems[i].key)) {
+            if (!elems[i].key.equals(src.elems[i].key)) {
                 copy{{.Key.Type.TypeName}}(elems[i].key, src.elems[i].key);
                 modified = true;
             }
         {{end}}
 
         {{- if .Value.Type.IsPrimitive}}
-            if (elems[i].value != src.elems[i].value) {
+            if (!{{.Value.Type.EqualFunc}}(elems[i].value, src.elems[i].value)) {
                 elems[i].value = src.elems[i].value;
                 modified = true;
             }
         {{else}}
-            if (!{{.Value.Type.EqualFunc}}(elems[i].value, src.elems[i].value)) {
+            if (!elems[i].value.equals(src.elems[i].value)) {
                 elems[i].value.copyFrom(src.elems[i].value);
                 modified = true;
             }

@@ -12,21 +12,31 @@ import java.io.IOException;
 class LinkArrayDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private LinkDecoder decoder;
-    private int prevLen = 0;
-    private Link lastVal;
+    private LinkDecoder elemDecoder;
+    private boolean isRecursive = false;
+    // lastValStack are last decoded values stacked by the level of recursion.
+    private LinkArrayEncoder.LastValStack lastValStack;
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
-    
-    
-        decoder = new LinkDecoder();
-        decoder.init(state, columns.addSubColumn());
-        state.LinkDecoder = decoder;
-    
-        lastVal = new Link(null, 0);
-    
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.LinkArrayDecoder != null) {
+            throw new IllegalStateException("cannot initialize LinkArrayDecoder: already initialized");
+        }
+        state.LinkArrayDecoder = this;
+        try {
+            if (state.LinkDecoder != null) {
+                elemDecoder = state.LinkDecoder;
+                isRecursive = true;
+            } else {
+                elemDecoder = new LinkDecoder();
+                elemDecoder.init(state, columns.addSubColumn());
+            }
+            this.lastValStack = new LinkArrayEncoder.LastValStack();
+        } finally {
+            state.LinkArrayDecoder = null;
+        }
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -36,35 +46,43 @@ class LinkArrayDecoder {
     // continuation of that same column in the previous frame.
     public void continueDecoding() {
         buf.reset(column.getData());
-        
-        decoder.continueDecoding();
-        
+        if (!isRecursive) {
+            elemDecoder.continueDecoding();
+        }
     }
 
     public void reset() {
-        prevLen = 0;
-        
-        decoder.reset();
-        
+        if (!isRecursive) {
+            elemDecoder.reset();
+        }
+        lastValStack.reset();
     }
 
     public LinkArray decode(LinkArray dst) throws IOException {
-        long lenDelta = buf.readVarintCompact();
-        long newLen = prevLen + lenDelta;
-        if (newLen < 0) {
-            throw new IllegalStateException("Invalid array length: " + newLen);
-        }
-        if (newLen > Integer.MAX_VALUE) {
-            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
-        }
+        LinkArrayEncoder.LastValElem lastVal = lastValStack.top();
+        lastValStack.addOnTop();
+        try {
+            long lenDelta = buf.readVarintCompact();
+            
+            long newLen = lastVal.prevLen + lenDelta;
+            lastVal.prevLen = newLen;
 
-        dst.ensureLen((int)newLen);
-        prevLen = (int)newLen;
-        for (int i = 0; i < newLen; i++) {
-            
-            lastVal = decoder.decode(lastVal);
-            dst.elems[i].copyFrom(lastVal);
-            
+            if (newLen < 0) {
+                throw new IllegalStateException("Invalid array length: " + newLen);
+            }
+            if (newLen > Integer.MAX_VALUE) {
+                throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+            }
+
+            dst.ensureLen((int)newLen);
+            for (int i = 0; i < newLen; i++) {
+                
+                lastVal.elem = elemDecoder.decode(lastVal.elem);
+                dst.elems[i].copyFrom(lastVal.elem);
+                
+            }
+        } finally {
+            lastValStack.removeFromTop();
         }
 
         return dst;

@@ -77,35 +77,6 @@ public class WriterState {
         SpanEventName = new StringEncoderDict();
         SpanName = new StringEncoderDict();
         
-        AnyValueEncoder = new AnyValueEncoder();
-        AnyValueArrayEncoder = new AnyValueArrayEncoder();
-        AttributesEncoder = new AttributesEncoder();
-        EnvelopeEncoder = new EnvelopeEncoder();
-        EnvelopeAttributesEncoder = new EnvelopeAttributesEncoder();
-        EventEncoder = new EventEncoder();
-        EventArrayEncoder = new EventArrayEncoder();
-        ExemplarEncoder = new ExemplarEncoder();
-        ExemplarArrayEncoder = new ExemplarArrayEncoder();
-        ExemplarValueEncoder = new ExemplarValueEncoder();
-        ExpHistogramBucketsEncoder = new ExpHistogramBucketsEncoder();
-        ExpHistogramValueEncoder = new ExpHistogramValueEncoder();
-        Float64ArrayEncoder = new Float64ArrayEncoder();
-        HistogramValueEncoder = new HistogramValueEncoder();
-        Int64ArrayEncoder = new Int64ArrayEncoder();
-        KeyValueListEncoder = new KeyValueListEncoder();
-        LinkEncoder = new LinkEncoder();
-        LinkArrayEncoder = new LinkArrayEncoder();
-        MetricEncoder = new MetricEncoder();
-        MetricsEncoder = new MetricsEncoder();
-        PointEncoder = new PointEncoder();
-        PointValueEncoder = new PointValueEncoder();
-        ResourceEncoder = new ResourceEncoder();
-        ScopeEncoder = new ScopeEncoder();
-        SpanEncoder = new SpanEncoder();
-        SpanStatusEncoder = new SpanStatusEncoder();
-        SpansEncoder = new SpansEncoder();
-        Uint64ArrayEncoder = new Uint64ArrayEncoder();
-        
     }
 
     public void init(WriterOptions opts) {

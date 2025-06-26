@@ -34,8 +34,6 @@ func (e *Float64Encoder) Encode(val float64) {
 		return
 	}
 
-	oldBitLen := e.buf.BitCount()
-
 	leading := bits.LeadingZeros64(xorVal)
 	if leading >= 32 {
 		// We can encode at most 31 in 5 bits, so clamp to 31.
@@ -55,8 +53,9 @@ func (e *Float64Encoder) Encode(val float64) {
 		if 53-prevLeading-prevTrailing < sigbits {
 			// Current scheme is smaller than trying reset the range. Use the current scheme.
 			e.buf.WriteBits(0b10, 2)
-			e.buf.WriteBits(xorVal>>prevTrailing, uint(64-prevLeading-prevTrailing))
-			e.limiter.AddFrameBits(e.buf.BitCount() - oldBitLen)
+			bitCount := uint(64 - prevLeading - prevTrailing)
+			e.buf.WriteBits(xorVal>>prevTrailing, bitCount)
+			e.limiter.AddFrameBits(2 + bitCount)
 			return
 		}
 	}
@@ -76,7 +75,7 @@ func (e *Float64Encoder) Encode(val float64) {
 
 	e.buf.WriteBits(xorVal>>trailing, uint(sigbits))
 
-	e.limiter.AddFrameBits(e.buf.BitCount() - oldBitLen)
+	e.limiter.AddFrameBits(13 + uint(sigbits))
 }
 
 func (e *Float64Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
