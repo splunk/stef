@@ -361,7 +361,7 @@ func computeWireSchemaFieldCounts(src *Struct, dst *StructWireSchema) {
 	dst.FieldCount = uint(len(src.Fields))
 	dst.StructFields = make([]StructWireSchema, len(src.Fields))
 	for i, field := range src.Fields {
-		if field.StructDef != nil {
+		if field.StructDef != nil && dst.StructFields == nil {
 			computeWireSchemaFieldCounts(field.StructDef, &dst.StructFields[i])
 		}
 	}
