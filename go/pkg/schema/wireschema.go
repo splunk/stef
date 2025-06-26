@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/splunk/stef/go/pkg/internal"
 )
@@ -35,6 +34,46 @@ type WireSchema struct {
 type StructWireSchema struct {
 	FieldCount   uint
 	StructFields []StructWireSchema
+}
+
+func (s *StructWireSchema) serialize(dst *bytes.Buffer) error {
+	if err := internal.WriteUvarint(uint64(s.FieldCount), dst); err != nil {
+		return err
+	}
+
+	if err := internal.WriteUvarint(uint64(len(s.StructFields)), dst); err != nil {
+		return err
+	}
+
+	for _, field := range s.StructFields {
+		if err := field.serialize(dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *StructWireSchema) deserialize(src *bytes.Buffer) error {
+	fieldCount, err := binary.ReadUvarint(src)
+	if err != nil {
+		return err
+	}
+
+	s.FieldCount = uint(fieldCount)
+
+	structFieldCount, err := binary.ReadUvarint(src)
+	if err != nil {
+		return err
+	}
+	s.StructFields = make([]StructWireSchema, structFieldCount)
+	for _, field := range s.StructFields {
+		if err := field.deserialize(src); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (w *WireSchema) FieldCount(structName string) (uint, bool) {
@@ -69,7 +108,7 @@ String {
 
 // Serialize the schema to binary format.
 func (w *WireSchema) Serialize(dst *bytes.Buffer) error {
-	if err := internal.WriteUvarint(uint64(len(w.StructFieldCount)), dst); err != nil {
+	/*if err := internal.WriteUvarint(uint64(len(w.StructFieldCount)), dst); err != nil {
 		return err
 	}
 
@@ -91,11 +130,14 @@ func (w *WireSchema) Serialize(dst *bytes.Buffer) error {
 		}
 	}
 	return nil
+	*/
+
+	return w.StructWireSchema.serialize(dst)
 }
 
 // Deserialize the schema from binary format.
 func (w *WireSchema) Deserialize(src *bytes.Buffer) error {
-	count, err := binary.ReadUvarint(src)
+	/*count, err := binary.ReadUvarint(src)
 	if err != nil {
 		return err
 	}
@@ -117,7 +159,8 @@ func (w *WireSchema) Deserialize(src *bytes.Buffer) error {
 
 		w.StructFieldCount[structName] = uint(fieldCount)
 	}
-	return nil
+	return nil*/
+	return w.StructWireSchema.deserialize(src)
 }
 
 // Compatible checks backward compatibility of this schema with oldSchema.
