@@ -165,6 +165,34 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     }
 }
 
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified bool) {
+    if s.typ != v.typ {
+        modified = true
+        s.markModifiedRecursively()
+        return modified
+    }
+
+    switch s.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+    {{- if .Type.IsPrimitive}}
+        if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}}) {
+            s.mark{{.Name}}Modified()
+            modified = true
+        }
+    {{- else}}
+        if s.{{.name}}.markDiffModified(&v.{{.name}}) {
+            s.markParentModified()
+            modified = true
+        }
+    {{- end}}
+    {{- end }}
+    }
+    return modified
+}
+
 // IsEqual performs deep comparison and returns true if struct is equal to val.
 func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
     if e.typ != val.typ {
