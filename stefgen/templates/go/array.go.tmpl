@@ -118,6 +118,11 @@ func (e* {{.ArrayName}}) markDiffModified(v *{{.ArrayName}}) (modified bool) {
 		e.elems[i].markModifiedRecursively()
 	}
 	{{end}}
+
+	if modified {
+		e.markModified()
+	}
+
 	return modified
 }
 
