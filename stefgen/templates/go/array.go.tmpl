@@ -76,12 +76,49 @@ func (e* {{.ArrayName}}) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e* {{.ArrayName}}) markModifiedRecursively() {
+{{if not .ElemType.IsPrimitive -}}
+	for i:=0; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+{{end}}
+}
+
 func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 {{if not .ElemType.IsPrimitive -}}
 	for i:=0; i < len(e.elems); i++ {
 		e.elems[i].markUnmodifiedRecursively()
 	}
 {{end}}
+}
+
+func (e* {{.ArrayName}}) markDiffModified(v *{{.ArrayName}}) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i:=0; i < minLen; i++ {
+		{{- if .ElemType.IsPrimitive -}}
+		if !{{ .ElemType.EqualFunc }}(e.elems[i], {{.ElemType.ToStorage "v.elems[i]"}}) {
+			modified = true
+		}
+		{{else}}
+		if e.elems[i].markDiffModified(v.elems[i]) {
+			modified = true
+		}
+		{{- end}}
+	}
+
+	{{if not .ElemType.IsPrimitive -}}
+	// Mark the rest of the elements as modified.
+	for i:=minLen; i<len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+	{{end}}
+	return modified
 }
 
 func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
@@ -241,8 +278,16 @@ type {{ .ArrayName }}Encoder struct {
 }
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
-    e.state = state
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .ArrayName }}Encoder != nil {
+		panic("cannot initialize {{ .ArrayName }}Encoder: already initialized")
+	}
+	state.{{ .ArrayName }}Encoder = e
+	defer func() { state.{{ .ArrayName }}Encoder = nil }()
+
+	e.state = state
 	e.limiter = &state.limiter
+
 	{{ if .ElemType.IsPrimitive -}}
 	if err := e.encoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
 		return err
@@ -254,12 +299,12 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 		e.isRecursive = true
 	} else {
 		e.encoder = new({{.ElemType.EncoderType}}Encoder)
-		state.{{.ElemType.EncoderType}}Encoder = e.encoder // Store to detect recursion.
+		//state.{{.ElemType.EncoderType}}Encoder = e.encoder // Store to detect recursion.
 		if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
 			return err
 		}
 		// Reset so that further fields of the same type get their own encoder.
-		state.{{.ElemType.EncoderType}}Encoder = nil
+		//state.{{.ElemType.EncoderType}}Encoder = nil
 	}
 	e.lastVal.init(nil,0)
 	{{- end}}
@@ -285,16 +330,16 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 		{{- if .ElemType.IsPrimitive}}
 		e.encoder.Encode(arr.elems[i])
 		{{- else}}
-		// Copy into last encoded value. This will correctly set "modified" field flags.
-		copy{{.ElemType.TypeName}}(&e.lastVal, arr.elems[i])
-		// Encode it.
-		e.encoder.Encode(&e.lastVal)
-		// Reset modified flags so that next modification attempt correctly sets
-		// the modified flags and the next encoding attempt is not skipped.
-		// Normally the flags would be reset by encoder.Encode() call above, but
-		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
-		// so we have to do it explicitly.
-		arr.elems[i].markUnmodified()
+		if i == 0 {
+			// Encode the first element fully.
+			arr.elems[i].markModifiedRecursively()
+		} else {
+			// Compute and mark fields that are modified compared to the previous element.
+			arr.elems[i].markDiffModified(arr.elems[i])
+		}
+
+		// Encode the element.
+		e.encoder.Encode(arr.elems[i])
 		{{- end}}
 	}
 

@@ -143,6 +143,17 @@ func (s* {{.StructName}}) markUnmodified() {
 	{{- end }}
 }
 
+func (s *{{ $.StructName }}) markModifiedRecursively() {
+    switch s.typ {
+    {{- range .Fields}}
+        case {{ $.StructName }}Type{{.Name}}:
+        {{- if not .Type.IsPrimitive}}
+            s.{{.name}}.markModifiedRecursively()
+        {{- end}}
+    {{- end}}
+    }
+}
+
 func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}

@@ -116,6 +116,17 @@ func (m* {{.MultimapName}}) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m* {{.MultimapName}}) markModifiedRecursively() {
+	for i:=0; i < len(m.elems); i++ {
+		{{- if not .Key.Type.IsPrimitive}}
+		m.elems[i].key.markModifiedRecursively()
+		{{- end}}
+		{{- if not .Value.Type.IsPrimitive}}
+		m.elems[i].value.markModifiedRecursively()
+		{{- end}}
+	}
+}
+
 func (m* {{.MultimapName}}) markUnmodifiedRecursively() {
 	for i:=0; i < len(m.elems); i++ {
 		{{- if not .Key.Type.IsPrimitive}}
@@ -126,7 +137,6 @@ func (m* {{.MultimapName}}) markUnmodifiedRecursively() {
 		{{- end}}
 	}
 }
-
 
 {{if and (not .Key.Type.MustClone) (not .Value.Type.MustClone)}}
 func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exported}}) {
@@ -311,6 +321,13 @@ type {{ .MultimapName }}Encoder struct {
 }
 
 func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .MultimapName }}Encoder != nil {
+		panic("cannot initialize {{ .MultimapName }}Encoder: already initialized")
+	}
+	state.{{ .MultimapName }}Encoder = e
+	defer func() { state.{{ .MultimapName }}Encoder = nil }()
+
 	e.limiter = &state.limiter
     {{- if .Key.Type.IsPrimitive}}
 		e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
@@ -322,10 +339,10 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 			e.isKeyRecursive = true
 		} else {
 			e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
-			state.{{.Key.Type.EncoderType}}Encoder = e.keyEncoder // Store to detect recursion.
+			//state.{{.Key.Type.EncoderType}}Encoder = e.keyEncoder // Store to detect recursion.
 			err = e.keyEncoder.Init(state, columns.AddSubColumn())
 			// Reset so that further fields of the same type get their own encoder.
-			state.{{.Key.Type.EncoderType}}Encoder = nil
+			//state.{{.Key.Type.EncoderType}}Encoder = nil
 		}
     {{- end}}
 	if err != nil {
@@ -341,10 +358,10 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 			e.isValueRecursive = true
 		} else {
 			e.valueEncoder = new({{.Value.Type.EncoderType}}Encoder)
-			state.{{.Value.Type.EncoderType}}Encoder = e.valueEncoder // Store to detect recursion.
+			//state.{{.Value.Type.EncoderType}}Encoder = e.valueEncoder // Store to detect recursion.
 			err = e.valueEncoder.Init(state, columns.AddSubColumn())
 			// Reset so that further fields of the same type get their own encoder.
-			state.{{.Value.Type.EncoderType}}Encoder = nil
+			//state.{{.Value.Type.EncoderType}}Encoder = nil
 		}
     {{- end}}
 	return err

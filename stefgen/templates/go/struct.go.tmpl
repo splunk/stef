@@ -132,6 +132,17 @@ func (s *{{ $.StructName }}) Is{{.Name}}Modified() bool {
 }
 {{ end }}
 
+func (s *{{ $.StructName }}) markModifiedRecursively() {
+    {{ range .Fields }}
+    {{- if not .Type.IsPrimitive}}
+    s.{{.name}}.markModifiedRecursively()
+    {{- end}}
+    {{ end }}
+    s.modifiedFields.mask =
+    {{- range .Fields }}
+        fieldModified{{ $.StructName }}{{.Name}} | {{end}}0
+}
+
 func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
 {{ range .Fields }}
     if s.Is{{.Name}}Modified() {
@@ -141,6 +152,28 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     }
 {{ end }}
     s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified bool) {
+{{- range .Fields }}
+    {{- if .Type.IsPrimitive}}
+    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}})
+        {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
+        s.mark{{.Name}}Modified()
+        {{- if .Optional}}
+            s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
+        {{- end}}
+        modified = true
+    }
+    {{- else}}
+    if s.{{.name}}.markDiffModified(&v.{{.name}}) {
+        modified = true
+    }
+    {{- end}}
+{{ end }}
+    return modified
 }
 
 func (s *{{ .StructName }}) Clone() {{if .DictName}}*{{end}}{{.StructName}} {
@@ -301,8 +334,14 @@ func (d* {{ .StructName }}EncoderDict) Reset() {
 {{end}}
 
 func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+    // Remember this encoder in the state so that we can detect recursion.
+    if state.{{.StructName}}Encoder != nil {
+        panic("cannot initialize {{ .StructName }}Encoder: already initialized")
+    }
     state.{{.StructName}}Encoder = e
-	e.limiter = &state.limiter
+    defer func() { state.{{.StructName}}Encoder = nil }()
+
+    e.limiter = &state.limiter
     {{- if .DictName}}
 	e.dict = &state.{{.DictName}}
     {{- end}}
