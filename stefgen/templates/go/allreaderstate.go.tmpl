@@ -17,7 +17,7 @@ type ReaderState struct {
     {{.DictName}} {{.DictTypeNamePrefix}}DecoderDict
     {{end}}
 
-    // Decoders
+    // Decoders that are being Init-ed, to detect recursion.
     {{range $name, $val := .Encoders -}}
     {{$name}}Decoder *{{$name}}Decoder
     {{end}}

@@ -286,7 +286,13 @@ func (d* {{ .StructName }}EncoderDict) Reset() {
 {{end}}
 
 func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+    // Remember this encoder in the state so that we can detect recursion.
+    if state.{{.StructName}}Encoder != nil {
+        panic("cannot initialize {{ .StructName }}Encoder: already initialized")
+    }
     state.{{.StructName}}Encoder = e
+    defer func() { state.{{.StructName}}Encoder = nil }()
+
 	e.limiter = &state.limiter
     {{- if .DictName}}
 	e.dict = &state.{{.DictName}}
@@ -393,7 +399,12 @@ type {{ .StructName }}Decoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
-    state.{{ .StructName }}Decoder = d
+    // Remember this decoder in the state so that we can detect recursion.
+    if state.{{.StructName}}Decoder != nil {
+        panic("cannot initialize {{ .StructName }}Decoder: already initialized")
+    }
+    state.{{.StructName}}Decoder = d
+    defer func() { state.{{.StructName}}Decoder = nil }()
 
     if state.OverrideSchema != nil {
         fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})

@@ -122,53 +122,57 @@ func (e* {{.ArrayName}}) markDiffModified(v *{{.ArrayName}}) (modified bool) {
 }
 
 func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
-    {{- if .ElemType.MustClone}}
-	if len(dst.elems)!=len(src.elems) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-		dst.markModified()
+		isModified = true
 	}
-	if len(src.elems)>0 {
-		// Allocate all elements at once.
-		elems := make([]{{.ElemType.Storage}}, len(src.elems))
-		for i := range src.elems {
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		{{- if .ElemType.MustClone}}
+		copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		isModified = true
+		{{- else}}
+		if dst.elems[i] != src.elems[i] {
+			dst.elems[i] = src.elems[i]
+			isModified = true
+		}
+		{{- end}}
+	}
+
+	{{- if .ElemType.MustClone}}
+	if i < len(dst.elems) {
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]{{.ElemType.Storage}}, len(dst.elems) - minLen)
+		for j := range elems {
 			{{if not .ElemType.IsPrimitive -}}
 			// Init the element.
-			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			{{- end}}
-			// Point to allocated element.
-			dst.elems[i] = &elems[i]
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
 			copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+			isModified = true
 		}
 	}
 	{{- else}}
-	if len(dst.elems) != len(src.elems) {
-		n := min(len(dst.elems), len(src.elems))
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-
-		i := 0
-		for ; i < n; i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-			}
-		}
-		for ; i < len(dst.elems); i++ {
+	for ; i < len(dst.elems); i++ {
+		if dst.elems[i] != src.elems[i] {
 			dst.elems[i] = src.elems[i]
-		}
-		dst.markModified()
-	} else {
-		modified := false
-		for i:=0; i < len(dst.elems); i++ {
-			if dst.elems[i] != src.elems[i] {
-				dst.elems[i] = src.elems[i]
-				modified = true
-			}
-		}
-		if modified {
-			dst.markModified()
+			isModified = true
 		}
 	}
-    {{- end}}
+	{{- end}}
+	if isModified {
+		dst.markModified()
+	}
 }
 
 // Len returns the number of elements in the array.
@@ -274,7 +278,7 @@ type {{ .ArrayName }}Encoder struct {
     isRecursive bool
 	prevLen int
 	state* WriterState
-	lastVal {{.ElemType.Storage}}
+	//lastVal {{.ElemType.Storage}}
 }
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
@@ -306,7 +310,7 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 		// Reset so that further fields of the same type get their own encoder.
 		//state.{{.ElemType.EncoderType}}Encoder = nil
 	}
-	e.lastVal.init(nil,0)
+	//e.lastVal.init(nil,0)
 	{{- end}}
 	return nil
 }
@@ -335,7 +339,7 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 			arr.elems[i].markModifiedRecursively()
 		} else {
 			// Compute and mark fields that are modified compared to the previous element.
-			arr.elems[i].markDiffModified(arr.elems[i])
+			arr.elems[i].markDiffModified(arr.elems[i-1])
 		}
 
 		// Encode the element.
@@ -358,14 +362,22 @@ func (e *{{ .ArrayName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) 
 type {{ .ArrayName }}Decoder struct {
     buf pkg.BitsReader
 	column *pkg.ReadableColumn
-	decoder {{if .Recursive -}}*{{end}}{{.ElemType.EncoderType}}Decoder
+	decoder *{{.ElemType.EncoderType}}Decoder
+	isRecursive bool
 	prevLen int
-	lastVal {{.ElemType.Storage}}
-	lastValPtr *{{.ElemType.Storage}}
+	//lastVal {{.ElemType.Storage}}
+	//lastValPtr *{{.ElemType.Storage}}
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .ArrayName }}Decoder != nil {
+		panic("cannot initialize {{ .ArrayName }}Decoder: already initialized")
+	}
+	state.{{ .ArrayName }}Decoder = d
+	defer func() { state.{{ .ArrayName }}Decoder = nil }()
+
 	d.column = columns.Column()
 
 {{- if .ElemType.IsPrimitive}}
@@ -380,17 +392,18 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 		return err
 	}
 {{- else}}
-	{{if .Recursive -}}
+	if state.{{.ElemType.EncoderType}}Decoder != nil {
 		d.decoder = state.{{.ElemType.EncoderType}}Decoder
-	{{else}}
+		d.isRecursive = true
+	} else {
+		d.decoder = new({{.ElemType.EncoderType}}Decoder)
 		if err := d.decoder.Init(state, columns.AddSubColumn()); err != nil {
 			return err
 		}
-		state.{{.ElemType.EncoderType}}Decoder = &d.decoder
-	{{end}}
-	d.lastVal.init(nil,0)
+	}
+	//d.lastVal.init(nil,0)
 {{- end}}
-	d.lastValPtr = &d.lastVal
+	//d.lastValPtr = &d.lastVal
 
 	return nil
 }
@@ -402,16 +415,16 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 // continuation of that same column in the previous frame.
 func (d *{{ .ArrayName }}Decoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	{{- if not .Recursive}}
-	d.decoder.Continue()
-	{{- end}}
+	if !d.isRecursive {
+		d.decoder.Continue()
+	}
 }
 
 func (d *{{ .ArrayName }}Decoder) Reset() {
 	d.prevLen = 0
-	{{- if not .Recursive}}
-	d.decoder.Reset()
-	{{- end}}
+	if !d.isRecursive {
+		d.decoder.Reset()
+	}
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
@@ -434,11 +447,13 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 		}
 		dst.elems[i] = d.lastVal
 		{{- else}}
-		err = d.decoder.Decode({{if .ElemType.Flags.StoreByPtr}}&{{end}}d.lastValPtr)
+		if i > 0 {
+			copy{{.ElemType.TypeName}}(dst.elems[i], dst.elems[i-1])
+		}
+		err = d.decoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], d.lastValPtr)
 		{{- end}}
 	}
 
