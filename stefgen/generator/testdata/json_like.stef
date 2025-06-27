@@ -5,11 +5,11 @@ struct Record root {
 }
 
 oneof JsonValue {
-  Bool bool
-  Float float64
-  String string
-  Array []JsonValue
   Object JsonObject
+  Array []JsonValue
+  String string
+  Number float64
+  Bool bool
 }
 
 multimap JsonObject {
