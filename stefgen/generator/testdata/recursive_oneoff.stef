@@ -5,7 +5,7 @@ struct Root1 root {
 }
 
 oneof Rec1 {
-  Rec2 []Rec2 // This triggers bug https://github.com/splunk/stef/issues/93
+  Rec2 []Rec2
 }
 
 oneof Rec2 {
