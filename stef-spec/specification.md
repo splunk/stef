@@ -681,7 +681,107 @@ Array codec encodes the length of the array in delta encoding:
 - For subsequent array instance LengthDelta is the delta between this array's
   length and the array's length.
 
-The array elements are encoded one by one in the child column using element's codec.
+The array elements are encoded one by one in the child column using child element's codec.
+
+If the elements of the array are of non-primitive type then the following additional
+encoding rule is applied for child elements:
+- The first element of the array is encoded using the full encoding as if all the fields
+  of the non-primitive type are modified. The encoder for the child element will not try
+  to optimize and omit non-modified fields from the elements representation. All fields
+  are assumed modified. IMPORTANT: the state of the codecs used for child element is NOT
+  reset, the codec will continue to use their previous state to encode the first array
+  element.
+- Subsequent elements of the array are encoded using the usual differential encoding
+  applicable to the child element encoder, i.e. the array encoder will compare the
+  current element with the previous element and encode only fields that
+  are modified in the current element compared to the previous element.
+
+This approach allows implementing array codecs such that they don't need to remember the
+last encoded element. All information that is necessary for encoding/decoding is available
+in the array elements itself: since the first element is always fully encoded it does
+not require a last element to compare against and subsequent elements can be compared to
+the previous elements of the array, which are always available in the array itself.
+
+IMPORTANT: codecs for primitive types always maintain one state per field
+(per column). When such codecs are used for fields that are part of an array element
+(either directly as the element type or as a field of a non-primitive element type)
+the primitive type's codec is NOT impacted in any way by the fact that the rules for
+the first and subsequent elements of the array are different. In other words, the state
+of all codecs is maintained independently. No special state handling is required in any
+of the codecs based on state changes in any other codec even when these codecs are
+part of a complex, potentially recursive tree of codecs.
+
+Let's illustrate this with an example. Consider the following schema:
+
+```
+struct Root1 root {
+  Rec1 Rec1
+}
+
+struct Rec1 {
+  Rec2 []Rec2
+  Val int64
+}
+
+struct Rec2 {
+  Rec1 []Rec1
+  Val int64
+}
+```
+
+Now let's say we have the following root record to encode:
+
+```
+Root1 {
+  Rec1 = {
+    Rec2 = [
+      { // at index 0
+        Rec1 = [], 
+        Val = 5 // First ever Val, fully encoded. int64 encoder will output delta-of-delta=5.
+      },
+      { // at index 1
+        Rec1 = [ 
+          { // at index 0
+            Rec2 = [], 
+            Val = 5 // This Val is fully encoded even though the value is exactly the same
+                    // as the previous occurence of this field. This is because this Rec1
+                    // struct is the first element of its containing array.
+                    // Note that the usual delta-of-delta encoding of int64 field is still
+                    // applied to this field, so the output value is encoded as 0-5 = -5.
+          } 
+        ], 
+        Val = 5 // This Val is differential encoded, since it is in the second element,
+                // which means that the encoder will see that this value is exactly equual
+                // to the previous value of 5 and will skip this field as unmodified
+                // and no output value for this field will be written at all. 
+                // int64 encoder will not be called for this value.
+      },
+      { // at index 2
+        Rec1 = [ 
+          { // at index 0
+            Rec2 = [ 
+              {
+                Rec1 = [] 
+              } 
+            ], 
+            Val = 6 // First element of the array, fully encoded. int64 delta-of-delta
+                    // encoder will output 1-0 = 1.
+          }
+        ], 
+        Val = 6 // This Val is differential encoded, since it is in the third element,
+                // which means that the encoder will see that this value is different from
+                // the previous value of 5. The int64 delta encoder than will output 0-1 = -1.
+      }
+    ]
+    Val = 6
+  }
+}
+```
+
+Note in the above example nested arrays that are possible because of how the schema
+is defined using recursive types. For each of these arrays, including the inner arrays,
+the first element is fully encoded and the subsequent elements are differentially
+encoded compared to the previous element of their array.
 
 ### MultiMap Codec
 
