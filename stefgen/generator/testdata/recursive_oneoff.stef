@@ -1,0 +1,17 @@
+package com.example.recursive_array
+
+struct Root1 root {
+  Rec1 Rec1
+}
+
+oneof Rec1 {
+  Rec2 []Rec2 // This triggers bug https://github.com/splunk/stef/issues/93
+}
+
+oneof Rec2 {
+  Rec1 []Rec1
+}
+
+struct Root2 root {
+  Rec2 Rec2
+}

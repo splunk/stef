@@ -138,6 +138,50 @@ func (m* {{.MultimapName}}) markUnmodifiedRecursively() {
 	}
 }
 
+func (m* {{.MultimapName}}) markDiffModified(v *{{.MultimapName}}) (modified bool) {
+	if len(m.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(m.elems), len(v.elems))
+	for i:=0; i < minLen; i++ {
+		{{- if .Key.Type.IsPrimitive -}}
+		if !{{ .Key.Type.EqualFunc }}(m.elems[i].key, {{.Key.Type.ToStorage "v.elems[i].key"}}) {
+			modified = true
+		}
+		{{else}}
+		if m.elems[i].key.markDiffModified(v.elems[i].key) {
+			modified = true
+		}
+		{{- end}}
+
+		{{- if .Value.Type.IsPrimitive -}}
+		if !{{ .Value.Type.EqualFunc }}(m.elems[i].value, {{.Value.Type.ToStorage "v.elems[i].value"}}) {
+			modified = true
+		}
+		{{else}}
+		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
+			modified = true
+		}
+		{{- end}}
+	}
+
+	{{if or (not .Key.Type.IsPrimitive) (not .Value.Type.IsPrimitive) -}}
+	// Mark the rest of the elements as modified.
+	for i:=minLen; i<len(m.elems); i++ {
+		{{- if not .Key.Type.IsPrimitive -}}
+		m.elems[i].key.markModifiedRecursively()
+		{{- end}}
+		{{if not .Value.Type.IsPrimitive -}}
+		m.elems[i].value.markModifiedRecursively()
+		{{- end}}
+	}
+	{{end}}
+	return modified
+}
+
 {{if and (not .Key.Type.MustClone) (not .Value.Type.MustClone)}}
 func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exported}}) {
 	m.elems = append(m.elems, {{.MultimapName}}Elem{key: {{.Key.Type.ToStorage "k"}}, value: {{.Value.Type.ToStorage "v"}}})
@@ -339,10 +383,7 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 			e.isKeyRecursive = true
 		} else {
 			e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
-			//state.{{.Key.Type.EncoderType}}Encoder = e.keyEncoder // Store to detect recursion.
 			err = e.keyEncoder.Init(state, columns.AddSubColumn())
-			// Reset so that further fields of the same type get their own encoder.
-			//state.{{.Key.Type.EncoderType}}Encoder = nil
 		}
     {{- end}}
 	if err != nil {
@@ -358,10 +399,7 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 			e.isValueRecursive = true
 		} else {
 			e.valueEncoder = new({{.Value.Type.EncoderType}}Encoder)
-			//state.{{.Value.Type.EncoderType}}Encoder = e.valueEncoder // Store to detect recursion.
 			err = e.valueEncoder.Init(state, columns.AddSubColumn())
-			// Reset so that further fields of the same type get their own encoder.
-			//state.{{.Value.Type.EncoderType}}Encoder = nil
 		}
     {{- end}}
 	return err
@@ -542,6 +580,13 @@ type {{.MultimapName}}Decoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.{{ .MultimapName }}Decoder != nil {
+		panic("cannot initialize {{ .MultimapName }}Decoder: already initialized")
+	}
+	state.{{ .MultimapName }}Decoder = d
+	defer func() { state.{{ .MultimapName }}Decoder = nil }()
+
 	d.column = columns.Column()
 
 {{- if .Key.Type.IsPrimitive}}
@@ -554,10 +599,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 		d.isValueRecursive = true // Mark that we are using a recursive decoder.
 	} else {
 		d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
-		state.{{.Key.Type.EncoderType}}Decoder = d.keyDecoder // Store to detect recursion.
 		err = d.keyDecoder.Init(state, columns.AddSubColumn())
-		// Reset so that further fields of the same type get their own decoder.
-		state.{{.Key.Type.EncoderType}}Decoder = nil
 	}
 {{- end}}
 	if err != nil {
@@ -574,10 +616,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 		d.isValueRecursive = true // Mark that we are using a recursive decoder.
 	} else {
 		d.valueDecoder = new({{.Value.Type.EncoderType}}Decoder)
-	 	state.{{.Value.Type.EncoderType}}Decoder = d.valueDecoder // Store to detect recursion.
 		err = d.valueDecoder.Init(state, columns.AddSubColumn())
-		// Reset so that further fields of the same type get their own decoder.
-		state.{{.Value.Type.EncoderType}}Decoder = nil
 	}
 {{- end}}
 	return err

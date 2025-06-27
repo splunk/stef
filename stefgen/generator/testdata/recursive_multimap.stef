@@ -6,7 +6,7 @@ multimap RecMap {
 }
 
 struct Rec3 {
-  Maps RecMap // This triggers bug https://github.com/splunk/stef/issues/93
+  Maps RecMap
 }
 
 struct Root4 root {
