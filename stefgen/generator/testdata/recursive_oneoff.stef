@@ -10,6 +10,7 @@ oneof Rec1 {
 
 oneof Rec2 {
   Rec1 []Rec1
+  Val int64
 }
 
 struct Root2 root {
