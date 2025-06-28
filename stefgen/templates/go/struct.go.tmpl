@@ -159,7 +159,7 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
 func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified bool) {
 {{- range .Fields }}
     {{- if .Type.IsPrimitive}}
-    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}})
+    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage (print "v." .name)}})
         {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
         s.mark{{.Name}}Modified()
         {{- if .Optional}}

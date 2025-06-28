@@ -1,17 +1,17 @@
 package com.example.array_recurse_mutual
 
 struct Root1 root {
-  Rec1 Rec1
+  Struct1 Struct1
 }
 
-struct Rec1 {
-  Rec2 []Rec2 // This triggers bug https://github.com/splunk/stef/issues/93
+struct Struct1 {
+  Struct2 []Struct2 // This triggers bug https://github.com/splunk/stef/issues/93
 }
 
-struct Rec2 {
-  Rec1 []Rec1
+struct Struct2 {
+  Struct1 []Struct1
 }
 
 struct Root2 root {
-  Rec2 Rec2
+  Struct2 Struct2
 }

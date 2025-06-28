@@ -301,6 +301,10 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 	return true
 }
 
+func {{.MultimapName}}Equal(left, right *{{.MultimapName}}) bool {
+	return left.IsEqual(right)
+}
+
 func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
     l := min(len(left.elems), len(right.elems))
     for i := 0; i < l; i++ {

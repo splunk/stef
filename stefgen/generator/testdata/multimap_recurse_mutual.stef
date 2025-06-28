@@ -2,13 +2,13 @@ package com.example.multimap_recurse_mutual
 
 multimap RecMap {
   key string
-  value Rec3
+  value RecStruct
 }
 
-struct Rec3 {
+struct RecStruct {
   Maps RecMap
 }
 
-struct Root4 root {
-  Rec3 Rec3
+struct Root root {
+  RecStruct RecStruct
 }

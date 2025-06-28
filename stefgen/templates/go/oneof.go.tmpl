@@ -178,7 +178,7 @@ func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified b
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
     {{- if .Type.IsPrimitive}}
-        if !{{ .Type.EqualFunc }}(s.{{.name}}, v.{{.name}}) {
+        if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage (print "v." .name)}}) {
             s.markParentModified()
             modified = true
         }

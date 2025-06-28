@@ -1,0 +1,10 @@
+package com.example.array_recurse_self
+
+struct Root1 root {
+  Struct Struct
+}
+
+struct Struct {
+  Val int64
+  Struct []Struct
+}
