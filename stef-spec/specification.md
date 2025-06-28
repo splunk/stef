@@ -675,6 +675,8 @@ Array {
 }
 ```
 
+THE FOLLOWING SECTION IS WRONG!!!
+
 Array codec encodes the length of the array in delta encoding:
 - If this is the first array instance since encoder was started LengthDelta is 
   equal to the length of the array.

@@ -429,6 +429,8 @@ func (e *{{ .MultimapName }}Encoder) Reset() {
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
 	}
+	e.lastValStack = make([]{{ .MultimapName }}LastValElem, 1)
+	e.lastValStack[0].init()
 }
 
 {{/*// IsEqual performs deep comparison and returns true if encoder's previously encoded*/}}
@@ -671,6 +673,7 @@ func (d *{{ .MultimapName }}Decoder) Reset() {
 	if !d.isValueRecursive {
 		d.valueDecoder.Reset()
 	}
+	d.lastValStack = make([]{{ .MultimapName }}, 1)
 }
 
 func (d *{{ .MultimapName }}Decoder) Decode(dst *{{.MultimapName}}) error {

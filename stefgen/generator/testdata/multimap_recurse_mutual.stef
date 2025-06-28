@@ -1,4 +1,4 @@
-package com.example.recursive_multimap
+package com.example.multimap_recurse_mutual
 
 multimap RecMap {
   key string

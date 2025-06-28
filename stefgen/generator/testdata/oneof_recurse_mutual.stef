@@ -1,4 +1,4 @@
-package com.example.recursive_array
+package com.example.oneof_recurse_mutual
 
 struct Root1 root {
   Rec1 Rec1
