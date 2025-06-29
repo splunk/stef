@@ -283,10 +283,15 @@ type {{ .ArrayName }}Encoder struct {
     isRecursive bool
 	state* WriterState
 
+	{{- if .ElemType.IsPrimitive}}
+	prevLen int
+	{{- else}}
 	// lastValStack are last encoded values stacked by the level of recursion.
 	lastValStack {{ .ArrayName }}EncoderLastValStack
+	{{- end}}
 }
 
+{{- if not .ElemType.IsPrimitive}}
 type {{ .ArrayName }}EncoderLastValStack []*{{ .ArrayName }}EncoderLastValElem
 
 func (s* {{ .ArrayName }}EncoderLastValStack) init() {
@@ -346,8 +351,18 @@ func (e *{{ .ArrayName }}EncoderLastValElem) reset() {
 	e.elem = {{.ElemType.Storage}}{}
 	e.prevLen = 0
 }
+{{- end}}
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
+	e.state = state
+	e.limiter = &state.limiter
+
+	{{ if .ElemType.IsPrimitive -}}
+	e.elemEncoder = new({{.ElemType.EncoderType}}Encoder)
+	if err := e.elemEncoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
+		return err
+	}
+	{{- else -}}
 	// Remember this encoder in the state so that we can detect recursion.
 	if state.{{ .ArrayName }}Encoder != nil {
 		panic("cannot initialize {{ .ArrayName }}Encoder: already initialized")
@@ -355,14 +370,6 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 	state.{{ .ArrayName }}Encoder = e
 	defer func() { state.{{ .ArrayName }}Encoder = nil }()
 
-	e.state = state
-	e.limiter = &state.limiter
-
-	{{ if .ElemType.IsPrimitive -}}
-	if err := e.elemEncoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
-		return err
-	}
-	{{- else -}}
 	if state.{{.ElemType.EncoderType}}Encoder != nil {
 		// Recursion detected, use the existing encoder.
 		e.elemEncoder = state.{{.ElemType.EncoderType}}Encoder
@@ -373,9 +380,8 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 			return err
 		}
 	}
-	{{- end}}
-
 	e.lastValStack.init()
+	{{- end}}
 
 	return nil
 }
@@ -384,19 +390,31 @@ func (e *{{ .ArrayName }}Encoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
+	{{if .ElemType.IsPrimitive -}}
+	e.prevLen = 0
+	{{- else}}
 	e.lastValStack.reset()
+	{{- end}}
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
+	{{- if not .ElemType.IsPrimitive -}}
 	lastVal := e.lastValStack.top()
 	e.lastValStack.addOnTop()
 	defer func() { e.lastValStack.removeFromTop() }()
+	{{- end}}
 
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
+	{{if .ElemType.IsPrimitive -}}
+	lenDelta := newLen - e.prevLen
+	e.prevLen = newLen
+	{{- else}}
 	lenDelta := newLen - lastVal.prevLen
 	lastVal.prevLen = newLen
+	{{- end}}
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
 	if newLen > 0 {
@@ -417,8 +435,10 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 			{{- end}}
 		}
 
+		{{- if not .ElemType.IsPrimitive}}
 		// Remember last encoded element.
 		copy{{.ElemType.TypeName}}(&lastVal.elem, arr.elems[len(arr.elems)-1])
+		{{- end}}
 	}
 
 	// Account written bits in the limiter.
@@ -439,10 +459,15 @@ type {{ .ArrayName }}Decoder struct {
 	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
 
+	{{- if .ElemType.IsPrimitive}}
+	prevLen int
+	{{- else}}
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack {{ .ArrayName }}DecoderLastValStack
+	{{- end}}
 }
 
+{{- if not .ElemType.IsPrimitive}}
 type {{ .ArrayName }}DecoderLastValStack []*{{ .ArrayName }}DecoderLastValElem
 
 func (s* {{ .ArrayName }}DecoderLastValStack) init() {
@@ -504,19 +529,14 @@ func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
 	e.elem = {{.ElemType.Storage}}{}
 	{{end}}
 }
+{{- end}}
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
-	// Remember this encoder in the state so that we can detect recursion.
-	if state.{{ .ArrayName }}Decoder != nil {
-		panic("cannot initialize {{ .ArrayName }}Decoder: already initialized")
-	}
-	state.{{ .ArrayName }}Decoder = d
-	defer func() { state.{{ .ArrayName }}Decoder = nil }()
-
 	d.column = columns.Column()
 
 {{- if .ElemType.IsPrimitive}}
+	d.elemDecoder = new({{.ElemType.EncoderType}}Decoder)
 {{- if .ElemType.DictName}}
 	err := d.elemDecoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
 {{- else if .ElemType.IsDictPossible}}
@@ -528,6 +548,13 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 		return err
 	}
 {{- else}}
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.{{ .ArrayName }}Decoder != nil {
+		panic("cannot initialize {{ .ArrayName }}Decoder: already initialized")
+	}
+	state.{{ .ArrayName }}Decoder = d
+	defer func() { state.{{ .ArrayName }}Decoder = nil }()
+
 	if state.{{.ElemType.EncoderType}}Decoder != nil {
 		d.elemDecoder = state.{{.ElemType.EncoderType}}Decoder
 		d.isRecursive = true
@@ -537,9 +564,8 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 			return err
 		}
 	}
-{{- end}}
-
 	d.lastValStack.init()
+{{- end}}
 
 	return nil
 }
@@ -560,24 +586,34 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
+	{{if .ElemType.IsPrimitive -}}
+	d.prevLen = 0
+	{{- else -}}
 	d.lastValStack.reset()
+	{{- end}}
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
+	{{- if not .ElemType.IsPrimitive -}}
 	lastVal := d.lastValStack.top()
 	d.lastValStack.addOnTop()
 	defer func() { d.lastValStack.removeFromTop() }()
+	{{- end}}
 
 	lenDelta, err := d.buf.ReadVarintCompact()
 	if err != nil {
 		return err
 	}
 
+	{{if .ElemType.IsPrimitive -}}
+	newLen := d.prevLen + int(lenDelta)
+	d.prevLen = newLen
+	{{- else}}
 	newLen := lastVal.prevLen + int(lenDelta)
+	lastVal.prevLen = newLen
+	{{- end}}
 
 	dst.EnsureLen(newLen)
-
-	lastVal.prevLen = newLen
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}

@@ -1,0 +1,5 @@
+package com.example.array_int64
+
+struct Root1 root {
+  Vals []int64
+}
