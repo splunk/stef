@@ -58,7 +58,7 @@ func Test{{.StructName}}WriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
-	seed1 = 1751170925305325000
+	//seed1 = 1751170925305325000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
 	for j, opt := range opts {

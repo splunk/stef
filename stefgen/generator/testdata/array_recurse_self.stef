@@ -1,6 +1,6 @@
 package com.example.array_recurse_self
 
-struct Root1 root {
+struct Root root {
   Struct Struct
 }
 
