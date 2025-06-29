@@ -279,11 +279,11 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
 type {{ .ArrayName }}Encoder struct {
     buf pkg.BitsWriter
 	limiter *pkg.SizeLimiter
-	encoder *{{.ElemType.EncoderType}}Encoder
+	elemEncoder *{{.ElemType.EncoderType}}Encoder
     isRecursive bool
-	//prevLen int
 	state* WriterState
 
+	// lastValStack are last encoded values stacked by the level of recursion.
 	lastValStack {{ .ArrayName }}EncoderLastValStack
 }
 
@@ -359,17 +359,17 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 	e.limiter = &state.limiter
 
 	{{ if .ElemType.IsPrimitive -}}
-	if err := e.encoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
+	if err := e.elemEncoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
 		return err
 	}
 	{{- else -}}
 	if state.{{.ElemType.EncoderType}}Encoder != nil {
 		// Recursion detected, use the existing encoder.
-		e.encoder = state.{{.ElemType.EncoderType}}Encoder
+		e.elemEncoder = state.{{.ElemType.EncoderType}}Encoder
 		e.isRecursive = true
 	} else {
-		e.encoder = new({{.ElemType.EncoderType}}Encoder)
-		if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
+		e.elemEncoder = new({{.ElemType.EncoderType}}Encoder)
+		if err := e.elemEncoder.Init(state, columns.AddSubColumn()); err != nil {
 			return err
 		}
 	}
@@ -382,7 +382,7 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 
 func (e *{{ .ArrayName }}Encoder) Reset() {
 	if !e.isRecursive {
-		e.encoder.Reset()
+		e.elemEncoder.Reset()
 	}
 	e.lastValStack.reset()
 }
@@ -402,7 +402,7 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 	if newLen > 0 {
 		for i := 0; i < newLen; i++ {
 			{{- if .ElemType.IsPrimitive}}
-			e.encoder.Encode(arr.elems[i])
+			e.elemEncoder.Encode(arr.elems[i])
 			{{- else}}
 			if i == 0 {
 				// Compute and mark fields that are modified compared to the last encoded value.
@@ -413,7 +413,7 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 			}
 
 			// Encode the element.
-			e.encoder.Encode(arr.elems[i])
+			e.elemEncoder.Encode(arr.elems[i])
 			{{- end}}
 		}
 
@@ -429,15 +429,17 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 func (e *{{ .ArrayName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	if !e.isRecursive {
-		e.encoder.CollectColumns(columnSet.At(0))
+		e.elemEncoder.CollectColumns(columnSet.At(0))
 	}
 }
 
 type {{ .ArrayName }}Decoder struct {
     buf pkg.BitsReader
 	column *pkg.ReadableColumn
-	decoder *{{.ElemType.EncoderType}}Decoder
+	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack {{ .ArrayName }}DecoderLastValStack
 }
 
@@ -516,22 +518,22 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 
 {{- if .ElemType.IsPrimitive}}
 {{- if .ElemType.DictName}}
-	err := d.decoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
+	err := d.elemDecoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
 {{- else if .ElemType.IsDictPossible}}
-	err := d.decoder.Init(nil, columns.AddSubColumn())
+	err := d.elemDecoder.Init(nil, columns.AddSubColumn())
 {{- else}}
-	err := d.decoder.Init(columns.AddSubColumn())
+	err := d.elemDecoder.Init(columns.AddSubColumn())
 {{- end}}
 	if err != nil {
 		return err
 	}
 {{- else}}
 	if state.{{.ElemType.EncoderType}}Decoder != nil {
-		d.decoder = state.{{.ElemType.EncoderType}}Decoder
+		d.elemDecoder = state.{{.ElemType.EncoderType}}Decoder
 		d.isRecursive = true
 	} else {
-		d.decoder = new({{.ElemType.EncoderType}}Decoder)
-		if err := d.decoder.Init(state, columns.AddSubColumn()); err != nil {
+		d.elemDecoder = new({{.ElemType.EncoderType}}Decoder)
+		if err := d.elemDecoder.Init(state, columns.AddSubColumn()); err != nil {
 			return err
 		}
 	}
@@ -550,13 +552,13 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 func (d *{{ .ArrayName }}Decoder) Continue() {
 	d.buf.Reset(d.column.Data())
 	if !d.isRecursive {
-		d.decoder.Continue()
+		d.elemDecoder.Continue()
 	}
 }
 
 func (d *{{ .ArrayName }}Decoder) Reset() {
 	if !d.isRecursive {
-		d.decoder.Reset()
+		d.elemDecoder.Reset()
 	}
 	d.lastValStack.reset()
 }
@@ -579,12 +581,12 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
-		err = d.decoder.Decode(&dst.elems[i])
+		err = d.elemDecoder.Decode(&dst.elems[i])
 		if err != nil {
 			return err
 		}
 		{{- else}}
-		err = d.decoder.Decode(&lastVal.elem)
+		err = d.elemDecoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
