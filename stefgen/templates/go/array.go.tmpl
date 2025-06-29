@@ -284,7 +284,52 @@ type {{ .ArrayName }}Encoder struct {
 	//prevLen int
 	state* WriterState
 
-	lastValStack []*{{ .ArrayName }}EncoderLastValElem
+	lastValStack {{ .ArrayName }}EncoderLastValStack
+}
+
+type {{ .ArrayName }}EncoderLastValStack []*{{ .ArrayName }}EncoderLastValElem
+
+func (s* {{ .ArrayName }}EncoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i:=0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) top() *{{ .ArrayName }}EncoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) addOnTopSlow() {
+	elem := &{{ .ArrayName }}EncoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i:=len(*s); i< len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &{{ .ArrayName }}EncoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s* {{ .ArrayName }}EncoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
 }
 
 type {{ .ArrayName }}EncoderLastValElem struct {
@@ -295,6 +340,11 @@ type {{ .ArrayName }}EncoderLastValElem struct {
 
 func (e *{{ .ArrayName }}EncoderLastValElem) init() {
 	e.elem.init(&e.modifiedFields, 1)
+}
+
+func (e *{{ .ArrayName }}EncoderLastValElem) reset() {
+	e.elem = {{.ElemType.Storage}}{}
+	e.prevLen = 0
 }
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
@@ -325,8 +375,7 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 	}
 	{{- end}}
 
-	e.lastValStack = []*{{ .ArrayName }}EncoderLastValElem{ &{{ .ArrayName }}EncoderLastValElem{} }
-	e.lastValStack[0].init()
+	e.lastValStack.init()
 
 	return nil
 }
@@ -335,15 +384,13 @@ func (e *{{ .ArrayName }}Encoder) Reset() {
 	if !e.isRecursive {
 		e.encoder.Reset()
 	}
-	e.lastValStack = []*{{ .ArrayName }}EncoderLastValElem{ &{{ .ArrayName }}EncoderLastValElem{} } // AVOID ALLOCATION!!!
-	e.lastValStack[0].init()
+	e.lastValStack.reset()
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
-	e.lastValStack = append(e.lastValStack, &{{ .ArrayName }}EncoderLastValElem{}) AVOID ALLOCATION!!!
-	defer func() { e.lastValStack = e.lastValStack[:len(e.lastValStack)-1] }()
-	e.lastValStack[len(e.lastValStack)-1].init()
-	lastVal := e.lastValStack[len(e.lastValStack)-1]
+	lastVal := e.lastValStack.top()
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
 
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
@@ -391,7 +438,52 @@ type {{ .ArrayName }}Decoder struct {
 	column *pkg.ReadableColumn
 	decoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
-	lastValStack []*{{ .ArrayName }}DecoderLastValElem
+	lastValStack {{ .ArrayName }}DecoderLastValStack
+}
+
+type {{ .ArrayName }}DecoderLastValStack []*{{ .ArrayName }}DecoderLastValElem
+
+func (s* {{ .ArrayName }}DecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i:=0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) top() *{{ .ArrayName }}DecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) addOnTopSlow() {
+	elem := &{{ .ArrayName }}DecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i:=len(*s); i< len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &{{ .ArrayName }}DecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
 }
 
 type {{ .ArrayName }}DecoderLastValElem struct {
@@ -400,6 +492,15 @@ type {{ .ArrayName }}DecoderLastValElem struct {
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) init() {
+}
+
+func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
+	e.prevLen = 0
+	{{if .ElemType.Flags.StoreByPtr}}
+	e.elem = nil
+	{{else}}
+	e.elem = {{.ElemType.Storage}}{}
+	{{end}}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -434,11 +535,9 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 			return err
 		}
 	}
-	//d.lastVal.init(nil,0)
 {{- end}}
 
-	d.lastValStack = []*{{ .ArrayName }}DecoderLastValElem{ &{{ .ArrayName }}DecoderLastValElem{} }
-	d.lastValStack[0].init()
+	d.lastValStack.init()
 
 	return nil
 }
@@ -459,15 +558,13 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 	if !d.isRecursive {
 		d.decoder.Reset()
 	}
-	d.lastValStack = []*{{ .ArrayName }}DecoderLastValElem{ &{{ .ArrayName }}DecoderLastValElem{} } // AVOID ALLOCATION!!!
-	d.lastValStack[0].init()
+	d.lastValStack.reset()
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
-	d.lastValStack = append(d.lastValStack, &{{ .ArrayName }}DecoderLastValElem{}) // AVOID ALLOCATION!!!
-	d.lastValStack[len(d.lastValStack)-1].init()
-	defer func() { d.lastValStack = d.lastValStack[:len(d.lastValStack)-1] }()
-	lastVal := d.lastValStack[len(d.lastValStack)-1]
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 
 	lenDelta, err := d.buf.ReadVarintCompact()
 	if err != nil {
