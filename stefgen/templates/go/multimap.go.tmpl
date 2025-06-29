@@ -446,10 +446,10 @@ func (e *{{ .MultimapName }}Encoder) Reset() {
 func (e *{{ .MultimapName }}Encoder) Encode(list *{{ .MultimapName }}) (changed bool) {
 	oldLen := len(e.buf.Bytes())
 
-	lastVal := &e.lastValStack[len(e.lastValStack)-1].val
 	e.lastValStack = append(e.lastValStack, {{ .MultimapName }}LastValElem{})
 	defer func() { e.lastValStack = e.lastValStack[:len(e.lastValStack)-1] }()
 	e.lastValStack[len(e.lastValStack)-1].init()
+	lastVal := &e.lastValStack[len(e.lastValStack)-1].val
 
 	if len(list.elems) == 0 {
 		// Zero-length attr list.
@@ -681,9 +681,9 @@ func (d *{{ .MultimapName }}Decoder) Reset() {
 }
 
 func (d *{{ .MultimapName }}Decoder) Decode(dst *{{.MultimapName}}) error {
-	lastVal := &d.lastValStack[len(d.lastValStack)-1]
 	d.lastValStack = append(d.lastValStack, {{ .MultimapName }}{})
 	defer func() { d.lastValStack = d.lastValStack[:len(d.lastValStack)-1] }()
+	lastVal := &d.lastValStack[len(d.lastValStack)-1]
 
 	countOrChangedValues, err := d.buf.ReadUvarint()
 	if err != nil {

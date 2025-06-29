@@ -163,7 +163,7 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 			// Point to the allocated element.
 			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+			copy{{.ElemType.TypeName}}(dst.elems[i+j], src.elems[i+j])
 			isModified = true
 		}
 	}
@@ -284,7 +284,7 @@ type {{ .ArrayName }}Encoder struct {
 	//prevLen int
 	state* WriterState
 
-	lastValStack []{{ .ArrayName }}EncoderLastValElem
+	lastValStack []*{{ .ArrayName }}EncoderLastValElem
 }
 
 type {{ .ArrayName }}EncoderLastValElem struct {
@@ -325,7 +325,7 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 	}
 	{{- end}}
 
-	e.lastValStack = make([]{{ .ArrayName }}EncoderLastValElem, 1)
+	e.lastValStack = []*{{ .ArrayName }}EncoderLastValElem{ &{{ .ArrayName }}EncoderLastValElem{} }
 	e.lastValStack[0].init()
 
 	return nil
@@ -335,15 +335,15 @@ func (e *{{ .ArrayName }}Encoder) Reset() {
 	if !e.isRecursive {
 		e.encoder.Reset()
 	}
-	e.lastValStack = make([]{{ .ArrayName }}EncoderLastValElem, 1)
+	e.lastValStack = []*{{ .ArrayName }}EncoderLastValElem{ &{{ .ArrayName }}EncoderLastValElem{} } // AVOID ALLOCATION!!!
 	e.lastValStack[0].init()
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
-	lastVal := &e.lastValStack[len(e.lastValStack)-1]
-	e.lastValStack = append(e.lastValStack, {{ .ArrayName }}EncoderLastValElem{})
+	e.lastValStack = append(e.lastValStack, &{{ .ArrayName }}EncoderLastValElem{}) AVOID ALLOCATION!!!
 	defer func() { e.lastValStack = e.lastValStack[:len(e.lastValStack)-1] }()
 	e.lastValStack[len(e.lastValStack)-1].init()
+	lastVal := e.lastValStack[len(e.lastValStack)-1]
 
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
@@ -391,21 +391,15 @@ type {{ .ArrayName }}Decoder struct {
 	column *pkg.ReadableColumn
 	decoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
-	//prevLen int
-	lastValStack []{{ .ArrayName }}DecoderLastValElem
-	//lastValPtr *{{.ElemType.Storage}}
+	lastValStack []*{{ .ArrayName }}DecoderLastValElem
 }
 
 type {{ .ArrayName }}DecoderLastValElem struct {
 	prevLen int
-	elem {{.ElemType.Storage}}
-	elemPtr *{{.ElemType.Storage}}
-	//modifiedFields modifiedFields
+	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) init() {
-	//e.elem.init(&e.modifiedFields, 1)
-	e.elemPtr = &e.elem
 }
 
 // Init is called once in the lifetime of the stream.
@@ -443,7 +437,7 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 	//d.lastVal.init(nil,0)
 {{- end}}
 
-	d.lastValStack = make([]{{ .ArrayName }}DecoderLastValElem, 1)
+	d.lastValStack = []*{{ .ArrayName }}DecoderLastValElem{ &{{ .ArrayName }}DecoderLastValElem{} }
 	d.lastValStack[0].init()
 
 	return nil
@@ -465,15 +459,15 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 	if !d.isRecursive {
 		d.decoder.Reset()
 	}
-	d.lastValStack = make([]{{ .ArrayName }}DecoderLastValElem, 1)
+	d.lastValStack = []*{{ .ArrayName }}DecoderLastValElem{ &{{ .ArrayName }}DecoderLastValElem{} } // AVOID ALLOCATION!!!
 	d.lastValStack[0].init()
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
-	lastVal := &d.lastValStack[len(d.lastValStack)-1]
-	d.lastValStack = append(d.lastValStack, {{ .ArrayName }}DecoderLastValElem{})
+	d.lastValStack = append(d.lastValStack, &{{ .ArrayName }}DecoderLastValElem{}) // AVOID ALLOCATION!!!
 	d.lastValStack[len(d.lastValStack)-1].init()
 	defer func() { d.lastValStack = d.lastValStack[:len(d.lastValStack)-1] }()
+	lastVal := d.lastValStack[len(d.lastValStack)-1]
 
 	lenDelta, err := d.buf.ReadVarintCompact()
 	if err != nil {
@@ -493,11 +487,11 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 			return err
 		}
 		{{- else}}
-		err = d.decoder.Decode({{if .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elemPtr)
+		err = d.decoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], lastVal.elemPtr)
+		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
 		{{- end}}
 	}
 
