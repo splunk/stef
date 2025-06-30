@@ -251,8 +251,52 @@ type AttributesEncoder struct {
 	isKeyRecursive   bool
 	valueEncoder     *AnyValueEncoder
 	isValueRecursive bool
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack AttributesLastValStack
+}
+type AttributesLastValStack []*AttributesLastValElem
 
-	lastValStack []AttributesLastValElem
+func (s *AttributesLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *AttributesLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *AttributesLastValStack) top() *AttributesLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *AttributesLastValStack) addOnTopSlow() {
+	elem := &AttributesLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &AttributesLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *AttributesLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *AttributesLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
 }
 
 type AttributesLastValElem struct {
@@ -264,6 +308,10 @@ func (e *AttributesLastValElem) init() {
 	e.val.init(&e.modifiedFields, 1)
 }
 
+func (e *AttributesLastValElem) reset() {
+	e.val = Attributes{}
+}
+
 func (e *AttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
 	// Remember this encoder in the state so that we can detect recursion.
 	if state.AttributesEncoder != nil {
@@ -273,6 +321,7 @@ func (e *AttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	defer func() { state.AttributesEncoder = nil }()
 
 	e.limiter = &state.limiter
+
 	var err error
 	e.keyEncoder = new(encoders.StringEncoder)
 	err = e.keyEncoder.Init(&state.AttributeKey, e.limiter, columns.AddSubColumn())
@@ -287,8 +336,7 @@ func (e *AttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 		e.valueEncoder = new(AnyValueEncoder)
 		err = e.valueEncoder.Init(state, columns.AddSubColumn())
 	}
-	e.lastValStack = make([]AttributesLastValElem, 1)
-	e.lastValStack[0].init()
+	e.lastValStack.init()
 
 	return err
 }
@@ -300,17 +348,14 @@ func (e *AttributesEncoder) Reset() {
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
 	}
-	e.lastValStack = make([]AttributesLastValElem, 1)
-	e.lastValStack[0].init()
+	e.lastValStack.reset()
 }
 
 func (e *AttributesEncoder) Encode(list *Attributes) (changed bool) {
 	oldLen := len(e.buf.Bytes())
-
-	e.lastValStack = append(e.lastValStack, AttributesLastValElem{})
-	defer func() { e.lastValStack = e.lastValStack[:len(e.lastValStack)-1] }()
-	e.lastValStack[len(e.lastValStack)-1].init()
-	lastVal := &e.lastValStack[len(e.lastValStack)-1].val
+	lastVal := &e.lastValStack.top().val
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
 
 	if len(list.elems) == 0 {
 		// Zero-length attr list.
@@ -435,8 +480,8 @@ type AttributesDecoder struct {
 	isKeyRecursive   bool
 	valueDecoder     *AnyValueDecoder
 	isValueRecursive bool
-
-	lastValStack []Attributes
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack AttributesLastValStack
 }
 
 // Init is called once in the lifetime of the stream.
@@ -464,8 +509,7 @@ func (d *AttributesDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 		d.valueDecoder = new(AnyValueDecoder)
 		err = d.valueDecoder.Init(state, columns.AddSubColumn())
 	}
-
-	d.lastValStack = make([]Attributes, 1)
+	d.lastValStack.init()
 
 	return err
 }
@@ -492,13 +536,13 @@ func (d *AttributesDecoder) Reset() {
 	if !d.isValueRecursive {
 		d.valueDecoder.Reset()
 	}
-	d.lastValStack = make([]Attributes, 1)
+	d.lastValStack.reset()
 }
 
 func (d *AttributesDecoder) Decode(dst *Attributes) error {
-	d.lastValStack = append(d.lastValStack, Attributes{})
-	defer func() { d.lastValStack = d.lastValStack[:len(d.lastValStack)-1] }()
-	lastVal := &d.lastValStack[len(d.lastValStack)-1]
+	lastVal := &d.lastValStack.top().val
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 
 	countOrChangedValues, err := d.buf.ReadUvarint()
 	if err != nil {
