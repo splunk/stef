@@ -28,7 +28,7 @@ type ReaderState struct {
 	SpanEventName     encoders.StringDecoderDict
 	SpanName          encoders.StringDecoderDict
 
-	// Decoders
+	// Decoders that are being Init-ed, to detect recursion.
 	AnyValueDecoder            *AnyValueDecoder
 	AnyValueArrayDecoder       *AnyValueArrayDecoder
 	AttributesDecoder          *AttributesDecoder

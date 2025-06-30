@@ -62,6 +62,14 @@ func (s *Envelope) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0
 }
 
+func (s *Envelope) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedEnvelopeAttributes | 0
+}
+
 func (s *Envelope) markUnmodifiedRecursively() {
 
 	if s.IsAttributesModified() {
@@ -69,6 +77,17 @@ func (s *Envelope) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Envelope) markDiffModified(v *Envelope) (modified bool) {
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedEnvelopeAttributes)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Envelope) Clone() Envelope {
@@ -162,7 +181,13 @@ type EnvelopeEncoder struct {
 }
 
 func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.EnvelopeEncoder != nil {
+		panic("cannot initialize EnvelopeEncoder: already initialized")
+	}
 	state.EnvelopeEncoder = e
+	defer func() { state.EnvelopeEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -259,7 +284,12 @@ type EnvelopeDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.EnvelopeDecoder != nil {
+		panic("cannot initialize EnvelopeDecoder: already initialized")
+	}
 	state.EnvelopeDecoder = d
+	defer func() { state.EnvelopeDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Envelope")

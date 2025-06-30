@@ -153,6 +153,17 @@ func (s *PointValue) markUnmodified() {
 	s.expHistogram.markUnmodified()
 }
 
+func (s *PointValue) markModifiedRecursively() {
+	switch s.typ {
+	case PointValueTypeInt64:
+	case PointValueTypeFloat64:
+	case PointValueTypeHistogram:
+		s.histogram.markModifiedRecursively()
+	case PointValueTypeExpHistogram:
+		s.expHistogram.markModifiedRecursively()
+	}
+}
+
 func (s *PointValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case PointValueTypeInt64:
@@ -162,6 +173,40 @@ func (s *PointValue) markUnmodifiedRecursively() {
 	case PointValueTypeExpHistogram:
 		s.expHistogram.markUnmodifiedRecursively()
 	}
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *PointValue) markDiffModified(v *PointValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case PointValueTypeInt64:
+		if !pkg.Int64Equal(s.int64, v.int64) {
+			s.markParentModified()
+			modified = true
+		}
+	case PointValueTypeFloat64:
+		if !pkg.Float64Equal(s.float64, v.float64) {
+			s.markParentModified()
+			modified = true
+		}
+	case PointValueTypeHistogram:
+		if s.histogram.markDiffModified(&v.histogram) {
+			s.markParentModified()
+			modified = true
+		}
+	case PointValueTypeExpHistogram:
+		if s.expHistogram.markDiffModified(&v.expHistogram) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -278,7 +323,13 @@ type PointValueEncoder struct {
 }
 
 func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.PointValueEncoder != nil {
+		panic("cannot initialize PointValueEncoder: already initialized")
+	}
 	state.PointValueEncoder = e
+	defer func() { state.PointValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -411,7 +462,12 @@ type PointValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.PointValueDecoder != nil {
+		panic("cannot initialize PointValueDecoder: already initialized")
+	}
 	state.PointValueDecoder = d
+	defer func() { state.PointValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("PointValue")

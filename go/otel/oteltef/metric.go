@@ -235,6 +235,23 @@ func (s *Metric) IsMonotonicModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricMonotonic != 0
 }
 
+func (s *Metric) markModifiedRecursively() {
+
+	s.metadata.markModifiedRecursively()
+
+	s.histogramBounds.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedMetricName |
+			fieldModifiedMetricDescription |
+			fieldModifiedMetricUnit |
+			fieldModifiedMetricType |
+			fieldModifiedMetricMetadata |
+			fieldModifiedMetricHistogramBounds |
+			fieldModifiedMetricAggregationTemporality |
+			fieldModifiedMetricMonotonic | 0
+}
+
 func (s *Metric) markUnmodifiedRecursively() {
 
 	if s.IsNameModified() {
@@ -264,6 +281,52 @@ func (s *Metric) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Metric) markDiffModified(v *Metric) (modified bool) {
+	if !pkg.StringEqual(s.name, v.name) {
+		s.markNameModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.description, v.description) {
+		s.markDescriptionModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.unit, v.unit) {
+		s.markUnitModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.type_, uint64(v.type_)) {
+		s.markTypeModified()
+		modified = true
+	}
+
+	if s.metadata.markDiffModified(&v.metadata) {
+		s.modifiedFields.markModified(fieldModifiedMetricMetadata)
+		modified = true
+	}
+
+	if s.histogramBounds.markDiffModified(&v.histogramBounds) {
+		s.modifiedFields.markModified(fieldModifiedMetricHistogramBounds)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.aggregationTemporality, v.aggregationTemporality) {
+		s.markAggregationTemporalityModified()
+		modified = true
+	}
+
+	if !pkg.BoolEqual(s.monotonic, v.monotonic) {
+		s.markMonotonicModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Metric) Clone() *Metric {
@@ -466,7 +529,13 @@ func (d *MetricEncoderDict) Reset() {
 }
 
 func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.MetricEncoder != nil {
+		panic("cannot initialize MetricEncoder: already initialized")
+	}
 	state.MetricEncoder = e
+	defer func() { state.MetricEncoder = nil }()
+
 	e.limiter = &state.limiter
 	e.dict = &state.Metric
 
@@ -720,7 +789,12 @@ type MetricDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.MetricDecoder != nil {
+		panic("cannot initialize MetricDecoder: already initialized")
+	}
 	state.MetricDecoder = d
+	defer func() { state.MetricDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Metric")

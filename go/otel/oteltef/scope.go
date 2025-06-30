@@ -168,6 +168,18 @@ func (s *Scope) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0
 }
 
+func (s *Scope) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedScopeName |
+			fieldModifiedScopeVersion |
+			fieldModifiedScopeSchemaURL |
+			fieldModifiedScopeAttributes |
+			fieldModifiedScopeDroppedAttributesCount | 0
+}
+
 func (s *Scope) markUnmodifiedRecursively() {
 
 	if s.IsNameModified() {
@@ -187,6 +199,37 @@ func (s *Scope) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Scope) markDiffModified(v *Scope) (modified bool) {
+	if !pkg.StringEqual(s.name, v.name) {
+		s.markNameModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.version, v.version) {
+		s.markVersionModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.schemaURL, v.schemaURL) {
+		s.markSchemaURLModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedScopeAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Scope) Clone() *Scope {
@@ -352,7 +395,13 @@ func (d *ScopeEncoderDict) Reset() {
 }
 
 func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ScopeEncoder != nil {
+		panic("cannot initialize ScopeEncoder: already initialized")
+	}
 	state.ScopeEncoder = e
+	defer func() { state.ScopeEncoder = nil }()
+
 	e.limiter = &state.limiter
 	e.dict = &state.Scope
 
@@ -552,7 +601,12 @@ type ScopeDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ScopeDecoder != nil {
+		panic("cannot initialize ScopeDecoder: already initialized")
+	}
 	state.ScopeDecoder = d
+	defer func() { state.ScopeDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Scope")

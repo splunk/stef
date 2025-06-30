@@ -59,9 +59,10 @@ func TestSpansWriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
+	//seed1 = 1751170925305325000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
-	for _, opt := range opts {
+	for j, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
 				buf := &pkg.MemChunkWriter{}
@@ -72,6 +73,10 @@ func TestSpansWriteRead(t *testing.T) {
 				records := genSpansRecords(random)
 				// Write the records
 				for i := 0; i < len(records); i++ {
+					if j == 6 && i == 650 {
+						_ = i
+					}
+
 					writer.Record.CopyFrom(&records[i])
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
@@ -84,6 +89,9 @@ func TestSpansWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
+					if j == 6 && i == 650 {
+						_ = i
+					}
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)

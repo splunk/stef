@@ -109,6 +109,23 @@ func (s *Spans) IsSpanModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpansSpan != 0
 }
 
+func (s *Spans) markModifiedRecursively() {
+
+	s.envelope.markModifiedRecursively()
+
+	s.resource.markModifiedRecursively()
+
+	s.scope.markModifiedRecursively()
+
+	s.span.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedSpansEnvelope |
+			fieldModifiedSpansResource |
+			fieldModifiedSpansScope |
+			fieldModifiedSpansSpan | 0
+}
+
 func (s *Spans) markUnmodifiedRecursively() {
 
 	if s.IsEnvelopeModified() {
@@ -128,6 +145,32 @@ func (s *Spans) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Spans) markDiffModified(v *Spans) (modified bool) {
+	if s.envelope.markDiffModified(&v.envelope) {
+		s.modifiedFields.markModified(fieldModifiedSpansEnvelope)
+		modified = true
+	}
+
+	if s.resource.markDiffModified(v.resource) {
+		s.modifiedFields.markModified(fieldModifiedSpansResource)
+		modified = true
+	}
+
+	if s.scope.markDiffModified(v.scope) {
+		s.modifiedFields.markModified(fieldModifiedSpansScope)
+		modified = true
+	}
+
+	if s.span.markDiffModified(&v.span) {
+		s.modifiedFields.markModified(fieldModifiedSpansSpan)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Spans) Clone() Spans {
@@ -260,7 +303,13 @@ type SpansEncoder struct {
 }
 
 func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.SpansEncoder != nil {
+		panic("cannot initialize SpansEncoder: already initialized")
+	}
 	state.SpansEncoder = e
+	defer func() { state.SpansEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -411,7 +460,12 @@ type SpansDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.SpansDecoder != nil {
+		panic("cannot initialize SpansDecoder: already initialized")
+	}
 	state.SpansDecoder = d
+	defer func() { state.SpansDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Spans")

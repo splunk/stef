@@ -168,7 +168,7 @@ func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified b
         modified = true
     }
     {{- else}}
-    if s.{{.name}}.markDiffModified(&v.{{.name}}) {
+    if s.{{.name}}.markDiffModified({{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}v.{{.name}}) {
         s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
         modified = true
     }

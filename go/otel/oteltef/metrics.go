@@ -140,6 +140,29 @@ func (s *Metrics) IsPointModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsPoint != 0
 }
 
+func (s *Metrics) markModifiedRecursively() {
+
+	s.envelope.markModifiedRecursively()
+
+	s.metric.markModifiedRecursively()
+
+	s.resource.markModifiedRecursively()
+
+	s.scope.markModifiedRecursively()
+
+	s.attributes.markModifiedRecursively()
+
+	s.point.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedMetricsEnvelope |
+			fieldModifiedMetricsMetric |
+			fieldModifiedMetricsResource |
+			fieldModifiedMetricsScope |
+			fieldModifiedMetricsAttributes |
+			fieldModifiedMetricsPoint | 0
+}
+
 func (s *Metrics) markUnmodifiedRecursively() {
 
 	if s.IsEnvelopeModified() {
@@ -167,6 +190,42 @@ func (s *Metrics) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Metrics) markDiffModified(v *Metrics) (modified bool) {
+	if s.envelope.markDiffModified(&v.envelope) {
+		s.modifiedFields.markModified(fieldModifiedMetricsEnvelope)
+		modified = true
+	}
+
+	if s.metric.markDiffModified(v.metric) {
+		s.modifiedFields.markModified(fieldModifiedMetricsMetric)
+		modified = true
+	}
+
+	if s.resource.markDiffModified(v.resource) {
+		s.modifiedFields.markModified(fieldModifiedMetricsResource)
+		modified = true
+	}
+
+	if s.scope.markDiffModified(v.scope) {
+		s.modifiedFields.markModified(fieldModifiedMetricsScope)
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedMetricsAttributes)
+		modified = true
+	}
+
+	if s.point.markDiffModified(&v.point) {
+		s.modifiedFields.markModified(fieldModifiedMetricsPoint)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Metrics) Clone() Metrics {
@@ -325,7 +384,13 @@ type MetricsEncoder struct {
 }
 
 func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.MetricsEncoder != nil {
+		panic("cannot initialize MetricsEncoder: already initialized")
+	}
 	state.MetricsEncoder = e
+	defer func() { state.MetricsEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -512,7 +577,12 @@ type MetricsDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.MetricsDecoder != nil {
+		panic("cannot initialize MetricsDecoder: already initialized")
+	}
 	state.MetricsDecoder = d
+	defer func() { state.MetricsDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Metrics")

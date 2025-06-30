@@ -99,6 +99,13 @@ func (s *SpanStatus) IsCodeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatusCode != 0
 }
 
+func (s *SpanStatus) markModifiedRecursively() {
+
+	s.modifiedFields.mask =
+		fieldModifiedSpanStatusMessage |
+			fieldModifiedSpanStatusCode | 0
+}
+
 func (s *SpanStatus) markUnmodifiedRecursively() {
 
 	if s.IsMessageModified() {
@@ -108,6 +115,22 @@ func (s *SpanStatus) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *SpanStatus) markDiffModified(v *SpanStatus) (modified bool) {
+	if !pkg.StringEqual(s.message, v.message) {
+		s.markMessageModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.code, v.code) {
+		s.markCodeModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *SpanStatus) Clone() SpanStatus {
@@ -212,7 +235,13 @@ type SpanStatusEncoder struct {
 }
 
 func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.SpanStatusEncoder != nil {
+		panic("cannot initialize SpanStatusEncoder: already initialized")
+	}
 	state.SpanStatusEncoder = e
+	defer func() { state.SpanStatusEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -327,7 +356,12 @@ type SpanStatusDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *SpanStatusDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.SpanStatusDecoder != nil {
+		panic("cannot initialize SpanStatusDecoder: already initialized")
+	}
 	state.SpanStatusDecoder = d
+	defer func() { state.SpanStatusDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("SpanStatus")

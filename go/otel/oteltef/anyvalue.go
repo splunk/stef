@@ -213,6 +213,20 @@ func (s *AnyValue) markUnmodified() {
 	s.kVList.markUnmodified()
 }
 
+func (s *AnyValue) markModifiedRecursively() {
+	switch s.typ {
+	case AnyValueTypeString:
+	case AnyValueTypeBool:
+	case AnyValueTypeInt64:
+	case AnyValueTypeFloat64:
+	case AnyValueTypeArray:
+		s.array.markModifiedRecursively()
+	case AnyValueTypeKVList:
+		s.kVList.markModifiedRecursively()
+	case AnyValueTypeBytes:
+	}
+}
+
 func (s *AnyValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case AnyValueTypeString:
@@ -225,6 +239,55 @@ func (s *AnyValue) markUnmodifiedRecursively() {
 		s.kVList.markUnmodifiedRecursively()
 	case AnyValueTypeBytes:
 	}
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *AnyValue) markDiffModified(v *AnyValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case AnyValueTypeString:
+		if !pkg.StringEqual(s.string, v.string) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeBool:
+		if !pkg.BoolEqual(s.bool, v.bool) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeInt64:
+		if !pkg.Int64Equal(s.int64, v.int64) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeFloat64:
+		if !pkg.Float64Equal(s.float64, v.float64) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeArray:
+		if s.array.markDiffModified(&v.array) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeKVList:
+		if s.kVList.markDiffModified(&v.kVList) {
+			s.markParentModified()
+			modified = true
+		}
+	case AnyValueTypeBytes:
+		if !pkg.BytesEqual(s.bytes, v.bytes) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -380,7 +443,13 @@ type AnyValueEncoder struct {
 }
 
 func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.AnyValueEncoder != nil {
+		panic("cannot initialize AnyValueEncoder: already initialized")
+	}
 	state.AnyValueEncoder = e
+	defer func() { state.AnyValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -561,7 +630,12 @@ type AnyValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.AnyValueDecoder != nil {
+		panic("cannot initialize AnyValueDecoder: already initialized")
+	}
 	state.AnyValueDecoder = d
+	defer func() { state.AnyValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("AnyValue")

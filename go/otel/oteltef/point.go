@@ -129,6 +129,19 @@ func (s *Point) IsExemplarsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedPointExemplars != 0
 }
 
+func (s *Point) markModifiedRecursively() {
+
+	s.value.markModifiedRecursively()
+
+	s.exemplars.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedPointStartTimestamp |
+			fieldModifiedPointTimestamp |
+			fieldModifiedPointValue |
+			fieldModifiedPointExemplars | 0
+}
+
 func (s *Point) markUnmodifiedRecursively() {
 
 	if s.IsStartTimestampModified() {
@@ -146,6 +159,32 @@ func (s *Point) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Point) markDiffModified(v *Point) (modified bool) {
+	if !pkg.Uint64Equal(s.startTimestamp, v.startTimestamp) {
+		s.markStartTimestampModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.timestamp, v.timestamp) {
+		s.markTimestampModified()
+		modified = true
+	}
+
+	if s.value.markDiffModified(&v.value) {
+		s.modifiedFields.markModified(fieldModifiedPointValue)
+		modified = true
+	}
+
+	if s.exemplars.markDiffModified(&v.exemplars) {
+		s.modifiedFields.markModified(fieldModifiedPointExemplars)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Point) Clone() Point {
@@ -276,7 +315,13 @@ type PointEncoder struct {
 }
 
 func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.PointEncoder != nil {
+		panic("cannot initialize PointEncoder: already initialized")
+	}
 	state.PointEncoder = e
+	defer func() { state.PointEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -427,7 +472,12 @@ type PointDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.PointDecoder != nil {
+		panic("cannot initialize PointDecoder: already initialized")
+	}
 	state.PointDecoder = d
+	defer func() { state.PointDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Point")

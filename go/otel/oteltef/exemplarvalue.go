@@ -127,11 +127,42 @@ func (s *ExemplarValue) markParentModified() {
 func (s *ExemplarValue) markUnmodified() {
 }
 
+func (s *ExemplarValue) markModifiedRecursively() {
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+	case ExemplarValueTypeFloat64:
+	}
+}
+
 func (s *ExemplarValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case ExemplarValueTypeInt64:
 	case ExemplarValueTypeFloat64:
 	}
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *ExemplarValue) markDiffModified(v *ExemplarValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+		if !pkg.Int64Equal(s.int64, v.int64) {
+			s.markParentModified()
+			modified = true
+		}
+	case ExemplarValueTypeFloat64:
+		if !pkg.Float64Equal(s.float64, v.float64) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -222,7 +253,13 @@ type ExemplarValueEncoder struct {
 }
 
 func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ExemplarValueEncoder != nil {
+		panic("cannot initialize ExemplarValueEncoder: already initialized")
+	}
 	state.ExemplarValueEncoder = e
+	defer func() { state.ExemplarValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -323,7 +360,12 @@ type ExemplarValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ExemplarValueDecoder != nil {
+		panic("cannot initialize ExemplarValueDecoder: already initialized")
+	}
 	state.ExemplarValueDecoder = d
+	defer func() { state.ExemplarValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
