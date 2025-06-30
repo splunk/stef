@@ -1,11 +1,11 @@
-package com.example.array_recurse_mutual
+package com.example.array_recurse_struct
 
 struct Root1 root {
   Struct1 Struct1
 }
 
 struct Struct1 {
-  Struct2 []Struct2 // This triggers bug https://github.com/splunk/stef/issues/93
+  Struct2 []Struct2 // This verifies bug https://github.com/splunk/stef/issues/93
 }
 
 struct Struct2 {
