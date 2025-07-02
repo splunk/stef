@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STEF: Sequential Tabular Encoding Format</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link rel="stylesheet" href="./prism-stef.css">
+</head>
+<body>
+  <header>
+    <h1>STEF</h1>
+    <p>Sequential Tabular Encoding Format<br>Optimized for small payloads and fast serialization</p>
+    <nav>
+      <a href="./benchmarks.html">Benchmarks</a>
+      <a href="https://github.com/splunk/stef">GitHub</a>
+      <a href="https://github.com/splunk/stef/blob/main/stef-spec/specification.md">Specification</a>
+    </nav>
+  </header>
+  <main>
+    <h2>What is STEF?</h2>
+    <p><strong>STEF</strong> is a data format and network protocol designed for efficient
+        sequential reading and writing of records of structured data.
+        It is optimized for minimal payload size and high serialization speed.
+        Think <a href="https://protobuf.dev/">Protocol Buffers</a>, but smaller and faster.</p>
+
+    <h2>Key Features</h2>
+    <ul>
+      <li>Schema-driven binary format.</li>
+      <li>Support for primitive and composite data types.</li>
+      <li>Columnar encoding, small payloads.</li>
+      <li>Fast serialization and deserialization.</li>
+      <li>Extensible schema support.</li>
+      <li>Network protocol with forward and backward interoperability of schema.</li>
+      <li>Open specification and reference implementations in Go and Java</li>
+    </ul>
+    <a class="button" href="./benchmarks.html">View Benchmarks</a>
+
+    <h2>Example: Define a STEF Schema for JSON-like Data</h2>
+Create a jsonlike.stef file with the following content:
+    <pre><code class="language-stef">package jsonlike
+
+// The struct with "root" attribute defines the records in a STEF stream.
+struct Record root {
+  // List fields in this struct, the syntax is: FieldName FieldType.
+  // Each record in this STEF stream is a JsonValue.
+  Value JsonValue
+}
+
+// A oneof can store one of the the listed fields.
+// Empty oneof is the equivalent of "null" in JSON.
+oneof JsonValue {
+  Object JsonObject
+  Array  []JsonValue
+  String string
+  Number float64
+  Bool   bool
+}
+
+// A multimap is a key-value list.
+multimap JsonObject {
+  key   string
+  value JsonValue
+}</code></pre>
+
+    <h2>Generate Serializers</h2>
+Generate the serializers in Go:
+    <pre><code class="language-bash"># stefgen --lang=go jsonlike.stef
+Generating modifiedfields.go
+Generating jsonvalue.go
+Generating record.go
+Generating jsonobject.go
+Generating jsonvaluearray.go
+Generating readerstate.go
+Generating writerstate.go
+Generating recordwriter.go
+Generating recordwriter_test.go
+Generating recordreader.go</code></pre>
+
+    <h2>Write STEF Records</h2>
+    <pre><code class="language-go">// Prepare a memory buffer to write the STEF stream to.
+buf := &pkg.MemChunkWriter{}
+
+// Create a Writer for the JSON-like schema
+w := jsonlike.NewWriter(buf, pkg.WriterOptions{})
+
+// Build a record in memory.
+writer.Record.Value.SetString("Hello, World!")
+
+// Write the record to the stream.
+writer.Write()
+
+// Flush the stream to the buffer.
+writer.Flush()
+</code></pre>
+      <h2>Learn More</h2>
+      <ul>
+          <li><a href="https://github.com/splunk/stef/blob/main/stef-spec/specification.md">STEF Specification</a> (detailed format and protocol)</li>
+          <li><a href="./benchmarks.html">Benchmarks</a> (performance results)</li>
+          <li><a href="https://github.com/splunk/stef">GitHub Repository</a></li>
+      </ul>
+    <h2>License</h2>
+    Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-go.min.js"></script>
+  <script src="./prism-stef.js"></script>
+</body>
+</html>
