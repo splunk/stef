@@ -13,6 +13,7 @@ default:
 	cd go/otel && make
 	cd go/pdata && make
 	cd otelcol && make
+	cd examples && make
 	cd benchmarks && make
 
 .PHONY: all
@@ -23,6 +24,7 @@ all:
 	cd go/otel && make all
 	cd go/pdata && make all
 	cd otelcol && make all
+	cd examples && make all
 	cd benchmarks && make all
 
 .PHONY: build-ci
@@ -33,6 +35,7 @@ build-ci:
 	cd go/otel && make all
 	cd go/pdata && make all
 	cd otelcol && make all
+	cd examples && make
 	cd benchmarks && make all
 
 .PHONY: verifyver
@@ -50,6 +53,7 @@ prepver: verifyver
 				   && go mod edit -require=github.com/splunk/stef/go/grpc@${VERSION} && go mod tidy
 	cd go/pdata    && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
 				   && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION} && go mod tidy
+	cd examples/jsonl && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd otelcol     && go mod tidy
 	cd benchmarks  && go mod tidy
 
