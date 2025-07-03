@@ -578,11 +578,11 @@ func (r *genArrayTypeRef) IsPrimitive() bool {
 }
 
 func (r *genArrayTypeRef) DictName() string {
-	return ""
+	return r.ElemType.DictName()
 }
 
 func (r *genArrayTypeRef) DictTypeNamePrefix() string {
-	panic("dictionaries of arrays are not supported")
+	return r.ElemType.DictTypeNamePrefix()
 }
 
 func (r *genArrayTypeRef) Exported() string {

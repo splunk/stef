@@ -19,6 +19,14 @@ func (g *Generator) getDicts() (ret map[string]genFieldTypeRef) {
 	ret = map[string]genFieldTypeRef{}
 
 	for _, struc := range g.compiledSchema.Structs {
+		if struc.Dict != "" {
+			ret[struc.Dict] = &genStructTypeRef{
+				Name: struc.Name,
+				Def:  struc,
+				Lang: g.Lang,
+			}
+		}
+
 		for _, field := range struc.Fields {
 			dictName := field.Type.DictName()
 			if dictName != "" {

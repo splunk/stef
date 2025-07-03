@@ -4,13 +4,15 @@ package jsonstef
 import (
 	"math/rand/v2"
 
+	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 )
 
-var _ = encoders.StringEncoder{}
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
 
 // JsonValueArray is a variable size array.
 type JsonValueArray struct {

@@ -327,6 +327,16 @@ func (p *Parser) parseFieldType(field *schema.FieldType) error {
 	}
 	p.lexer.Next()
 
+	// Parse type modifiers
+	switch p.lexer.Token() {
+	case tDict:
+		dictName, err := p.parseDictModifier()
+		if err != nil {
+			return err
+		}
+		ft.DictName = dictName
+	}
+
 	if isArray {
 		field.Array = &ft
 	} else {
@@ -351,13 +361,6 @@ func (p *Parser) parseStructFieldModifiers(field *schema.StructField) error {
 
 func (p *Parser) parseStructFieldModifier(field *schema.StructField) (error, bool) {
 	switch p.lexer.Token() {
-	case tDict:
-		dictName, err := p.parseDictModifier()
-		if err != nil {
-			return err, false
-		}
-		field.DictName = dictName
-		return nil, true
 	case tOptional:
 		field.Optional = true
 		p.lexer.Next()
