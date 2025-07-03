@@ -81,7 +81,7 @@ Generating recordreader.go</code></pre>
 
     <h2>Write STEF Records</h2>
     <pre><code class="language-go">// Prepare a memory buffer to write the STEF stream to.
-buf := &pkg.MemChunkWriter{}
+buf := &amp;pkg.MemChunkWriter{}
 
 // Create a Writer for the JSON-like schema
 w := jsonlike.NewWriter(buf, pkg.WriterOptions{})
@@ -102,7 +102,7 @@ writer.Flush()
           <li><a href="https://github.com/splunk/stef">GitHub Repository</a></li>
       </ul>
     <h2>License</h2>
-    Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>
+    Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.
   </main>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-go.min.js"></script>

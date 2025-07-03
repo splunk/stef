@@ -1,0 +1,22 @@
+{
+  "name": "stef",
+  "version": "1.0.0",
+  "description": "STEF is a data format and network protocol optimized for small payload size and fast serialization. See some [benchmark results here](https://splunk.github.io/stef/benchmarks.html).",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "html-validate": "^9.7.1",
+    "markdown-link-check": "^3.13.7",
+    "stylelint": "^16.21.1",
+    "stylelint-config-standard": "^38.0.0"
+  }
+}
