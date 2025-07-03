@@ -28,7 +28,7 @@ all: docs-validate
 	cd benchmarks && make all
 
 .PHONY: build-ci
-build-ci:
+build-ci: docs-install-deps docs-validate
 	cd stefgen && make all
 	cd go/pkg && make all
 	cd go/grpc && make
