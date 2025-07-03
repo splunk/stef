@@ -1,0 +1,5 @@
+/* PrismJS custom theme for STEF schema */
+.token.keyword { color: #b26a00; font-weight: bold; }
+.token.type { color: rgb(192, 55, 230); font-weight: bold; }
+.token.attribute { color: #00bcd4; font-weight: bold; }
+.token.comment { color: rgb(138, 137, 137); }

@@ -1,0 +1,80 @@
+body {
+  font-family: 'Roboto', Arial, sans-serif;
+  margin: 0;
+  background: #f8fafc;
+  color: #222;
+}
+header {
+  background: #1a237e;
+  color: #fff;
+  padding: 2rem 0 1rem 0;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+header p {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  font-weight: 400;
+}
+nav {
+  margin: 1rem 0 0 0;
+}
+nav a {
+  color: #fff;
+  text-decoration: underline;
+  margin: 0 1.5rem;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+main {
+  max-width: 900px;
+  margin: 2rem auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  padding: 2rem 2.5rem;
+}
+h2 {
+  color: #1a237e;
+  margin-top: 2rem;
+}
+ul {
+  line-height: 1.7;
+}
+.footer {
+  text-align: center;
+  color: #888;
+  font-size: 0.95rem;
+  margin: 3rem 0 1rem 0;
+}
+.button {
+  display: inline-block;
+  background: #1a237e;
+  color: #fff;
+  padding: 0.7em 1.5em;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+  margin: 1.5em 0;
+  transition: background 0.2s;
+}
+.button:hover {
+  background: #3949ab;
+}
+@media (max-width: 600px) {
+  main { padding: 1rem; }
+  header h1 { font-size: 1.5rem; }
+}
+pre {
+  background: #f4f6fb;
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.97em;
+}
+
