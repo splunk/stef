@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STEF SDL: Schema Definition Language</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link rel="stylesheet" href="./prism-stef.css">
+</head>
+<body>
+  <header>
+    <h1>STEF SDL</h1>
+    <p>Schema Definition Language<br>Define schemas for STEF serialization</p>
+    <nav>
+      <a href="./index.html">Home</a>
+      <a href="https://github.com/splunk/stef">GitHub</a>
+      <a href="https://github.com/splunk/stef/blob/main/stef-spec/specification.md">Specification</a>
+    </nav>
+  </header>
+  <main>
+    <h2>Overview</h2>
+    <p>The STEF Schema Definition Language (SDL) is used to define schemas for STEF serialization.
+    It provides a simple, type-safe way to describe data structures that can be efficiently serialized
+    and deserialized using the STEF format.</p>
+
+    <h2>Package Declaration</h2>
+    <p>Every STEF schema file begins with a package declaration:</p>
+    <pre><code class="language-stef">package com.example.myschema</code></pre>
+    <p>Package names use dot notation and can have one or more dot-delimited components.</p>
+
+    <h3>Language-Specific Package Handling</h3>
+    <p>Different target languages handle package names differently when generating code:</p>
+    <ul>
+      <li><strong>Go:</strong> Uses only the last component of the package name. For example, <code>com.example.myschema</code> becomes package <code>myschema</code> in Go.</li>
+      <li><strong>Java:</strong> Uses the full package name hierarchy. For example, <code>com.example.myschema</code> becomes package <code>com.example.myschema</code> in Java.</li>
+    </ul>
+
+    <h2>Comments</h2>
+    <p>STEF SDL supports C-style single-line comments:</p>
+    <pre><code class="language-stef">// This is a comment
+package com.example // Comments can appear at end of lines</code></pre>
+
+    <h2>Primitive Types</h2>
+    <p>STEF SDL supports the following primitive data types:</p>
+    <ul>
+      <li><code>bool</code> - Boolean values (true/false)</li>
+      <li><code>int64</code> - 64-bit signed integer</li>
+      <li><code>uint64</code> - 64-bit unsigned integer</li>
+      <li><code>float64</code> - 64-bit floating point number</li>
+      <li><code>string</code> - UTF-8 encoded string</li>
+      <li><code>bytes</code> - Binary data</li>
+    </ul>
+
+    <h2>Structs</h2>
+    <p>Structs define composite data types with named fields:</p>
+    <pre><code class="language-stef">struct Person {
+  Name string
+  Age uint64
+  Email string
+}</code></pre>
+
+    <h3>Root Structs</h3>
+    <p>The <code>root</code> attribute marks a struct as the top-level record type in a STEF stream:</p>
+    <pre><code class="language-stef">struct Record root {
+  Timestamp uint64
+  Data Person
+}</code></pre>
+    <p>Multiple structs can be marked as <code>root</code> in a single schema, allowing the STEF stream to contain different types of records:</p>
+    <pre><code class="language-stef">struct MetricRecord root {
+  Timestamp uint64
+  Metric Metric
+}
+
+struct TraceRecord root {
+  Timestamp uint64
+  Span Span
+}</code></pre>
+    <p>When multiple root structs are defined, each record in the stream will be one of the root types, and the STEF format includes type information to distinguish between them during deserialization.</p>
+
+    <h3>Dictionary Compression</h3>
+    <p>Fields can use dictionary compression for repeated values using the <code>dict</code> modifier:</p>
+    <pre><code class="language-stef">struct Event {
+  EventType string dict(EventTypes)
+  Message string
+}</code></pre>
+    <p>Structs can also have dictionary compression applied:</p>
+    <pre><code class="language-stef">struct Resource dict(Resources) {
+  Name string
+  Version string
+}</code></pre>
+    <p>Dictionary names allow the same dictionary to be shared across multiple fields, even in different structs, as long as the fields have the same type:</p>
+    <pre><code class="language-stef">struct MetricEvent {
+  ServiceName string dict(ServiceNames)
+  EventType string dict(EventTypes)
+}
+
+struct TraceEvent {
+  ServiceName string dict(ServiceNames)  // Same dictionary as above
+  SpanName string dict(SpanNames)
+}</code></pre>
+    <p>This sharing enables more efficient compression when the same values appear across different record types.</p>
+
+    <h3>Optional Fields</h3>
+    <p>Fields can be marked as optional, meaning they may not be present in every record:</p>
+    <pre><code class="language-stef">struct User {
+  Name string
+  Email string optional
+  Phone string optional
+}</code></pre>
+
+    <h2>Arrays</h2>
+    <p>Array types are denoted with square brackets and can contain zero or more elements of the specified type:</p>
+    <pre><code class="language-stef">struct Container {
+  Items []string
+  Numbers []int64
+  Objects []Person
+}</code></pre>
+    <p>Arrays are variable-length - they can be empty or contain any number of elements.</p>
+
+    <h2>Oneofs (Union Types)</h2>
+    <p>Oneofs define union types that can hold one of several possible field types:</p>
+    <pre><code class="language-stef">oneof JsonValue {
+  String string
+  Number float64
+  Bool bool
+  Array []JsonValue
+  Object JsonObject
+}</code></pre>
+    <p>A oneof may also be empty, i.e. contain none of the listed values.</p>
+
+    <h2>Multimaps</h2>
+    <p>Multimaps define key-value collections:</p>
+    <pre><code class="language-stef">multimap Attributes {
+  key string
+  value AnyValue
+}</code></pre>
+    <p>Multimaps can also use dictionary compression:</p>
+    <pre><code class="language-stef">multimap Labels {
+  key string dict(LabelKeys)
+  value string dict(LabelValues)
+}</code></pre>
+
+    <h2>Enums</h2>
+    <p>Enums define named constant values:</p>
+    <pre><code class="language-stef">enum MetricType {
+  Gauge = 0
+  Counter = 1
+  Histogram = 2
+  Summary = 3
+}</code></pre>
+    <p>Enum values must be explicitly assigned unsigned integer values. Multiple number formats are supported:</p>
+    <ul>
+      <li><strong>Decimal:</strong> <code>MetricType = 42</code></li>
+      <li><strong>Hexadecimal:</strong> <code>MetricType = 0x2A</code> or <code>MetricType = 0X2A</code></li>
+      <li><strong>Octal:</strong> <code>MetricType = 0o52</code> or <code>MetricType = 0O52</code></li>
+      <li><strong>Binary:</strong> <code>MetricType = 0b101010</code> or <code>MetricType = 0B101010</code></li>
+    </ul>
+    <pre><code class="language-stef">enum StatusCode {
+  OK = 0
+  NotFound = 0x194        // 404 in hexadecimal
+  InternalError = 0o770   // 500 in octal
+  Custom = 0b1111101000   // 1000 in binary
+}</code></pre>
+
+    <h2>Complete Example</h2>
+    <p>Here's a comprehensive example showing various STEF SDL features:</p>
+    <pre><code class="language-stef">package com.example.monitoring
+
+// Enum for metric types
+enum MetricType {
+  Gauge = 0
+  Counter = 1
+  Histogram = 2
+}
+
+// Key-value attributes
+multimap Attributes {
+  key string dict(AttributeKeys)
+  value AttributeValue
+}
+
+// Union type for attribute values
+oneof AttributeValue {
+  StringValue string
+  IntValue int64
+  FloatValue float64
+  BoolValue bool
+}
+
+// Resource information with dictionary compression
+struct Resource dict(Resources) {
+  ServiceName string dict(ServiceNames)
+  ServiceVersion string dict(ServiceVersions)
+  Attributes Attributes
+}
+
+// Metric data point
+struct DataPoint {
+  Timestamp uint64
+  Value float64
+  Attributes Attributes
+}
+
+// Main metric structure
+struct Metric {
+  Name string dict(MetricNames)
+  Type MetricType
+  Unit string dict(Units)
+  Description string optional
+  DataPoints []DataPoint
+}
+
+// Root record type
+struct MetricRecord root {
+  Resource Resource
+  Metric Metric
+}</code></pre>
+
+    <h2>Type References</h2>
+    <p>STEF SDL supports forward references - you can reference types before they are defined in the file.
+    The parser resolves all type references after parsing the complete schema.</p>
+
+    <h3>Recursive Type Declarations</h3>
+    <p>STEF SDL allows recursive type declarations, enabling the definition of tree-like data structures.</p>
+
+    <h4>Self-Referential Types</h4>
+    <p>A type can reference itself, useful for creating tree structures:</p>
+    <pre><code class="language-stef">// Binary tree node
+struct TreeNode {
+  Value int64
+  Left TreeNode optional
+  Right TreeNode optional
+}
+</code></pre>
+
+    <h4>Mutually Referential Types</h4>
+    <p>Multiple types can reference each other, creating more complex recursive relationships:</p>
+    <pre><code class="language-stef">// Expression tree with operators and operands
+struct Expression {
+  Node ExpressionNode
+}
+
+oneof ExpressionNode {
+  Literal LiteralValue
+  BinaryOp BinaryOperation
+  UnaryOp UnaryOperation
+}
+
+struct LiteralValue {
+  Value float64
+}
+
+struct BinaryOperation {
+  Operator string
+  Left Expression   // References back to Expression
+  Right Expression  // References back to Expression
+}
+
+struct UnaryOperation {
+  Operator string
+  Operand Expression  // References back to Expression
+}</code></pre>
+    <p>These recursive patterns are resolved correctly by the STEF parser and enable rich data modeling capabilities.</p>
+
+    <h2>Syntax Rules</h2>
+    <ul>
+      <li>Identifiers must start with a letter and can contain letters, digits, and underscores</li>
+      <li>Keywords are case-sensitive</li>
+      <li>Struct, oneof, multimap, and enum names must be unique within a schema</li>
+      <li>Field names must be unique within their containing struct/oneof/multimap</li>
+      <li>Enum values must be unique within their enum</li>
+      <li>Whitespace and comments are ignored during parsing</li>
+    </ul>
+
+    <h2>Generated Code</h2>
+    <p>Use the <code>stefgen</code> tool to generate serialization code from your STEF schema:</p>
+    <pre><code class="language-bash">stefgen --lang=go myschema.stef</code></pre>
+    <p>This generates efficient serializers and deserializers in your target language.</p>
+
+    <h2>Learn More</h2>
+    <ul>
+      <li><a href="./index.html">STEF Overview</a></li>
+      <li><a href="https://github.com/splunk/stef/blob/main/stef-spec/specification.md">STEF Specification</a></li>
+      <li><a href="https://github.com/splunk/stef">GitHub Repository</a></li>
+    </ul>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-go.min.js"></script>
+  <script src="./prism-stef.js"></script>
+</body>
+</html>
