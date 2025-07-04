@@ -1,0 +1,39 @@
+name: Docs Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-validation.yml'
+      - 'makefile'
+      - 'package.json'
+      - '.stylelintrc.json'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-validation.yml'
+      - 'makefile'
+      - 'package.json'
+      - '.stylelintrc.json'
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install docs validation dependencies
+      run: make docs-install-deps
+
+    - name: Run complete docs validation
+      run: make docs-validate
