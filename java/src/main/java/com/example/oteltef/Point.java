@@ -134,14 +134,51 @@ public class Point {
         }
     }
 
+    void markModifiedRecursively() {
+        value.markModifiedRecursively();
+        exemplars.markModifiedRecursively();
+        modifiedFields.mask =
+            fieldModifiedStartTimestamp | 
+            fieldModifiedTimestamp | 
+            fieldModifiedValue | 
+            fieldModifiedExemplars | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        if (this.isValueModified()) {
-            this.value.markUnmodifiedRecursively();
+        if (isValueModified()) {
+            value.markUnmodifiedRecursively();
         }
-        if (this.isExemplarsModified()) {
-            this.exemplars.markUnmodifiedRecursively();
+        if (isExemplarsModified()) {
+            exemplars.markUnmodifiedRecursively();
         }
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Point v) {
+        boolean modified = false;
+        if (!Types.Uint64Equal(startTimestamp, v.startTimestamp)) {
+            markStartTimestampModified();
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(timestamp, v.timestamp)) {
+            markTimestampModified();
+            modified = true;
+        }
+        
+        if (value.markDiffModified(v.value)) {
+            modifiedFields.markModified(fieldModifiedValue);
+            modified = true;
+        }
+        
+        if (exemplars.markDiffModified(v.exemplars)) {
+            modifiedFields.markModified(fieldModifiedExemplars);
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public Point clone() {

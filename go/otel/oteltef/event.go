@@ -140,6 +140,17 @@ func (s *Event) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0
 }
 
+func (s *Event) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedEventName |
+			fieldModifiedEventTimeUnixNano |
+			fieldModifiedEventAttributes |
+			fieldModifiedEventDroppedAttributesCount | 0
+}
+
 func (s *Event) markUnmodifiedRecursively() {
 
 	if s.IsNameModified() {
@@ -156,6 +167,32 @@ func (s *Event) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Event) markDiffModified(v *Event) (modified bool) {
+	if !pkg.StringEqual(s.name, v.name) {
+		s.markNameModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.timeUnixNano, v.timeUnixNano) {
+		s.markTimeUnixNanoModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedEventAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Event) Clone() Event {
@@ -285,7 +322,13 @@ type EventEncoder struct {
 }
 
 func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.EventEncoder != nil {
+		panic("cannot initialize EventEncoder: already initialized")
+	}
 	state.EventEncoder = e
+	defer func() { state.EventEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -346,7 +389,7 @@ func (e *EventEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *EventEncoder) Encode(val *Event) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -366,6 +409,7 @@ func (e *EventEncoder) Encode(val *Event) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -390,8 +434,7 @@ func (e *EventEncoder) Encode(val *Event) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -436,7 +479,12 @@ type EventDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.EventDecoder != nil {
+		panic("cannot initialize EventDecoder: already initialized")
+	}
 	state.EventDecoder = d
+	defer func() { state.EventDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Event")

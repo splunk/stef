@@ -219,6 +219,18 @@ func (s *HistogramValue) IsBucketCountsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedHistogramValueBucketCounts != 0
 }
 
+func (s *HistogramValue) markModifiedRecursively() {
+
+	s.bucketCounts.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedHistogramValueCount |
+			fieldModifiedHistogramValueSum |
+			fieldModifiedHistogramValueMin |
+			fieldModifiedHistogramValueMax |
+			fieldModifiedHistogramValueBucketCounts | 0
+}
+
 func (s *HistogramValue) markUnmodifiedRecursively() {
 
 	if s.IsCountModified() {
@@ -238,6 +250,40 @@ func (s *HistogramValue) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *HistogramValue) markDiffModified(v *HistogramValue) (modified bool) {
+	if !pkg.Int64Equal(s.count, v.count) {
+		s.markCountModified()
+		modified = true
+	}
+
+	if !pkg.Float64Equal(s.sum, v.sum) || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
+		s.markSumModified()
+		s.optionalFieldsPresent |= fieldPresentHistogramValueSum
+		modified = true
+	}
+
+	if !pkg.Float64Equal(s.min, v.min) || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
+		s.markMinModified()
+		s.optionalFieldsPresent |= fieldPresentHistogramValueMin
+		modified = true
+	}
+
+	if !pkg.Float64Equal(s.max, v.max) || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
+		s.markMaxModified()
+		s.optionalFieldsPresent |= fieldPresentHistogramValueMax
+		modified = true
+	}
+
+	if s.bucketCounts.markDiffModified(&v.bucketCounts) {
+		s.modifiedFields.markModified(fieldModifiedHistogramValueBucketCounts)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *HistogramValue) Clone() HistogramValue {
@@ -394,7 +440,13 @@ type HistogramValueEncoder struct {
 }
 
 func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.HistogramValueEncoder != nil {
+		panic("cannot initialize HistogramValueEncoder: already initialized")
+	}
 	state.HistogramValueEncoder = e
+	defer func() { state.HistogramValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -462,7 +514,7 @@ func (e *HistogramValueEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -483,9 +535,11 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Write bits to indicate which optional fields are set.
 	e.buf.WriteBits(val.optionalFieldsPresent, 3)
+	bitCount += 3
 
 	// Encode modified, present fields.
 
@@ -518,8 +572,7 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -569,7 +622,12 @@ type HistogramValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.HistogramValueDecoder != nil {
+		panic("cannot initialize HistogramValueDecoder: already initialized")
+	}
 	state.HistogramValueDecoder = d
+	defer func() { state.HistogramValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("HistogramValue")

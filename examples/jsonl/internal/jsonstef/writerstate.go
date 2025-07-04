@@ -3,19 +3,22 @@ package jsonstef
 
 import (
 	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
 )
+
+var _ = (*encoders.StringEncoder)(nil)
 
 type WriterState struct {
 	limiter pkg.SizeLimiter
 
 	// OverrideSchema is set if encoding should perform a translation into the target
-	// schema. The specified schema must be compatible with endoders' schema.
+	// schema. The specified schema must be compatible with encoders' schema.
 	OverrideSchema *schema.WireSchema
 
 	// Dictionaries
 
-	// Encoders
+	// Encoders that are being Init-ed, to detect recursion.
 	JsonObjectEncoder     *JsonObjectEncoder
 	JsonValueEncoder      *JsonValueEncoder
 	JsonValueArrayEncoder *JsonValueArrayEncoder

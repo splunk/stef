@@ -15,17 +15,37 @@ class AttributesDecoder {
     private ReadableColumn column;
     private StringDecoder keyDecoder;
     private AnyValueDecoder valueDecoder;
-    private final Attributes lastVal = new Attributes();
+    private boolean isKeyRecursive = false;
+    private boolean isValueRecursive = false;
+
+    
+    // lastValStack are last encoded values stacked by the level of recursion.
+    AttributesEncoder.LastValStack lastValStack;
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         this.column = columns.getColumn();
-        // Key decoder init
-        this.keyDecoder = new StringDecoder();
-        this.keyDecoder.init(state.AttributeKey, columns.addSubColumn());
-        // Value decoder init
-        this.valueDecoder = new AnyValueDecoder();
-        this.valueDecoder.init(state, columns.addSubColumn());
+
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.AttributesDecoder != null) {
+            throw new IllegalStateException("cannot initialize AttributesDecoder: already initialized");
+        }
+        state.AttributesDecoder = this;
+        try {
+            keyDecoder = new StringDecoder();
+            keyDecoder.init(state.AttributeKey, columns.addSubColumn());
+            if (state.AnyValueDecoder != null) {
+                // Recursion detected, use the existing encoder.
+                valueDecoder = state.AnyValueDecoder;
+                isValueRecursive = true;
+            } else {
+                valueDecoder = new AnyValueDecoder();
+                valueDecoder.init(state, columns.addSubColumn());
+            }
+            lastValStack = new AttributesEncoder.LastValStack();
+        } finally {
+            state.AttributesDecoder = null;
+        }
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -35,40 +55,56 @@ class AttributesDecoder {
     // continuation of that same column in the previous frame.
     public void continueDecoding() {
         buf.reset(column.getData());
-        keyDecoder.continueDecoding();
-        valueDecoder.continueDecoding();
+        if (!isKeyRecursive) {
+            keyDecoder.continueDecoding();
+        }
+        if (!isValueRecursive) {
+            valueDecoder.continueDecoding();
+        }
     }
 
-    public void reset() {keyDecoder.reset();
-        valueDecoder.reset();
+    public void reset() {
+        if (!isKeyRecursive) {
+            keyDecoder.reset();
+        }
+        if (!isValueRecursive) {
+            valueDecoder.reset();
+        }
+        lastValStack.reset();
     }
 
     public Attributes decode(Attributes dst) throws IOException {
-        long countOrChangedValues = buf.readUvarint();
-        if (countOrChangedValues == 0) {
-            decodeCopyOfLast(dst);
-            return dst;
+        Attributes lastVal = lastValStack.top();
+        lastValStack.addOnTop();
+        try {
+            long countOrChangedValues = buf.readUvarint();
+            if (countOrChangedValues == 0) {
+                decodeCopyOfLast(lastVal, dst);
+                return dst;
+            }
+            if ((countOrChangedValues & 0b1) == 0) {
+                decodeValuesOnly(lastVal, countOrChangedValues >>> 1, dst);
+                return dst;
+            }
+            if ((countOrChangedValues & 0b1) == 0b1) {
+                decodeFull(lastVal, (int)(countOrChangedValues >>> 1), dst);
+                return dst;
+            }
+            throw new RuntimeException("Multimap decode error");
+        } finally {
+            lastValStack.removeFromTop();
         }
-        if ((countOrChangedValues & 0b1) == 0) {
-            decodeValuesOnly(countOrChangedValues >>> 1, dst);
-            return dst;
-        }
-        if ((countOrChangedValues & 0b1) == 0b1) {
-            decodeFull((int)(countOrChangedValues >>> 1), dst);
-            return dst;
-        }
-        throw new RuntimeException("Multimap decode error");
-    }
+}
 
-    private void decodeCopyOfLast(Attributes dst) {
+    private void decodeCopyOfLast(Attributes lastVal, Attributes dst) {
         dst.ensureLen(lastVal.elemsLen);
-        for (int i=0; i<dst.elemsLen; i++) {
+        for (int i=0; i < dst.elemsLen; i++) {
             dst.elems[i].key = lastVal.elems[i].key;
             dst.elems[i].value.copyFrom(lastVal.elems[i].value);
         }
     }
 
-    private void decodeValuesOnly(long changedValuesBits, Attributes dst) throws IOException {
+    private void decodeValuesOnly(Attributes lastVal, long changedValuesBits, Attributes dst) throws IOException {
         if (lastVal.elemsLen == 0) {
             throw new RuntimeException("Multimap decode error: lastVal empty");
         }
@@ -91,39 +127,28 @@ class AttributesDecoder {
             if ((bitToRead & changedValuesBits) != 0) {
                 // Value is changed, decode it.
                 dst.elems[i].value = valueDecoder.decode(dst.elems[i].value);
-            }
-            bitToRead >>= 1;
-        }
 
-        // Decode() calls above may have changed lastVal len if we have a recursive data type.
-        // Set the correct length again.
-        lastVal.ensureLen(count);
-
-        // Store the values in lastVal.
-        bitToRead = (long)1 << (dst.elemsLen - 1);
-        for (int i = 0; i<dst.elemsLen; i++) {
-            if ((bitToRead & changedValuesBits) != 0) {
+                // Store the values in lastVal.
                 lastVal.elems[i].value.copyFrom(dst.elems[i].value);
             }
             bitToRead >>= 1;
         }
     }
 
-    private void decodeFull(int count, Attributes dst) throws IOException {
+    private void decodeFull(Attributes lastVal, int count, Attributes dst) throws IOException {
         if (count < 0 || count >= Limits.MultimapElemCountLimit) {
             throw new RuntimeException("Multimap decode error: invalid count " + count);
         }
         
         dst.ensureLen(count);
+        lastVal.ensureLen(count);
+
         // Decode values first.
         for (int i = 0; i < count; i++) {
             dst.elems[i].key = keyDecoder.decode();
             dst.elems[i].value = valueDecoder.decode(dst.elems[i].value);
-        }
-        
-        // Store decoded values in lastVal.
-        lastVal.ensureLen(count);
-        for (int i = 0; i < count; i++) {
+
+            // Store decoded values in lastVal.
             lastVal.elems[i].key = dst.elems[i].key;
             lastVal.elems[i].value.copyFrom(dst.elems[i].value);
         }

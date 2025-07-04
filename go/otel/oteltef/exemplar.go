@@ -155,6 +155,20 @@ func (s *Exemplar) IsFilteredAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0
 }
 
+func (s *Exemplar) markModifiedRecursively() {
+
+	s.value.markModifiedRecursively()
+
+	s.filteredAttributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedExemplarTimestamp |
+			fieldModifiedExemplarValue |
+			fieldModifiedExemplarSpanID |
+			fieldModifiedExemplarTraceID |
+			fieldModifiedExemplarFilteredAttributes | 0
+}
+
 func (s *Exemplar) markUnmodifiedRecursively() {
 
 	if s.IsTimestampModified() {
@@ -175,6 +189,37 @@ func (s *Exemplar) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Exemplar) markDiffModified(v *Exemplar) (modified bool) {
+	if !pkg.Uint64Equal(s.timestamp, v.timestamp) {
+		s.markTimestampModified()
+		modified = true
+	}
+
+	if s.value.markDiffModified(&v.value) {
+		s.modifiedFields.markModified(fieldModifiedExemplarValue)
+		modified = true
+	}
+
+	if !pkg.BytesEqual(s.spanID, v.spanID) {
+		s.markSpanIDModified()
+		modified = true
+	}
+
+	if !pkg.BytesEqual(s.traceID, v.traceID) {
+		s.markTraceIDModified()
+		modified = true
+	}
+
+	if s.filteredAttributes.markDiffModified(&v.filteredAttributes) {
+		s.modifiedFields.markModified(fieldModifiedExemplarFilteredAttributes)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Exemplar) Clone() Exemplar {
@@ -317,7 +362,13 @@ type ExemplarEncoder struct {
 }
 
 func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ExemplarEncoder != nil {
+		panic("cannot initialize ExemplarEncoder: already initialized")
+	}
 	state.ExemplarEncoder = e
+	defer func() { state.ExemplarEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -385,7 +436,7 @@ func (e *ExemplarEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *ExemplarEncoder) Encode(val *Exemplar) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -406,6 +457,7 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -435,8 +487,7 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -486,7 +537,12 @@ type ExemplarDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ExemplarDecoder != nil {
+		panic("cannot initialize ExemplarDecoder: already initialized")
+	}
 	state.ExemplarDecoder = d
+	defer func() { state.ExemplarDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Exemplar")

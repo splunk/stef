@@ -367,6 +367,33 @@ func (s *Span) IsStatusModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatus != 0
 }
 
+func (s *Span) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.events.markModifiedRecursively()
+
+	s.links.markModifiedRecursively()
+
+	s.status.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedSpanTraceID |
+			fieldModifiedSpanSpanID |
+			fieldModifiedSpanTraceState |
+			fieldModifiedSpanParentSpanID |
+			fieldModifiedSpanFlags |
+			fieldModifiedSpanName |
+			fieldModifiedSpanKind |
+			fieldModifiedSpanStartTimeUnixNano |
+			fieldModifiedSpanEndTimeUnixNano |
+			fieldModifiedSpanAttributes |
+			fieldModifiedSpanDroppedAttributesCount |
+			fieldModifiedSpanEvents |
+			fieldModifiedSpanLinks |
+			fieldModifiedSpanStatus | 0
+}
+
 func (s *Span) markUnmodifiedRecursively() {
 
 	if s.IsTraceIDModified() {
@@ -416,6 +443,82 @@ func (s *Span) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Span) markDiffModified(v *Span) (modified bool) {
+	if !pkg.BytesEqual(s.traceID, v.traceID) {
+		s.markTraceIDModified()
+		modified = true
+	}
+
+	if !pkg.BytesEqual(s.spanID, v.spanID) {
+		s.markSpanIDModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.traceState, v.traceState) {
+		s.markTraceStateModified()
+		modified = true
+	}
+
+	if !pkg.BytesEqual(s.parentSpanID, v.parentSpanID) {
+		s.markParentSpanIDModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.flags, v.flags) {
+		s.markFlagsModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.name, v.name) {
+		s.markNameModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.kind, v.kind) {
+		s.markKindModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.startTimeUnixNano, v.startTimeUnixNano) {
+		s.markStartTimeUnixNanoModified()
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.endTimeUnixNano, v.endTimeUnixNano) {
+		s.markEndTimeUnixNanoModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedSpanAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	if s.events.markDiffModified(&v.events) {
+		s.modifiedFields.markModified(fieldModifiedSpanEvents)
+		modified = true
+	}
+
+	if s.links.markDiffModified(&v.links) {
+		s.modifiedFields.markModified(fieldModifiedSpanLinks)
+		modified = true
+	}
+
+	if s.status.markDiffModified(&v.status) {
+		s.modifiedFields.markModified(fieldModifiedSpanStatus)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Span) Clone() Span {
@@ -668,7 +771,13 @@ type SpanEncoder struct {
 }
 
 func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.SpanEncoder != nil {
+		panic("cannot initialize SpanEncoder: already initialized")
+	}
 	state.SpanEncoder = e
+	defer func() { state.SpanEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -799,7 +908,7 @@ func (e *SpanEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *SpanEncoder) Encode(val *Span) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -829,6 +938,7 @@ func (e *SpanEncoder) Encode(val *Span) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -903,8 +1013,7 @@ func (e *SpanEncoder) Encode(val *Span) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -999,7 +1108,12 @@ type SpanDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.SpanDecoder != nil {
+		panic("cannot initialize SpanDecoder: already initialized")
+	}
 	state.SpanDecoder = d
+	defer func() { state.SpanDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Span")

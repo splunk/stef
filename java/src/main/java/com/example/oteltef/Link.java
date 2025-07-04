@@ -197,11 +197,59 @@ public class Link {
         }
     }
 
+    void markModifiedRecursively() {
+        attributes.markModifiedRecursively();
+        modifiedFields.mask =
+            fieldModifiedTraceID | 
+            fieldModifiedSpanID | 
+            fieldModifiedTraceState | 
+            fieldModifiedFlags | 
+            fieldModifiedAttributes | 
+            fieldModifiedDroppedAttributesCount | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodifiedRecursively();
+        if (isAttributesModified()) {
+            attributes.markUnmodifiedRecursively();
         }
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Link v) {
+        boolean modified = false;
+        if (!Types.BytesEqual(traceID, v.traceID)) {
+            markTraceIDModified();
+            modified = true;
+        }
+        
+        if (!Types.BytesEqual(spanID, v.spanID)) {
+            markSpanIDModified();
+            modified = true;
+        }
+        
+        if (!Types.StringEqual(traceState, v.traceState)) {
+            markTraceStateModified();
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(flags, v.flags)) {
+            markFlagsModified();
+            modified = true;
+        }
+        
+        if (attributes.markDiffModified(v.attributes)) {
+            modifiedFields.markModified(fieldModifiedAttributes);
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
+            markDroppedAttributesCountModified();
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public Link clone() {

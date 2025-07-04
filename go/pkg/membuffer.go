@@ -34,7 +34,11 @@ func (r *BytesReader) ReadUvarint() (value uint64, err error) {
 }
 
 func (r *BytesReader) ReadVarint() (value int64, err error) {
-	x, err := r.ReadUvarint()
+	x, n := binary.Uvarint(r.buf[r.byteIndex:])
+	if n <= 0 {
+		return 0, io.EOF
+	}
+	r.byteIndex += n
 	return int64((x >> 1) ^ (-(x & 1))), err
 }
 

@@ -123,15 +123,50 @@ public class {{ .StructName }} {
         {{- end }}
     }
 
+    void markModifiedRecursively() {
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        {{.name}}.markModifiedRecursively();
+        {{- end}}
+        {{- end }}
+        modifiedFields.mask =
+        {{- range .Fields }}
+            fieldModified{{.Name}} | {{end}}0;
+    }
+
     void markUnmodifiedRecursively() {
         {{- range .Fields }}
         {{- if not .Type.IsPrimitive}}
-        if (this.is{{.Name}}Modified()) {
-            this.{{.name}}.markUnmodifiedRecursively();
+        if (is{{.Name}}Modified()) {
+            {{.name}}.markUnmodifiedRecursively();
         }
         {{- end}}
         {{- end }}
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified({{ $.StructName }} v) {
+        boolean modified = false;
+        {{- range .Fields }}
+        {{- if .Type.IsPrimitive}}
+        if (!{{ .Type.EqualFunc }}({{.name}}, v.{{.name}})
+            {{- if .Optional}}|| (optionalFieldsPresent & fieldPresent{{.Name}})==0{{end}}) {
+            mark{{.Name}}Modified();
+            {{- if .Optional}}
+            optionalFieldsPresent |= fieldPresent{{.Name}};
+            {{- end}}
+            modified = true;
+        }
+        {{- else}}
+        if ({{.name}}.markDiffModified(v.{{.name}})) {
+            modifiedFields.markModified(fieldModified{{.Name}});
+            modified = true;
+        }
+        {{- end}}
+        {{ end }}
+        return modified;
     }
 
     public {{.StructName}} clone() {

@@ -14,11 +14,19 @@ func (e *Int64Encoder) Encode(val int64) {
 
 type Int64Decoder struct {
 	Uint64Decoder
-	tmpVal uint64
 }
 
-func (e *Int64Decoder) Decode(dst *int64) error {
-	err := e.Uint64Decoder.Decode(&e.tmpVal)
-	*dst = int64(e.tmpVal)
-	return err
+func (d *Int64Decoder) Decode(dst *int64) error {
+	tsDeltaOfDelta, err := d.buf.ReadVarint()
+	if err != nil {
+		return err
+	}
+
+	tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
+	d.lastDelta = tsDelta
+
+	d.lastVal += tsDelta
+
+	*dst = int64(d.lastVal)
+	return nil
 }

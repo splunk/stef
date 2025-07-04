@@ -24,33 +24,42 @@ class PointDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.PointDecoder != null) {
+            throw new IllegalStateException("cannot initialize PointDecoder: already initialized");
+        }
         state.PointDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Point");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 4;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Point");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 4;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Point(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // StartTimestamp and subsequent fields are skipped.
+            }
+            startTimestampDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Timestamp and subsequent fields are skipped.
+            }
+            timestampDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Value and subsequent fields are skipped.
+            }
+            valueDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Exemplars and subsequent fields are skipped.
+            }
+            exemplarsDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.PointDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Point(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // StartTimestamp and subsequent fields are skipped.
-        }
-        startTimestampDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Timestamp and subsequent fields are skipped.
-        }
-        timestampDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Value and subsequent fields are skipped.
-        }
-        valueDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Exemplars and subsequent fields are skipped.
-        }
-        exemplarsDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

@@ -62,6 +62,14 @@ func (s *Record) IsValueModified() bool {
 	return s.modifiedFields.mask&fieldModifiedRecordValue != 0
 }
 
+func (s *Record) markModifiedRecursively() {
+
+	s.value.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedRecordValue | 0
+}
+
 func (s *Record) markUnmodifiedRecursively() {
 
 	if s.IsValueModified() {
@@ -69,6 +77,17 @@ func (s *Record) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Record) markDiffModified(v *Record) (modified bool) {
+	if s.value.markDiffModified(&v.value) {
+		s.modifiedFields.markModified(fieldModifiedRecordValue)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Record) Clone() Record {
@@ -162,7 +181,13 @@ type RecordEncoder struct {
 }
 
 func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.RecordEncoder != nil {
+		panic("cannot initialize RecordEncoder: already initialized")
+	}
 	state.RecordEncoder = e
+	defer func() { state.RecordEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -202,7 +227,7 @@ func (e *RecordEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *RecordEncoder) Encode(val *Record) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -219,6 +244,7 @@ func (e *RecordEncoder) Encode(val *Record) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -228,8 +254,7 @@ func (e *RecordEncoder) Encode(val *Record) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -259,7 +284,12 @@ type RecordDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.RecordDecoder != nil {
+		panic("cannot initialize RecordDecoder: already initialized")
+	}
 	state.RecordDecoder = d
+	defer func() { state.RecordDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Record")

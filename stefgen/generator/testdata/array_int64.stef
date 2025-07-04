@@ -1,0 +1,5 @@
+package com.example.gentest.array_int64
+
+struct Root root {
+  Vals []int64
+}

@@ -61,6 +61,13 @@ func (e *JsonValueArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *JsonValueArray) markModifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+}
+
 func (e *JsonValueArray) markUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markUnmodifiedRecursively()
@@ -68,22 +75,66 @@ func (e *JsonValueArray) markUnmodifiedRecursively() {
 
 }
 
+// markDiffModified marks fields in each element of this array modified if they differ from
+// the corresponding fields in v.
+func (e *JsonValueArray) markDiffModified(v *JsonValueArray) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if e.elems[i].markDiffModified(v.elems[i]) {
+			modified = true
+		}
+	}
+
+	// Mark the rest of the elements as modified.
+	for i := minLen; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+	if modified {
+		e.markModified()
+	}
+
+	return modified
+}
+
 func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-		dst.markModified()
+		isModified = true
 	}
-	if len(src.elems) > 0 {
-		// Allocate all elements at once.
-		elems := make([]JsonValue, len(src.elems))
-		for i := range src.elems {
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyJsonValue(dst.elems[i], src.elems[i])
+		isModified = true
+	}
+	if minLen < len(dst.elems) {
+		isModified = true
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]JsonValue, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			// Point to allocated element.
-			dst.elems[i] = &elems[i]
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyJsonValue(dst.elems[i], src.elems[i])
+			copyJsonValue(dst.elems[i+j], src.elems[i+j])
 		}
+	}
+	if isModified {
+		dst.markModified()
 	}
 }
 
@@ -168,46 +219,136 @@ func (a *JsonValueArray) mutateRandom(random *rand.Rand) {
 }
 
 type JsonValueArrayEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
-	encoder *JsonValueEncoder
-	prevLen int
-	state   *WriterState
-	lastVal JsonValue
+	buf         pkg.BitsWriter
+	limiter     *pkg.SizeLimiter
+	elemEncoder *JsonValueEncoder
+	isRecursive bool
+	state       *WriterState
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack JsonValueArrayEncoderLastValStack
+}
+type JsonValueArrayEncoderLastValStack []*JsonValueArrayEncoderLastValElem
+
+func (s *JsonValueArrayEncoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *JsonValueArrayEncoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *JsonValueArrayEncoderLastValStack) top() *JsonValueArrayEncoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *JsonValueArrayEncoderLastValStack) addOnTopSlow() {
+	elem := &JsonValueArrayEncoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &JsonValueArrayEncoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *JsonValueArrayEncoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *JsonValueArrayEncoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type JsonValueArrayEncoderLastValElem struct {
+	prevLen        int
+	elem           JsonValue
+	modifiedFields modifiedFields
+}
+
+func (e *JsonValueArrayEncoderLastValElem) init() {
+	e.elem.init(&e.modifiedFields, 1)
+}
+
+func (e *JsonValueArrayEncoderLastValElem) reset() {
+	e.elem = JsonValue{}
+	e.prevLen = 0
 }
 
 func (e *JsonValueArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
 	e.state = state
 	e.limiter = &state.limiter
-	e.encoder = state.JsonValueEncoder
 
-	e.lastVal.init(nil, 0)
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.JsonValueArrayEncoder != nil {
+		panic("cannot initialize JsonValueArrayEncoder: already initialized")
+	}
+	state.JsonValueArrayEncoder = e
+	defer func() { state.JsonValueArrayEncoder = nil }()
+
+	if state.JsonValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.elemEncoder = state.JsonValueEncoder
+		e.isRecursive = true
+	} else {
+		e.elemEncoder = new(JsonValueEncoder)
+		if err := e.elemEncoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	e.lastValStack.init()
+
 	return nil
 }
 
 func (e *JsonValueArrayEncoder) Reset() {
-	e.prevLen = 0
+	if !e.isRecursive {
+		e.elemEncoder.Reset()
+	}
+
+	e.lastValStack.reset()
 }
 
 func (e *JsonValueArrayEncoder) Encode(arr *JsonValueArray) {
+	lastVal := e.lastValStack.top()
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
+
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
+	lenDelta := newLen - lastVal.prevLen
+	lastVal.prevLen = newLen
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
-	for i := 0; i < newLen; i++ {
-		// Copy into last encoded value. This will correctly set "modified" field flags.
-		copyJsonValue(&e.lastVal, arr.elems[i])
-		// Encode it.
-		e.encoder.Encode(&e.lastVal)
-		// Reset modified flags so that next modification attempt correctly sets
-		// the modified flags and the next encoding attempt is not skipped.
-		// Normally the flags would be reset by encoder.Encode() call above, but
-		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
-		// so we have to do it explicitly.
-		arr.elems[i].markUnmodified()
+	if newLen > 0 {
+		for i := 0; i < newLen; i++ {
+			if i == 0 {
+				// Compute and mark fields that are modified compared to the last encoded value.
+				arr.elems[i].markDiffModified(&lastVal.elem)
+			} else {
+				// Compute and mark fields that are modified compared to the previous element.
+				arr.elems[i].markDiffModified(arr.elems[i-1])
+			}
+
+			// Encode the element.
+			e.elemEncoder.Encode(arr.elems[i])
+		}
+		// Remember last encoded element.
+		copyJsonValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.
@@ -217,24 +358,99 @@ func (e *JsonValueArrayEncoder) Encode(arr *JsonValueArray) {
 
 func (e *JsonValueArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	if !e.isRecursive {
+		e.elemEncoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type JsonValueArrayDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	decoder    *JsonValueDecoder
-	prevLen    int
-	lastVal    JsonValue
-	lastValPtr *JsonValue
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	elemDecoder *JsonValueDecoder
+	isRecursive bool
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack JsonValueArrayDecoderLastValStack
+}
+type JsonValueArrayDecoderLastValStack []*JsonValueArrayDecoderLastValElem
+
+func (s *JsonValueArrayDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *JsonValueArrayDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *JsonValueArrayDecoderLastValStack) top() *JsonValueArrayDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *JsonValueArrayDecoderLastValStack) addOnTopSlow() {
+	elem := &JsonValueArrayDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &JsonValueArrayDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *JsonValueArrayDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *JsonValueArrayDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type JsonValueArrayDecoderLastValElem struct {
+	prevLen int
+	elem    JsonValue
+}
+
+func (e *JsonValueArrayDecoderLastValElem) init() {
+}
+
+func (e *JsonValueArrayDecoderLastValElem) reset() {
+	e.prevLen = 0
+
+	e.elem = JsonValue{}
+
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *JsonValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.decoder = state.JsonValueDecoder
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.JsonValueArrayDecoder != nil {
+		panic("cannot initialize JsonValueArrayDecoder: already initialized")
+	}
+	state.JsonValueArrayDecoder = d
+	defer func() { state.JsonValueArrayDecoder = nil }()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	if state.JsonValueDecoder != nil {
+		d.elemDecoder = state.JsonValueDecoder
+		d.isRecursive = true
+	} else {
+		d.elemDecoder = new(JsonValueDecoder)
+		if err := d.elemDecoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	d.lastValStack.init()
 
 	return nil
 }
@@ -246,30 +462,36 @@ func (d *JsonValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 // continuation of that same column in the previous frame.
 func (d *JsonValueArrayDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
+	if !d.isRecursive {
+		d.elemDecoder.Continue()
+	}
 }
 
 func (d *JsonValueArrayDecoder) Reset() {
-	d.prevLen = 0
+	if !d.isRecursive {
+		d.elemDecoder.Reset()
+	}
+	d.lastValStack.reset()
 }
 
 func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
-	lenDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 
-	newLen := d.prevLen + int(lenDelta)
+	lenDelta := d.buf.ReadVarintCompact()
+
+	newLen := lastVal.prevLen + int(lenDelta)
+	lastVal.prevLen = newLen
 
 	dst.EnsureLen(newLen)
 
-	d.prevLen = newLen
-
 	for i := 0; i < newLen; i++ {
-		err = d.decoder.Decode(d.lastValPtr)
+		err := d.elemDecoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copyJsonValue(dst.elems[i], d.lastValPtr)
+		copyJsonValue(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

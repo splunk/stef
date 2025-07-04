@@ -88,6 +88,15 @@ func (s *ExpHistogramBuckets) IsBucketCountsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0
 }
 
+func (s *ExpHistogramBuckets) markModifiedRecursively() {
+
+	s.bucketCounts.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedExpHistogramBucketsOffset |
+			fieldModifiedExpHistogramBucketsBucketCounts | 0
+}
+
 func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 
 	if s.IsOffsetModified() {
@@ -98,6 +107,22 @@ func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *ExpHistogramBuckets) markDiffModified(v *ExpHistogramBuckets) (modified bool) {
+	if !pkg.Int64Equal(s.offset, v.offset) {
+		s.markOffsetModified()
+		modified = true
+	}
+
+	if s.bucketCounts.markDiffModified(&v.bucketCounts) {
+		s.modifiedFields.markModified(fieldModifiedExpHistogramBucketsBucketCounts)
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *ExpHistogramBuckets) Clone() ExpHistogramBuckets {
@@ -203,7 +228,13 @@ type ExpHistogramBucketsEncoder struct {
 }
 
 func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ExpHistogramBucketsEncoder != nil {
+		panic("cannot initialize ExpHistogramBucketsEncoder: already initialized")
+	}
 	state.ExpHistogramBucketsEncoder = e
+	defer func() { state.ExpHistogramBucketsEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -250,7 +281,7 @@ func (e *ExpHistogramBucketsEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -268,6 +299,7 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -282,8 +314,7 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -318,7 +349,12 @@ type ExpHistogramBucketsDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ExpHistogramBucketsDecoder != nil {
+		panic("cannot initialize ExpHistogramBucketsDecoder: already initialized")
+	}
 	state.ExpHistogramBucketsDecoder = d
+	defer func() { state.ExpHistogramBucketsDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("ExpHistogramBuckets")

@@ -61,6 +61,13 @@ func (e *EventArray) markUnmodified() {
 	e.parentModifiedFields.markUnmodified()
 }
 
+func (e *EventArray) markModifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+}
+
 func (e *EventArray) markUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markUnmodifiedRecursively()
@@ -68,22 +75,66 @@ func (e *EventArray) markUnmodifiedRecursively() {
 
 }
 
+// markDiffModified marks fields in each element of this array modified if they differ from
+// the corresponding fields in v.
+func (e *EventArray) markDiffModified(v *EventArray) (modified bool) {
+	if len(e.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(e.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if e.elems[i].markDiffModified(v.elems[i]) {
+			modified = true
+		}
+	}
+
+	// Mark the rest of the elements as modified.
+	for i := minLen; i < len(e.elems); i++ {
+		e.elems[i].markModifiedRecursively()
+	}
+
+	if modified {
+		e.markModified()
+	}
+
+	return modified
+}
+
 func copyEventArray(dst *EventArray, src *EventArray) {
+	isModified := false
+
+	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
 		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
-		dst.markModified()
+		isModified = true
 	}
-	if len(src.elems) > 0 {
-		// Allocate all elements at once.
-		elems := make([]Event, len(src.elems))
-		for i := range src.elems {
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyEvent(dst.elems[i], src.elems[i])
+		isModified = true
+	}
+	if minLen < len(dst.elems) {
+		isModified = true
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]Event, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			// Point to allocated element.
-			dst.elems[i] = &elems[i]
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyEvent(dst.elems[i], src.elems[i])
+			copyEvent(dst.elems[i+j], src.elems[i+j])
 		}
+	}
+	if isModified {
+		dst.markModified()
 	}
 }
 
@@ -168,51 +219,136 @@ func (a *EventArray) mutateRandom(random *rand.Rand) {
 }
 
 type EventArrayEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
-	encoder EventEncoder
-	prevLen int
-	state   *WriterState
-	lastVal Event
+	buf         pkg.BitsWriter
+	limiter     *pkg.SizeLimiter
+	elemEncoder *EventEncoder
+	isRecursive bool
+	state       *WriterState
+	// lastValStack are last encoded values stacked by the level of recursion.
+	lastValStack EventArrayEncoderLastValStack
+}
+type EventArrayEncoderLastValStack []*EventArrayEncoderLastValElem
+
+func (s *EventArrayEncoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *EventArrayEncoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *EventArrayEncoderLastValStack) top() *EventArrayEncoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *EventArrayEncoderLastValStack) addOnTopSlow() {
+	elem := &EventArrayEncoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &EventArrayEncoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *EventArrayEncoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *EventArrayEncoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type EventArrayEncoderLastValElem struct {
+	prevLen        int
+	elem           Event
+	modifiedFields modifiedFields
+}
+
+func (e *EventArrayEncoderLastValElem) init() {
+	e.elem.init(&e.modifiedFields, 1)
+}
+
+func (e *EventArrayEncoderLastValElem) reset() {
+	e.elem = Event{}
+	e.prevLen = 0
 }
 
 func (e *EventArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
 	e.state = state
 	e.limiter = &state.limiter
 
-	if err := e.encoder.Init(state, columns.AddSubColumn()); err != nil {
-		return err
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.EventArrayEncoder != nil {
+		panic("cannot initialize EventArrayEncoder: already initialized")
 	}
-	state.EventEncoder = &e.encoder
+	state.EventArrayEncoder = e
+	defer func() { state.EventArrayEncoder = nil }()
 
-	e.lastVal.init(nil, 0)
+	if state.EventEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.elemEncoder = state.EventEncoder
+		e.isRecursive = true
+	} else {
+		e.elemEncoder = new(EventEncoder)
+		if err := e.elemEncoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	e.lastValStack.init()
+
 	return nil
 }
 
 func (e *EventArrayEncoder) Reset() {
-	e.prevLen = 0
-	e.encoder.Reset()
+	if !e.isRecursive {
+		e.elemEncoder.Reset()
+	}
+
+	e.lastValStack.reset()
 }
 
 func (e *EventArrayEncoder) Encode(arr *EventArray) {
+	lastVal := e.lastValStack.top()
+	e.lastValStack.addOnTop()
+	defer func() { e.lastValStack.removeFromTop() }()
+
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
+	lenDelta := newLen - lastVal.prevLen
+	lastVal.prevLen = newLen
+
 	e.buf.WriteVarintCompact(int64(lenDelta))
 
-	for i := 0; i < newLen; i++ {
-		// Copy into last encoded value. This will correctly set "modified" field flags.
-		copyEvent(&e.lastVal, arr.elems[i])
-		// Encode it.
-		e.encoder.Encode(&e.lastVal)
-		// Reset modified flags so that next modification attempt correctly sets
-		// the modified flags and the next encoding attempt is not skipped.
-		// Normally the flags would be reset by encoder.Encode() call above, but
-		// since we are passing e.lastVal to it, it will not reset the flags in the elems,
-		// so we have to do it explicitly.
-		arr.elems[i].markUnmodified()
+	if newLen > 0 {
+		for i := 0; i < newLen; i++ {
+			if i == 0 {
+				// Compute and mark fields that are modified compared to the last encoded value.
+				arr.elems[i].markDiffModified(&lastVal.elem)
+			} else {
+				// Compute and mark fields that are modified compared to the previous element.
+				arr.elems[i].markDiffModified(arr.elems[i-1])
+			}
+
+			// Encode the element.
+			e.elemEncoder.Encode(arr.elems[i])
+		}
+		// Remember last encoded element.
+		copyEvent(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.
@@ -222,29 +358,99 @@ func (e *EventArrayEncoder) Encode(arr *EventArray) {
 
 func (e *EventArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
-	e.encoder.CollectColumns(columnSet.At(0))
+	if !e.isRecursive {
+		e.elemEncoder.CollectColumns(columnSet.At(0))
+	}
 }
 
 type EventArrayDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	decoder    EventDecoder
-	prevLen    int
-	lastVal    Event
-	lastValPtr *Event
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	elemDecoder *EventDecoder
+	isRecursive bool
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack EventArrayDecoderLastValStack
+}
+type EventArrayDecoderLastValStack []*EventArrayDecoderLastValElem
+
+func (s *EventArrayDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *EventArrayDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *EventArrayDecoderLastValStack) top() *EventArrayDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *EventArrayDecoderLastValStack) addOnTopSlow() {
+	elem := &EventArrayDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &EventArrayDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *EventArrayDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *EventArrayDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type EventArrayDecoderLastValElem struct {
+	prevLen int
+	elem    Event
+}
+
+func (e *EventArrayDecoderLastValElem) init() {
+}
+
+func (e *EventArrayDecoderLastValElem) reset() {
+	e.prevLen = 0
+
+	e.elem = Event{}
+
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *EventArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-
-	if err := d.decoder.Init(state, columns.AddSubColumn()); err != nil {
-		return err
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.EventArrayDecoder != nil {
+		panic("cannot initialize EventArrayDecoder: already initialized")
 	}
-	state.EventDecoder = &d.decoder
+	state.EventArrayDecoder = d
+	defer func() { state.EventArrayDecoder = nil }()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	if state.EventDecoder != nil {
+		d.elemDecoder = state.EventDecoder
+		d.isRecursive = true
+	} else {
+		d.elemDecoder = new(EventDecoder)
+		if err := d.elemDecoder.Init(state, columns.AddSubColumn()); err != nil {
+			return err
+		}
+	}
+	d.lastValStack.init()
 
 	return nil
 }
@@ -256,32 +462,36 @@ func (d *EventArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 // continuation of that same column in the previous frame.
 func (d *EventArrayDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	d.decoder.Continue()
+	if !d.isRecursive {
+		d.elemDecoder.Continue()
+	}
 }
 
 func (d *EventArrayDecoder) Reset() {
-	d.prevLen = 0
-	d.decoder.Reset()
+	if !d.isRecursive {
+		d.elemDecoder.Reset()
+	}
+	d.lastValStack.reset()
 }
 
 func (d *EventArrayDecoder) Decode(dst *EventArray) error {
-	lenDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 
-	newLen := d.prevLen + int(lenDelta)
+	lenDelta := d.buf.ReadVarintCompact()
+
+	newLen := lastVal.prevLen + int(lenDelta)
+	lastVal.prevLen = newLen
 
 	dst.EnsureLen(newLen)
 
-	d.prevLen = newLen
-
 	for i := 0; i < newLen; i++ {
-		err = d.decoder.Decode(d.lastValPtr)
+		err := d.elemDecoder.Decode(&lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copyEvent(dst.elems[i], d.lastValPtr)
+		copyEvent(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

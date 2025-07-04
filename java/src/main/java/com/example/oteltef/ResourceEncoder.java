@@ -31,32 +31,41 @@ class ResourceEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ResourceEncoder != null) {
+            throw new IllegalStateException("cannot initialize ResourceEncoder: already initialized");
+        }
         state.ResourceEncoder = this;
-        this.limiter = state.getLimiter();
-        this.dict = state.Resource;
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 3;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
+            this.dict = state.Resource;
 
-        
-        if (this.fieldCount <= 0) {
-            return; // SchemaURL and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 3;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // SchemaURL and subsequent fields are skipped.
+            }
+            this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.ResourceEncoder = null;
         }
-        this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        this.attributesEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

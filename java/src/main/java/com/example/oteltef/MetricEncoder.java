@@ -36,52 +36,61 @@ class MetricEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.MetricEncoder != null) {
+            throw new IllegalStateException("cannot initialize MetricEncoder: already initialized");
+        }
         state.MetricEncoder = this;
-        this.limiter = state.getLimiter();
-        this.dict = state.Metric;
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 8;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
+            this.dict = state.Metric;
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 8;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            this.nameEncoder.init(state.MetricName, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Description and subsequent fields are skipped.
+            }
+            this.descriptionEncoder.init(state.MetricDescription, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Unit and subsequent fields are skipped.
+            }
+            this.unitEncoder.init(state.MetricUnit, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Type and subsequent fields are skipped.
+            }
+            this.type_Encoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Metadata and subsequent fields are skipped.
+            }
+            this.metadataEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // HistogramBounds and subsequent fields are skipped.
+            }
+            this.histogramBoundsEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // AggregationTemporality and subsequent fields are skipped.
+            }
+            this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 7) {
+                return; // Monotonic and subsequent fields are skipped.
+            }
+            this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.MetricEncoder = null;
         }
-        this.nameEncoder.init(state.MetricName, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Description and subsequent fields are skipped.
-        }
-        this.descriptionEncoder.init(state.MetricDescription, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Unit and subsequent fields are skipped.
-        }
-        this.unitEncoder.init(state.MetricUnit, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Type and subsequent fields are skipped.
-        }
-        this.type_Encoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Metadata and subsequent fields are skipped.
-        }
-        this.metadataEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // HistogramBounds and subsequent fields are skipped.
-        }
-        this.histogramBoundsEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // AggregationTemporality and subsequent fields are skipped.
-        }
-        this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 7) {
-            return; // Monotonic and subsequent fields are skipped.
-        }
-        this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

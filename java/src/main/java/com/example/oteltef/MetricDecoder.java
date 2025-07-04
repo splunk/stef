@@ -30,50 +30,59 @@ class MetricDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.MetricDecoder != null) {
+            throw new IllegalStateException("cannot initialize MetricDecoder: already initialized");
+        }
         state.MetricDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 8;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 8;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Metric(null, 0);
+            dict = state.Metric;
+            
+            if (this.fieldCount <= 0) {
+                return; // Name and subsequent fields are skipped.
+            }
+            nameDecoder.init(state.MetricName, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Description and subsequent fields are skipped.
+            }
+            descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Unit and subsequent fields are skipped.
+            }
+            unitDecoder.init(state.MetricUnit, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Type and subsequent fields are skipped.
+            }
+            type_Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Metadata and subsequent fields are skipped.
+            }
+            metadataDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // HistogramBounds and subsequent fields are skipped.
+            }
+            histogramBoundsDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // AggregationTemporality and subsequent fields are skipped.
+            }
+            aggregationTemporalityDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 7) {
+                return; // Monotonic and subsequent fields are skipped.
+            }
+            monotonicDecoder.init(columns.addSubColumn());
+        } finally {
+            state.MetricDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Metric(null, 0);
-        dict = state.Metric;
-        
-        if (this.fieldCount <= 0) {
-            return; // Name and subsequent fields are skipped.
-        }
-        nameDecoder.init(state.MetricName, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Description and subsequent fields are skipped.
-        }
-        descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Unit and subsequent fields are skipped.
-        }
-        unitDecoder.init(state.MetricUnit, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Type and subsequent fields are skipped.
-        }
-        type_Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Metadata and subsequent fields are skipped.
-        }
-        metadataDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // HistogramBounds and subsequent fields are skipped.
-        }
-        histogramBoundsDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // AggregationTemporality and subsequent fields are skipped.
-        }
-        aggregationTemporalityDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 7) {
-            return; // Monotonic and subsequent fields are skipped.
-        }
-        monotonicDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

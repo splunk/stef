@@ -69,7 +69,7 @@ func (s *ExemplarValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to ExemplarValueTypeInt64.
 func (s *ExemplarValue) SetInt64(v int64) {
-	if !pkg.Int64Equal(s.int64, v) || s.typ != ExemplarValueTypeInt64 {
+	if s.typ != ExemplarValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
 		s.int64 = v
 		s.typ = ExemplarValueTypeInt64
 		s.markParentModified()
@@ -84,7 +84,7 @@ func (s *ExemplarValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to ExemplarValueTypeFloat64.
 func (s *ExemplarValue) SetFloat64(v float64) {
-	if !pkg.Float64Equal(s.float64, v) || s.typ != ExemplarValueTypeFloat64 {
+	if s.typ != ExemplarValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
 		s.float64 = v
 		s.typ = ExemplarValueTypeFloat64
 		s.markParentModified()
@@ -111,8 +111,11 @@ func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 		dst.SetInt64(src.int64)
 	case ExemplarValueTypeFloat64:
 		dst.SetFloat64(src.float64)
+	case ExemplarValueTypeNone:
+		dst.SetType(src.typ)
+	default:
+		panic("copyExemplarValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
-	dst.SetType(src.typ)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -127,11 +130,42 @@ func (s *ExemplarValue) markParentModified() {
 func (s *ExemplarValue) markUnmodified() {
 }
 
+func (s *ExemplarValue) markModifiedRecursively() {
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+	case ExemplarValueTypeFloat64:
+	}
+}
+
 func (s *ExemplarValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case ExemplarValueTypeInt64:
 	case ExemplarValueTypeFloat64:
 	}
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *ExemplarValue) markDiffModified(v *ExemplarValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+		if !pkg.Int64Equal(s.int64, v.int64) {
+			s.markParentModified()
+			modified = true
+		}
+	case ExemplarValueTypeFloat64:
+		if !pkg.Float64Equal(s.float64, v.float64) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -141,13 +175,9 @@ func (e *ExemplarValue) IsEqual(val *ExemplarValue) bool {
 	}
 	switch e.typ {
 	case ExemplarValueTypeInt64:
-		if !pkg.Int64Equal(e.int64, val.int64) {
-			return false
-		}
+		return pkg.Int64Equal(e.int64, val.int64)
 	case ExemplarValueTypeFloat64:
-		if !pkg.Float64Equal(e.float64, val.float64) {
-			return false
-		}
+		return pkg.Float64Equal(e.float64, val.float64)
 	}
 
 	return true
@@ -176,13 +206,9 @@ func CmpExemplarValue(left, right *ExemplarValue) int {
 	}
 	switch left.typ {
 	case ExemplarValueTypeInt64:
-		if c := pkg.Int64Compare(left.int64, right.int64); c != 0 {
-			return c
-		}
+		return pkg.Int64Compare(left.int64, right.int64)
 	case ExemplarValueTypeFloat64:
-		if c := pkg.Float64Compare(left.float64, right.float64); c != 0 {
-			return c
-		}
+		return pkg.Float64Compare(left.float64, right.float64)
 	}
 
 	return 0
@@ -222,7 +248,13 @@ type ExemplarValueEncoder struct {
 }
 
 func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ExemplarValueEncoder != nil {
+		panic("cannot initialize ExemplarValueEncoder: already initialized")
+	}
 	state.ExemplarValueEncoder = e
+	defer func() { state.ExemplarValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -265,8 +297,6 @@ func (e *ExemplarValueEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *ExemplarValueEncoder) Encode(val *ExemplarValue) {
-	oldLen := e.buf.BitCount()
-
 	typ := val.typ
 	if uint(typ) > e.fieldCount {
 		// The current field type is not supported in target schema. Encode the type as None.
@@ -276,11 +306,10 @@ func (e *ExemplarValueEncoder) Encode(val *ExemplarValue) {
 	// Compute type delta. 0 means the type is the same as the last time.
 	typDelta := int(typ) - int(e.prevType)
 	e.prevType = typ
-	e.buf.WriteVarintCompact(int64(typDelta))
+	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -323,7 +352,12 @@ type ExemplarValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ExemplarValueDecoder != nil {
+		panic("cannot initialize ExemplarValueDecoder: already initialized")
+	}
 	state.ExemplarValueDecoder = d
+	defer func() { state.ExemplarValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
@@ -388,10 +422,7 @@ func (d *ExemplarValueDecoder) Reset() {
 
 func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	// Read Type delta
-	typeDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	typeDelta := d.buf.ReadVarintCompact()
 
 	// Calculate and validate the new Type
 	typ := int(d.prevType) + int(typeDelta)
@@ -407,13 +438,13 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	switch dst.typ {
 	case ExemplarValueTypeInt64:
 		// Decode Int64
-		err = d.int64Decoder.Decode(&dst.int64)
+		err := d.int64Decoder.Decode(&dst.int64)
 		if err != nil {
 			return err
 		}
 	case ExemplarValueTypeFloat64:
 		// Decode Float64
-		err = d.float64Decoder.Decode(&dst.float64)
+		err := d.float64Decoder.Decode(&dst.float64)
 		if err != nil {
 			return err
 		}

@@ -1,0 +1,18 @@
+package com.example.gentest.json_like
+
+struct Record root {
+  Value JsonValue
+}
+
+oneof JsonValue {
+  Object JsonObject
+  Array []JsonValue
+  String string
+  Number float64
+  Bool bool
+}
+
+multimap JsonObject {
+  key string
+  value JsonValue
+}

@@ -172,6 +172,23 @@ public class PointValue {
         this.expHistogram.markUnmodified();
     }
 
+    void markModifiedRecursively() {
+        switch (this.typ) {
+        case TypeInt64:
+            break;
+        case TypeFloat64:
+            break;
+        case TypeHistogram:
+                this.histogram.markModifiedRecursively();
+            break;
+        case TypeExpHistogram:
+                this.expHistogram.markModifiedRecursively();
+            break;
+        default:
+            break;
+        }
+    }
+
     void markUnmodifiedRecursively() {
         switch (this.typ) {
         case TypeInt64:
@@ -187,6 +204,40 @@ public class PointValue {
         default:
             break;
         }
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(PointValue v) {
+        if (this.typ != v.typ) {
+            this.markModifiedRecursively();
+            return true;
+        }
+
+        boolean modified = false;
+        switch (this.typ) {
+        case TypeInt64:
+            if (!Types.Int64Equal(this.int64, v.int64)) {
+                this.markParentModified();
+                modified = true;
+            }
+        case TypeFloat64:
+            if (!Types.Float64Equal(this.float64, v.float64)) {
+                this.markParentModified();
+                modified = true;
+            }
+        case TypeHistogram:
+            if (this.histogram.markDiffModified(v.histogram)) {
+                this.markParentModified();
+                modified = true;
+            }
+        case TypeExpHistogram:
+            if (this.expHistogram.markDiffModified(v.expHistogram)) {
+                this.markParentModified();
+                modified = true;
+            }
+        }
+        return modified;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

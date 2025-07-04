@@ -116,11 +116,41 @@ public class Resource {
         }
     }
 
+    void markModifiedRecursively() {
+        attributes.markModifiedRecursively();
+        modifiedFields.mask =
+            fieldModifiedSchemaURL | 
+            fieldModifiedAttributes | 
+            fieldModifiedDroppedAttributesCount | 0;
+    }
+
     void markUnmodifiedRecursively() {
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodifiedRecursively();
+        if (isAttributesModified()) {
+            attributes.markUnmodifiedRecursively();
         }
-        this.modifiedFields.mask = 0;
+        modifiedFields.mask = 0;
+    }
+
+    // markDiffModified marks fields in this struct modified if they differ from
+    // the corresponding fields in v.
+    boolean markDiffModified(Resource v) {
+        boolean modified = false;
+        if (!Types.StringEqual(schemaURL, v.schemaURL)) {
+            markSchemaURLModified();
+            modified = true;
+        }
+        
+        if (attributes.markDiffModified(v.attributes)) {
+            modifiedFields.markModified(fieldModifiedAttributes);
+            modified = true;
+        }
+        
+        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
+            markDroppedAttributesCountModified();
+            modified = true;
+        }
+        
+        return modified;
     }
 
     public Resource clone() {

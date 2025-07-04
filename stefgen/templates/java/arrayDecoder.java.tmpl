@@ -11,32 +11,48 @@ import java.io.IOException;
 class {{ .ArrayName }}Decoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private {{.ElemType.EncoderType}}Decoder decoder;
-    private int prevLen = 0;
-    private {{.ElemType.Storage}} lastVal;
+    private {{.ElemType.EncoderType}}Decoder elemDecoder;
+    private boolean isRecursive = false;
+
+    {{- if .ElemType.IsPrimitive}}
+    private long prevLen = 0;
+    {{- else}}
+    // lastValStack are last decoded values stacked by the level of recursion.
+    private {{ .ArrayName }}Encoder.LastValStack lastValStack;
+    {{- end}}
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
-    {{if .ElemType.IsPrimitive}}
-        decoder = new {{.ElemType.EncoderType}}Decoder();
-    {{if .ElemType.DictName}}
-        decoder.init(state.{{.ElemType.DictName}}, columns.addSubColumn());
-    {{else if .ElemType.IsDictPossible}}
-        decoder.init(null, columns.addSubColumn());
-    {{else}}
-        decoder.init(columns.addSubColumn());
-    {{end}}
-    {{else}}
-    {{if .Recursive}}
-        decoder = state.{{.ElemType.EncoderType}}Decoder;
-    {{else}}
-        decoder = new {{.ElemType.EncoderType}}Decoder();
-        decoder.init(state, columns.addSubColumn());
-        state.{{.ElemType.EncoderType}}Decoder = decoder;
-    {{end}}
-        lastVal = new {{.ElemType.Storage}}(null, 0);
-    {{end}}
+
+        {{- if .ElemType.IsPrimitive}}
+        elemDecoder = new {{.ElemType.EncoderType}}Decoder();
+        {{- if .ElemType.DictName}}
+        elemDecoder.Init(&state.{{.ElemType.DictName}}, columns.addSubColumn());
+        {{- else if .ElemType.IsDictPossible}}
+        elemDecoder.init(nil, columns.addSubColumn());
+        {{- else}}
+        elemDecoder.init(columns.addSubColumn());
+        {{- end}}
+        {{- else}}
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.{{ .ArrayName }}Decoder != null) {
+            throw new IllegalStateException("cannot initialize {{ .ArrayName }}Decoder: already initialized");
+        }
+        state.{{ .ArrayName }}Decoder = this;
+        try {
+            if (state.{{.ElemType.EncoderType}}Decoder != null) {
+                elemDecoder = state.{{.ElemType.EncoderType}}Decoder;
+                isRecursive = true;
+            } else {
+                elemDecoder = new {{.ElemType.EncoderType}}Decoder();
+                elemDecoder.init(state, columns.addSubColumn());
+            }
+            this.lastValStack = new {{ .ArrayName }}Encoder.LastValStack();
+        } finally {
+            state.{{ .ArrayName }}Decoder = null;
+        }
+        {{- end}}
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
@@ -46,39 +62,58 @@ class {{ .ArrayName }}Decoder {
     // continuation of that same column in the previous frame.
     public void continueDecoding() {
         buf.reset(column.getData());
-        {{if not .Recursive}}
-        decoder.continueDecoding();
-        {{end}}
+        if (!isRecursive) {
+            elemDecoder.continueDecoding();
+        }
     }
 
     public void reset() {
+        if (!isRecursive) {
+            elemDecoder.reset();
+        }
+        {{if .ElemType.IsPrimitive -}}
         prevLen = 0;
-        {{if not .Recursive}}
-        decoder.reset();
-        {{end}}
+        {{- else -}}
+        lastValStack.reset();
+        {{- end}}
     }
 
     public {{.ArrayName}} decode({{.ArrayName}} dst) throws IOException {
-        long lenDelta = buf.readVarintCompact();
-        long newLen = prevLen + lenDelta;
-        if (newLen < 0) {
-            throw new IllegalStateException("Invalid array length: " + newLen);
-        }
-        if (newLen > Integer.MAX_VALUE) {
-            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
-        }
+        {{ if not .ElemType.IsPrimitive -}}
+        {{.ArrayName}}Encoder.LastValElem lastVal = lastValStack.top();
+        lastValStack.addOnTop();
+        try {
+        {{- end}}
+            long lenDelta = buf.readVarintCompact();
+            {{if .ElemType.IsPrimitive -}}
+            long newLen = prevLen + lenDelta;
+            prevLen = newLen;
+            {{- else}}
+            long newLen = lastVal.prevLen + lenDelta;
+            lastVal.prevLen = newLen;
+            {{- end}}
 
-        dst.ensureLen((int)newLen);
-        prevLen = (int)newLen;
-        for (int i = 0; i < newLen; i++) {
-            {{if .ElemType.IsPrimitive}}
-            lastVal = decoder.decode();
-            dst.elems[i] = lastVal;
-            {{else}}
-            lastVal = decoder.decode(lastVal);
-            dst.elems[i].copyFrom(lastVal);
-            {{end}}
+            if (newLen < 0) {
+                throw new IllegalStateException("Invalid array length: " + newLen);
+            }
+            if (newLen > Integer.MAX_VALUE) {
+                throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+            }
+
+            dst.ensureLen((int)newLen);
+            for (int i = 0; i < newLen; i++) {
+                {{if .ElemType.IsPrimitive}}
+                dst.elems[i] = elemDecoder.decode();
+                {{else}}
+                lastVal.elem = elemDecoder.decode(lastVal.elem);
+                dst.elems[i].copyFrom(lastVal.elem);
+                {{end}}
+            }
+        {{- if not .ElemType.IsPrimitive}}
+        } finally {
+            lastValStack.removeFromTop();
         }
+        {{- end}}
 
         return dst;
     }

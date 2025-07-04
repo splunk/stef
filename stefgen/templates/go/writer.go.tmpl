@@ -143,12 +143,6 @@ func (w *{{.StructName}}Writer) Write() error {
 		restartFrame = true
 	}
 
-	if nextFrameFlags & pkg.RestartCodecs != 0 {
-		w.encoder.Reset()
-		nextFrameFlags = w.opts.FrameRestartFlags | pkg.RestartCodecs
-		restartFrame = true
-	}
-
 	if w.state.limiter.FrameLimitReached() {
 		restartFrame = true
 	}
@@ -169,6 +163,10 @@ func (w *{{.StructName}}Writer) RecordCount() uint64 {
 }
 
 func (w *{{.StructName}}Writer) restartFrame(nextFrameFlags pkg.FrameFlags) error {
+	if nextFrameFlags & pkg.RestartCodecs != 0 {
+		w.encoder.Reset()
+	}
+
 	// Write record count.
 	if _, err := w.frameEncoder.Write(binary.AppendUvarint(nil, w.frameRecordCount)); err != nil {
 		return err

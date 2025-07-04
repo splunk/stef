@@ -31,39 +31,48 @@ class ExemplarEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExemplarEncoder != null) {
+            throw new IllegalStateException("cannot initialize ExemplarEncoder: already initialized");
+        }
         state.ExemplarEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 5;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Timestamp and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 5;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Timestamp and subsequent fields are skipped.
+            }
+            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Value and subsequent fields are skipped.
+            }
+            this.valueEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // SpanID and subsequent fields are skipped.
+            }
+            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // TraceID and subsequent fields are skipped.
+            }
+            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // FilteredAttributes and subsequent fields are skipped.
+            }
+            this.filteredAttributesEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.ExemplarEncoder = null;
         }
-        this.timestampEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Value and subsequent fields are skipped.
-        }
-        this.valueEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // SpanID and subsequent fields are skipped.
-        }
-        this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // TraceID and subsequent fields are skipped.
-        }
-        this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // FilteredAttributes and subsequent fields are skipped.
-        }
-        this.filteredAttributesEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

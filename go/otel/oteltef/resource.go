@@ -116,6 +116,16 @@ func (s *Resource) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0
 }
 
+func (s *Resource) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedResourceSchemaURL |
+			fieldModifiedResourceAttributes |
+			fieldModifiedResourceDroppedAttributesCount | 0
+}
+
 func (s *Resource) markUnmodifiedRecursively() {
 
 	if s.IsSchemaURLModified() {
@@ -129,6 +139,27 @@ func (s *Resource) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Resource) markDiffModified(v *Resource) (modified bool) {
+	if !pkg.StringEqual(s.schemaURL, v.schemaURL) {
+		s.markSchemaURLModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedResourceAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Resource) Clone() *Resource {
@@ -270,7 +301,13 @@ func (d *ResourceEncoderDict) Reset() {
 }
 
 func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ResourceEncoder != nil {
+		panic("cannot initialize ResourceEncoder: already initialized")
+	}
 	state.ResourceEncoder = e
+	defer func() { state.ResourceEncoder = nil }()
+
 	e.limiter = &state.limiter
 	e.dict = &state.Resource
 
@@ -325,7 +362,7 @@ func (e *ResourceEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *ResourceEncoder) Encode(val *Resource) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Check if the Resource exists in the dictionary.
 	entry, exists := e.dict.dict.Get(val)
@@ -334,11 +371,10 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
 
 		// Account written bits in the limiter.
-		newLen := e.buf.BitCount()
-		e.limiter.AddFrameBits(newLen - oldLen)
+		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
@@ -354,6 +390,7 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 
 	// Indicate that an encoded Resource follows.
 	e.buf.WriteBit(1)
+	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -372,6 +409,7 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -391,8 +429,7 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -434,7 +471,12 @@ type ResourceDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ResourceDecoder != nil {
+		panic("cannot initialize ResourceDecoder: already initialized")
+	}
 	state.ResourceDecoder = d
+	defer func() { state.ResourceDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Resource")
@@ -514,10 +556,7 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	// Check if the Resource exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
-		refNum, err := d.buf.ReadUvarintCompact()
-		if err != nil {
-			return err
-		}
+		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}

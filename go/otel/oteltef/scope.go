@@ -168,6 +168,18 @@ func (s *Scope) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0
 }
 
+func (s *Scope) markModifiedRecursively() {
+
+	s.attributes.markModifiedRecursively()
+
+	s.modifiedFields.mask =
+		fieldModifiedScopeName |
+			fieldModifiedScopeVersion |
+			fieldModifiedScopeSchemaURL |
+			fieldModifiedScopeAttributes |
+			fieldModifiedScopeDroppedAttributesCount | 0
+}
+
 func (s *Scope) markUnmodifiedRecursively() {
 
 	if s.IsNameModified() {
@@ -187,6 +199,37 @@ func (s *Scope) markUnmodifiedRecursively() {
 	}
 
 	s.modifiedFields.mask = 0
+}
+
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *Scope) markDiffModified(v *Scope) (modified bool) {
+	if !pkg.StringEqual(s.name, v.name) {
+		s.markNameModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.version, v.version) {
+		s.markVersionModified()
+		modified = true
+	}
+
+	if !pkg.StringEqual(s.schemaURL, v.schemaURL) {
+		s.markSchemaURLModified()
+		modified = true
+	}
+
+	if s.attributes.markDiffModified(&v.attributes) {
+		s.modifiedFields.markModified(fieldModifiedScopeAttributes)
+		modified = true
+	}
+
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
+		s.markDroppedAttributesCountModified()
+		modified = true
+	}
+
+	return modified
 }
 
 func (s *Scope) Clone() *Scope {
@@ -352,7 +395,13 @@ func (d *ScopeEncoderDict) Reset() {
 }
 
 func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.ScopeEncoder != nil {
+		panic("cannot initialize ScopeEncoder: already initialized")
+	}
 	state.ScopeEncoder = e
+	defer func() { state.ScopeEncoder = nil }()
+
 	e.limiter = &state.limiter
 	e.dict = &state.Scope
 
@@ -421,7 +470,7 @@ func (e *ScopeEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *ScopeEncoder) Encode(val *Scope) {
-	oldLen := e.buf.BitCount()
+	var bitCount uint
 
 	// Check if the Scope exists in the dictionary.
 	entry, exists := e.dict.dict.Get(val)
@@ -430,11 +479,10 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
 
 		// Account written bits in the limiter.
-		newLen := e.buf.BitCount()
-		e.limiter.AddFrameBits(newLen - oldLen)
+		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
@@ -450,6 +498,7 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 
 	// Indicate that an encoded Scope follows.
 	e.buf.WriteBit(1)
+	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -470,6 +519,7 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 
 	// Write bits to indicate which fields follow.
 	e.buf.WriteBits(fieldMask, e.fieldCount)
+	bitCount += e.fieldCount
 
 	// Encode modified, present fields.
 
@@ -499,8 +549,7 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	}
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
@@ -552,7 +601,12 @@ type ScopeDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.ScopeDecoder != nil {
+		panic("cannot initialize ScopeDecoder: already initialized")
+	}
 	state.ScopeDecoder = d
+	defer func() { state.ScopeDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("Scope")
@@ -656,10 +710,7 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	// Check if the Scope exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
-		refNum, err := d.buf.ReadUvarintCompact()
-		if err != nil {
-			return err
-		}
+		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}

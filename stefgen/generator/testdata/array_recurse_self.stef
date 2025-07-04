@@ -1,0 +1,10 @@
+package com.example.gentest.array_recurse_self
+
+struct Root root {
+  Struct Struct
+}
+
+struct Struct {
+  Val int64
+  Struct []Struct
+}

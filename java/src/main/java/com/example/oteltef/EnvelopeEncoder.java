@@ -27,23 +27,32 @@ class EnvelopeEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.EnvelopeEncoder != null) {
+            throw new IllegalStateException("cannot initialize EnvelopeEncoder: already initialized");
+        }
         state.EnvelopeEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 1;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Attributes and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 1;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.EnvelopeEncoder = null;
         }
-        this.attributesEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

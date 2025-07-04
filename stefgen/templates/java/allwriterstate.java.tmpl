@@ -28,9 +28,6 @@ public class WriterState {
         {{range .Dicts -}}
         {{.DictName}} = new {{.DictTypeNamePrefix}}EncoderDict();
         {{end}}
-        {{range $name, $val := .Encoders -}}
-        {{$name}}Encoder = new {{$name}}Encoder();
-        {{end}}
     }
 
     public void init(WriterOptions opts) {

@@ -28,27 +28,36 @@ class ExpHistogramBucketsEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExpHistogramBucketsEncoder != null) {
+            throw new IllegalStateException("cannot initialize ExpHistogramBucketsEncoder: already initialized");
+        }
         state.ExpHistogramBucketsEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 2;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Offset and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 2;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Offset and subsequent fields are skipped.
+            }
+            this.offsetEncoder.init(this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // BucketCounts and subsequent fields are skipped.
+            }
+            this.bucketCountsEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.ExpHistogramBucketsEncoder = null;
         }
-        this.offsetEncoder.init(this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // BucketCounts and subsequent fields are skipped.
-        }
-        this.bucketCountsEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

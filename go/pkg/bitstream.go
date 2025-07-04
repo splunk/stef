@@ -108,14 +108,16 @@ func (b *BitsWriter) writeBitsSlow(val uint64, nbits uint) {
 
 // WriteVarintCompact reads a variable-bit encoded signed value.
 // The range of supported values is [-2^47..2^47-1].
-func (b *BitsWriter) WriteVarintCompact(val int64) {
+// Returns the number of bits written.
+func (b *BitsWriter) WriteVarintCompact(val int64) uint {
 	ux := uint64((val >> 63) ^ (val << 1))
-	b.WriteUvarintCompact(ux)
+	return b.WriteUvarintCompact(ux)
 }
 
 // WriteUvarintCompact writes a variable-bit encoded value.
 // The range of supported values is [0..2^48-1].
-func (b *BitsWriter) WriteUvarintCompact(val uint64) {
+// Returns the number of bits written.
+func (b *BitsWriter) WriteUvarintCompact(val uint64) uint {
 	// The format is the following:
 	// Prefix Bits:   Followed by big endian bits:
 	// 1              Nothing. Encodes value of 0.
@@ -131,6 +133,7 @@ func (b *BitsWriter) WriteUvarintCompact(val uint64) {
 	val |= writeMaskByZeros[zeros]
 	bitCount := writeBitsCountByZeros[zeros]
 	b.WriteBits(val, bitCount)
+	return bitCount
 }
 
 // BitsReader is a reader of bits.
@@ -288,18 +291,18 @@ func (b *BitsReader) readBitSlow() uint64 {
 
 // ReadVarintCompact reads a variable-bit encoded signed value.
 // The range of supported values is [-2^47..2^47-1].
-func (b *BitsReader) ReadVarintCompact() (int64, error) {
-	x, err := b.ReadUvarintCompact()
+func (b *BitsReader) ReadVarintCompact() int64 {
+	x := b.ReadUvarintCompact()
 	// zigzag decode
-	return int64((x >> 1) ^ (-(x & 1))), err
+	return int64((x >> 1) ^ (-(x & 1)))
 }
 
 // ReadUvarintCompact reads a variable-bit encoded unsigned value.
 // The range of supported values is [0..2^48-1].
-func (b *BitsReader) ReadUvarintCompact() (uint64, error) {
+func (b *BitsReader) ReadUvarintCompact() uint64 {
 	val := b.PeekBits(56)
 	zeros := bits.LeadingZeros64(val)
 	ret := (val >> readShiftByZeros[zeros]) & readMaskByZeros[zeros]
 	b.Consume(readConsumeCountByZeros[zeros])
-	return ret, nil
+	return ret
 }

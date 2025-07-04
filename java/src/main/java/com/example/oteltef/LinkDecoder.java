@@ -26,41 +26,50 @@ class LinkDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.LinkDecoder != null) {
+            throw new IllegalStateException("cannot initialize LinkDecoder: already initialized");
+        }
         state.LinkDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Link");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 6;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Link");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 6;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new Link(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // TraceID and subsequent fields are skipped.
+            }
+            traceIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // SpanID and subsequent fields are skipped.
+            }
+            spanIDDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // TraceState and subsequent fields are skipped.
+            }
+            traceStateDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Flags and subsequent fields are skipped.
+            }
+            flagsDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            attributesDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // DroppedAttributesCount and subsequent fields are skipped.
+            }
+            droppedAttributesCountDecoder.init(columns.addSubColumn());
+        } finally {
+            state.LinkDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new Link(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // TraceID and subsequent fields are skipped.
-        }
-        traceIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // SpanID and subsequent fields are skipped.
-        }
-        spanIDDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // TraceState and subsequent fields are skipped.
-        }
-        traceStateDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Flags and subsequent fields are skipped.
-        }
-        flagsDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        attributesDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // DroppedAttributesCount and subsequent fields are skipped.
-        }
-        droppedAttributesCountDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

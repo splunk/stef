@@ -89,7 +89,7 @@ func (s *JsonValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to JsonValueTypeString.
 func (s *JsonValue) SetString(v string) {
-	if !pkg.StringEqual(s.string, v) || s.typ != JsonValueTypeString {
+	if s.typ != JsonValueTypeString || !pkg.StringEqual(s.string, v) {
 		s.string = v
 		s.typ = JsonValueTypeString
 		s.markParentModified()
@@ -104,7 +104,7 @@ func (s *JsonValue) Number() float64 {
 
 // SetNumber sets the value to the specified value and sets the type to JsonValueTypeNumber.
 func (s *JsonValue) SetNumber(v float64) {
-	if !pkg.Float64Equal(s.number, v) || s.typ != JsonValueTypeNumber {
+	if s.typ != JsonValueTypeNumber || !pkg.Float64Equal(s.number, v) {
 		s.number = v
 		s.typ = JsonValueTypeNumber
 		s.markParentModified()
@@ -119,7 +119,7 @@ func (s *JsonValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to JsonValueTypeBool.
 func (s *JsonValue) SetBool(v bool) {
-	if !pkg.BoolEqual(s.bool, v) || s.typ != JsonValueTypeBool {
+	if s.typ != JsonValueTypeBool || !pkg.BoolEqual(s.bool, v) {
 		s.bool = v
 		s.typ = JsonValueTypeBool
 		s.markParentModified()
@@ -146,8 +146,10 @@ func (s *JsonValue) byteSize() uint {
 func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	switch src.typ {
 	case JsonValueTypeObject:
+		dst.SetType(src.typ)
 		copyJsonObject(&dst.object, &src.object)
 	case JsonValueTypeArray:
+		dst.SetType(src.typ)
 		copyJsonValueArray(&dst.array, &src.array)
 	case JsonValueTypeString:
 		dst.SetString(src.string)
@@ -155,8 +157,11 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 		dst.SetNumber(src.number)
 	case JsonValueTypeBool:
 		dst.SetBool(src.bool)
+	case JsonValueTypeNone:
+		dst.SetType(src.typ)
+	default:
+		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
-	dst.SetType(src.typ)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -173,6 +178,18 @@ func (s *JsonValue) markUnmodified() {
 	s.array.markUnmodified()
 }
 
+func (s *JsonValue) markModifiedRecursively() {
+	switch s.typ {
+	case JsonValueTypeObject:
+		s.object.markModifiedRecursively()
+	case JsonValueTypeArray:
+		s.array.markModifiedRecursively()
+	case JsonValueTypeString:
+	case JsonValueTypeNumber:
+	case JsonValueTypeBool:
+	}
+}
+
 func (s *JsonValue) markUnmodifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
@@ -185,6 +202,45 @@ func (s *JsonValue) markUnmodifiedRecursively() {
 	}
 }
 
+// markDiffModified marks fields in this struct modified if they differ from
+// the corresponding fields in v.
+func (s *JsonValue) markDiffModified(v *JsonValue) (modified bool) {
+	if s.typ != v.typ {
+		modified = true
+		s.markModifiedRecursively()
+		return modified
+	}
+
+	switch s.typ {
+	case JsonValueTypeObject:
+		if s.object.markDiffModified(&v.object) {
+			s.markParentModified()
+			modified = true
+		}
+	case JsonValueTypeArray:
+		if s.array.markDiffModified(&v.array) {
+			s.markParentModified()
+			modified = true
+		}
+	case JsonValueTypeString:
+		if !pkg.StringEqual(s.string, v.string) {
+			s.markParentModified()
+			modified = true
+		}
+	case JsonValueTypeNumber:
+		if !pkg.Float64Equal(s.number, v.number) {
+			s.markParentModified()
+			modified = true
+		}
+	case JsonValueTypeBool:
+		if !pkg.BoolEqual(s.bool, v.bool) {
+			s.markParentModified()
+			modified = true
+		}
+	}
+	return modified
+}
+
 // IsEqual performs deep comparison and returns true if struct is equal to val.
 func (e *JsonValue) IsEqual(val *JsonValue) bool {
 	if e.typ != val.typ {
@@ -192,25 +248,15 @@ func (e *JsonValue) IsEqual(val *JsonValue) bool {
 	}
 	switch e.typ {
 	case JsonValueTypeObject:
-		if !e.object.IsEqual(&val.object) {
-			return false
-		}
+		return e.object.IsEqual(&val.object)
 	case JsonValueTypeArray:
-		if !e.array.IsEqual(&val.array) {
-			return false
-		}
+		return e.array.IsEqual(&val.array)
 	case JsonValueTypeString:
-		if !pkg.StringEqual(e.string, val.string) {
-			return false
-		}
+		return pkg.StringEqual(e.string, val.string)
 	case JsonValueTypeNumber:
-		if !pkg.Float64Equal(e.number, val.number) {
-			return false
-		}
+		return pkg.Float64Equal(e.number, val.number)
 	case JsonValueTypeBool:
-		if !pkg.BoolEqual(e.bool, val.bool) {
-			return false
-		}
+		return pkg.BoolEqual(e.bool, val.bool)
 	}
 
 	return true
@@ -239,25 +285,15 @@ func CmpJsonValue(left, right *JsonValue) int {
 	}
 	switch left.typ {
 	case JsonValueTypeObject:
-		if c := CmpJsonObject(&left.object, &right.object); c != 0 {
-			return c
-		}
+		return CmpJsonObject(&left.object, &right.object)
 	case JsonValueTypeArray:
-		if c := CmpJsonValueArray(&left.array, &right.array); c != 0 {
-			return c
-		}
+		return CmpJsonValueArray(&left.array, &right.array)
 	case JsonValueTypeString:
-		if c := strings.Compare(left.string, right.string); c != 0 {
-			return c
-		}
+		return strings.Compare(left.string, right.string)
 	case JsonValueTypeNumber:
-		if c := pkg.Float64Compare(left.number, right.number); c != 0 {
-			return c
-		}
+		return pkg.Float64Compare(left.number, right.number)
 	case JsonValueTypeBool:
-		if c := pkg.BoolCompare(left.bool, right.bool); c != 0 {
-			return c
-		}
+		return pkg.BoolCompare(left.bool, right.bool)
 	}
 
 	return 0
@@ -312,7 +348,13 @@ type JsonValueEncoder struct {
 }
 
 func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.JsonValueEncoder != nil {
+		panic("cannot initialize JsonValueEncoder: already initialized")
+	}
 	state.JsonValueEncoder = e
+	defer func() { state.JsonValueEncoder = nil }()
+
 	e.limiter = &state.limiter
 
 	if state.OverrideSchema != nil {
@@ -379,8 +421,6 @@ func (e *JsonValueEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *JsonValueEncoder) Encode(val *JsonValue) {
-	oldLen := e.buf.BitCount()
-
 	typ := val.typ
 	if uint(typ) > e.fieldCount {
 		// The current field type is not supported in target schema. Encode the type as None.
@@ -390,11 +430,10 @@ func (e *JsonValueEncoder) Encode(val *JsonValue) {
 	// Compute type delta. 0 means the type is the same as the last time.
 	typDelta := int(typ) - int(e.prevType)
 	e.prevType = typ
-	e.buf.WriteVarintCompact(int64(typDelta))
+	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
 
 	// Account written bits in the limiter.
-	newLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newLen - oldLen)
+	e.limiter.AddFrameBits(bitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -461,7 +500,12 @@ type JsonValueDecoder struct {
 
 // Init is called once in the lifetime of the stream.
 func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.JsonValueDecoder != nil {
+		panic("cannot initialize JsonValueDecoder: already initialized")
+	}
 	state.JsonValueDecoder = d
+	defer func() { state.JsonValueDecoder = nil }()
 
 	if state.OverrideSchema != nil {
 		fieldCount, ok := state.OverrideSchema.FieldCount("JsonValue")
@@ -562,10 +606,7 @@ func (d *JsonValueDecoder) Reset() {
 
 func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 	// Read Type delta
-	typeDelta, err := d.buf.ReadVarintCompact()
-	if err != nil {
-		return err
-	}
+	typeDelta := d.buf.ReadVarintCompact()
 
 	// Calculate and validate the new Type
 	typ := int(d.prevType) + int(typeDelta)
@@ -581,31 +622,31 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 	switch dst.typ {
 	case JsonValueTypeObject:
 		// Decode Object
-		err = d.objectDecoder.Decode(&dst.object)
+		err := d.objectDecoder.Decode(&dst.object)
 		if err != nil {
 			return err
 		}
 	case JsonValueTypeArray:
 		// Decode Array
-		err = d.arrayDecoder.Decode(&dst.array)
+		err := d.arrayDecoder.Decode(&dst.array)
 		if err != nil {
 			return err
 		}
 	case JsonValueTypeString:
 		// Decode String
-		err = d.stringDecoder.Decode(&dst.string)
+		err := d.stringDecoder.Decode(&dst.string)
 		if err != nil {
 			return err
 		}
 	case JsonValueTypeNumber:
 		// Decode Number
-		err = d.numberDecoder.Decode(&dst.number)
+		err := d.numberDecoder.Decode(&dst.number)
 		if err != nil {
 			return err
 		}
 	case JsonValueTypeBool:
 		// Decode Bool
-		err = d.boolDecoder.Decode(&dst.bool)
+		err := d.boolDecoder.Decode(&dst.bool)
 		if err != nil {
 			return err
 		}

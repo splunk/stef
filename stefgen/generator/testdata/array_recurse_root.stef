@@ -1,0 +1,6 @@
+package com.example.gentest.array_recurse_root
+
+struct Root root {
+  X uint64
+  A []Root
+}

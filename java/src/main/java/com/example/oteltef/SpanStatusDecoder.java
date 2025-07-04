@@ -22,25 +22,34 @@ class SpanStatusDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.SpanStatusDecoder != null) {
+            throw new IllegalStateException("cannot initialize SpanStatusDecoder: already initialized");
+        }
         state.SpanStatusDecoder = this;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
-            fieldCount = fieldCount;
-        } else {
-            fieldCount = 2;
+
+        try {
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
+                fieldCount = fieldCount;
+            } else {
+                fieldCount = 2;
+            }
+            column = columns.getColumn();
+            
+            lastVal = new SpanStatus(null, 0);
+            
+            if (this.fieldCount <= 0) {
+                return; // Message and subsequent fields are skipped.
+            }
+            messageDecoder.init(null, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Code and subsequent fields are skipped.
+            }
+            codeDecoder.init(columns.addSubColumn());
+        } finally {
+            state.SpanStatusDecoder = null;
         }
-        column = columns.getColumn();
-        
-        lastVal = new SpanStatus(null, 0);
-        
-        if (this.fieldCount <= 0) {
-            return; // Message and subsequent fields are skipped.
-        }
-        messageDecoder.init(null, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Code and subsequent fields are skipped.
-        }
-        codeDecoder.init(columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

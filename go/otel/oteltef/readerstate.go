@@ -6,6 +6,8 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
+var _ = (*encoders.StringEncoder)(nil)
+
 type ReaderState struct {
 	// OverrideSchema is set if decoding should perform a translation from specified
 	// schema. OverrideSchema must be compatible with decoders' schema.
@@ -26,7 +28,7 @@ type ReaderState struct {
 	SpanEventName     encoders.StringDecoderDict
 	SpanName          encoders.StringDecoderDict
 
-	// Decoders
+	// Decoders that are being Init-ed, to detect recursion.
 	AnyValueDecoder            *AnyValueDecoder
 	AnyValueArrayDecoder       *AnyValueArrayDecoder
 	AttributesDecoder          *AttributesDecoder

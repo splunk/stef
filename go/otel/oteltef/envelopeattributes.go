@@ -86,9 +86,60 @@ func (m *EnvelopeAttributes) markUnmodified() {
 	m.parentModifiedFields.markUnmodified()
 }
 
+func (m *EnvelopeAttributes) markModifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+	}
+}
+
 func (m *EnvelopeAttributes) markUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 	}
+}
+
+// markDiffModified marks fields in each key and value of this multimap modified if they
+// differ from the corresponding fields in v.
+func (m *EnvelopeAttributes) markDiffModified(v *EnvelopeAttributes) (modified bool) {
+	if len(m.elems) != len(v.elems) {
+		// Array lengths are different, so they are definitely different.
+		modified = true
+	}
+
+	// Scan the elements and mark them as modified if they are different.
+	minLen := min(len(m.elems), len(v.elems))
+	for i := 0; i < minLen; i++ {
+		if !pkg.StringEqual(m.elems[i].key, v.elems[i].key) {
+			modified = true
+		}
+		if !pkg.BytesEqual(m.elems[i].value, v.elems[i].value) {
+			modified = true
+		}
+
+	}
+
+	if modified {
+		m.markModified()
+	}
+
+	return modified
+}
+
+// markDiffModified marks fields in each value of this multimap modified if they
+// differ from the corresponding fields in v.
+// This function assumes the keys are the same and the lengths of multimaps are the same.
+func (m *EnvelopeAttributes) markValueDiffModified(v *EnvelopeAttributes) (modified bool) {
+	// Scan the elements and mark them as modified if they are different.
+	for i := 0; i < len(m.elems); i++ {
+		if !pkg.BytesEqual(m.elems[i].value, v.elems[i].value) {
+			modified = true
+		}
+
+	}
+
+	if modified {
+		m.markModified()
+	}
+
+	return modified
 }
 
 func (m *EnvelopeAttributes) Append(k string, v pkg.Bytes) {
@@ -159,6 +210,10 @@ func (e *EnvelopeAttributes) IsEqual(val *EnvelopeAttributes) bool {
 	return true
 }
 
+func EnvelopeAttributesEqual(left, right *EnvelopeAttributes) bool {
+	return left.IsEqual(right)
+}
+
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
@@ -211,42 +266,112 @@ type EnvelopeAttributesEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder   encoders.StringEncoder
-	valueEncoder encoders.BytesEncoder
+	keyEncoder       *encoders.StringEncoder
+	isKeyRecursive   bool
+	valueEncoder     *encoders.BytesEncoder
+	isValueRecursive bool
+	lastVal          EnvelopeAttributes
+}
+type EnvelopeAttributesLastValStack []*EnvelopeAttributesLastValElem
 
-	lastVal EnvelopeAttributes
+func (s *EnvelopeAttributesLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *EnvelopeAttributesLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *EnvelopeAttributesLastValStack) top() *EnvelopeAttributesLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *EnvelopeAttributesLastValStack) addOnTopSlow() {
+	elem := &EnvelopeAttributesLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &EnvelopeAttributesLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *EnvelopeAttributesLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *EnvelopeAttributesLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type EnvelopeAttributesLastValElem struct {
+	val            EnvelopeAttributes
+	modifiedFields modifiedFields
+}
+
+func (e *EnvelopeAttributesLastValElem) init() {
+	e.val.init(&e.modifiedFields, 1)
+}
+
+func (e *EnvelopeAttributesLastValElem) reset() {
+	e.val = EnvelopeAttributes{}
 }
 
 func (e *EnvelopeAttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
+	// Remember this encoder in the state so that we can detect recursion.
+	if state.EnvelopeAttributesEncoder != nil {
+		panic("cannot initialize EnvelopeAttributesEncoder: already initialized")
+	}
+	state.EnvelopeAttributesEncoder = e
+	defer func() { state.EnvelopeAttributesEncoder = nil }()
+
 	e.limiter = &state.limiter
-	err := e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+
+	var err error
+	e.keyEncoder = new(encoders.StringEncoder)
+	err = e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
+	e.valueEncoder = new(encoders.BytesEncoder)
 	err = e.valueEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+
 	return err
 }
 
 func (e *EnvelopeAttributesEncoder) Reset() {
-	e.keyEncoder.Reset()
-	e.valueEncoder.Reset()
-}
-
-// IsEqual performs deep comparison and returns true if encoder's previously encoded
-// value is equal to list.
-func (e *EnvelopeAttributesEncoder) IsEqual(list *EnvelopeAttributes) bool {
-	return e.lastVal.IsEqual(list)
+	if !e.isKeyRecursive {
+		e.keyEncoder.Reset()
+	}
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
+	e.lastVal = EnvelopeAttributes{}
 }
 
 func (e *EnvelopeAttributesEncoder) Encode(list *EnvelopeAttributes) (changed bool) {
 	oldLen := len(e.buf.Bytes())
+	lastVal := &e.lastVal
 
 	if len(list.elems) == 0 {
 		// Zero-length attr list.
 		e.buf.WriteUvarint(0b1)
 
-		changed = len(e.lastVal.elems) != 0
-		e.lastVal.elems = pkg.EnsureLen(e.lastVal.elems, 0)
+		changed = len(lastVal.elems) != 0
+		lastVal.elems = pkg.EnsureLen(lastVal.elems, 0)
 
 		newLen := len(e.buf.Bytes())
 		e.limiter.AddFrameBytes(uint(newLen - oldLen))
@@ -254,10 +379,12 @@ func (e *EnvelopeAttributesEncoder) Encode(list *EnvelopeAttributes) (changed bo
 		return changed
 	}
 
-	if list.isSameKeys(&e.lastVal) && len(e.lastVal.elems) < 63 {
-		changed = e.encodeValuesOnly(list)
+	if list.isSameKeys(lastVal) && len(lastVal.elems) < 63 {
+		list.markValueDiffModified(lastVal)
+		changed = e.encodeValuesOnly(lastVal, list)
 	} else {
-		e.encodeFull(list)
+		list.markDiffModified(lastVal)
+		e.encodeFull(lastVal, list)
 		changed = true
 	}
 
@@ -267,7 +394,7 @@ func (e *EnvelopeAttributesEncoder) Encode(list *EnvelopeAttributes) (changed bo
 	return changed
 }
 
-func (e *EnvelopeAttributesEncoder) encodeValuesOnly(list *EnvelopeAttributes) (changed bool) {
+func (e *EnvelopeAttributesEncoder) encodeValuesOnly(lastVal *EnvelopeAttributes, list *EnvelopeAttributes) (changed bool) {
 	if len(list.elems) > 62 {
 		// TODO: implement this case.
 		panic("not implemented")
@@ -277,7 +404,7 @@ func (e *EnvelopeAttributesEncoder) encodeValuesOnly(list *EnvelopeAttributes) (
 	changedValuesBits := uint64(0)
 	for i := range list.elems {
 		changedValuesBits <<= 1
-		if e.lastVal.elems[i].value != list.elems[i].value {
+		if lastVal.elems[i].value != list.elems[i].value {
 			changedValuesBits |= 1
 		}
 
@@ -298,11 +425,11 @@ func (e *EnvelopeAttributesEncoder) encodeValuesOnly(list *EnvelopeAttributes) (
 	}
 
 	// Store changed values in lastVal after encoding.
-	e.lastVal.EnsureLen(len(list.elems))
+	lastVal.EnsureLen(len(list.elems))
 	bitToRead = uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			e.lastVal.elems[i].value = list.elems[i].value
+			lastVal.elems[i].value = list.elems[i].value
 
 		}
 		bitToRead >>= 1
@@ -314,7 +441,7 @@ func (e *EnvelopeAttributesEncoder) encodeValuesOnly(list *EnvelopeAttributes) (
 	return changedValuesBits != 0
 }
 
-func (e *EnvelopeAttributesEncoder) encodeFull(list *EnvelopeAttributes) {
+func (e *EnvelopeAttributesEncoder) encodeFull(lastVal *EnvelopeAttributes, list *EnvelopeAttributes) {
 	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
 
 	// Encode values first.
@@ -324,19 +451,10 @@ func (e *EnvelopeAttributesEncoder) encodeFull(list *EnvelopeAttributes) {
 	}
 
 	// Store changed values in lastVal.
-	e.lastVal.EnsureLen(len(list.elems))
+	lastVal.EnsureLen(len(list.elems))
 	for i := range list.elems {
-		e.lastVal.elems[i].key = list.elems[i].key
-		e.lastVal.elems[i].value = list.elems[i].value
-	}
-}
-
-func (e *EnvelopeAttributesEncoder) RencodeLast() {
-	list := e.lastVal
-	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
-	for i := range list.elems {
-		e.keyEncoder.Encode(list.elems[i].key)
-		e.valueEncoder.Encode(list.elems[i].value)
+		lastVal.elems[i].key = list.elems[i].key
+		lastVal.elems[i].value = list.elems[i].value
 	}
 }
 
@@ -357,26 +475,45 @@ func (val1 *EnvelopeAttributes) isSameKeys(val2 *EnvelopeAttributes) bool {
 
 func (e *EnvelopeAttributesEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBytes(&e.buf)
-	e.keyEncoder.CollectColumns(columnSet.At(0))
-	e.valueEncoder.CollectColumns(columnSet.At(1))
+	if !e.isKeyRecursive {
+		e.keyEncoder.CollectColumns(columnSet.At(0))
+	}
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(1))
+	}
 }
 
 type EnvelopeAttributesDecoder struct {
-	buf          pkg.BytesReader
-	column       *pkg.ReadableColumn
-	keyDecoder   encoders.StringDecoder
-	valueDecoder encoders.BytesDecoder
-	lastVal      EnvelopeAttributes
+	buf    pkg.BytesReader
+	column *pkg.ReadableColumn
+
+	keyDecoder       *encoders.StringDecoder
+	isKeyRecursive   bool
+	valueDecoder     *encoders.BytesDecoder
+	isValueRecursive bool
+	lastVal          EnvelopeAttributes
 }
 
 // Init is called once in the lifetime of the stream.
 func (d *EnvelopeAttributesDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
+	// Remember this decoder in the state so that we can detect recursion.
+	if state.EnvelopeAttributesDecoder != nil {
+		panic("cannot initialize EnvelopeAttributesDecoder: already initialized")
+	}
+	state.EnvelopeAttributesDecoder = d
+	defer func() { state.EnvelopeAttributesDecoder = nil }()
+
 	d.column = columns.Column()
-	err := d.keyDecoder.Init(nil, columns.AddSubColumn())
+
+	var err error
+	d.keyDecoder = new(encoders.StringDecoder)
+	err = d.keyDecoder.Init(nil, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
+	d.valueDecoder = new(encoders.BytesDecoder)
 	err = d.valueDecoder.Init(nil, columns.AddSubColumn())
+
 	return err
 }
 
@@ -387,62 +524,72 @@ func (d *EnvelopeAttributesDecoder) Init(state *ReaderState, columns *pkg.ReadCo
 // continuation of that same column in the previous frame.
 func (d *EnvelopeAttributesDecoder) Continue() {
 	d.buf.Reset(d.column.Data())
-	d.keyDecoder.Continue()
-	d.valueDecoder.Continue()
+	if !d.isKeyRecursive {
+		d.keyDecoder.Continue()
+	}
+	if !d.isValueRecursive {
+		d.valueDecoder.Continue()
+	}
 }
 
 func (d *EnvelopeAttributesDecoder) Reset() {
-	d.keyDecoder.Reset()
-	d.valueDecoder.Reset()
+	if !d.isKeyRecursive {
+		d.keyDecoder.Reset()
+	}
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
+	d.lastVal = EnvelopeAttributes{}
 }
 
 func (d *EnvelopeAttributesDecoder) Decode(dst *EnvelopeAttributes) error {
+	lastVal := &d.lastVal
+
 	countOrChangedValues, err := d.buf.ReadUvarint()
 	if err != nil {
 		return err
 	}
 	if countOrChangedValues == 0 {
 		// Nothing changed.
-		d.decodeCopyOfLast(dst)
-		return nil
+		return d.decodeCopyOfLast(lastVal, dst)
 	}
 
 	if countOrChangedValues&0b1 == 0 {
-		return d.decodeValuesOnly(countOrChangedValues>>1, dst)
+		return d.decodeValuesOnly(lastVal, countOrChangedValues>>1, dst)
 	}
 
 	if countOrChangedValues&0b1 == 0b1 {
-		return d.decodeFull(int(countOrChangedValues>>1), dst)
+		return d.decodeFull(lastVal, int(countOrChangedValues>>1), dst)
 	}
 	return pkg.ErrMultimap
 }
 
-func (d *EnvelopeAttributesDecoder) decodeCopyOfLast(dst *EnvelopeAttributes) error {
-	dst.EnsureLen(len(d.lastVal.elems))
+func (d *EnvelopeAttributesDecoder) decodeCopyOfLast(lastVal *EnvelopeAttributes, dst *EnvelopeAttributes) error {
+	dst.EnsureLen(len(lastVal.elems))
 	for i := range dst.elems {
-		dst.elems[i].key = d.lastVal.elems[i].key
-		dst.elems[i].value = d.lastVal.elems[i].value
+		dst.elems[i].key = lastVal.elems[i].key
+		dst.elems[i].value = lastVal.elems[i].value
 	}
 	return nil
 }
 
-func (d *EnvelopeAttributesDecoder) decodeValuesOnly(changedValuesBits uint64, dst *EnvelopeAttributes) error {
-	if len(d.lastVal.elems) == 0 {
+func (d *EnvelopeAttributesDecoder) decodeValuesOnly(lastVal *EnvelopeAttributes, changedValuesBits uint64, dst *EnvelopeAttributes) error {
+	if len(lastVal.elems) == 0 {
 		// The last attrs empty so value-only encoding does not make sense.
 		return pkg.ErrMultimap
 	}
 
-	count := len(d.lastVal.elems)
+	count := len(lastVal.elems)
 	dst.EnsureLen(count)
 
 	// Copy unchanged values from lastVal
 	bitToRead := uint64(1) << (len(dst.elems) - 1)
 	for i := range dst.elems {
 		// Copy the key from lastVal. All keys are the same.
-		dst.elems[i].key = d.lastVal.elems[i].key
+		dst.elems[i].key = lastVal.elems[i].key
 		if (bitToRead & changedValuesBits) == 0 {
 			// Value is not changed, copy from lastVal.
-			dst.elems[i].value = d.lastVal.elems[i].value
+			dst.elems[i].value = lastVal.elems[i].value
 		}
 		bitToRead >>= 1
 	}
@@ -457,19 +604,8 @@ func (d *EnvelopeAttributesDecoder) decodeValuesOnly(changedValuesBits uint64, d
 			if err != nil {
 				return err
 			}
-		}
-		bitToRead >>= 1
-	}
-
-	// Decode() calls above may have changed lastVal len if we have a recursive data type.
-	// Set the correct length again.
-	d.lastVal.EnsureLen(count)
-
-	// Store the values in lastVal.
-	bitToRead = uint64(1) << (len(dst.elems) - 1)
-	for i := range dst.elems {
-		if (bitToRead & changedValuesBits) != 0 {
-			d.lastVal.elems[i].value = dst.elems[i].value
+			// Store the values in lastVal
+			lastVal.elems[i].value = dst.elems[i].value
 		}
 		bitToRead >>= 1
 	}
@@ -477,12 +613,14 @@ func (d *EnvelopeAttributesDecoder) decodeValuesOnly(changedValuesBits uint64, d
 	return nil
 }
 
-func (d *EnvelopeAttributesDecoder) decodeFull(count int, dst *EnvelopeAttributes) error {
+func (d *EnvelopeAttributesDecoder) decodeFull(lastVal *EnvelopeAttributes, count int, dst *EnvelopeAttributes) error {
 	if count < 0 || count >= pkg.MultimapElemCountLimit {
 		return pkg.ErrMultimapCountLimit
 	}
 
 	dst.EnsureLen(count)
+	lastVal.EnsureLen(count)
+
 	// Decode values first.
 	var err error
 	for i := 0; i < count; i++ {
@@ -494,13 +632,10 @@ func (d *EnvelopeAttributesDecoder) decodeFull(count int, dst *EnvelopeAttribute
 		if err != nil {
 			return err
 		}
-	}
 
-	// Store decoded values in lastVal.
-	d.lastVal.EnsureLen(count)
-	for i := 0; i < count; i++ {
-		d.lastVal.elems[i].key = dst.elems[i].key
-		d.lastVal.elems[i].value = dst.elems[i].value
+		// Store decoded values in lastVal.
+		lastVal.elems[i].key = dst.elems[i].key
+		lastVal.elems[i].value = dst.elems[i].value
 	}
 
 	return nil

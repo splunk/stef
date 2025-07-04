@@ -53,6 +53,7 @@ prepver: verifyver
 				   && go mod edit -require=github.com/splunk/stef/go/grpc@${VERSION} && go mod tidy
 	cd go/pdata    && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
 				   && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION} && go mod tidy
+	cd stefgen     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd examples/jsonl && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd otelcol     && go mod tidy
 	cd benchmarks  && go mod tidy

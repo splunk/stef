@@ -113,11 +113,71 @@ public class Attributes {
         }
     }
 
+    void markModifiedRecursively() {
+        for (int i=0; i<elemsLen; i++) {
+            elems[i].value.markModifiedRecursively();
+        }
+    }
+
     void markUnmodifiedRecursively() {
         for (int i=0; i<elemsLen; i++) {
             elems[i].value.markUnmodifiedRecursively();
         }
     }
+
+    // markDiffModified marks fields in each key and value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    boolean markDiffModified(Attributes v) {
+        boolean modified = false;
+
+        if (elemsLen != v.elemsLen) {
+            // Array lengths are different, so they are definitely different.
+            modified = true;
+        }
+        
+        // Scan the elements and mark them as modified if they are different.
+        int minLen = Math.min(elemsLen, v.elemsLen);
+        for (int i=0; i < minLen; i++) {
+            if (!Types.StringEqual(elems[i].key, v.elems[i].key)) {
+                modified = true;
+            }
+            if (elems[i].value.markDiffModified(v.elems[i].value)) {
+                modified = true;
+            }
+        }
+        
+        // Mark the rest of the elements as modified.
+        for (int i=minLen; i<elemsLen; i++) {
+            elems[i].value.markModifiedRecursively();
+        }
+        
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+    
+    // markDiffModified marks fields in each value of this multimap modified if they
+    // differ from the corresponding fields in v.
+    // This function assumes the keys are the same and the lengths of multimaps are the same.
+    boolean markValueDiffModified(Attributes v) {
+        boolean modified = false;
+        // Scan the elements and mark them as modified if they are different.
+        for (int i=0; i < elemsLen; i++) {
+            if (elems[i].value.markDiffModified(v.elems[i].value)) {
+                modified = true;
+            }
+        }
+        
+        if (modified) {
+            markModified();
+        }
+        
+        return modified;
+    }
+
 
     // Append adds a key-value pair to the multimap.
     public void append(StringValue k, AnyValue v) {
@@ -139,7 +199,7 @@ public class Attributes {
 
     // setValue sets the value of the element at index i.
     public void setValue(int i, AnyValue v) {
-        if (!AnyValue.equals(elems[i].value, v)) {
+        if (!elems[i].value.equals(v)) {
             elems[i].value = v;
             markModified();
         }
@@ -171,12 +231,12 @@ public class Attributes {
             modified = true;
         }
         for (int i=0; i < src.elemsLen; i++) {
-            if (elems[i].key != src.elems[i].key) {
+            if (!Types.StringEqual(elems[i].key, src.elems[i].key)) {
                 elems[i].key = src.elems[i].key;
                 modified = true;
             }
         
-            if (!AnyValue.equals(elems[i].value, src.elems[i].value)) {
+            if (!elems[i].value.equals(src.elems[i].value)) {
                 elems[i].value.copyFrom(src.elems[i].value);
                 modified = true;
             }

@@ -26,35 +26,44 @@ class PointValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this decoder in the state so that we can detect recursion.
+        if (state.PointValueDecoder != null) {
+            throw new IllegalStateException("cannot initialize PointValueDecoder: already initialized");
+        }
         state.PointValueDecoder = this;
-        prevType = PointValue.Type.TypeNone;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
-            this.fieldCount = fieldCount;
-        } else {
-            this.fieldCount = 4;
+
+        try {
+            prevType = PointValue.Type.TypeNone;
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
+                this.fieldCount = fieldCount;
+            } else {
+                this.fieldCount = 4;
+            }
+            this.column = columns.getColumn();
+            this.lastVal.init(null, 0);
+            this.lastValPtr = this.lastVal;
+            Exception err = null;
+            
+            if (this.fieldCount <= 0) {
+                return; // Int64 and subsequent fields are skipped.
+            }
+            this.int64Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Float64 and subsequent fields are skipped.
+            }
+            this.float64Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Histogram and subsequent fields are skipped.
+            }
+            this.histogramDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // ExpHistogram and subsequent fields are skipped.
+            }
+            this.expHistogramDecoder.init(state, columns.addSubColumn());
+        } finally {
+            state.PointValueDecoder = null;
         }
-        this.column = columns.getColumn();
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
-        Exception err = null;
-        
-        if (this.fieldCount <= 0) {
-            return; // Int64 and subsequent fields are skipped.
-        }
-        this.int64Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Float64 and subsequent fields are skipped.
-        }
-        this.float64Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Histogram and subsequent fields are skipped.
-        }
-        this.histogramDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // ExpHistogram and subsequent fields are skipped.
-        }
-        this.expHistogramDecoder.init(state, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.

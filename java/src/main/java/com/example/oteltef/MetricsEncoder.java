@@ -32,43 +32,52 @@ class MetricsEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.MetricsEncoder != null) {
+            throw new IllegalStateException("cannot initialize MetricsEncoder: already initialized");
+        }
         state.MetricsEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 6;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Envelope and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 6;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Envelope and subsequent fields are skipped.
+            }
+            this.envelopeEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Metric and subsequent fields are skipped.
+            }
+            this.metricEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Resource and subsequent fields are skipped.
+            }
+            this.resourceEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Scope and subsequent fields are skipped.
+            }
+            this.scopeEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Attributes and subsequent fields are skipped.
+            }
+            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // Point and subsequent fields are skipped.
+            }
+            this.pointEncoder.init(state, columns.addSubColumn());
+        } finally {
+            state.MetricsEncoder = null;
         }
-        this.envelopeEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Metric and subsequent fields are skipped.
-        }
-        this.metricEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Resource and subsequent fields are skipped.
-        }
-        this.resourceEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Scope and subsequent fields are skipped.
-        }
-        this.scopeEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Attributes and subsequent fields are skipped.
-        }
-        this.attributesEncoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // Point and subsequent fields are skipped.
-        }
-        this.pointEncoder.init(state, columns.addSubColumn());
     }
 
     public void reset() {

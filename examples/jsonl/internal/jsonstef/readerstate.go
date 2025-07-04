@@ -2,8 +2,11 @@
 package jsonstef
 
 import (
+	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
 )
+
+var _ = (*encoders.StringEncoder)(nil)
 
 type ReaderState struct {
 	// OverrideSchema is set if decoding should perform a translation from specified
@@ -12,7 +15,7 @@ type ReaderState struct {
 
 	// Dictionaries
 
-	// Decoders
+	// Decoders that are being Init-ed, to detect recursion.
 	JsonObjectDecoder     *JsonObjectDecoder
 	JsonValueDecoder      *JsonValueDecoder
 	JsonValueArrayDecoder *JsonValueArrayDecoder

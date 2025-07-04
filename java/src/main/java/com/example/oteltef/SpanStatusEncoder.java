@@ -28,27 +28,36 @@ class SpanStatusEncoder {
     private int fieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.SpanStatusEncoder != null) {
+            throw new IllegalStateException("cannot initialize SpanStatusEncoder: already initialized");
+        }
         state.SpanStatusEncoder = this;
-        this.limiter = state.getLimiter();
 
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
-            this.fieldCount = fieldCount;
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-        } else {
-            this.fieldCount = 2;
-            this.keepFieldMask = ~0L;
-        }
+        try {
+            this.limiter = state.getLimiter();
 
-        
-        if (this.fieldCount <= 0) {
-            return; // Message and subsequent fields are skipped.
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("SpanStatus");
+                this.fieldCount = fieldCount;
+                this.keepFieldMask = ~((~0L) << this.fieldCount);
+            } else {
+                this.fieldCount = 2;
+                this.keepFieldMask = ~0L;
+            }
+
+            
+            if (this.fieldCount <= 0) {
+                return; // Message and subsequent fields are skipped.
+            }
+            this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Code and subsequent fields are skipped.
+            }
+            this.codeEncoder.init(this.limiter, columns.addSubColumn());
+        } finally {
+            state.SpanStatusEncoder = null;
         }
-        this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Code and subsequent fields are skipped.
-        }
-        this.codeEncoder.init(this.limiter, columns.addSubColumn());
     }
 
     public void reset() {

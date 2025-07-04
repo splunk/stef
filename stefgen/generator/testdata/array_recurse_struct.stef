@@ -1,0 +1,17 @@
+package com.example.gentest.array_recurse_struct
+
+struct Root1 root {
+  Struct1 Struct1
+}
+
+struct Struct1 {
+  Struct2 []Struct2 // This verifies bug https://github.com/splunk/stef/issues/93
+}
+
+struct Struct2 {
+  Struct1 []Struct1
+}
+
+struct Root2 root {
+  Struct2 Struct2
+}

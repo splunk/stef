@@ -7,56 +7,154 @@ import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 // Encoder for ExemplarArray
 class ExemplarArrayEncoder {
     private final BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private ExemplarEncoder encoder;
-    private int prevLen = 0;
+    private ExemplarEncoder elemEncoder;
     private WriterState state;
-    private Exemplar lastVal;
+    private boolean isRecursive = false;
+    // lastValStack are last encoded values stacked by the level of recursion.
+    private LastValStack lastValStack;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
         this.limiter = state.getLimiter();
-        encoder = new ExemplarEncoder();
-        state.ExemplarEncoder = encoder;
-        encoder.init(state, columns.addSubColumn());
-        lastVal = new Exemplar(null, 0);
+
+        // Remember this encoder in the state so that we can detect recursion.
+        if (state.ExemplarArrayEncoder != null) {
+            throw new IllegalStateException("Cannot initialize ExemplarArrayEncoder: already initialized");
+        }
+        state.ExemplarArrayEncoder = this;
+
+        try {
+            if (state.ExemplarEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                elemEncoder = state.ExemplarEncoder;
+                this.isRecursive = true;
+            } else {
+                elemEncoder = new ExemplarEncoder();
+                elemEncoder.init(state, columns.addSubColumn());
+            }
+            this.lastValStack = new LastValStack();
+        } finally {
+            state.ExemplarArrayEncoder = null;
+        }
     }
 
     public void reset() {
-        prevLen = 0;
-        encoder.reset();
+        if (!isRecursive) {
+            elemEncoder.reset();
+        }
+        
+        lastValStack.reset();
     }
 
     public void encode(ExemplarArray arr) throws IOException {
-        int newLen = arr.elemsLen;
-        int oldBitLen = buf.bitCount();
-        int lenDelta = newLen - prevLen;
-        prevLen = newLen;
-        buf.writeVarintCompact(lenDelta);
-        for (int i = 0; i < newLen; i++) {
-            
-            // Copy into last encoded value. This will correctly set "modified" field flags.
-            lastVal.copyFrom(arr.elems[i]);
-            // Encode it.
-            encoder.encode(lastVal);
-            // Reset modified flags so that next modification attempt correctly sets
-            // the modified flags and the next encoding attempt is not skipped.
-            arr.elems[i].markUnmodified();
-            
+        LastValElem lastVal = lastValStack.top();
+        lastValStack.addOnTop();
+        try {
+            int newLen = arr.elemsLen;
+            int oldBitLen = buf.bitCount();
+            long lenDelta = newLen - lastVal.prevLen;
+            lastVal.prevLen = newLen;
+
+            buf.writeVarintCompact(lenDelta);
+
+            if (newLen > 0) {
+                for (int i = 0; i < newLen; i++) {
+                    if (i == 0) {
+                        // Compute and mark fields that are modified compared to the last encoded value.
+                        arr.elems[i].markDiffModified(lastVal.elem);
+                    } else {
+                        // Compute and mark fields that are modified compared to the previous element.
+                        arr.elems[i].markDiffModified(arr.elems[i - 1]);
+                    }
+
+                    // Encode the element.
+                    elemEncoder.encode(arr.elems[i]);
+                }
+                // Remember last encoded element.
+                lastVal.elem.copyFrom(arr.elems[newLen - 1]);
+            }
+
+            // Account written bits in the limiter.
+            int newBitLen = buf.bitCount();
+            limiter.addFrameBits(newBitLen - oldBitLen);
+        } finally {
+            lastValStack.removeFromTop();
         }
-        int newBitLen = buf.bitCount();
-        limiter.addFrameBits(newBitLen - oldBitLen);
     }
 
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(buf);
-        
-        encoder.collectColumns(columnSet.at(0));
-        
+        if (!isRecursive) {
+            elemEncoder.collectColumns(columnSet.at(0));
+        }
+    }
+    static class LastValStack {
+        private LastValElem []stack;
+        private int stackIndex;
+
+        LastValStack() {
+            // We need one top-level element in the stack to store the last value initially.
+            stack = new LastValElem[1];
+            stack[0] = new LastValElem();
+            stack[0].init();
+            stackIndex = 0;
+        }
+
+        void reset() {
+            // Reset all elements in the stack.
+            for (LastValElem elem : stack) {
+                elem.reset();
+            }
+            // Reset the stack to have one element for top-level.
+            stackIndex = 0;
+        }
+    
+        LastValElem top() {
+            return stack[stackIndex];
+        }
+    
+        void addOnTop() {
+            stackIndex++;
+            if (stackIndex >= stack.length) {
+                // Double the stack size if we run out of space.
+                LastValElem[] newStack = new LastValElem[stack.length * 2];
+                System.arraycopy(stack, 0, newStack, 0, stack.length);
+                stack = newStack;
+                // Initialize new elements in the stack.
+                for (int i = stackIndex; i < stack.length; i++) {
+                    LastValElem newElem = new LastValElem();
+                    newElem.init();
+                    stack[i] = newElem;
+                }
+            }
+        }
+
+        void removeFromTop() {
+            stackIndex--;
+        }
+    }
+    
+    static class LastValElem {
+        long prevLen;
+        Exemplar elem;
+
+        private ModifiedFields modifiedFields = new ModifiedFields();
+    
+        void init() {
+            this.elem = new Exemplar(modifiedFields, 1);
+        }
+    
+        void reset() {
+            this.elem = new Exemplar();
+            this.prevLen = 0;
+        }
     }
 }
 

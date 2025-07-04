@@ -29,47 +29,56 @@ class AnyValueDecoder {
 
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
+        // Remember this decoder in the state so that we can detect recursion.
+        if (state.AnyValueDecoder != null) {
+            throw new IllegalStateException("cannot initialize AnyValueDecoder: already initialized");
+        }
         state.AnyValueDecoder = this;
-        prevType = AnyValue.Type.TypeNone;
-        if (state.getOverrideSchema() != null) {
-            int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
-            this.fieldCount = fieldCount;
-        } else {
-            this.fieldCount = 7;
+
+        try {
+            prevType = AnyValue.Type.TypeNone;
+            if (state.getOverrideSchema() != null) {
+                int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
+                this.fieldCount = fieldCount;
+            } else {
+                this.fieldCount = 7;
+            }
+            this.column = columns.getColumn();
+            this.lastVal.init(null, 0);
+            this.lastValPtr = this.lastVal;
+            Exception err = null;
+            
+            if (this.fieldCount <= 0) {
+                return; // String and subsequent fields are skipped.
+            }
+            this.stringDecoder.init(state.AnyValueString, columns.addSubColumn());
+            if (this.fieldCount <= 1) {
+                return; // Bool and subsequent fields are skipped.
+            }
+            this.boolDecoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 2) {
+                return; // Int64 and subsequent fields are skipped.
+            }
+            this.int64Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 3) {
+                return; // Float64 and subsequent fields are skipped.
+            }
+            this.float64Decoder.init(columns.addSubColumn());
+            if (this.fieldCount <= 4) {
+                return; // Array and subsequent fields are skipped.
+            }
+            this.arrayDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 5) {
+                return; // KVList and subsequent fields are skipped.
+            }
+            this.kVListDecoder.init(state, columns.addSubColumn());
+            if (this.fieldCount <= 6) {
+                return; // Bytes and subsequent fields are skipped.
+            }
+            this.bytesDecoder.init(null, columns.addSubColumn());
+        } finally {
+            state.AnyValueDecoder = null;
         }
-        this.column = columns.getColumn();
-        this.lastVal.init(null, 0);
-        this.lastValPtr = this.lastVal;
-        Exception err = null;
-        
-        if (this.fieldCount <= 0) {
-            return; // String and subsequent fields are skipped.
-        }
-        this.stringDecoder.init(state.AnyValueString, columns.addSubColumn());
-        if (this.fieldCount <= 1) {
-            return; // Bool and subsequent fields are skipped.
-        }
-        this.boolDecoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 2) {
-            return; // Int64 and subsequent fields are skipped.
-        }
-        this.int64Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 3) {
-            return; // Float64 and subsequent fields are skipped.
-        }
-        this.float64Decoder.init(columns.addSubColumn());
-        if (this.fieldCount <= 4) {
-            return; // Array and subsequent fields are skipped.
-        }
-        this.arrayDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 5) {
-            return; // KVList and subsequent fields are skipped.
-        }
-        this.kVListDecoder.init(state, columns.addSubColumn());
-        if (this.fieldCount <= 6) {
-            return; // Bytes and subsequent fields are skipped.
-        }
-        this.bytesDecoder.init(null, columns.addSubColumn());
     }
 
     // continueDecoding is called at the start of the frame to continue decoding column data.
