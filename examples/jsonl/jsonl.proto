@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package jsonpb;
+
+option go_package = "github.com/splunk/stef/examples/jsonl/internal/jsonpb";
+
+message Record {
+  JsonValue value = 1;
+}
+
+message JsonValue {
+  oneof kind {
+    JsonObject object = 1;
+    JsonArray array = 2;
+    string string = 3;
+    double number = 4;
+    bool bool = 5;
+  }
+}
+
+message JsonObject {
+  repeated JsonObjectElem elems = 1;
+}
+
+message JsonObjectElem {
+  string key = 1;
+  JsonValue value = 2;
+}
+
+// Array of JsonValue
+message JsonArray {
+  repeated JsonValue values = 1;
+}

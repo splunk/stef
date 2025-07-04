@@ -1,0 +1,24 @@
+package jsonstef
+
+// The struct with "root" attribute defines the records in a STEF stream.
+struct Record root {
+  // List fields in this struct, the syntax is: FieldName FieldType.
+  // Each record in this STEF stream is a JsonValue.
+  Value JsonValue
+}
+
+// A oneof can store one of the the listed fields.
+// Empty oneof is the equivalent of "null" in JSON.
+oneof JsonValue {
+  Object JsonObject
+  Array  []JsonValue
+  String string
+  Number float64
+  Bool   bool
+}
+
+// A multimap is a key-value list.
+multimap JsonObject {
+  key   string
+  value JsonValue
+}
