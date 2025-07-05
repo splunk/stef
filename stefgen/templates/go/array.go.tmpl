@@ -6,12 +6,14 @@ import (
 	"slices"
 	{{end}}
 	"unsafe"
+	"strings"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 )
 
-var _ = encoders.StringEncoder{}
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
 
 // {{ .ArrayName }} is a variable size array.
 type {{ .ArrayName }} struct {
@@ -361,7 +363,7 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 
 	{{ if .ElemType.IsPrimitive -}}
 	e.elemEncoder = new({{.ElemType.EncoderType}}Encoder)
-	if err := e.elemEncoder.Init({{- if .DictName}}&e.state.{{.DictName}}{{else}}e.limiter{{end -}}, columns.AddSubColumn()); err != nil {
+	if err := e.elemEncoder.Init({{- if .ElemType.DictName}}&e.state.{{.ElemType.DictName}}, {{end -}}e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
 	{{- else -}}

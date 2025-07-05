@@ -6,13 +6,15 @@ import (
 
 	"slices"
 
+	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 )
 
-var _ = encoders.StringEncoder{}
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
 
 // Float64Array is a variable size array.
 type Float64Array struct {

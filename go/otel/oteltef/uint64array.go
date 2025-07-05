@@ -6,13 +6,15 @@ import (
 
 	"slices"
 
+	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 )
 
-var _ = encoders.StringEncoder{}
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
 
 // Uint64Array is a variable size array.
 type Uint64Array struct {

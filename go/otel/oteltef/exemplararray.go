@@ -4,13 +4,15 @@ package oteltef
 import (
 	"math/rand/v2"
 
+	"strings"
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 )
 
-var _ = encoders.StringEncoder{}
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
 
 // ExemplarArray is a variable size array.
 type ExemplarArray struct {
