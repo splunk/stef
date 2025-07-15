@@ -13,60 +13,50 @@ import io.grpc.stub.StreamObserver;
 import net.stef.grpc.service.destination.*;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class StefClient {
 
-    private STEFDestinationGrpc.STEFDestinationStub stub;
-    private ClientSchema clientSchema;
-    private ClientCallbacks clientCallbacks;
+    private static final Logger LOGGER = Logger.getLogger(StefClient.class.getName());
 
-    private StreamObserver<STEFClientMessage> requestObserver;
-    private CountDownLatch finishLatch;
+    private final STEFDestinationGrpc.STEFDestinationStub asyncStub;
+    private final ClientSchema clientSchema;
 
-    public StefClient(ManagedChannel channel, ClientSchema clientSchema, ClientCallbacks clientCallbacks) {
+    public StefClient(ManagedChannel channel, ClientSchema clientSchema) {
         // Initialize the client with the provided channel and configuration
-        // This is where you would set up your gRPC stubs or other client logic
-
-        // For example:
-        this.stub = STEFDestinationGrpc.newStub(channel);
+        this.asyncStub = STEFDestinationGrpc.newStub(channel);
         this.clientSchema = clientSchema;
-        this.clientCallbacks = clientCallbacks;
     }
 
     public void connect() {
-        System.out.println("Connecting to STEF server...");
-        finishLatch = new CountDownLatch(1);
+        LOGGER.log(Level.INFO, "Connecting to STEF server...");
 
-        // Create a StreamObserver to handle incoming messages from the server
-        this.requestObserver = stub.stream(new StreamObserver<STEFServerMessage>() {
+        final CountDownLatch finishLatch = new CountDownLatch(1);
+
+        // Create a Response StreamObserver to handle incoming messages from the server & pass on to async stub
+        StreamObserver<STEFClientMessage> requestObserver = asyncStub.stream(new StreamObserver<STEFServerMessage>() {
             @Override
             public void onNext(STEFServerMessage message) {
-                System.out.println("onNext()");
+                LOGGER.log(Level.INFO, "onNext():Processing Server incoming messages");
                 if (message.hasCapabilities()) {
                     // Handle capabilities, schema negotiation, etc.
                     STEFDestinationCapabilities caps = message.getCapabilities();
                     // Parse schema, check compatibility, set options, etc.
                     // (You would implement schema compatibility logic here)
-                } else if (message.hasResponse()) {
-                    long ackId = message.getResponse().getAckRecordId();
-                    boolean keepGoing = clientCallbacks.onAck.handle(ackId);
-                    if (!keepGoing) {
-                        disconnect();
-                    }
                 }
             }
 
             @Override
             public void onError(Throwable t) {
-                System.out.println("OnError()");
-                clientCallbacks.onDisconnect.accept(t);
+                LOGGER.log(Level.WARNING, "onError(): Error received from server", t);
+                finishLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                System.out.println("onCompleted()");
-                clientCallbacks.onDisconnect.accept(null);
+                LOGGER.log(Level.INFO, "onCompleted(): Server has completed the stream");
+                finishLatch.countDown();
             }
         });
 
@@ -77,18 +67,27 @@ public class StefClient {
                 .setFirstMessage(firstMsg)
                 .build();
 
-        requestObserver.onNext(clientMessage);
-    }
-
-    public void disconnect() {
-        if (requestObserver != null) {
-            requestObserver.onCompleted();
-        }
         try {
-            finishLatch.await(5, TimeUnit.SECONDS);
+            // Send the message to the server
+            requestObserver.onNext(clientMessage);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to send first message", e);
+            requestObserver.onError(e);
+            return; // Exit if we can't send the first message
+        }
+
+        // Wait for the server to complete the stream or for an error to occur
+        try {
+            if (!finishLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                LOGGER.log(Level.WARNING, "Connection timed out");
+            }
         } catch (InterruptedException e) {
-            System.out.println("InterruptedException while waiting for disconnect: " + e.getMessage());
             Thread.currentThread().interrupt();
+            LOGGER.log(Level.SEVERE, "Connection interrupted", e);
+        } finally {
+            LOGGER.log(Level.INFO, "RequestObserver: Client Completing the stream");
+            requestObserver.onCompleted();
+            LOGGER.log(Level.INFO, "RequestObserver: Client Completed the stream");
         }
     }
 }
