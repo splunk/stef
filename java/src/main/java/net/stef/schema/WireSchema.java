@@ -68,10 +68,12 @@ public class WireSchema {
 
             Integer newFieldCount = structFieldCount.get(structName);
             if (newFieldCount == null) {
-                throw new IOException("struct " + structName + " does not exist in new schema");
+                // throw new IOException("struct " + structName + " does not exist in new schema");
+                return Compatibility.Incompatible;
             }
             if (newFieldCount < oldFieldCount) {
-                throw new IOException("struct " + structName + " has fewer fields in new schema (" + newFieldCount + " vs " + oldFieldCount + ")");
+                // throw new IOException("struct " + structName + " has fewer fields in new schema (" + newFieldCount + " vs " + oldFieldCount + ")");
+                return Compatibility.Incompatible;
             } else if (newFieldCount > oldFieldCount) {
                 exactCompat = false;
             }
