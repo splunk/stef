@@ -70,6 +70,7 @@ public class StefClient {
                                 LOGGER.log(Level.INFO, "onNext(): Server schema is superset of client schema");
                                 schemaWriterOptions.setSchemaCompatible(true);
                                 schemaWriterOptions.setMaxDictBytes(caps.getDictionaryLimits().getMaxDictBytes());
+                                break;
                             case Incompatible:
                                 // It is neither exact match nor is server schema a superset, but server schema maybe subset.
                                 // Check the opposite direction: if client schema is backward compatible with server schema.
@@ -126,20 +127,19 @@ public class StefClient {
             LOGGER.log(Level.INFO, "RequestObserver: Client sending first message to server: {0}", clientMessage);
             // Send the message to the server
             requestObserver.onNext(clientMessage);
+
+            // Wait for the server to complete the stream or for an error to occur
+            if (!finishLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                LOGGER.log(Level.WARNING, "Connection timed out");
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.log(Level.SEVERE, "Connection interrupted", e);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to send first message", e);
             requestObserver.onError(e);
             return null; // Exit if we can't send the first message
-        }
-
-        // Wait for the server to complete the stream or for an error to occur
-        try {
-            if (!finishLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                LOGGER.log(Level.WARNING, "Connection timed out");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOGGER.log(Level.SEVERE, "Connection interrupted", e);
         }
 
         // If the schema is compatible, create a GrpcWriter to write data to the server
