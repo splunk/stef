@@ -30,6 +30,15 @@ public class StefClient {
     private StreamObserver<STEFClientMessage> requestObserver;
 
     public StefClient(ClientSettings settings) {
+
+        if (isRootStructNameEmpty(settings)) {
+            throw new IllegalArgumentException("Client schema root struct name is empty");
+        }
+
+        if (isClientSchemaWireSchemaNull(settings)) {
+            throw new IllegalArgumentException("In client schema wire schema is null");
+        }
+
         this.asyncStub = settings.getGrpcClient();
         this.clientSchema = settings.getClientSchema();
         this.clientCallbacks = settings.getCallbacks();
@@ -54,6 +63,7 @@ public class StefClient {
         final ClientSchema clientSchema = this.clientSchema;
         final CountDownLatch finishLatch = new CountDownLatch(1);
         final AtomicReference<STEFServerMessage> serverMessageAtomicReference = new AtomicReference<>();
+        final AtomicReference<Throwable> errorAtomicReference = new AtomicReference<>();
 
         // Create a Response StreamObserver to handle incoming messag   es from the server & pass on to async stub
         this.requestObserver = asyncStub.stream(new StreamObserver<STEFServerMessage>() {
@@ -67,6 +77,7 @@ public class StefClient {
             @Override
             public void onError(Throwable t) {
                 LOGGER.log(Level.WARNING, "onError(): Error received from server", t);
+                errorAtomicReference.set(t);
                 clientCallbacks.onDisconnect.accept(t);
                 finishLatch.countDown();
             }
@@ -95,6 +106,12 @@ public class StefClient {
             // Wait for the server to complete the stream or for an error to occur
             if (!finishLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
                 LOGGER.log(Level.WARNING, "Connection timed out");
+            }
+
+            // Check for errors
+            Throwable error = errorAtomicReference.get();
+            if (error != null) {
+                throw new IOException("Failed to receive capabilities", error);
             }
 
             STEFServerMessage serverMessage = serverMessageAtomicReference.get();
@@ -221,5 +238,13 @@ public class StefClient {
                     .build();
         }
         return WriterOptions.builder().build();
+    }
+
+    private boolean isRootStructNameEmpty(ClientSettings settings) {
+        return settings.getClientSchema().rootStructName == null || settings.getClientSchema().rootStructName.isEmpty();
+    }
+
+    private boolean isClientSchemaWireSchemaNull(ClientSettings settings) {
+        return settings.getClientSchema().wireSchema == null;
     }
 }

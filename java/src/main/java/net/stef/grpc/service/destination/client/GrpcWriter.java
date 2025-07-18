@@ -8,6 +8,7 @@
 
 package net.stef.grpc.service.destination.client;
 
+import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import net.stef.ChunkWriter;
 import net.stef.WriterOptions;
@@ -28,9 +29,14 @@ public class GrpcWriter implements ChunkWriter {
     public void writeChunk(byte[] header, byte[] content) throws IOException {
         // Build the message with header and content
         STEFClientMessage.Builder builder = STEFClientMessage.newBuilder();
-        builder.clearStefBytes();
-        builder.setStefBytes(com.google.protobuf.ByteString.copyFrom(header));
-        builder.setStefBytes(com.google.protobuf.ByteString.copyFrom(content));
+        builder.clear();
+
+        // Combine header and content into a single byte array
+        byte[] combined = new byte[header.length + content.length];
+        System.arraycopy(header, 0, combined, 0, header.length);
+        System.arraycopy(content, 0, combined, header.length, content.length);
+
+        builder.setStefBytes(ByteString.copyFrom(combined));
         builder.setIsEndOfChunk(true);
 
         // TODO: split the chunk into multiple messages if it is too big to fit in one gRPC message.
