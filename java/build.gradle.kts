@@ -1,3 +1,6 @@
+import org.apache.tools.ant.taskdefs.Java
+import org.gradle.jvm.toolchain.internal.DefaultJavaLanguageVersion
+
 plugins {
     id("java")
 }
@@ -7,7 +10,7 @@ version = "1.0-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.current())
     }
 }
 
