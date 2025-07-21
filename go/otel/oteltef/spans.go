@@ -49,6 +49,28 @@ func NewSpans() *Spans {
 	return &s
 }
 
+func NewSpansSlice(count int) []Spans {
+	slice := make([]Spans, count)
+
+	// Pre-allocate slice for resource field
+	resourceSlice := NewResourceSlice(count)
+	// Pre-allocate slice for scope field
+	scopeSlice := NewScopeSlice(count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.envelope.init(&elem.modifiedFields, fieldModifiedSpansEnvelope)
+		elem.resource = &resourceSlice[i]
+		elem.resource.init(&elem.modifiedFields, fieldModifiedSpansResource)
+		elem.scope = &scopeSlice[i]
+		elem.scope.init(&elem.modifiedFields, fieldModifiedSpansScope)
+		elem.span.init(&elem.modifiedFields, fieldModifiedSpansSpan)
+	}
+
+	return slice
+}
+
 func (s *Spans) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

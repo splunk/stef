@@ -43,6 +43,20 @@ func NewRecord() *Record {
 	return &s
 }
 
+func NewRecordSlice(count int, parentModifiedFields *modifiedFields, parentModifiedBit uint64) []Record {
+	slice := make([]Record, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+		elem.modifiedFields.parent = parentModifiedFields
+		elem.modifiedFields.parentBit = parentModifiedBit
+
+		elem.value.init(&elem.modifiedFields, fieldModifiedRecordValue)
+	}
+
+	return slice
+}
+
 func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

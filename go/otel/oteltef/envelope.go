@@ -43,6 +43,18 @@ func NewEnvelope() *Envelope {
 	return &s
 }
 
+func NewEnvelopeSlice(count int) []Envelope {
+	slice := make([]Envelope, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedEnvelopeAttributes)
+	}
+
+	return slice
+}
+
 func (s *Envelope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

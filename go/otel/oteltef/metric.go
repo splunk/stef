@@ -59,6 +59,19 @@ func NewMetric() *Metric {
 	return &s
 }
 
+func NewMetricSlice(count int) []Metric {
+	slice := make([]Metric, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.metadata.init(&elem.modifiedFields, fieldModifiedMetricMetadata)
+		elem.histogramBounds.init(&elem.modifiedFields, fieldModifiedMetricHistogramBounds)
+	}
+
+	return slice
+}
+
 func (s *Metric) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

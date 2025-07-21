@@ -49,6 +49,18 @@ func NewResource() *Resource {
 	return &s
 }
 
+func NewResourceSlice(count int) []Resource {
+	slice := make([]Resource, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedResourceAttributes)
+	}
+
+	return slice
+}
+
 func (s *Resource) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

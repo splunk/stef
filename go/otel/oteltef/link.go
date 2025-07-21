@@ -53,6 +53,18 @@ func NewLink() *Link {
 	return &s
 }
 
+func NewLinkSlice(count int) []Link {
+	slice := make([]Link, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedLinkAttributes)
+	}
+
+	return slice
+}
+
 func (s *Link) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

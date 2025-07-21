@@ -51,6 +51,19 @@ func NewExemplar() *Exemplar {
 	return &s
 }
 
+func NewExemplarSlice(count int) []Exemplar {
+	slice := make([]Exemplar, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.value.init(&elem.modifiedFields, fieldModifiedExemplarValue)
+		elem.filteredAttributes.init(&elem.modifiedFields, fieldModifiedExemplarFilteredAttributes)
+	}
+
+	return slice
+}
+
 func (s *Exemplar) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

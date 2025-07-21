@@ -53,6 +53,33 @@ func NewMetrics() *Metrics {
 	return &s
 }
 
+func NewMetricsSlice(count int) []Metrics {
+	slice := make([]Metrics, count)
+
+	// Pre-allocate slice for metric field
+	metricSlice := NewMetricSlice(count)
+	// Pre-allocate slice for resource field
+	resourceSlice := NewResourceSlice(count)
+	// Pre-allocate slice for scope field
+	scopeSlice := NewScopeSlice(count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.envelope.init(&elem.modifiedFields, fieldModifiedMetricsEnvelope)
+		elem.metric = &metricSlice[i]
+		elem.metric.init(&elem.modifiedFields, fieldModifiedMetricsMetric)
+		elem.resource = &resourceSlice[i]
+		elem.resource.init(&elem.modifiedFields, fieldModifiedMetricsResource)
+		elem.scope = &scopeSlice[i]
+		elem.scope.init(&elem.modifiedFields, fieldModifiedMetricsScope)
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedMetricsAttributes)
+		elem.point.init(&elem.modifiedFields, fieldModifiedMetricsPoint)
+	}
+
+	return slice
+}
+
 func (s *Metrics) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

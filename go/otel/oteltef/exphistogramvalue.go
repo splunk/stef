@@ -70,6 +70,19 @@ func NewExpHistogramValue() *ExpHistogramValue {
 	return &s
 }
 
+func NewExpHistogramValueSlice(count int) []ExpHistogramValue {
+	slice := make([]ExpHistogramValue, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.positiveBuckets.init(&elem.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets)
+		elem.negativeBuckets.init(&elem.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets)
+	}
+
+	return slice
+}
+
 func (s *ExpHistogramValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

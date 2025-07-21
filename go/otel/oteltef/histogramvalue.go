@@ -62,6 +62,18 @@ func NewHistogramValue() *HistogramValue {
 	return &s
 }
 
+func NewHistogramValueSlice(count int) []HistogramValue {
+	slice := make([]HistogramValue, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.bucketCounts.init(&elem.modifiedFields, fieldModifiedHistogramValueBucketCounts)
+	}
+
+	return slice
+}
+
 func (s *HistogramValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

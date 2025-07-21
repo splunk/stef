@@ -66,6 +66,32 @@ func New{{.StructName }}() *{{.StructName }} {
 	return &s
 }
 
+func New{{.StructName }}Slice(count int) []{{.StructName }} {
+	slice := make([]{{.StructName}}, count)
+
+	{{ range .Fields }}
+	{{- if .Type.Flags.StoreByPtr}}
+	// Pre-allocate slice for {{.name}} field
+	{{.name}}Slice := New{{.Type.Name}}Slice(count)
+	{{- end }}
+	{{- end }}
+
+	for i := 0; i < count; i++ {
+        elem := &slice[i]
+
+		{{ range .Fields }}
+		{{- if .Type.Flags.StoreByPtr}}
+        elem.{{.name}} = &{{.name}}Slice[i]
+		{{- end }}
+		{{- if not .Type.IsPrimitive }}
+            elem.{{.name}}.init(&elem.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+		{{- end }}
+		{{- end }}
+	}
+
+	return slice
+}
+
 func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
     s.modifiedFields.parent = parentModifiedFields
     s.modifiedFields.parentBit = parentModifiedBit

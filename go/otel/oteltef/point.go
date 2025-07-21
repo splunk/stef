@@ -49,6 +49,19 @@ func NewPoint() *Point {
 	return &s
 }
 
+func NewPointSlice(count int) []Point {
+	slice := make([]Point, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.value.init(&elem.modifiedFields, fieldModifiedPointValue)
+		elem.exemplars.init(&elem.modifiedFields, fieldModifiedPointExemplars)
+	}
+
+	return slice
+}
+
 func (s *Point) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

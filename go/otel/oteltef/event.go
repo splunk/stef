@@ -49,6 +49,18 @@ func NewEvent() *Event {
 	return &s
 }
 
+func NewEventSlice(count int) []Event {
+	slice := make([]Event, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedEventAttributes)
+	}
+
+	return slice
+}
+
 func (s *Event) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

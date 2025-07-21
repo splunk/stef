@@ -53,6 +53,18 @@ func NewScope() *Scope {
 	return &s
 }
 
+func NewScopeSlice(count int) []Scope {
+	slice := make([]Scope, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedScopeAttributes)
+	}
+
+	return slice
+}
+
 func (s *Scope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

@@ -69,6 +69,21 @@ func NewSpan() *Span {
 	return &s
 }
 
+func NewSpanSlice(count int) []Span {
+	slice := make([]Span, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.attributes.init(&elem.modifiedFields, fieldModifiedSpanAttributes)
+		elem.events.init(&elem.modifiedFields, fieldModifiedSpanEvents)
+		elem.links.init(&elem.modifiedFields, fieldModifiedSpanLinks)
+		elem.status.init(&elem.modifiedFields, fieldModifiedSpanStatus)
+	}
+
+	return slice
+}
+
 func (s *Span) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

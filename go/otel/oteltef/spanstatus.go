@@ -45,6 +45,17 @@ func NewSpanStatus() *SpanStatus {
 	return &s
 }
 
+func NewSpanStatusSlice(count int) []SpanStatus {
+	slice := make([]SpanStatus, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+	}
+
+	return slice
+}
+
 func (s *SpanStatus) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit

@@ -45,6 +45,18 @@ func NewExpHistogramBuckets() *ExpHistogramBuckets {
 	return &s
 }
 
+func NewExpHistogramBucketsSlice(count int) []ExpHistogramBuckets {
+	slice := make([]ExpHistogramBuckets, count)
+
+	for i := 0; i < count; i++ {
+		elem := &slice[i]
+
+		elem.bucketCounts.init(&elem.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts)
+	}
+
+	return slice
+}
+
 func (s *ExpHistogramBuckets) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
