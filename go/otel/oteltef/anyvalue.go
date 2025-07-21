@@ -69,6 +69,8 @@ func (s *AnyValue) Type() AnyValueType {
 func (s *AnyValue) SetType(typ AnyValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		switch typ {
+		}
 		s.markParentModified()
 	}
 }
@@ -410,13 +412,23 @@ type AnyValueEncoder struct {
 	prevType   AnyValueType
 	fieldCount uint
 
-	stringEncoder  encoders.StringEncoder
-	boolEncoder    encoders.BoolEncoder
-	int64Encoder   encoders.Int64Encoder
+	// Field encoders.
+
+	stringEncoder encoders.StringEncoder
+
+	boolEncoder encoders.BoolEncoder
+
+	int64Encoder encoders.Int64Encoder
+
 	float64Encoder encoders.Float64Encoder
-	arrayEncoder   AnyValueArrayEncoder
-	kVListEncoder  KeyValueListEncoder
-	bytesEncoder   encoders.BytesEncoder
+
+	arrayEncoder     *AnyValueArrayEncoder
+	isArrayRecursive bool // Indicates Array field's type is recursive.
+
+	kVListEncoder     *KeyValueListEncoder
+	isKVListRecursive bool // Indicates KVList field's type is recursive.
+
+	bytesEncoder encoders.BytesEncoder
 }
 
 func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -444,55 +456,90 @@ func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	var err error
 
+	// Init encoder for String field.
 	if e.fieldCount <= 0 {
+		// String and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.stringEncoder.Init(&state.AnyValueString, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Bool field.
 	if e.fieldCount <= 1 {
+		// Bool and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.boolEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Int64 field.
 	if e.fieldCount <= 2 {
+		// Int64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.int64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Float64 field.
 	if e.fieldCount <= 3 {
+		// Float64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.float64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Array field.
 	if e.fieldCount <= 4 {
+		// Array and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.arrayEncoder.Init(state, columns.AddSubColumn())
+	if state.AnyValueArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.arrayEncoder = state.AnyValueArrayEncoder
+		e.isArrayRecursive = true
+	} else {
+		e.arrayEncoder = new(AnyValueArrayEncoder)
+		err = e.arrayEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for KVList field.
 	if e.fieldCount <= 5 {
+		// KVList and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.kVListEncoder.Init(state, columns.AddSubColumn())
+	if state.KeyValueListEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.kVListEncoder = state.KeyValueListEncoder
+		e.isKVListRecursive = true
+	} else {
+		e.kVListEncoder = new(KeyValueListEncoder)
+		err = e.kVListEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Bytes field.
 	if e.fieldCount <= 6 {
+		// Bytes and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.bytesEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -502,8 +549,15 @@ func (e *AnyValueEncoder) Reset() {
 	e.boolEncoder.Reset()
 	e.int64Encoder.Reset()
 	e.float64Encoder.Reset()
-	e.arrayEncoder.Reset()
-	e.kVListEncoder.Reset()
+
+	if !e.isArrayRecursive {
+		e.arrayEncoder.Reset()
+	}
+
+	if !e.isKVListRecursive {
+		e.kVListEncoder.Reset()
+	}
+
 	e.bytesEncoder.Reset()
 }
 
@@ -552,35 +606,65 @@ func (e *AnyValueEncoder) Encode(val *AnyValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *AnyValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect String field.
 	if e.fieldCount <= 0 {
 		return // String and subsequent fields are skipped.
 	}
-	e.stringEncoder.CollectColumns(columnSet.At(0))
+
+	e.stringEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Bool field.
 	if e.fieldCount <= 1 {
 		return // Bool and subsequent fields are skipped.
 	}
-	e.boolEncoder.CollectColumns(columnSet.At(1))
+
+	e.boolEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Int64 field.
 	if e.fieldCount <= 2 {
 		return // Int64 and subsequent fields are skipped.
 	}
-	e.int64Encoder.CollectColumns(columnSet.At(2))
+
+	e.int64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Float64 field.
 	if e.fieldCount <= 3 {
 		return // Float64 and subsequent fields are skipped.
 	}
-	e.float64Encoder.CollectColumns(columnSet.At(3))
+
+	e.float64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Array field.
 	if e.fieldCount <= 4 {
 		return // Array and subsequent fields are skipped.
 	}
-	e.arrayEncoder.CollectColumns(columnSet.At(4))
+	if !e.isArrayRecursive {
+		e.arrayEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect KVList field.
 	if e.fieldCount <= 5 {
 		return // KVList and subsequent fields are skipped.
 	}
-	e.kVListEncoder.CollectColumns(columnSet.At(5))
+	if !e.isKVListRecursive {
+		e.kVListEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Bytes field.
 	if e.fieldCount <= 6 {
 		return // Bytes and subsequent fields are skipped.
 	}
-	e.bytesEncoder.CollectColumns(columnSet.At(6))
+
+	e.bytesEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // AnyValueDecoder implements decoding of AnyValue
@@ -593,13 +677,23 @@ type AnyValueDecoder struct {
 
 	prevType AnyValueType
 
-	stringDecoder  encoders.StringDecoder
-	boolDecoder    encoders.BoolDecoder
-	int64Decoder   encoders.Int64Decoder
+	// Field decoders.
+
+	stringDecoder encoders.StringDecoder
+
+	boolDecoder encoders.BoolDecoder
+
+	int64Decoder encoders.Int64Decoder
+
 	float64Decoder encoders.Float64Decoder
-	arrayDecoder   AnyValueArrayDecoder
-	kVListDecoder  KeyValueListDecoder
-	bytesDecoder   encoders.BytesDecoder
+
+	arrayDecoder     *AnyValueArrayDecoder
+	isArrayRecursive bool
+
+	kVListDecoder     *KeyValueListDecoder
+	isKVListRecursive bool
+
+	bytesDecoder encoders.BytesDecoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -661,14 +755,28 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 4 {
 		return nil // Array and subsequent fields are skipped.
 	}
-	err = d.arrayDecoder.Init(state, columns.AddSubColumn())
+	if state.AnyValueArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.arrayDecoder = state.AnyValueArrayDecoder
+		d.isArrayRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.arrayDecoder = new(AnyValueArrayDecoder)
+		err = d.arrayDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 5 {
 		return nil // KVList and subsequent fields are skipped.
 	}
-	err = d.kVListDecoder.Init(state, columns.AddSubColumn())
+	if state.KeyValueListDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.kVListDecoder = state.KeyValueListDecoder
+		d.isKVListRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.kVListDecoder = new(KeyValueListDecoder)
+		err = d.kVListDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -695,30 +803,43 @@ func (d *AnyValueDecoder) Continue() {
 		return // String and subsequent fields are skipped.
 	}
 	d.stringDecoder.Continue()
+
 	if d.fieldCount <= 1 {
 		return // Bool and subsequent fields are skipped.
 	}
 	d.boolDecoder.Continue()
+
 	if d.fieldCount <= 2 {
 		return // Int64 and subsequent fields are skipped.
 	}
 	d.int64Decoder.Continue()
+
 	if d.fieldCount <= 3 {
 		return // Float64 and subsequent fields are skipped.
 	}
 	d.float64Decoder.Continue()
+
 	if d.fieldCount <= 4 {
 		return // Array and subsequent fields are skipped.
 	}
-	d.arrayDecoder.Continue()
+
+	if !d.isArrayRecursive {
+		d.arrayDecoder.Continue()
+	}
+
 	if d.fieldCount <= 5 {
 		return // KVList and subsequent fields are skipped.
 	}
-	d.kVListDecoder.Continue()
+
+	if !d.isKVListRecursive {
+		d.kVListDecoder.Continue()
+	}
+
 	if d.fieldCount <= 6 {
 		return // Bytes and subsequent fields are skipped.
 	}
 	d.bytesDecoder.Continue()
+
 }
 
 func (d *AnyValueDecoder) Reset() {
@@ -727,8 +848,15 @@ func (d *AnyValueDecoder) Reset() {
 	d.boolDecoder.Reset()
 	d.int64Decoder.Reset()
 	d.float64Decoder.Reset()
-	d.arrayDecoder.Reset()
-	d.kVListDecoder.Reset()
+
+	if !d.isArrayRecursive {
+		d.arrayDecoder.Reset()
+	}
+
+	if !d.isKVListRecursive {
+		d.kVListDecoder.Reset()
+	}
+
 	d.bytesDecoder.Reset()
 }
 

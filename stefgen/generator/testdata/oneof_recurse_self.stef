@@ -1,0 +1,9 @@
+package com.example.gentest.oneof_recurse_self
+
+struct Root root {
+  Oneof Oneof
+}
+
+oneof Oneof {
+  Oneof Oneof
+}

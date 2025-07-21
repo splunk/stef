@@ -15,9 +15,12 @@ class ExemplarValueEncoder {
     private ExemplarValue.Type prevType;
     private int fieldCount;
 
+    // Field encoders.
     
-    private Int64Encoder int64Encoder = new Int64Encoder();
-    private Float64Encoder float64Encoder = new Float64Encoder();
+    private Int64Encoder int64Encoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Encoder float64Encoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
@@ -39,13 +42,17 @@ class ExemplarValueEncoder {
             }
 
             
+            // Init encoder for Int64 field.
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Encoder = new Int64Encoder();
             int64Encoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Float64 field.
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Encoder = new Float64Encoder();
             float64Encoder.init(limiter, columns.addSubColumn());
         } finally {
             state.ExemplarValueEncoder = null;
@@ -54,8 +61,8 @@ class ExemplarValueEncoder {
 
     public void reset() {
         prevType = ExemplarValue.Type.TypeNone;
-        this.int64Encoder.reset();
-        this.float64Encoder.reset();
+        int64Encoder.reset();
+        float64Encoder.reset();
     }
 
     // Encode encodes val into buf
@@ -93,15 +100,23 @@ class ExemplarValueEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Int64 field.
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Encoder.collectColumns(columnSet.at(0));
+        
+        int64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Float64 field.
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Encoder.collectColumns(columnSet.at(1));
+        
+        float64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
-

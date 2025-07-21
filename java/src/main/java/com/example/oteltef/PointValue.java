@@ -17,9 +17,9 @@ public class PointValue {
     ExpHistogramValue expHistogram;
 
     // Pointer to parent's modifiedFields
-    private ModifiedFields parentModifiedFields;
+    ModifiedFields parentModifiedFields;
     // Bit to set in parent's modifiedFields when this oneof is modified.
-    private long parentModifiedBit;
+    long parentModifiedBit;
 
     PointValue() {
         init(null, 0);
@@ -36,8 +36,6 @@ public class PointValue {
         
         
         
-        histogram = new HistogramValue(parentModifiedFields, parentModifiedBit);
-        expHistogram = new ExpHistogramValue(parentModifiedFields, parentModifiedBit);
     }
 
     // Type enum for oneof
@@ -69,6 +67,18 @@ public class PointValue {
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            switch (typ) {
+            case TypeHistogram:
+                if (histogram == null) {
+                    histogram = new HistogramValue(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            case TypeExpHistogram:
+                if (expHistogram == null) {
+                    expHistogram = new ExpHistogramValue(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            }
             this.markParentModified();
         }
     }
@@ -152,13 +162,17 @@ public class PointValue {
             setFloat64(src.getFloat64());
             break;
         case TypeHistogram:
+            setType(src.typ);
             histogram.copyFrom(src.histogram);
             break;
         case TypeExpHistogram:
+            setType(src.typ);
             expHistogram.copyFrom(src.expHistogram);
             break;
+        case TypeNone:
+            setType(Type.TypeNone);
+            break;
         }
-        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -179,10 +193,10 @@ public class PointValue {
         case TypeFloat64:
             break;
         case TypeHistogram:
-                this.histogram.markModifiedRecursively();
+            this.histogram.markModifiedRecursively();
             break;
         case TypeExpHistogram:
-                this.expHistogram.markModifiedRecursively();
+            this.expHistogram.markModifiedRecursively();
             break;
         default:
             break;
@@ -221,21 +235,25 @@ public class PointValue {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeFloat64:
             if (!Types.Float64Equal(this.float64, v.float64)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeHistogram:
             if (this.histogram.markDiffModified(v.histogram)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeExpHistogram:
             if (this.expHistogram.markDiffModified(v.expHistogram)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         }
         return modified;
     }
@@ -367,4 +385,3 @@ public class PointValue {
         );
     }
 }
-

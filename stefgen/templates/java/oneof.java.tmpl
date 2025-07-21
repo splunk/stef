@@ -14,9 +14,9 @@ public class {{ .StructName }} {
     {{- end }}
 
     // Pointer to parent's modifiedFields
-    private ModifiedFields parentModifiedFields;
+    ModifiedFields parentModifiedFields;
     // Bit to set in parent's modifiedFields when this oneof is modified.
-    private long parentModifiedBit;
+    long parentModifiedBit;
 
     {{ .StructName }}() {
         init(null, 0);
@@ -33,8 +33,6 @@ public class {{ .StructName }} {
         {{ range .Fields }}
         {{- if .Type.IsPrimitive }}
         {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
-        {{- else}}
-        {{.name}} = new {{ .Type.Storage }}(parentModifiedFields, parentModifiedBit);
         {{- end }}
         {{- end }}
     }
@@ -67,6 +65,17 @@ public class {{ .StructName }} {
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            switch (typ) {
+            {{- range .Fields }}
+            {{- if not .Type.IsPrimitive}}
+            case Type{{.Name}}:
+                if ({{.name}} == null) {
+                    {{.name}} = new {{ .Type.Storage }}(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            {{- end -}}
+            {{- end }}
+            }
             this.markParentModified();
         }
     }
@@ -117,23 +126,18 @@ public class {{ .StructName }} {
         switch (src.typ) {
         {{- range .Fields }}
         case Type{{.Name}}:
-            {{- if .Type.MustClone }}
-            {{.name }}.copyFrom(src.{{.name}});
-            {{- else }}
-            {{- if .Optional }}
-            if (src.has{{.Name}}()) {
-                set{{.Name}}(src.get{{.Name}}());
-            } else {
-                unset{{.Name}}();
-            }
-            {{- else }}
+            {{- if .Type.IsPrimitive }}
             set{{.Name}}(src.get{{.Name}}());
-            {{- end }}
+            {{- else }}
+            setType(src.typ);
+            {{.name }}.copyFrom(src.{{.name}});
             {{- end }}
             break;
         {{- end }}
+        case TypeNone:
+            setType(Type.TypeNone);
+            break;
         }
-        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -155,7 +159,7 @@ public class {{ .StructName }} {
         {{- range .Fields }}
         case Type{{.Name}}:
             {{- if not .Type.IsPrimitive }}
-                this.{{.name}}.markModifiedRecursively();
+            this.{{.name}}.markModifiedRecursively();
             {{- end }}
             break;
         {{- end }}
@@ -201,6 +205,7 @@ public class {{ .StructName }} {
                 modified = true;
             }
             {{- end}}
+            break;
         {{- end }}
         }
         return modified;
@@ -300,4 +305,3 @@ public class {{ .StructName }} {
         );
     }
 }
-

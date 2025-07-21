@@ -3,6 +3,7 @@ package jsonstef
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"testing"
@@ -64,6 +65,13 @@ func TestRecordWriteRead(t *testing.T) {
 	for _, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
+				succeeded := false
+				defer func() {
+					if !succeeded {
+						fmt.Printf("Test failed with seed %v\n", seed1)
+					}
+				}()
+
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewRecordWriter(buf, opt)
 				require.NoError(t, err, "seed %v", seed1)
@@ -91,6 +99,8 @@ func TestRecordWriteRead(t *testing.T) {
 				}
 				err = reader.Read(pkg.ReadOptions{})
 				require.Error(t, io.EOF, seed1)
+
+				succeeded = true
 			},
 		)
 	}

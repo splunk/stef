@@ -1,0 +1,18 @@
+package com.example.gentest.oneof_recurse_multimap
+
+struct Root1 root {
+  Oneof Oneof
+}
+
+oneof Oneof {
+  Multimap Multimap
+}
+
+multimap Multimap {
+  key string
+  value Oneof
+}
+
+struct Root2 root {
+  Multimap Multimap
+}

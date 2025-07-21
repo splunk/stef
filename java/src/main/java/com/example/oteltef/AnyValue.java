@@ -20,9 +20,9 @@ public class AnyValue {
     byte[] bytes;
 
     // Pointer to parent's modifiedFields
-    private ModifiedFields parentModifiedFields;
+    ModifiedFields parentModifiedFields;
     // Bit to set in parent's modifiedFields when this oneof is modified.
-    private long parentModifiedBit;
+    long parentModifiedBit;
 
     AnyValue() {
         init(null, 0);
@@ -41,8 +41,6 @@ public class AnyValue {
         
         
         
-        array = new AnyValueArray(parentModifiedFields, parentModifiedBit);
-        kVList = new KeyValueList(parentModifiedFields, parentModifiedBit);
         bytes = Types.emptyBytes;
     }
 
@@ -78,6 +76,18 @@ public class AnyValue {
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            switch (typ) {
+            case TypeArray:
+                if (array == null) {
+                    array = new AnyValueArray(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            case TypeKVList:
+                if (kVList == null) {
+                    kVList = new KeyValueList(parentModifiedFields, parentModifiedBit);
+                }
+                break;
+            }
             this.markParentModified();
         }
     }
@@ -221,16 +231,20 @@ public class AnyValue {
             setFloat64(src.getFloat64());
             break;
         case TypeArray:
+            setType(src.typ);
             array.copyFrom(src.array);
             break;
         case TypeKVList:
+            setType(src.typ);
             kVList.copyFrom(src.kVList);
             break;
         case TypeBytes:
             setBytes(src.getBytes());
             break;
+        case TypeNone:
+            setType(Type.TypeNone);
+            break;
         }
-        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -255,10 +269,10 @@ public class AnyValue {
         case TypeFloat64:
             break;
         case TypeArray:
-                this.array.markModifiedRecursively();
+            this.array.markModifiedRecursively();
             break;
         case TypeKVList:
-                this.kVList.markModifiedRecursively();
+            this.kVList.markModifiedRecursively();
             break;
         case TypeBytes:
             break;
@@ -305,36 +319,43 @@ public class AnyValue {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeBool:
             if (!Types.BoolEqual(this.bool, v.bool)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeInt64:
             if (!Types.Int64Equal(this.int64, v.int64)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeFloat64:
             if (!Types.Float64Equal(this.float64, v.float64)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeArray:
             if (this.array.markDiffModified(v.array)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeKVList:
             if (this.kVList.markDiffModified(v.kVList)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeBytes:
             if (!Types.BytesEqual(this.bytes, v.bytes)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         }
         return modified;
     }
@@ -517,4 +538,3 @@ public class AnyValue {
         );
     }
 }
-

@@ -17,11 +17,16 @@ class PointValueDecoder {
     private int fieldCount;
     private PointValue.Type prevType;
 
+    // Field decoders.
     
-    private Int64Decoder int64Decoder = new Int64Decoder();
-    private Float64Decoder float64Decoder = new Float64Decoder();
-    private HistogramValueDecoder histogramDecoder = new HistogramValueDecoder();
-    private ExpHistogramValueDecoder expHistogramDecoder = new ExpHistogramValueDecoder();
+    private Int64Decoder int64Decoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Decoder float64Decoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
+    private HistogramValueDecoder histogramDecoder;
+    private boolean isHistogramRecursive = false; // Indicates Histogram field's type is recursive.
+    private ExpHistogramValueDecoder expHistogramDecoder;
+    private boolean isExpHistogramRecursive = false; // Indicates ExpHistogram field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -48,19 +53,35 @@ class PointValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Decoder = new Int64Decoder();
             this.int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Decoder = new Float64Decoder();
             this.float64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Histogram and subsequent fields are skipped.
             }
-            this.histogramDecoder.init(state, columns.addSubColumn());
+            if (state.HistogramValueDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                histogramDecoder = state.HistogramValueDecoder;
+                isHistogramRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                histogramDecoder = new HistogramValueDecoder();
+                histogramDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 3) {
                 return; // ExpHistogram and subsequent fields are skipped.
             }
-            this.expHistogramDecoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramValueDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                expHistogramDecoder = state.ExpHistogramValueDecoder;
+                isExpHistogramRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                expHistogramDecoder = new ExpHistogramValueDecoder();
+                expHistogramDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointValueDecoder = null;
         }
@@ -77,27 +98,40 @@ class PointValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Decoder.continueDecoding();
+        int64Decoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Decoder.continueDecoding();
+        float64Decoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Histogram and subsequent fields are skipped.
         }
-        this.histogramDecoder.continueDecoding();
+        
+        if (!isHistogramRecursive) {
+            histogramDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 3) {
             return; // ExpHistogram and subsequent fields are skipped.
         }
-        this.expHistogramDecoder.continueDecoding();
+        
+        if (!isExpHistogramRecursive) {
+            expHistogramDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
         prevType = PointValue.Type.TypeNone;
+        
         int64Decoder.reset();
         float64Decoder.reset();
-        histogramDecoder.reset();
-        expHistogramDecoder.reset();
+        if (!isHistogramRecursive) {
+            histogramDecoder.reset();
+        }
+        if (!isExpHistogramRecursive) {
+            expHistogramDecoder.reset();
+        }
     }
 
     // Decode decodes a value from the buffer into dst.
@@ -120,9 +154,15 @@ class PointValueDecoder {
             dst.float64 = this.float64Decoder.decode();
             break;
         case TypeHistogram:
+            if (dst.histogram == null) {
+                dst.histogram = new HistogramValue(dst.parentModifiedFields, dst.parentModifiedBit);
+            }
             dst.histogram = this.histogramDecoder.decode(dst.histogram);
             break;
         case TypeExpHistogram:
+            if (dst.expHistogram == null) {
+                dst.expHistogram = new ExpHistogramValue(dst.parentModifiedFields, dst.parentModifiedBit);
+            }
             dst.expHistogram = this.expHistogramDecoder.decode(dst.expHistogram);
             break;
         default:

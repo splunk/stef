@@ -15,9 +15,9 @@ public class ExemplarValue {
     double float64;
 
     // Pointer to parent's modifiedFields
-    private ModifiedFields parentModifiedFields;
+    ModifiedFields parentModifiedFields;
     // Bit to set in parent's modifiedFields when this oneof is modified.
-    private long parentModifiedBit;
+    long parentModifiedBit;
 
     ExemplarValue() {
         init(null, 0);
@@ -63,6 +63,8 @@ public class ExemplarValue {
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            switch (typ) {
+            }
             this.markParentModified();
         }
     }
@@ -127,8 +129,10 @@ public class ExemplarValue {
         case TypeFloat64:
             setFloat64(src.getFloat64());
             break;
+        case TypeNone:
+            setType(Type.TypeNone);
+            break;
         }
-        setType(src.typ);
     }
 
     private void markParentModified() {
@@ -177,11 +181,13 @@ public class ExemplarValue {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         case TypeFloat64:
             if (!Types.Float64Equal(this.float64, v.float64)) {
                 this.markParentModified();
                 modified = true;
             }
+            break;
         }
         return modified;
     }
@@ -279,4 +285,3 @@ public class ExemplarValue {
         );
     }
 }
-

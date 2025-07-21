@@ -15,14 +15,22 @@ class AnyValueEncoder {
     private AnyValue.Type prevType;
     private int fieldCount;
 
+    // Field encoders.
     
-    private StringEncoder stringEncoder = new StringEncoder();
-    private BoolEncoder boolEncoder = new BoolEncoder();
-    private Int64Encoder int64Encoder = new Int64Encoder();
-    private Float64Encoder float64Encoder = new Float64Encoder();
-    private AnyValueArrayEncoder arrayEncoder = new AnyValueArrayEncoder();
-    private KeyValueListEncoder kVListEncoder = new KeyValueListEncoder();
-    private BytesEncoder bytesEncoder = new BytesEncoder();
+    private StringEncoder stringEncoder;
+    private boolean isStringRecursive = false; // Indicates String field's type is recursive.
+    private BoolEncoder boolEncoder;
+    private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
+    private Int64Encoder int64Encoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Encoder float64Encoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
+    private AnyValueArrayEncoder arrayEncoder;
+    private boolean isArrayRecursive = false; // Indicates Array field's type is recursive.
+    private KeyValueListEncoder kVListEncoder;
+    private boolean isKVListRecursive = false; // Indicates KVList field's type is recursive.
+    private BytesEncoder bytesEncoder;
+    private boolean isBytesRecursive = false; // Indicates Bytes field's type is recursive.
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
@@ -44,33 +52,59 @@ class AnyValueEncoder {
             }
 
             
+            // Init encoder for String field.
             if (this.fieldCount <= 0) {
                 return; // String and subsequent fields are skipped.
             }
+            stringEncoder = new StringEncoder();
             stringEncoder.init(state.AnyValueString, limiter, columns.addSubColumn());
+            // Init encoder for Bool field.
             if (this.fieldCount <= 1) {
                 return; // Bool and subsequent fields are skipped.
             }
+            boolEncoder = new BoolEncoder();
             boolEncoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Int64 field.
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Encoder = new Int64Encoder();
             int64Encoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Float64 field.
             if (this.fieldCount <= 3) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Encoder = new Float64Encoder();
             float64Encoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Array field.
             if (this.fieldCount <= 4) {
                 return; // Array and subsequent fields are skipped.
             }
-            arrayEncoder.init(state, columns.addSubColumn());
+            if (state.AnyValueArrayEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                arrayEncoder = state.AnyValueArrayEncoder;
+                isArrayRecursive = true;
+            } else {
+                arrayEncoder = new AnyValueArrayEncoder();
+                arrayEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for KVList field.
             if (this.fieldCount <= 5) {
                 return; // KVList and subsequent fields are skipped.
             }
-            kVListEncoder.init(state, columns.addSubColumn());
+            if (state.KeyValueListEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                kVListEncoder = state.KeyValueListEncoder;
+                isKVListRecursive = true;
+            } else {
+                kVListEncoder = new KeyValueListEncoder();
+                kVListEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Bytes field.
             if (this.fieldCount <= 6) {
                 return; // Bytes and subsequent fields are skipped.
             }
+            bytesEncoder = new BytesEncoder();
             bytesEncoder.init(null, limiter, columns.addSubColumn());
         } finally {
             state.AnyValueEncoder = null;
@@ -79,13 +113,21 @@ class AnyValueEncoder {
 
     public void reset() {
         prevType = AnyValue.Type.TypeNone;
-        this.stringEncoder.reset();
-        this.boolEncoder.reset();
-        this.int64Encoder.reset();
-        this.float64Encoder.reset();
-        this.arrayEncoder.reset();
-        this.kVListEncoder.reset();
-        this.bytesEncoder.reset();
+        stringEncoder.reset();
+        boolEncoder.reset();
+        int64Encoder.reset();
+        float64Encoder.reset();
+        
+        if (!isArrayRecursive) {
+            arrayEncoder.reset();
+        }
+        
+        
+        if (!isKVListRecursive) {
+            kVListEncoder.reset();
+        }
+        
+        bytesEncoder.reset();
     }
 
     // Encode encodes val into buf
@@ -143,35 +185,65 @@ class AnyValueEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect String field.
         if (this.fieldCount <= 0) {
             return; // String and subsequent fields are skipped.
         }
-        this.stringEncoder.collectColumns(columnSet.at(0));
+        
+        stringEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Bool field.
         if (this.fieldCount <= 1) {
             return; // Bool and subsequent fields are skipped.
         }
-        this.boolEncoder.collectColumns(columnSet.at(1));
+        
+        boolEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Int64 field.
         if (this.fieldCount <= 2) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Encoder.collectColumns(columnSet.at(2));
+        
+        int64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Float64 field.
         if (this.fieldCount <= 3) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Encoder.collectColumns(columnSet.at(3));
+        
+        float64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Array field.
         if (this.fieldCount <= 4) {
             return; // Array and subsequent fields are skipped.
         }
-        this.arrayEncoder.collectColumns(columnSet.at(4));
+        if (!isArrayRecursive) {
+            arrayEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect KVList field.
         if (this.fieldCount <= 5) {
             return; // KVList and subsequent fields are skipped.
         }
-        this.kVListEncoder.collectColumns(columnSet.at(5));
+        if (!isKVListRecursive) {
+            kVListEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Bytes field.
         if (this.fieldCount <= 6) {
             return; // Bytes and subsequent fields are skipped.
         }
-        this.bytesEncoder.collectColumns(columnSet.at(6));
+        
+        bytesEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
-

@@ -57,6 +57,8 @@ func (s *ExemplarValue) Type() ExemplarValueType {
 func (s *ExemplarValue) SetType(typ ExemplarValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		switch typ {
+		}
 		s.markParentModified()
 	}
 }
@@ -243,7 +245,10 @@ type ExemplarValueEncoder struct {
 	prevType   ExemplarValueType
 	fieldCount uint
 
-	int64Encoder   encoders.Int64Encoder
+	// Field encoders.
+
+	int64Encoder encoders.Int64Encoder
+
 	float64Encoder encoders.Float64Encoder
 }
 
@@ -272,20 +277,26 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 
 	var err error
 
+	// Init encoder for Int64 field.
 	if e.fieldCount <= 0 {
+		// Int64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.int64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Float64 field.
 	if e.fieldCount <= 1 {
+		// Float64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.float64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -325,15 +336,23 @@ func (e *ExemplarValueEncoder) Encode(val *ExemplarValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ExemplarValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Int64 field.
 	if e.fieldCount <= 0 {
 		return // Int64 and subsequent fields are skipped.
 	}
-	e.int64Encoder.CollectColumns(columnSet.At(0))
+
+	e.int64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Float64 field.
 	if e.fieldCount <= 1 {
 		return // Float64 and subsequent fields are skipped.
 	}
-	e.float64Encoder.CollectColumns(columnSet.At(1))
+
+	e.float64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // ExemplarValueDecoder implements decoding of ExemplarValue
@@ -346,7 +365,10 @@ type ExemplarValueDecoder struct {
 
 	prevType ExemplarValueType
 
-	int64Decoder   encoders.Int64Decoder
+	// Field decoders.
+
+	int64Decoder encoders.Int64Decoder
+
 	float64Decoder encoders.Float64Decoder
 }
 
@@ -408,10 +430,12 @@ func (d *ExemplarValueDecoder) Continue() {
 		return // Int64 and subsequent fields are skipped.
 	}
 	d.int64Decoder.Continue()
+
 	if d.fieldCount <= 1 {
 		return // Float64 and subsequent fields are skipped.
 	}
 	d.float64Decoder.Continue()
+
 }
 
 func (d *ExemplarValueDecoder) Reset() {
