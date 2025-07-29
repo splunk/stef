@@ -20,6 +20,9 @@ func (s *BaseSTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.Numb
 		dst.SetIntValue(src.Value().Int64())
 	case oteltef.PointValueTypeFloat64:
 		dst.SetDoubleValue(src.Value().Float64())
+	case oteltef.PointValueTypeNone:
+		dst.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
+		return nil
 	default:
 		panic("unexpected type")
 	}
@@ -119,6 +122,12 @@ func (c *BaseSTEFToOTLP) convertHistogramPoint(
 ) error {
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
 	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
+
+	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
+		return nil
+	}
+
 	dstPoint.SetCount(uint64(srcPoint.Value().Histogram().Count()))
 
 	dstPoint.BucketCounts().EnsureCapacity(srcPoint.Value().Histogram().BucketCounts().Len())
@@ -158,6 +167,11 @@ func (c *BaseSTEFToOTLP) convertExpHistogramPoint(
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
 	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
 	dstPoint.SetCount(srcPoint.Value().ExpHistogram().Count())
+
+	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
+		return nil
+	}
 
 	expBucketsFromStef(dstPoint.Positive(), srcPoint.Value().ExpHistogram().PositiveBuckets())
 	expBucketsFromStef(dstPoint.Negative(), srcPoint.Value().ExpHistogram().NegativeBuckets())
