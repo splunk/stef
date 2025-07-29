@@ -1,9 +1,18 @@
+import org.apache.tools.ant.taskdefs.Java
+import org.gradle.jvm.toolchain.internal.DefaultJavaLanguageVersion
+
 plugins {
     id("java")
 }
 
 group = "net.stef"
 version = "1.0-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.current())
+    }
+}
 
 repositories {
     mavenCentral()
