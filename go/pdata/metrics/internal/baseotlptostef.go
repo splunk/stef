@@ -20,6 +20,11 @@ func (c *BaseOTLPToSTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.Num
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
+	if src.Flags().NoRecordedValue() {
+		dst.Value().SetType(oteltef.PointValueTypeNone)
+		return
+	}
+
 	switch src.ValueType() {
 	case pmetric.NumberDataPointValueTypeInt:
 		dst.Value().SetInt64(src.IntValue())
@@ -66,6 +71,12 @@ func (c *BaseOTLPToSTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.Histog
 
 	dstVal := dst.Value()
 	dstVal.SetType(oteltef.PointValueTypeHistogram)
+
+	if src.Flags().NoRecordedValue() {
+		dstVal.SetType(oteltef.PointValueTypeNone)
+		return nil
+	}
+
 	dstHistogram := dstVal.Histogram()
 	dstHistogram.SetCount(int64(src.Count()))
 
@@ -108,6 +119,12 @@ func (c *BaseOTLPToSTEF) ConvertExpHistogram(dst *oteltef.Point, src pmetric.Exp
 
 	dstVal := dst.Value()
 	dstVal.SetType(oteltef.PointValueTypeExpHistogram)
+
+	if src.Flags().NoRecordedValue() {
+		dstVal.SetType(oteltef.PointValueTypeNone)
+		return nil
+	}
+
 	dstHistogram := dstVal.ExpHistogram()
 	dstHistogram.SetCount(src.Count())
 
