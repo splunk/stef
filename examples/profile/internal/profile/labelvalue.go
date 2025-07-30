@@ -58,6 +58,8 @@ func (s *LabelValue) Type() LabelValueType {
 func (s *LabelValue) SetType(typ LabelValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		switch typ {
+		}
 		s.markParentModified()
 	}
 }
@@ -239,8 +241,13 @@ type LabelValueEncoder struct {
 	prevType   LabelValueType
 	fieldCount uint
 
+	// Field encoders.
+
 	strEncoder encoders.StringEncoder
-	numEncoder NumValueEncoder
+
+	numEncoder     *NumValueEncoder
+	isNumRecursive bool // Indicates Num field's type is recursive.
+
 }
 
 func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -268,27 +275,44 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	var err error
 
+	// Init encoder for Str field.
 	if e.fieldCount <= 0 {
+		// Str and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.strEncoder.Init(&state.LabelValue, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Num field.
 	if e.fieldCount <= 1 {
+		// Num and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.numEncoder.Init(state, columns.AddSubColumn())
+	if state.NumValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.numEncoder = state.NumValueEncoder
+		e.isNumRecursive = true
+	} else {
+		e.numEncoder = new(NumValueEncoder)
+		err = e.numEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (e *LabelValueEncoder) Reset() {
 	e.prevType = 0
 	e.strEncoder.Reset()
-	e.numEncoder.Reset()
+
+	if !e.isNumRecursive {
+		e.numEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -321,15 +345,24 @@ func (e *LabelValueEncoder) Encode(val *LabelValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *LabelValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Str field.
 	if e.fieldCount <= 0 {
 		return // Str and subsequent fields are skipped.
 	}
-	e.strEncoder.CollectColumns(columnSet.At(0))
+
+	e.strEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Num field.
 	if e.fieldCount <= 1 {
 		return // Num and subsequent fields are skipped.
 	}
-	e.numEncoder.CollectColumns(columnSet.At(1))
+	if !e.isNumRecursive {
+		e.numEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // LabelValueDecoder implements decoding of LabelValue
@@ -342,8 +375,12 @@ type LabelValueDecoder struct {
 
 	prevType LabelValueType
 
+	// Field decoders.
+
 	strDecoder encoders.StringDecoder
-	numDecoder NumValueDecoder
+
+	numDecoder     *NumValueDecoder
+	isNumRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -384,7 +421,14 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if d.fieldCount <= 1 {
 		return nil // Num and subsequent fields are skipped.
 	}
-	err = d.numDecoder.Init(state, columns.AddSubColumn())
+	if state.NumValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.numDecoder = state.NumValueDecoder
+		d.isNumRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.numDecoder = new(NumValueDecoder)
+		err = d.numDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -404,16 +448,25 @@ func (d *LabelValueDecoder) Continue() {
 		return // Str and subsequent fields are skipped.
 	}
 	d.strDecoder.Continue()
+
 	if d.fieldCount <= 1 {
 		return // Num and subsequent fields are skipped.
 	}
-	d.numDecoder.Continue()
+
+	if !d.isNumRecursive {
+		d.numDecoder.Continue()
+	}
+
 }
 
 func (d *LabelValueDecoder) Reset() {
 	d.prevType = 0
 	d.strDecoder.Reset()
-	d.numDecoder.Reset()
+
+	if !d.isNumRecursive {
+		d.numDecoder.Reset()
+	}
+
 }
 
 func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {

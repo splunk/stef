@@ -15,11 +15,16 @@ class PointValueEncoder {
     private PointValue.Type prevType;
     private int fieldCount;
 
+    // Field encoders.
     
-    private Int64Encoder int64Encoder = new Int64Encoder();
-    private Float64Encoder float64Encoder = new Float64Encoder();
-    private HistogramValueEncoder histogramEncoder = new HistogramValueEncoder();
-    private ExpHistogramValueEncoder expHistogramEncoder = new ExpHistogramValueEncoder();
+    private Int64Encoder int64Encoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Encoder float64Encoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
+    private HistogramValueEncoder histogramEncoder;
+    private boolean isHistogramRecursive = false; // Indicates Histogram field's type is recursive.
+    private ExpHistogramValueEncoder expHistogramEncoder;
+    private boolean isExpHistogramRecursive = false; // Indicates ExpHistogram field's type is recursive.
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
@@ -41,22 +46,42 @@ class PointValueEncoder {
             }
 
             
+            // Init encoder for Int64 field.
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Encoder = new Int64Encoder();
             int64Encoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Float64 field.
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Encoder = new Float64Encoder();
             float64Encoder.init(limiter, columns.addSubColumn());
+            // Init encoder for Histogram field.
             if (this.fieldCount <= 2) {
                 return; // Histogram and subsequent fields are skipped.
             }
-            histogramEncoder.init(state, columns.addSubColumn());
+            if (state.HistogramValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                histogramEncoder = state.HistogramValueEncoder;
+                isHistogramRecursive = true;
+            } else {
+                histogramEncoder = new HistogramValueEncoder();
+                histogramEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for ExpHistogram field.
             if (this.fieldCount <= 3) {
                 return; // ExpHistogram and subsequent fields are skipped.
             }
-            expHistogramEncoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                expHistogramEncoder = state.ExpHistogramValueEncoder;
+                isExpHistogramRecursive = true;
+            } else {
+                expHistogramEncoder = new ExpHistogramValueEncoder();
+                expHistogramEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointValueEncoder = null;
         }
@@ -64,10 +89,18 @@ class PointValueEncoder {
 
     public void reset() {
         prevType = PointValue.Type.TypeNone;
-        this.int64Encoder.reset();
-        this.float64Encoder.reset();
-        this.histogramEncoder.reset();
-        this.expHistogramEncoder.reset();
+        int64Encoder.reset();
+        float64Encoder.reset();
+        
+        if (!isHistogramRecursive) {
+            histogramEncoder.reset();
+        }
+        
+        
+        if (!isExpHistogramRecursive) {
+            expHistogramEncoder.reset();
+        }
+        
     }
 
     // Encode encodes val into buf
@@ -113,23 +146,41 @@ class PointValueEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Int64 field.
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Encoder.collectColumns(columnSet.at(0));
+        
+        int64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Float64 field.
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Encoder.collectColumns(columnSet.at(1));
+        
+        float64Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Histogram field.
         if (this.fieldCount <= 2) {
             return; // Histogram and subsequent fields are skipped.
         }
-        this.histogramEncoder.collectColumns(columnSet.at(2));
+        if (!isHistogramRecursive) {
+            histogramEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect ExpHistogram field.
         if (this.fieldCount <= 3) {
             return; // ExpHistogram and subsequent fields are skipped.
         }
-        this.expHistogramEncoder.collectColumns(columnSet.at(3));
+        if (!isExpHistogramRecursive) {
+            expHistogramEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
-

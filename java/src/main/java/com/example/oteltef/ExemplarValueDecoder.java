@@ -17,9 +17,12 @@ class ExemplarValueDecoder {
     private int fieldCount;
     private ExemplarValue.Type prevType;
 
+    // Field decoders.
     
-    private Int64Decoder int64Decoder = new Int64Decoder();
-    private Float64Decoder float64Decoder = new Float64Decoder();
+    private Int64Decoder int64Decoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Decoder float64Decoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -46,10 +49,12 @@ class ExemplarValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Decoder = new Int64Decoder();
             this.int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Decoder = new Float64Decoder();
             this.float64Decoder.init(columns.addSubColumn());
         } finally {
             state.ExemplarValueDecoder = null;
@@ -67,15 +72,16 @@ class ExemplarValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Decoder.continueDecoding();
+        int64Decoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Decoder.continueDecoding();
+        float64Decoder.continueDecoding();
     }
 
     public void reset() {
         prevType = ExemplarValue.Type.TypeNone;
+        
         int64Decoder.reset();
         float64Decoder.reset();
     }

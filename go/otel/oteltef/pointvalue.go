@@ -63,6 +63,8 @@ func (s *PointValue) Type() PointValueType {
 func (s *PointValue) SetType(typ PointValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		switch typ {
+		}
 		s.markParentModified()
 	}
 }
@@ -305,10 +307,18 @@ type PointValueEncoder struct {
 	prevType   PointValueType
 	fieldCount uint
 
-	int64Encoder        encoders.Int64Encoder
-	float64Encoder      encoders.Float64Encoder
-	histogramEncoder    HistogramValueEncoder
-	expHistogramEncoder ExpHistogramValueEncoder
+	// Field encoders.
+
+	int64Encoder encoders.Int64Encoder
+
+	float64Encoder encoders.Float64Encoder
+
+	histogramEncoder     *HistogramValueEncoder
+	isHistogramRecursive bool // Indicates Histogram field's type is recursive.
+
+	expHistogramEncoder     *ExpHistogramValueEncoder
+	isExpHistogramRecursive bool // Indicates ExpHistogram field's type is recursive.
+
 }
 
 func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -336,34 +346,60 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	var err error
 
+	// Init encoder for Int64 field.
 	if e.fieldCount <= 0 {
+		// Int64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.int64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Float64 field.
 	if e.fieldCount <= 1 {
+		// Float64 and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.float64Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Histogram field.
 	if e.fieldCount <= 2 {
+		// Histogram and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.histogramEncoder.Init(state, columns.AddSubColumn())
+	if state.HistogramValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.histogramEncoder = state.HistogramValueEncoder
+		e.isHistogramRecursive = true
+	} else {
+		e.histogramEncoder = new(HistogramValueEncoder)
+		err = e.histogramEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for ExpHistogram field.
 	if e.fieldCount <= 3 {
+		// ExpHistogram and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.expHistogramEncoder.Init(state, columns.AddSubColumn())
+	if state.ExpHistogramValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.expHistogramEncoder = state.ExpHistogramValueEncoder
+		e.isExpHistogramRecursive = true
+	} else {
+		e.expHistogramEncoder = new(ExpHistogramValueEncoder)
+		err = e.expHistogramEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -371,8 +407,15 @@ func (e *PointValueEncoder) Reset() {
 	e.prevType = 0
 	e.int64Encoder.Reset()
 	e.float64Encoder.Reset()
-	e.histogramEncoder.Reset()
-	e.expHistogramEncoder.Reset()
+
+	if !e.isHistogramRecursive {
+		e.histogramEncoder.Reset()
+	}
+
+	if !e.isExpHistogramRecursive {
+		e.expHistogramEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -411,23 +454,41 @@ func (e *PointValueEncoder) Encode(val *PointValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *PointValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Int64 field.
 	if e.fieldCount <= 0 {
 		return // Int64 and subsequent fields are skipped.
 	}
-	e.int64Encoder.CollectColumns(columnSet.At(0))
+
+	e.int64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Float64 field.
 	if e.fieldCount <= 1 {
 		return // Float64 and subsequent fields are skipped.
 	}
-	e.float64Encoder.CollectColumns(columnSet.At(1))
+
+	e.float64Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Histogram field.
 	if e.fieldCount <= 2 {
 		return // Histogram and subsequent fields are skipped.
 	}
-	e.histogramEncoder.CollectColumns(columnSet.At(2))
+	if !e.isHistogramRecursive {
+		e.histogramEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect ExpHistogram field.
 	if e.fieldCount <= 3 {
 		return // ExpHistogram and subsequent fields are skipped.
 	}
-	e.expHistogramEncoder.CollectColumns(columnSet.At(3))
+	if !e.isExpHistogramRecursive {
+		e.expHistogramEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // PointValueDecoder implements decoding of PointValue
@@ -440,10 +501,17 @@ type PointValueDecoder struct {
 
 	prevType PointValueType
 
-	int64Decoder        encoders.Int64Decoder
-	float64Decoder      encoders.Float64Decoder
-	histogramDecoder    HistogramValueDecoder
-	expHistogramDecoder ExpHistogramValueDecoder
+	// Field decoders.
+
+	int64Decoder encoders.Int64Decoder
+
+	float64Decoder encoders.Float64Decoder
+
+	histogramDecoder     *HistogramValueDecoder
+	isHistogramRecursive bool
+
+	expHistogramDecoder     *ExpHistogramValueDecoder
+	isExpHistogramRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -491,14 +559,28 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if d.fieldCount <= 2 {
 		return nil // Histogram and subsequent fields are skipped.
 	}
-	err = d.histogramDecoder.Init(state, columns.AddSubColumn())
+	if state.HistogramValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.histogramDecoder = state.HistogramValueDecoder
+		d.isHistogramRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.histogramDecoder = new(HistogramValueDecoder)
+		err = d.histogramDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // ExpHistogram and subsequent fields are skipped.
 	}
-	err = d.expHistogramDecoder.Init(state, columns.AddSubColumn())
+	if state.ExpHistogramValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.expHistogramDecoder = state.ExpHistogramValueDecoder
+		d.isExpHistogramRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.expHistogramDecoder = new(ExpHistogramValueDecoder)
+		err = d.expHistogramDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -518,26 +600,43 @@ func (d *PointValueDecoder) Continue() {
 		return // Int64 and subsequent fields are skipped.
 	}
 	d.int64Decoder.Continue()
+
 	if d.fieldCount <= 1 {
 		return // Float64 and subsequent fields are skipped.
 	}
 	d.float64Decoder.Continue()
+
 	if d.fieldCount <= 2 {
 		return // Histogram and subsequent fields are skipped.
 	}
-	d.histogramDecoder.Continue()
+
+	if !d.isHistogramRecursive {
+		d.histogramDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // ExpHistogram and subsequent fields are skipped.
 	}
-	d.expHistogramDecoder.Continue()
+
+	if !d.isExpHistogramRecursive {
+		d.expHistogramDecoder.Continue()
+	}
+
 }
 
 func (d *PointValueDecoder) Reset() {
 	d.prevType = 0
 	d.int64Decoder.Reset()
 	d.float64Decoder.Reset()
-	d.histogramDecoder.Reset()
-	d.expHistogramDecoder.Reset()
+
+	if !d.isHistogramRecursive {
+		d.histogramDecoder.Reset()
+	}
+
+	if !d.isExpHistogramRecursive {
+		d.expHistogramDecoder.Reset()
+	}
+
 }
 
 func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {

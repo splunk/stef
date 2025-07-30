@@ -65,6 +65,8 @@ func (s *JsonValue) Type() JsonValueType {
 func (s *JsonValue) SetType(typ JsonValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		switch typ {
+		}
 		s.markParentModified()
 	}
 }
@@ -340,11 +342,19 @@ type JsonValueEncoder struct {
 	prevType   JsonValueType
 	fieldCount uint
 
-	objectEncoder JsonObjectEncoder
-	arrayEncoder  JsonValueArrayEncoder
+	// Field encoders.
+
+	objectEncoder     *JsonObjectEncoder
+	isObjectRecursive bool // Indicates Object field's type is recursive.
+
+	arrayEncoder     *JsonValueArrayEncoder
+	isArrayRecursive bool // Indicates Array field's type is recursive.
+
 	stringEncoder encoders.StringEncoder
+
 	numberEncoder encoders.Float64Encoder
-	boolEncoder   encoders.BoolEncoder
+
+	boolEncoder encoders.BoolEncoder
 }
 
 func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -372,48 +382,84 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 
 	var err error
 
+	// Init encoder for Object field.
 	if e.fieldCount <= 0 {
+		// Object and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.objectEncoder.Init(state, columns.AddSubColumn())
+	if state.JsonObjectEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.objectEncoder = state.JsonObjectEncoder
+		e.isObjectRecursive = true
+	} else {
+		e.objectEncoder = new(JsonObjectEncoder)
+		err = e.objectEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Array field.
 	if e.fieldCount <= 1 {
+		// Array and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.arrayEncoder.Init(state, columns.AddSubColumn())
+	if state.JsonValueArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.arrayEncoder = state.JsonValueArrayEncoder
+		e.isArrayRecursive = true
+	} else {
+		e.arrayEncoder = new(JsonValueArrayEncoder)
+		err = e.arrayEncoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for String field.
 	if e.fieldCount <= 2 {
+		// String and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.stringEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Number field.
 	if e.fieldCount <= 3 {
+		// Number and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.numberEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
+	// Init encoder for Bool field.
 	if e.fieldCount <= 4 {
+		// Bool and all subsequent fields are skipped.
 		return nil
 	}
 	err = e.boolEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (e *JsonValueEncoder) Reset() {
 	e.prevType = 0
-	e.objectEncoder.Reset()
-	e.arrayEncoder.Reset()
+
+	if !e.isObjectRecursive {
+		e.objectEncoder.Reset()
+	}
+
+	if !e.isArrayRecursive {
+		e.arrayEncoder.Reset()
+	}
+
 	e.stringEncoder.Reset()
 	e.numberEncoder.Reset()
 	e.boolEncoder.Reset()
@@ -458,27 +504,49 @@ func (e *JsonValueEncoder) Encode(val *JsonValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *JsonValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Object field.
 	if e.fieldCount <= 0 {
 		return // Object and subsequent fields are skipped.
 	}
-	e.objectEncoder.CollectColumns(columnSet.At(0))
+	if !e.isObjectRecursive {
+		e.objectEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Array field.
 	if e.fieldCount <= 1 {
 		return // Array and subsequent fields are skipped.
 	}
-	e.arrayEncoder.CollectColumns(columnSet.At(1))
+	if !e.isArrayRecursive {
+		e.arrayEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect String field.
 	if e.fieldCount <= 2 {
 		return // String and subsequent fields are skipped.
 	}
-	e.stringEncoder.CollectColumns(columnSet.At(2))
+
+	e.stringEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Number field.
 	if e.fieldCount <= 3 {
 		return // Number and subsequent fields are skipped.
 	}
-	e.numberEncoder.CollectColumns(columnSet.At(3))
+
+	e.numberEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Bool field.
 	if e.fieldCount <= 4 {
 		return // Bool and subsequent fields are skipped.
 	}
-	e.boolEncoder.CollectColumns(columnSet.At(4))
+
+	e.boolEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // JsonValueDecoder implements decoding of JsonValue
@@ -491,11 +559,19 @@ type JsonValueDecoder struct {
 
 	prevType JsonValueType
 
-	objectDecoder JsonObjectDecoder
-	arrayDecoder  JsonValueArrayDecoder
+	// Field decoders.
+
+	objectDecoder     *JsonObjectDecoder
+	isObjectRecursive bool
+
+	arrayDecoder     *JsonValueArrayDecoder
+	isArrayRecursive bool
+
 	stringDecoder encoders.StringDecoder
+
 	numberDecoder encoders.Float64Decoder
-	boolDecoder   encoders.BoolDecoder
+
+	boolDecoder encoders.BoolDecoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -529,14 +605,28 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	if d.fieldCount <= 0 {
 		return nil // Object and subsequent fields are skipped.
 	}
-	err = d.objectDecoder.Init(state, columns.AddSubColumn())
+	if state.JsonObjectDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.objectDecoder = state.JsonObjectDecoder
+		d.isObjectRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.objectDecoder = new(JsonObjectDecoder)
+		err = d.objectDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // Array and subsequent fields are skipped.
 	}
-	err = d.arrayDecoder.Init(state, columns.AddSubColumn())
+	if state.JsonValueArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.arrayDecoder = state.JsonValueArrayDecoder
+		d.isArrayRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.arrayDecoder = new(JsonValueArrayDecoder)
+		err = d.arrayDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -576,29 +666,47 @@ func (d *JsonValueDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Object and subsequent fields are skipped.
 	}
-	d.objectDecoder.Continue()
+
+	if !d.isObjectRecursive {
+		d.objectDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Array and subsequent fields are skipped.
 	}
-	d.arrayDecoder.Continue()
+
+	if !d.isArrayRecursive {
+		d.arrayDecoder.Continue()
+	}
+
 	if d.fieldCount <= 2 {
 		return // String and subsequent fields are skipped.
 	}
 	d.stringDecoder.Continue()
+
 	if d.fieldCount <= 3 {
 		return // Number and subsequent fields are skipped.
 	}
 	d.numberDecoder.Continue()
+
 	if d.fieldCount <= 4 {
 		return // Bool and subsequent fields are skipped.
 	}
 	d.boolDecoder.Continue()
+
 }
 
 func (d *JsonValueDecoder) Reset() {
 	d.prevType = 0
-	d.objectDecoder.Reset()
-	d.arrayDecoder.Reset()
+
+	if !d.isObjectRecursive {
+		d.objectDecoder.Reset()
+	}
+
+	if !d.isArrayRecursive {
+		d.arrayDecoder.Reset()
+	}
+
 	d.stringDecoder.Reset()
 	d.numberDecoder.Reset()
 	d.boolDecoder.Reset()

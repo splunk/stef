@@ -17,14 +17,22 @@ class AnyValueDecoder {
     private int fieldCount;
     private AnyValue.Type prevType;
 
+    // Field decoders.
     
-    private StringDecoder stringDecoder = new StringDecoder();
-    private BoolDecoder boolDecoder = new BoolDecoder();
-    private Int64Decoder int64Decoder = new Int64Decoder();
-    private Float64Decoder float64Decoder = new Float64Decoder();
-    private AnyValueArrayDecoder arrayDecoder = new AnyValueArrayDecoder();
-    private KeyValueListDecoder kVListDecoder = new KeyValueListDecoder();
-    private BytesDecoder bytesDecoder = new BytesDecoder();
+    private StringDecoder stringDecoder;
+    private boolean isStringRecursive = false; // Indicates String field's type is recursive.
+    private BoolDecoder boolDecoder;
+    private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
+    private Int64Decoder int64Decoder;
+    private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
+    private Float64Decoder float64Decoder;
+    private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
+    private AnyValueArrayDecoder arrayDecoder;
+    private boolean isArrayRecursive = false; // Indicates Array field's type is recursive.
+    private KeyValueListDecoder kVListDecoder;
+    private boolean isKVListRecursive = false; // Indicates KVList field's type is recursive.
+    private BytesDecoder bytesDecoder;
+    private boolean isBytesRecursive = false; // Indicates Bytes field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -51,30 +59,49 @@ class AnyValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // String and subsequent fields are skipped.
             }
+            stringDecoder = new StringDecoder();
             this.stringDecoder.init(state.AnyValueString, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Bool and subsequent fields are skipped.
             }
+            boolDecoder = new BoolDecoder();
             this.boolDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
+            int64Decoder = new Int64Decoder();
             this.int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Float64 and subsequent fields are skipped.
             }
+            float64Decoder = new Float64Decoder();
             this.float64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Array and subsequent fields are skipped.
             }
-            this.arrayDecoder.init(state, columns.addSubColumn());
+            if (state.AnyValueArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                arrayDecoder = state.AnyValueArrayDecoder;
+                isArrayRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                arrayDecoder = new AnyValueArrayDecoder();
+                arrayDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 5) {
                 return; // KVList and subsequent fields are skipped.
             }
-            this.kVListDecoder.init(state, columns.addSubColumn());
+            if (state.KeyValueListDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                kVListDecoder = state.KeyValueListDecoder;
+                isKVListRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                kVListDecoder = new KeyValueListDecoder();
+                kVListDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 6) {
                 return; // Bytes and subsequent fields are skipped.
             }
+            bytesDecoder = new BytesDecoder();
             this.bytesDecoder.init(null, columns.addSubColumn());
         } finally {
             state.AnyValueDecoder = null;
@@ -92,41 +119,54 @@ class AnyValueDecoder {
         if (this.fieldCount <= 0) {
             return; // String and subsequent fields are skipped.
         }
-        this.stringDecoder.continueDecoding();
+        stringDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Bool and subsequent fields are skipped.
         }
-        this.boolDecoder.continueDecoding();
+        boolDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Int64 and subsequent fields are skipped.
         }
-        this.int64Decoder.continueDecoding();
+        int64Decoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Float64 and subsequent fields are skipped.
         }
-        this.float64Decoder.continueDecoding();
+        float64Decoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Array and subsequent fields are skipped.
         }
-        this.arrayDecoder.continueDecoding();
+        
+        if (!isArrayRecursive) {
+            arrayDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 5) {
             return; // KVList and subsequent fields are skipped.
         }
-        this.kVListDecoder.continueDecoding();
+        
+        if (!isKVListRecursive) {
+            kVListDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 6) {
             return; // Bytes and subsequent fields are skipped.
         }
-        this.bytesDecoder.continueDecoding();
+        bytesDecoder.continueDecoding();
     }
 
     public void reset() {
         prevType = AnyValue.Type.TypeNone;
+        
         stringDecoder.reset();
         boolDecoder.reset();
         int64Decoder.reset();
         float64Decoder.reset();
-        arrayDecoder.reset();
-        kVListDecoder.reset();
+        if (!isArrayRecursive) {
+            arrayDecoder.reset();
+        }
+        if (!isKVListRecursive) {
+            kVListDecoder.reset();
+        }
         bytesDecoder.reset();
     }
 
@@ -156,9 +196,15 @@ class AnyValueDecoder {
             dst.float64 = this.float64Decoder.decode();
             break;
         case TypeArray:
+            if (dst.array == null) {
+                dst.array = new AnyValueArray(dst.parentModifiedFields, dst.parentModifiedBit);
+            }
             dst.array = this.arrayDecoder.decode(dst.array);
             break;
         case TypeKVList:
+            if (dst.kVList == null) {
+                dst.kVList = new KeyValueList(dst.parentModifiedFields, dst.parentModifiedBit);
+            }
             dst.kVList = this.kVListDecoder.decode(dst.kVList);
             break;
         case TypeBytes:

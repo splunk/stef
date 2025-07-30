@@ -1,0 +1,13 @@
+package com.example.gentest.oneof_recurse_mutual
+
+struct Root root {
+  Oneof1 Oneof1
+}
+
+oneof Oneof1 {
+  Oneof2 Oneof2
+}
+
+oneof Oneof2 {
+  Oneof1 Oneof1
+}

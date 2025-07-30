@@ -625,7 +625,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
     {{- end}} {
 		// Field is changed and is present, decode it.
- 		err = d.{{.name}}Decoder.Decode(&val.{{.name}})
+ 		err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})
         if err != nil {
             return err
         }
