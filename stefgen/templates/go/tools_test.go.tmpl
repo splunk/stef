@@ -21,6 +21,7 @@ var countFlag = flag.Uint64("count", 1000, "number of records to generate (defau
 var outFlag = flag.String("out", "", "output file name for the generated data")
 
 var diffFlag = flag.Bool("diff", false, "stef -diff -root=structname file1 file2")
+var copyFlag = flag.Bool("copy", false, "stef -copy -root=structname input-file output-file")
 
 func TestTool(t *testing.T) {
 	if *generateFlag {
@@ -59,7 +60,29 @@ func TestTool(t *testing.T) {
 		return
 	}
 
-	fmt.Println("Use -generate or -diff flags to run this tool.")
+	if *copyFlag {
+		if len(flag.Args()) != 2 {
+			fmt.Println("Error: -copy requires exactly two file arguments.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		if *rootFlag == "" {
+			fmt.Println("Error: -root flag is required for copy.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		file1 := flag.Args()[0]
+		file2 := flag.Args()[1]
+
+		err := copyData(*rootFlag, file1, file2)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	fmt.Println("Use -generate, -diff, or -copy flags to run this tool.")
 }
 
 func diffData(rootStruct, fname1, fname2 string) error {
@@ -116,6 +139,75 @@ func diffData(rootStruct, fname1, fname2 string) error {
 		}
 
 		fmt.Printf("%d records compared. Content is identical.\n", reader1.RecordCount())
+		return nil
+{{end}}
+	default:
+		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
+	}
+}
+
+func copyData(rootStruct, fname1, fname2 string) (retErr error) {
+	fmt.Printf("Copying content from %s to %s...\n", fname1, fname2)
+
+	// Open source file for reading
+	sourceFile, err := os.Open(fname1)
+	if err != nil {
+		return fmt.Errorf("Cannot open source file %s: %v", fname1, err)
+	}
+	defer sourceFile.Close()
+
+	// Create destination file for writing
+	destFile, err := os.Create(fname2)
+	if err != nil {
+		return fmt.Errorf("Cannot create destination file %s: %v", fname2, err)
+	}
+	defer func(destFile *os.File) {
+		err := destFile.Close()
+		if err != nil {
+			retErr = err
+		}
+	}(destFile)
+
+	dst := pkg.NewWrapChunkWriter(destFile)
+
+	switch rootStruct {
+{{ range $i, $StructName := .Structs }}
+	case "{{$StructName}}":
+		reader, err := New{{$StructName}}Reader(sourceFile)
+		if err != nil {
+			return fmt.Errorf("Cannot create reader for %s: %v", fname1, err)
+		}
+
+		writer, err := New{{$StructName}}Writer(dst, pkg.WriterOptions{})
+		if err != nil {
+			return fmt.Errorf("Cannot create writer for %s: %v", fname2, err)
+		}
+
+		recordCount := uint64(0)
+		for {
+			err := reader.Read(pkg.ReadOptions{})
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return fmt.Errorf("Error reading record %d: %v", recordCount, err)
+			}
+
+			// Copy the record from reader to writer
+			writer.Record.CopyFrom(&reader.Record)
+			err = writer.Write()
+			if err != nil {
+				return fmt.Errorf("Error writing record %d: %v", recordCount, err)
+			}
+			recordCount++
+		}
+
+		err = writer.Flush()
+		if err != nil {
+			return fmt.Errorf("Error flushing writer: %v", err)
+		}
+
+		fmt.Printf("Successfully copied %d records.\n", recordCount)
 		return nil
 {{end}}
 	default:
