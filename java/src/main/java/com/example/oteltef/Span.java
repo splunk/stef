@@ -301,6 +301,10 @@ public class Span {
         return this.attributes;
     }
 
+    private void markAttributesModified() {
+        this.modifiedFields.markModified(fieldModifiedAttributes);
+    }
+
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Span was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -337,6 +341,10 @@ public class Span {
         return this.events;
     }
 
+    private void markEventsModified() {
+        this.modifiedFields.markModified(fieldModifiedEvents);
+    }
+
     // isEventsModified returns true if the value of Events field was modified since
     // Span was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -349,6 +357,10 @@ public class Span {
         return this.links;
     }
 
+    private void markLinksModified() {
+        this.modifiedFields.markModified(fieldModifiedLinks);
+    }
+
     // isLinksModified returns true if the value of Links field was modified since
     // Span was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -359,6 +371,10 @@ public class Span {
     
     public SpanStatus getStatus() {
         return this.status;
+    }
+
+    private void markStatusModified() {
+        this.modifiedFields.markModified(fieldModifiedStatus);
     }
 
     // isStatusModified returns true if the value of Status field was modified since

@@ -65,6 +65,10 @@ func (s *Spans) Envelope() *Envelope {
 	return &s.envelope
 }
 
+func (s *Spans) markEnvelopeModified() {
+	s.modifiedFields.markModified(fieldModifiedSpansEnvelope)
+}
+
 // IsEnvelopeModified returns true the value of Envelope field was modified since
 // Spans was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -75,6 +79,10 @@ func (s *Spans) IsEnvelopeModified() bool {
 
 func (s *Spans) Resource() *Resource {
 	return s.resource
+}
+
+func (s *Spans) markResourceModified() {
+	s.modifiedFields.markModified(fieldModifiedSpansResource)
 }
 
 // IsResourceModified returns true the value of Resource field was modified since
@@ -89,6 +97,10 @@ func (s *Spans) Scope() *Scope {
 	return s.scope
 }
 
+func (s *Spans) markScopeModified() {
+	s.modifiedFields.markModified(fieldModifiedSpansScope)
+}
+
 // IsScopeModified returns true the value of Scope field was modified since
 // Spans was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -99,6 +111,10 @@ func (s *Spans) IsScopeModified() bool {
 
 func (s *Spans) Span() *Span {
 	return &s.span
+}
+
+func (s *Spans) markSpanModified() {
+	s.modifiedFields.markModified(fieldModifiedSpansSpan)
 }
 
 // IsSpanModified returns true the value of Span field was modified since

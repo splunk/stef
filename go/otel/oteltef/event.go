@@ -108,6 +108,10 @@ func (s *Event) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Event) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedEventAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Event was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

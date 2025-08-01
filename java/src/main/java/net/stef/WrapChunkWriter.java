@@ -12,7 +12,11 @@ public class WrapChunkWriter implements ChunkWriter {
 
     @Override
     public void writeChunk(byte[] header, byte[] content) throws IOException {
-        out.write(header);
-        out.write(content);
+        if (header != null) {
+            out.write(header);
+        }
+        if (content != null) {
+            out.write(content);
+        }
     }
 }

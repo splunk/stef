@@ -64,6 +64,10 @@ func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
 
+func (s *Location) markMappingModified() {
+	s.modifiedFields.markModified(fieldModifiedLocationMapping)
+}
+
 // IsMappingModified returns true the value of Mapping field was modified since
 // Location was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -98,6 +102,10 @@ func (s *Location) IsAddressModified() bool {
 
 func (s *Location) Lines() *LineArray {
 	return &s.lines
+}
+
+func (s *Location) markLinesModified() {
+	s.modifiedFields.markModified(fieldModifiedLocationLines)
 }
 
 // IsLinesModified returns true the value of Lines field was modified since

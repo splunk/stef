@@ -136,6 +136,10 @@ func (s *Scope) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Scope) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedScopeAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Scope was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

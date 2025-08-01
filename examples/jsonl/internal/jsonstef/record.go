@@ -54,6 +54,10 @@ func (s *Record) Value() *JsonValue {
 	return &s.value
 }
 
+func (s *Record) markValueModified() {
+	s.modifiedFields.markModified(fieldModifiedRecordValue)
+}
+
 // IsValueModified returns true the value of Value field was modified since
 // Record was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

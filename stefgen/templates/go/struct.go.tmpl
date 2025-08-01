@@ -105,6 +105,11 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{.Type.Exported}}) {
 		{{- end}}
     }
 }
+{{end}}
+
+func (s *{{ $.StructName }}) mark{{.Name}}Modified() {
+    s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
+}
 
 {{ if .Optional}}
 // Unset{{.Name}} unsets the precense flag of {{.Name}} field. A subsequent Has{{.Name}}() will return false.
@@ -120,12 +125,6 @@ func (s *{{ $.StructName }}) Has{{.Name}}() bool {
     return s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
 }
 {{- end}}
-
-func (s *{{ $.StructName }}) mark{{.Name}}Modified() {
-	s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
-}
-
-{{end}}
 
 // Is{{.Name}}Modified returns true the value of {{.Name}} field was modified since
 // {{ $.StructName }} was created, encoded or decoded. If the field is modified
@@ -200,6 +199,11 @@ func (s *{{ .StructName }}) byteSize() uint {
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- range .Fields -}}
     {{- if .Type.MustClone}}
+    {{- if .Optional}}
+    if src.Has{{.Name}}() != dst.Has{{.Name}}() {
+        dst.mark{{.Name}}Modified()
+    }
+    {{- end}}
     {{- if .Type.Flags.StoreByPtr}}
     if src.{{.name}} != nil {
         if dst.{{.name}} == nil {
@@ -224,6 +228,9 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
     {{- end}}
     {{- end}}
+    {{- end}}
+    {{- if .OptionalFieldCount}}
+    dst.optionalFieldsPresent = src.optionalFieldsPresent
     {{- end}}
 }
 
@@ -255,6 +262,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
         {{- if .Optional}}
         // Flip the optional field presence bit.
         s.optionalFieldsPresent ^= fieldPresent{{ $.StructName }}{{.Name}}
+        s.mark{{.Name}}Modified()
         if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
             if s.{{.name}} == nil {
                 s.{{.name}} = &{{ .Type.Storage }}{}

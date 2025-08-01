@@ -55,6 +55,10 @@ public class Spans {
         return this.envelope;
     }
 
+    private void markEnvelopeModified() {
+        this.modifiedFields.markModified(fieldModifiedEnvelope);
+    }
+
     // isEnvelopeModified returns true if the value of Envelope field was modified since
     // Spans was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -65,6 +69,10 @@ public class Spans {
     
     public Resource getResource() {
         return this.resource;
+    }
+
+    private void markResourceModified() {
+        this.modifiedFields.markModified(fieldModifiedResource);
     }
 
     // isResourceModified returns true if the value of Resource field was modified since
@@ -79,6 +87,10 @@ public class Spans {
         return this.scope;
     }
 
+    private void markScopeModified() {
+        this.modifiedFields.markModified(fieldModifiedScope);
+    }
+
     // isScopeModified returns true if the value of Scope field was modified since
     // Spans was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -89,6 +101,10 @@ public class Spans {
     
     public Span getSpan() {
         return this.span;
+    }
+
+    private void markSpanModified() {
+        this.modifiedFields.markModified(fieldModifiedSpan);
     }
 
     // isSpanModified returns true if the value of Span field was modified since

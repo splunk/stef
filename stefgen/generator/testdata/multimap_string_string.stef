@@ -1,4 +1,4 @@
-package com.example.gentest.multimap_recurse_self
+package com.example.gentest.multimap_string_string
 
 multimap RecMap {
   key string

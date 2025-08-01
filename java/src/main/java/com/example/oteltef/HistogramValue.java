@@ -202,6 +202,10 @@ public class HistogramValue {
         return this.bucketCounts;
     }
 
+    private void markBucketCountsModified() {
+        this.modifiedFields.markModified(fieldModifiedBucketCounts);
+    }
+
     // isBucketCountsModified returns true if the value of BucketCounts field was modified since
     // HistogramValue was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -310,6 +314,7 @@ public class HistogramValue {
             unsetMax();
         }
         bucketCounts.copyFrom(src.bucketCounts);
+        this.optionalFieldsPresent = src.optionalFieldsPresent;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

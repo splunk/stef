@@ -109,6 +109,10 @@ func (s *Point) Value() *PointValue {
 	return &s.value
 }
 
+func (s *Point) markValueModified() {
+	s.modifiedFields.markModified(fieldModifiedPointValue)
+}
+
 // IsValueModified returns true the value of Value field was modified since
 // Point was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -119,6 +123,10 @@ func (s *Point) IsValueModified() bool {
 
 func (s *Point) Exemplars() *ExemplarArray {
 	return &s.exemplars
+}
+
+func (s *Point) markExemplarsModified() {
+	s.modifiedFields.markModified(fieldModifiedPointExemplars)
 }
 
 // IsExemplarsModified returns true the value of Exemplars field was modified since

@@ -87,6 +87,10 @@ func (s *Exemplar) Value() *ExemplarValue {
 	return &s.value
 }
 
+func (s *Exemplar) markValueModified() {
+	s.modifiedFields.markModified(fieldModifiedExemplarValue)
+}
+
 // IsValueModified returns true the value of Value field was modified since
 // Exemplar was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -145,6 +149,10 @@ func (s *Exemplar) IsTraceIDModified() bool {
 
 func (s *Exemplar) FilteredAttributes() *Attributes {
 	return &s.filteredAttributes
+}
+
+func (s *Exemplar) markFilteredAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedExemplarFilteredAttributes)
 }
 
 // IsFilteredAttributesModified returns true the value of FilteredAttributes field was modified since

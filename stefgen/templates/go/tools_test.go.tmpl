@@ -1,0 +1,273 @@
+package {{ .PackageName }}
+
+// Additional tooling used for example by interop tests.
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"math/rand/v2"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/splunk/stef/go/pkg"
+)
+
+var generateFlag = flag.Bool("generate", false, "stef -generate -root=structname -out=filename [-seed=seed]")
+
+var rootFlag = flag.String("root", "", "root struct name")
+var seedFlag = flag.Uint64("seed", 0, "non-zero seed for random number generation (optional, default is current time)")
+var countFlag = flag.Uint64("count", 1000, "number of records to generate (default is 1000)")
+var outFlag = flag.String("out", "", "output file name for the generated data")
+
+var diffFlag = flag.Bool("diff", false, "stef -diff -root=structname file1 file2")
+var copyFlag = flag.Bool("copy", false, "stef -copy -root=structname input-file output-file")
+
+func TestTool(t *testing.T) {
+	// This test can be invoked via command line to generate data, compare files, or copy data.
+	// To invoke it, use: go test -run TestTool <additional flags>
+	// The <additional flags> are parsed as command line flags. See usage for each flags above.
+
+	if *generateFlag {
+		if *rootFlag == "" || *outFlag == "" {
+			fmt.Println("Error: -root and -out flags are required for generation.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		err := generateData(*rootFlag, *outFlag, *seedFlag, *countFlag)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *diffFlag {
+		if len(flag.Args()) != 2 {
+			fmt.Println("Error: -diff requires exactly two file arguments.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		if *rootFlag == "" {
+			fmt.Println("Error: -root flag is required for diff.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		file1 := flag.Args()[0]
+		file2 := flag.Args()[1]
+
+		err := diffData(*rootFlag, file1, file2)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *copyFlag {
+		if len(flag.Args()) != 2 {
+			fmt.Println("Error: -copy requires exactly two file arguments.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		if *rootFlag == "" {
+			fmt.Println("Error: -root flag is required for copy.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		file1 := flag.Args()[0]
+		file2 := flag.Args()[1]
+
+		err := copyData(*rootFlag, file1, file2)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	fmt.Println("Use -generate, -diff, or -copy flags to run this tool.")
+}
+
+// diffData compares two STEF files containing records of the specified root struct.
+func diffData(rootStruct, fname1, fname2 string) error {
+	file1, err := os.Open(fname1)
+	if err != nil {
+		return fmt.Errorf("Cannot open %s: %v", fname1, err)
+	}
+	file2, err := os.Open(fname2)
+	if err != nil {
+		return fmt.Errorf("Cannot open %s: %v", fname2, err)
+	}
+
+	switch rootStruct {
+{{ range $i, $StructName := .Structs }}
+	case "{{$StructName}}":
+		reader1, err := New{{$StructName}}Reader(file1)
+		if err != nil {
+			return fmt.Errorf("Cannot open %s: %v", fname1, err)
+		}
+
+		reader2, err := New{{$StructName}}Reader(file2)
+		if err != nil {
+			return fmt.Errorf("Cannot open %s: %v", fname1, err)
+		}
+
+		for {
+			var err1 error
+			if err1 = reader1.Read(pkg.ReadOptions{}); err1 != nil {
+				if err1 != io.EOF {
+					return err1
+				}
+			}
+
+			var err2 error
+			if err2 = reader2.Read(pkg.ReadOptions{}); err2 != nil {
+				if err2 != io.EOF {
+					return err2
+				}
+			}
+
+			if errors.Is(err1, io.EOF) {
+				if errors.Is(err2, io.EOF) {
+					break
+				}
+				return fmt.Errorf("%s has more records than %s", fname2, fname1)
+			}
+			if errors.Is(err2, io.EOF) {
+				return fmt.Errorf("%s has more records than %s", fname1, fname2)
+			}
+
+			if !reader1.Record.IsEqual(&reader2.Record) {
+				return fmt.Errorf("Record #%d differs.", reader1.RecordCount())
+			}
+		}
+
+		fmt.Printf("%d records compared. Content is identical.\n", reader1.RecordCount())
+		return nil
+{{end}}
+	default:
+		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
+	}
+}
+
+// copyData copies records from one STEF file to another for the specified root struct.
+func copyData(rootStruct, sourceFname, destFname string) (retErr error) {
+	fmt.Printf("Copying content from %s to %s...\n", sourceFname, destFname)
+
+	// Open source file for reading
+	sourceFile, err := os.Open(sourceFname)
+	if err != nil {
+		return fmt.Errorf("Cannot open source file %s: %v", sourceFname, err)
+	}
+	defer sourceFile.Close()
+
+	// Create destination file for writing
+	destFile, err := os.Create(destFname)
+	if err != nil {
+		return fmt.Errorf("Cannot create destination file %s: %v", destFname, err)
+	}
+	defer func(destFile *os.File) {
+		err := destFile.Close()
+		if err != nil {
+			retErr = err
+		}
+	}(destFile)
+
+	dst := pkg.NewWrapChunkWriter(destFile)
+
+	switch rootStruct {
+{{ range $i, $StructName := .Structs }}
+	case "{{$StructName}}":
+		reader, err := New{{$StructName}}Reader(sourceFile)
+		if err != nil {
+			return fmt.Errorf("Cannot create reader for %s: %v", sourceFname, err)
+		}
+
+		writer, err := New{{$StructName}}Writer(dst, pkg.WriterOptions{})
+		if err != nil {
+			return fmt.Errorf("Cannot create writer for %s: %v", destFname, err)
+		}
+
+		recordCount := uint64(0)
+		for {
+			err := reader.Read(pkg.ReadOptions{})
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return fmt.Errorf("Error reading record %d: %v", recordCount, err)
+			}
+
+			// Copy the record from reader to writer
+			writer.Record.CopyFrom(&reader.Record)
+			err = writer.Write()
+			if err != nil {
+				return fmt.Errorf("Error writing record %d: %v", recordCount, err)
+			}
+			recordCount++
+		}
+
+		err = writer.Flush()
+		if err != nil {
+			return fmt.Errorf("Error flushing writer: %v", err)
+		}
+
+		fmt.Printf("Successfully copied %d records.\n", recordCount)
+		return nil
+{{end}}
+	default:
+		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
+	}
+}
+
+// generateData generates random records of the specified root struct and writes them to the output file.
+func generateData(rootStruct, outFileName string, randSeed uint64, recordCount uint64) (retErr error) {
+	fmt.Printf("Generating %d random %s records...\n", recordCount, rootStruct)
+
+	outFile, err := os.Create(outFileName)
+	if err != nil {
+		return err
+	}
+	defer func(outFile *os.File) {
+		err := outFile.Close()
+		if err != nil {
+			retErr = err
+		}
+	}(outFile)
+	dst := pkg.NewWrapChunkWriter(outFile)
+
+	switch rootStruct {
+{{ range $i, $StructName := .Structs }}
+	case "{{$StructName}}":
+		writer, err := New{{$StructName}}Writer(dst, pkg.WriterOptions{})
+		if err != nil {
+			return err
+		}
+
+		if randSeed == 0 {
+			randSeed = uint64(time.Now().UnixNano())
+			fmt.Printf("Using random seed: %d\n", randSeed)
+		}
+		random := rand.New(rand.NewPCG(randSeed, 0))
+
+		for i := uint64(0); i < recordCount; i++ {
+			writer.Record.mutateRandom(random)
+			err = writer.Write()
+			if err != nil {
+				return fmt.Errorf("Error writing record %d: %v", i, err)
+			}
+		}
+
+		err = writer.Flush()
+		if err != nil {
+			return fmt.Errorf("Error writing file: %v", err)
+		}
+		return nil
+{{end}}
+	default:
+		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
+	}
+}

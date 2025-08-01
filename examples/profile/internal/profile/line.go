@@ -59,6 +59,10 @@ func (s *Line) Function() *Function {
 	return s.function
 }
 
+func (s *Line) markFunctionModified() {
+	s.modifiedFields.markModified(fieldModifiedLineFunction)
+}
+
 // IsFunctionModified returns true the value of Function field was modified since
 // Line was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

@@ -61,6 +61,10 @@ public class Metrics {
         return this.envelope;
     }
 
+    private void markEnvelopeModified() {
+        this.modifiedFields.markModified(fieldModifiedEnvelope);
+    }
+
     // isEnvelopeModified returns true if the value of Envelope field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -71,6 +75,10 @@ public class Metrics {
     
     public Metric getMetric() {
         return this.metric;
+    }
+
+    private void markMetricModified() {
+        this.modifiedFields.markModified(fieldModifiedMetric);
     }
 
     // isMetricModified returns true if the value of Metric field was modified since
@@ -85,6 +93,10 @@ public class Metrics {
         return this.resource;
     }
 
+    private void markResourceModified() {
+        this.modifiedFields.markModified(fieldModifiedResource);
+    }
+
     // isResourceModified returns true if the value of Resource field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -95,6 +107,10 @@ public class Metrics {
     
     public Scope getScope() {
         return this.scope;
+    }
+
+    private void markScopeModified() {
+        this.modifiedFields.markModified(fieldModifiedScope);
     }
 
     // isScopeModified returns true if the value of Scope field was modified since
@@ -109,6 +125,10 @@ public class Metrics {
         return this.attributes;
     }
 
+    private void markAttributesModified() {
+        this.modifiedFields.markModified(fieldModifiedAttributes);
+    }
+
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Metrics was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -119,6 +139,10 @@ public class Metrics {
     
     public Point getPoint() {
         return this.point;
+    }
+
+    private void markPointModified() {
+        this.modifiedFields.markModified(fieldModifiedPoint);
     }
 
     // isPointModified returns true if the value of Point field was modified since

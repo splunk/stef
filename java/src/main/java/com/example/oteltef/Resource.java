@@ -76,6 +76,10 @@ public class Resource {
         return this.attributes;
     }
 
+    private void markAttributesModified() {
+        this.modifiedFields.markModified(fieldModifiedAttributes);
+    }
+
     // isAttributesModified returns true if the value of Attributes field was modified since
     // Resource was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the

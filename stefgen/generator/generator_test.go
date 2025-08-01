@@ -38,6 +38,7 @@ func TestGenerate(t *testing.T) {
 				genGo := Generator{
 					OutputDir: path.Join("testdata", "out", path.Base(file)),
 					Lang:      LangGo,
+					genTools:  true, // Generate testing tools
 				}
 
 				err = genGo.GenFile(wireSchema)
@@ -59,6 +60,7 @@ func TestGenerate(t *testing.T) {
 					OutputDir:     javaDir,
 					TestOutputDir: javaDir,
 					Lang:          LangJava,
+					genTools:      true, // Generate testing tools
 				}
 
 				err = genJava.GenFile(wireSchema)
