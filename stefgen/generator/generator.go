@@ -42,6 +42,8 @@ type Generator struct {
 	compiledSchema *genSchema
 
 	fileName string
+
+	genTools bool
 }
 
 func (g *Generator) GenFile(schema *schema.Schema) error {
@@ -89,6 +91,10 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 	}
 
 	if err := g.oReaders(); err != nil {
+		return err
+	}
+
+	if err := g.oTools(); err != nil {
 		return err
 	}
 
