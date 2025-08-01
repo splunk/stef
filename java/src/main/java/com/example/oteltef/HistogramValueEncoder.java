@@ -20,11 +20,16 @@ class HistogramValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private Int64Encoder countEncoder = new Int64Encoder();
-    private Float64Encoder sumEncoder = new Float64Encoder();
-    private Float64Encoder minEncoder = new Float64Encoder();
-    private Float64Encoder maxEncoder = new Float64Encoder();
-    private Int64ArrayEncoder bucketCountsEncoder = new Int64ArrayEncoder();
+    private Int64Encoder countEncoder;
+    private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
+    private Float64Encoder sumEncoder;
+    private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
+    private Float64Encoder minEncoder;
+    private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
+    private Float64Encoder maxEncoder;
+    private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
+    private Int64ArrayEncoder bucketCountsEncoder;
+    private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
     private long keepFieldMask;
@@ -50,26 +55,42 @@ class HistogramValueEncoder {
             }
 
             
+            // Init encoder for Count field.
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
+            countEncoder = new Int64Encoder();
             this.countEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
+            sumEncoder = new Float64Encoder();
             this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Min field.
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
+            minEncoder = new Float64Encoder();
             this.minEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Max field.
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
+            maxEncoder = new Float64Encoder();
             this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for BucketCounts field.
             if (this.fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            this.bucketCountsEncoder.init(state, columns.addSubColumn());
+            if (state.Int64ArrayEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                bucketCountsEncoder = state.Int64ArrayEncoder;
+                isBucketCountsRecursive = true;
+            } else {
+                bucketCountsEncoder = new Int64ArrayEncoder();
+                bucketCountsEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.HistogramValueEncoder = null;
         }
@@ -77,13 +98,17 @@ class HistogramValueEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.countEncoder.reset();
-        this.sumEncoder.reset();
-        this.minEncoder.reset();
-        this.maxEncoder.reset();
-        this.bucketCountsEncoder.reset();
+        countEncoder.reset();
+        sumEncoder.reset();
+        minEncoder.reset();
+        maxEncoder.reset();
+        
+        if (!isBucketCountsRecursive) {
+            bucketCountsEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -152,27 +177,49 @@ class HistogramValueEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Count field.
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countEncoder.collectColumns(columnSet.at(0));
+        
+        countEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Sum field.
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumEncoder.collectColumns(columnSet.at(1));
+        
+        sumEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Min field.
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minEncoder.collectColumns(columnSet.at(2));
+        
+        minEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Max field.
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxEncoder.collectColumns(columnSet.at(3));
+        
+        maxEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect BucketCounts field.
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsEncoder.collectColumns(columnSet.at(4));
+        if (!isBucketCountsRecursive) {
+            bucketCountsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

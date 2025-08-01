@@ -16,10 +16,14 @@ class SpansDecoder {
     private int fieldCount;
 
     
-    private EnvelopeDecoder envelopeDecoder = new EnvelopeDecoder();
-    private ResourceDecoder resourceDecoder = new ResourceDecoder();
-    private ScopeDecoder scopeDecoder = new ScopeDecoder();
-    private SpanDecoder spanDecoder = new SpanDecoder();
+    private EnvelopeDecoder envelopeDecoder;
+    private boolean isEnvelopeRecursive = false; // Indicates Envelope field's type is recursive.
+    private ResourceDecoder resourceDecoder;
+    private boolean isResourceRecursive = false; // Indicates Resource field's type is recursive.
+    private ScopeDecoder scopeDecoder;
+    private boolean isScopeRecursive = false; // Indicates Scope field's type is recursive.
+    private SpanDecoder spanDecoder;
+    private boolean isSpanRecursive = false; // Indicates Span field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -44,19 +48,47 @@ class SpansDecoder {
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.
             }
-            envelopeDecoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                envelopeDecoder = state.EnvelopeDecoder;
+                isEnvelopeRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                envelopeDecoder = new EnvelopeDecoder();
+                envelopeDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 1) {
                 return; // Resource and subsequent fields are skipped.
             }
-            resourceDecoder.init(state, columns.addSubColumn());
+            if (state.ResourceDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                resourceDecoder = state.ResourceDecoder;
+                isResourceRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                resourceDecoder = new ResourceDecoder();
+                resourceDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 2) {
                 return; // Scope and subsequent fields are skipped.
             }
-            scopeDecoder.init(state, columns.addSubColumn());
+            if (state.ScopeDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                scopeDecoder = state.ScopeDecoder;
+                isScopeRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                scopeDecoder = new ScopeDecoder();
+                scopeDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 3) {
                 return; // Span and subsequent fields are skipped.
             }
-            spanDecoder.init(state, columns.addSubColumn());
+            if (state.SpanDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                spanDecoder = state.SpanDecoder;
+                isSpanRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                spanDecoder = new SpanDecoder();
+                spanDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.SpansDecoder = null;
         }
@@ -73,26 +105,50 @@ class SpansDecoder {
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeDecoder.continueDecoding();
+        
+        if (!isEnvelopeRecursive) {
+            envelopeDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 1) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceDecoder.continueDecoding();
+        
+        if (!isResourceRecursive) {
+            resourceDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 2) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeDecoder.continueDecoding();
+        
+        if (!isScopeRecursive) {
+            scopeDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 3) {
             return; // Span and subsequent fields are skipped.
         }
-        this.spanDecoder.continueDecoding();
+        
+        if (!isSpanRecursive) {
+            spanDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.envelopeDecoder.reset();
-        this.resourceDecoder.reset();
-        this.scopeDecoder.reset();
-        this.spanDecoder.reset();
+        if (!isEnvelopeRecursive) {
+            envelopeDecoder.reset();
+        }
+        if (!isResourceRecursive) {
+            resourceDecoder.reset();
+        }
+        if (!isScopeRecursive) {
+            scopeDecoder.reset();
+        }
+        if (!isSpanRecursive) {
+            spanDecoder.reset();
+        }
     }
 
     public Spans decode(Spans dstPtr) throws IOException {
@@ -103,21 +159,33 @@ class SpansDecoder {
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
+            if (val.envelope == null) {
+                val.envelope = new Envelope(val.modifiedFields, Spans.fieldModifiedEnvelope);
+            }
             val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
+            if (val.resource == null) {
+                val.resource = new Resource(val.modifiedFields, Spans.fieldModifiedResource);
+            }
             val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
+            if (val.scope == null) {
+                val.scope = new Scope(val.modifiedFields, Spans.fieldModifiedScope);
+            }
             val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedSpan) != 0) {
             // Field is changed and is present, decode it.
+            if (val.span == null) {
+                val.span = new Span(val.modifiedFields, Spans.fieldModifiedSpan);
+            }
             val.span = spanDecoder.decode(val.span);
         }
         

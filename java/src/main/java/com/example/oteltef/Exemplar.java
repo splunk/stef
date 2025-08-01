@@ -245,20 +245,25 @@ public class Exemplar {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Exemplar val) {
-        if (!Types.Uint64Equal(this.timestamp, val.timestamp)) {
+    public boolean equals(Exemplar right) {
+        // Compare Timestamp field.
+        if (!Types.Uint64Equal(this.timestamp, right.timestamp)) {
             return false;
         }
-        if (!this.value.equals(val.value)) {
+        // Compare Value field.
+        if (!this.value.equals(right.value)) {
             return false;
         }
-        if (!Types.BytesEqual(this.spanID, val.spanID)) {
+        // Compare SpanID field.
+        if (!Types.BytesEqual(this.spanID, right.spanID)) {
             return false;
         }
-        if (!Types.BytesEqual(this.traceID, val.traceID)) {
+        // Compare TraceID field.
+        if (!Types.BytesEqual(this.traceID, right.traceID)) {
             return false;
         }
-        if (!this.filteredAttributes.equals(val.filteredAttributes)) {
+        // Compare FilteredAttributes field.
+        if (!this.filteredAttributes.equals(right.filteredAttributes)) {
             return false;
         }
         return true;
@@ -282,26 +287,31 @@ public class Exemplar {
         }
         int c;
         
+        // Compare Timestamp field.
         c = Types.Uint64Compare(left.timestamp, right.timestamp);
         if (c != 0) {
             return c;
         }
         
+        // Compare Value field.
         c = ExemplarValue.compare(left.value, right.value);
         if (c != 0) {
             return c;
         }
         
+        // Compare SpanID field.
         c = Types.BytesCompare(left.spanID, right.spanID);
         if (c != 0) {
             return c;
         }
         
+        // Compare TraceID field.
         c = Types.BytesCompare(left.traceID, right.traceID);
         if (c != 0) {
             return c;
         }
         
+        // Compare FilteredAttributes field.
         c = Attributes.compare(left.filteredAttributes, right.filteredAttributes);
         if (c != 0) {
             return c;
@@ -312,7 +322,7 @@ public class Exemplar {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 5;
+        final int fieldCount = Math.max(5,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setTimestamp(Types.Uint64Random(random));

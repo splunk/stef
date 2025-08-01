@@ -484,7 +484,7 @@ func (s *ExpHistogramValue) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *ExpHistogramValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 9
+	const fieldCount = max(9, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetCount(pkg.Uint64Random(random))
 	}
@@ -514,33 +514,66 @@ func (s *ExpHistogramValue) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *ExpHistogramValue) IsEqual(val *ExpHistogramValue) bool {
-	if !pkg.Uint64Equal(e.count, val.count) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *ExpHistogramValue) IsEqual(right *ExpHistogramValue) bool {
+	// Compare Count field.
+	if !pkg.Uint64Equal(s.count, right.count) {
 		return false
 	}
-	if !pkg.Float64Equal(e.sum, val.sum) {
+	// Compare Sum field.
+	sSumPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	rightSumPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	if sSumPresent != rightSumPresent {
 		return false
 	}
-	if !pkg.Float64Equal(e.min, val.min) {
+	if sSumPresent { // Compare only if Sum field is present
+		if !pkg.Float64Equal(s.sum, right.sum) {
+			return false
+		}
+	}
+
+	// Compare Min field.
+	sMinPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	rightMinPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	if sMinPresent != rightMinPresent {
 		return false
 	}
-	if !pkg.Float64Equal(e.max, val.max) {
+	if sMinPresent { // Compare only if Min field is present
+		if !pkg.Float64Equal(s.min, right.min) {
+			return false
+		}
+	}
+
+	// Compare Max field.
+	sMaxPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	rightMaxPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	if sMaxPresent != rightMaxPresent {
 		return false
 	}
-	if !pkg.Int64Equal(e.scale, val.scale) {
+	if sMaxPresent { // Compare only if Max field is present
+		if !pkg.Float64Equal(s.max, right.max) {
+			return false
+		}
+	}
+
+	// Compare Scale field.
+	if !pkg.Int64Equal(s.scale, right.scale) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.zeroCount, val.zeroCount) {
+	// Compare ZeroCount field.
+	if !pkg.Uint64Equal(s.zeroCount, right.zeroCount) {
 		return false
 	}
-	if !e.positiveBuckets.IsEqual(&val.positiveBuckets) {
+	// Compare PositiveBuckets field.
+	if !s.positiveBuckets.IsEqual(&right.positiveBuckets) {
 		return false
 	}
-	if !e.negativeBuckets.IsEqual(&val.negativeBuckets) {
+	// Compare NegativeBuckets field.
+	if !s.negativeBuckets.IsEqual(&right.negativeBuckets) {
 		return false
 	}
-	if !pkg.Float64Equal(e.zeroThreshold, val.zeroThreshold) {
+	// Compare ZeroThreshold field.
+	if !pkg.Float64Equal(s.zeroThreshold, right.zeroThreshold) {
 		return false
 	}
 
@@ -564,30 +597,71 @@ func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
 		return 1
 	}
 
+	// Compare Count field.
 	if c := pkg.Uint64Compare(left.count, right.count); c != 0 {
 		return c
+	}
+
+	// Compare Sum field.
+	leftSumPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	rightSumPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	if leftSumPresent != rightSumPresent {
+		if leftSumPresent {
+			return 1
+		}
+		return -1
 	}
 	if c := pkg.Float64Compare(left.sum, right.sum); c != 0 {
 		return c
 	}
+
+	// Compare Min field.
+	leftMinPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	rightMinPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	if leftMinPresent != rightMinPresent {
+		if leftMinPresent {
+			return 1
+		}
+		return -1
+	}
 	if c := pkg.Float64Compare(left.min, right.min); c != 0 {
 		return c
+	}
+
+	// Compare Max field.
+	leftMaxPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	rightMaxPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	if leftMaxPresent != rightMaxPresent {
+		if leftMaxPresent {
+			return 1
+		}
+		return -1
 	}
 	if c := pkg.Float64Compare(left.max, right.max); c != 0 {
 		return c
 	}
+
+	// Compare Scale field.
 	if c := pkg.Int64Compare(left.scale, right.scale); c != 0 {
 		return c
 	}
+
+	// Compare ZeroCount field.
 	if c := pkg.Uint64Compare(left.zeroCount, right.zeroCount); c != 0 {
 		return c
 	}
+
+	// Compare PositiveBuckets field.
 	if c := CmpExpHistogramBuckets(&left.positiveBuckets, &right.positiveBuckets); c != 0 {
 		return c
 	}
+
+	// Compare NegativeBuckets field.
 	if c := CmpExpHistogramBuckets(&left.negativeBuckets, &right.negativeBuckets); c != 0 {
 		return c
 	}
+
+	// Compare ZeroThreshold field.
 	if c := pkg.Float64Compare(left.zeroThreshold, right.zeroThreshold); c != 0 {
 		return c
 	}
@@ -606,15 +680,25 @@ type ExpHistogramValueEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	countEncoder           encoders.Uint64Encoder
-	sumEncoder             encoders.Float64Encoder
-	minEncoder             encoders.Float64Encoder
-	maxEncoder             encoders.Float64Encoder
-	scaleEncoder           encoders.Int64Encoder
-	zeroCountEncoder       encoders.Uint64Encoder
-	positiveBucketsEncoder ExpHistogramBucketsEncoder
-	negativeBucketsEncoder ExpHistogramBucketsEncoder
-	zeroThresholdEncoder   encoders.Float64Encoder
+	countEncoder encoders.Uint64Encoder
+
+	sumEncoder encoders.Float64Encoder
+
+	minEncoder encoders.Float64Encoder
+
+	maxEncoder encoders.Float64Encoder
+
+	scaleEncoder encoders.Int64Encoder
+
+	zeroCountEncoder encoders.Uint64Encoder
+
+	positiveBucketsEncoder     *ExpHistogramBucketsEncoder
+	isPositiveBucketsRecursive bool // Indicates PositiveBuckets field's type is recursive.
+
+	negativeBucketsEncoder     *ExpHistogramBucketsEncoder
+	isNegativeBucketsRecursive bool // Indicates NegativeBuckets field's type is recursive.
+
+	zeroThresholdEncoder encoders.Float64Encoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -648,58 +732,109 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Count field.
 	if e.fieldCount <= 0 {
-		return nil // Count and subsequent fields are skipped.
+		// Count and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.countEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.countEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Sum field.
 	if e.fieldCount <= 1 {
-		return nil // Sum and subsequent fields are skipped.
+		// Sum and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.sumEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.sumEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Min field.
 	if e.fieldCount <= 2 {
-		return nil // Min and subsequent fields are skipped.
+		// Min and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.minEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.minEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Max field.
 	if e.fieldCount <= 3 {
-		return nil // Max and subsequent fields are skipped.
+		// Max and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.maxEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.maxEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Scale field.
 	if e.fieldCount <= 4 {
-		return nil // Scale and subsequent fields are skipped.
+		// Scale and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.scaleEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.scaleEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for ZeroCount field.
 	if e.fieldCount <= 5 {
-		return nil // ZeroCount and subsequent fields are skipped.
+		// ZeroCount and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.zeroCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.zeroCountEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for PositiveBuckets field.
 	if e.fieldCount <= 6 {
-		return nil // PositiveBuckets and subsequent fields are skipped.
+		// PositiveBuckets and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.positiveBucketsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ExpHistogramBucketsEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.positiveBucketsEncoder = state.ExpHistogramBucketsEncoder
+		e.isPositiveBucketsRecursive = true
+	} else {
+		e.positiveBucketsEncoder = new(ExpHistogramBucketsEncoder)
+		err = e.positiveBucketsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for NegativeBuckets field.
 	if e.fieldCount <= 7 {
-		return nil // NegativeBuckets and subsequent fields are skipped.
+		// NegativeBuckets and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.negativeBucketsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ExpHistogramBucketsEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.negativeBucketsEncoder = state.ExpHistogramBucketsEncoder
+		e.isNegativeBucketsRecursive = true
+	} else {
+		e.negativeBucketsEncoder = new(ExpHistogramBucketsEncoder)
+		err = e.negativeBucketsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for ZeroThreshold field.
 	if e.fieldCount <= 8 {
-		return nil // ZeroThreshold and subsequent fields are skipped.
+		// ZeroThreshold and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.zeroThresholdEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.zeroThresholdEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -716,8 +851,15 @@ func (e *ExpHistogramValueEncoder) Reset() {
 	e.maxEncoder.Reset()
 	e.scaleEncoder.Reset()
 	e.zeroCountEncoder.Reset()
-	e.positiveBucketsEncoder.Reset()
-	e.negativeBucketsEncoder.Reset()
+
+	if !e.isPositiveBucketsRecursive {
+		e.positiveBucketsEncoder.Reset()
+	}
+
+	if !e.isNegativeBucketsRecursive {
+		e.negativeBucketsEncoder.Reset()
+	}
+
 	e.zeroThresholdEncoder.Reset()
 }
 
@@ -815,43 +957,81 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Count field.
 	if e.fieldCount <= 0 {
 		return // Count and subsequent fields are skipped.
 	}
-	e.countEncoder.CollectColumns(columnSet.At(0))
+
+	e.countEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Sum field.
 	if e.fieldCount <= 1 {
 		return // Sum and subsequent fields are skipped.
 	}
-	e.sumEncoder.CollectColumns(columnSet.At(1))
+
+	e.sumEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Min field.
 	if e.fieldCount <= 2 {
 		return // Min and subsequent fields are skipped.
 	}
-	e.minEncoder.CollectColumns(columnSet.At(2))
+
+	e.minEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Max field.
 	if e.fieldCount <= 3 {
 		return // Max and subsequent fields are skipped.
 	}
-	e.maxEncoder.CollectColumns(columnSet.At(3))
+
+	e.maxEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Scale field.
 	if e.fieldCount <= 4 {
 		return // Scale and subsequent fields are skipped.
 	}
-	e.scaleEncoder.CollectColumns(columnSet.At(4))
+
+	e.scaleEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect ZeroCount field.
 	if e.fieldCount <= 5 {
 		return // ZeroCount and subsequent fields are skipped.
 	}
-	e.zeroCountEncoder.CollectColumns(columnSet.At(5))
+
+	e.zeroCountEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect PositiveBuckets field.
 	if e.fieldCount <= 6 {
 		return // PositiveBuckets and subsequent fields are skipped.
 	}
-	e.positiveBucketsEncoder.CollectColumns(columnSet.At(6))
+	if !e.isPositiveBucketsRecursive {
+		e.positiveBucketsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect NegativeBuckets field.
 	if e.fieldCount <= 7 {
 		return // NegativeBuckets and subsequent fields are skipped.
 	}
-	e.negativeBucketsEncoder.CollectColumns(columnSet.At(7))
+	if !e.isNegativeBucketsRecursive {
+		e.negativeBucketsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect ZeroThreshold field.
 	if e.fieldCount <= 8 {
 		return // ZeroThreshold and subsequent fields are skipped.
 	}
-	e.zeroThresholdEncoder.CollectColumns(columnSet.At(8))
+
+	e.zeroThresholdEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // ExpHistogramValueDecoder implements decoding of ExpHistogramValue
@@ -862,15 +1042,25 @@ type ExpHistogramValueDecoder struct {
 	lastVal    ExpHistogramValue
 	fieldCount uint
 
-	countDecoder           encoders.Uint64Decoder
-	sumDecoder             encoders.Float64Decoder
-	minDecoder             encoders.Float64Decoder
-	maxDecoder             encoders.Float64Decoder
-	scaleDecoder           encoders.Int64Decoder
-	zeroCountDecoder       encoders.Uint64Decoder
-	positiveBucketsDecoder ExpHistogramBucketsDecoder
-	negativeBucketsDecoder ExpHistogramBucketsDecoder
-	zeroThresholdDecoder   encoders.Float64Decoder
+	countDecoder encoders.Uint64Decoder
+
+	sumDecoder encoders.Float64Decoder
+
+	minDecoder encoders.Float64Decoder
+
+	maxDecoder encoders.Float64Decoder
+
+	scaleDecoder encoders.Int64Decoder
+
+	zeroCountDecoder encoders.Uint64Decoder
+
+	positiveBucketsDecoder     *ExpHistogramBucketsDecoder
+	isPositiveBucketsRecursive bool
+
+	negativeBucketsDecoder     *ExpHistogramBucketsDecoder
+	isNegativeBucketsRecursive bool
+
+	zeroThresholdDecoder encoders.Float64Decoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -947,14 +1137,28 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	if d.fieldCount <= 6 {
 		return nil // PositiveBuckets and subsequent fields are skipped.
 	}
-	err = d.positiveBucketsDecoder.Init(state, columns.AddSubColumn())
+	if state.ExpHistogramBucketsDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.positiveBucketsDecoder = state.ExpHistogramBucketsDecoder
+		d.isPositiveBucketsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.positiveBucketsDecoder = new(ExpHistogramBucketsDecoder)
+		err = d.positiveBucketsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 7 {
 		return nil // NegativeBuckets and subsequent fields are skipped.
 	}
-	err = d.negativeBucketsDecoder.Init(state, columns.AddSubColumn())
+	if state.ExpHistogramBucketsDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.negativeBucketsDecoder = state.ExpHistogramBucketsDecoder
+		d.isNegativeBucketsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.negativeBucketsDecoder = new(ExpHistogramBucketsDecoder)
+		err = d.negativeBucketsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -1004,11 +1208,19 @@ func (d *ExpHistogramValueDecoder) Continue() {
 	if d.fieldCount <= 6 {
 		return // PositiveBuckets and subsequent fields are skipped.
 	}
-	d.positiveBucketsDecoder.Continue()
+
+	if !d.isPositiveBucketsRecursive {
+		d.positiveBucketsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 7 {
 		return // NegativeBuckets and subsequent fields are skipped.
 	}
-	d.negativeBucketsDecoder.Continue()
+
+	if !d.isNegativeBucketsRecursive {
+		d.negativeBucketsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 8 {
 		return // ZeroThreshold and subsequent fields are skipped.
 	}
@@ -1022,8 +1234,15 @@ func (d *ExpHistogramValueDecoder) Reset() {
 	d.maxDecoder.Reset()
 	d.scaleDecoder.Reset()
 	d.zeroCountDecoder.Reset()
-	d.positiveBucketsDecoder.Reset()
-	d.negativeBucketsDecoder.Reset()
+
+	if !d.isPositiveBucketsRecursive {
+		d.positiveBucketsDecoder.Reset()
+	}
+
+	if !d.isNegativeBucketsRecursive {
+		d.negativeBucketsDecoder.Reset()
+	}
+
 	d.zeroThresholdDecoder.Reset()
 }
 

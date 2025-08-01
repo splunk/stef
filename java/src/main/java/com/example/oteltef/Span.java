@@ -559,47 +559,61 @@ public class Span {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Span val) {
-        if (!Types.BytesEqual(this.traceID, val.traceID)) {
+    public boolean equals(Span right) {
+        // Compare TraceID field.
+        if (!Types.BytesEqual(this.traceID, right.traceID)) {
             return false;
         }
-        if (!Types.BytesEqual(this.spanID, val.spanID)) {
+        // Compare SpanID field.
+        if (!Types.BytesEqual(this.spanID, right.spanID)) {
             return false;
         }
-        if (!Types.StringEqual(this.traceState, val.traceState)) {
+        // Compare TraceState field.
+        if (!Types.StringEqual(this.traceState, right.traceState)) {
             return false;
         }
-        if (!Types.BytesEqual(this.parentSpanID, val.parentSpanID)) {
+        // Compare ParentSpanID field.
+        if (!Types.BytesEqual(this.parentSpanID, right.parentSpanID)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.flags, val.flags)) {
+        // Compare Flags field.
+        if (!Types.Uint64Equal(this.flags, right.flags)) {
             return false;
         }
-        if (!Types.StringEqual(this.name, val.name)) {
+        // Compare Name field.
+        if (!Types.StringEqual(this.name, right.name)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.kind, val.kind)) {
+        // Compare Kind field.
+        if (!Types.Uint64Equal(this.kind, right.kind)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.startTimeUnixNano, val.startTimeUnixNano)) {
+        // Compare StartTimeUnixNano field.
+        if (!Types.Uint64Equal(this.startTimeUnixNano, right.startTimeUnixNano)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.endTimeUnixNano, val.endTimeUnixNano)) {
+        // Compare EndTimeUnixNano field.
+        if (!Types.Uint64Equal(this.endTimeUnixNano, right.endTimeUnixNano)) {
             return false;
         }
-        if (!this.attributes.equals(val.attributes)) {
+        // Compare Attributes field.
+        if (!this.attributes.equals(right.attributes)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.droppedAttributesCount, val.droppedAttributesCount)) {
+        // Compare DroppedAttributesCount field.
+        if (!Types.Uint64Equal(this.droppedAttributesCount, right.droppedAttributesCount)) {
             return false;
         }
-        if (!this.events.equals(val.events)) {
+        // Compare Events field.
+        if (!this.events.equals(right.events)) {
             return false;
         }
-        if (!this.links.equals(val.links)) {
+        // Compare Links field.
+        if (!this.links.equals(right.links)) {
             return false;
         }
-        if (!this.status.equals(val.status)) {
+        // Compare Status field.
+        if (!this.status.equals(right.status)) {
             return false;
         }
         return true;
@@ -623,71 +637,85 @@ public class Span {
         }
         int c;
         
+        // Compare TraceID field.
         c = Types.BytesCompare(left.traceID, right.traceID);
         if (c != 0) {
             return c;
         }
         
+        // Compare SpanID field.
         c = Types.BytesCompare(left.spanID, right.spanID);
         if (c != 0) {
             return c;
         }
         
+        // Compare TraceState field.
         c = Types.StringCompare(left.traceState, right.traceState);
         if (c != 0) {
             return c;
         }
         
+        // Compare ParentSpanID field.
         c = Types.BytesCompare(left.parentSpanID, right.parentSpanID);
         if (c != 0) {
             return c;
         }
         
+        // Compare Flags field.
         c = Types.Uint64Compare(left.flags, right.flags);
         if (c != 0) {
             return c;
         }
         
+        // Compare Name field.
         c = Types.StringCompare(left.name, right.name);
         if (c != 0) {
             return c;
         }
         
+        // Compare Kind field.
         c = Types.Uint64Compare(left.kind, right.kind);
         if (c != 0) {
             return c;
         }
         
+        // Compare StartTimeUnixNano field.
         c = Types.Uint64Compare(left.startTimeUnixNano, right.startTimeUnixNano);
         if (c != 0) {
             return c;
         }
         
+        // Compare EndTimeUnixNano field.
         c = Types.Uint64Compare(left.endTimeUnixNano, right.endTimeUnixNano);
         if (c != 0) {
             return c;
         }
         
+        // Compare Attributes field.
         c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }
         
+        // Compare DroppedAttributesCount field.
         c = Types.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount);
         if (c != 0) {
             return c;
         }
         
+        // Compare Events field.
         c = EventArray.compare(left.events, right.events);
         if (c != 0) {
             return c;
         }
         
+        // Compare Links field.
         c = LinkArray.compare(left.links, right.links);
         if (c != 0) {
             return c;
         }
         
+        // Compare Status field.
         c = SpanStatus.compare(left.status, right.status);
         if (c != 0) {
             return c;
@@ -698,7 +726,7 @@ public class Span {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 14;
+        final int fieldCount = Math.max(14,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setTraceID(Types.BytesRandom(random));

@@ -161,7 +161,7 @@ func (s *ExpHistogramBuckets) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *ExpHistogramBuckets) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetOffset(pkg.Int64Random(random))
 	}
@@ -170,12 +170,14 @@ func (s *ExpHistogramBuckets) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *ExpHistogramBuckets) IsEqual(val *ExpHistogramBuckets) bool {
-	if !pkg.Int64Equal(e.offset, val.offset) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *ExpHistogramBuckets) IsEqual(right *ExpHistogramBuckets) bool {
+	// Compare Offset field.
+	if !pkg.Int64Equal(s.offset, right.offset) {
 		return false
 	}
-	if !e.bucketCounts.IsEqual(&val.bucketCounts) {
+	// Compare BucketCounts field.
+	if !s.bucketCounts.IsEqual(&right.bucketCounts) {
 		return false
 	}
 
@@ -199,9 +201,12 @@ func CmpExpHistogramBuckets(left, right *ExpHistogramBuckets) int {
 		return 1
 	}
 
+	// Compare Offset field.
 	if c := pkg.Int64Compare(left.offset, right.offset); c != 0 {
 		return c
 	}
+
+	// Compare BucketCounts field.
 	if c := CmpUint64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
 		return c
 	}
@@ -220,8 +225,10 @@ type ExpHistogramBucketsEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	offsetEncoder       encoders.Int64Encoder
-	bucketCountsEncoder Uint64ArrayEncoder
+	offsetEncoder encoders.Int64Encoder
+
+	bucketCountsEncoder     *Uint64ArrayEncoder
+	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -255,16 +262,32 @@ func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.Write
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Offset field.
 	if e.fieldCount <= 0 {
-		return nil // Offset and subsequent fields are skipped.
+		// Offset and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.offsetEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.offsetEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for BucketCounts field.
 	if e.fieldCount <= 1 {
-		return nil // BucketCounts and subsequent fields are skipped.
+		// BucketCounts and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.bucketCountsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.Uint64ArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.bucketCountsEncoder = state.Uint64ArrayEncoder
+		e.isBucketCountsRecursive = true
+	} else {
+		e.bucketCountsEncoder = new(Uint64ArrayEncoder)
+		err = e.bucketCountsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -276,7 +299,11 @@ func (e *ExpHistogramBucketsEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 	e.offsetEncoder.Reset()
-	e.bucketCountsEncoder.Reset()
+
+	if !e.isBucketCountsRecursive {
+		e.bucketCountsEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -324,15 +351,24 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ExpHistogramBucketsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Offset field.
 	if e.fieldCount <= 0 {
 		return // Offset and subsequent fields are skipped.
 	}
-	e.offsetEncoder.CollectColumns(columnSet.At(0))
+
+	e.offsetEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect BucketCounts field.
 	if e.fieldCount <= 1 {
 		return // BucketCounts and subsequent fields are skipped.
 	}
-	e.bucketCountsEncoder.CollectColumns(columnSet.At(1))
+	if !e.isBucketCountsRecursive {
+		e.bucketCountsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // ExpHistogramBucketsDecoder implements decoding of ExpHistogramBuckets
@@ -343,8 +379,10 @@ type ExpHistogramBucketsDecoder struct {
 	lastVal    ExpHistogramBuckets
 	fieldCount uint
 
-	offsetDecoder       encoders.Int64Decoder
-	bucketCountsDecoder Uint64ArrayDecoder
+	offsetDecoder encoders.Int64Decoder
+
+	bucketCountsDecoder     *Uint64ArrayDecoder
+	isBucketCountsRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -386,7 +424,14 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	if d.fieldCount <= 1 {
 		return nil // BucketCounts and subsequent fields are skipped.
 	}
-	err = d.bucketCountsDecoder.Init(state, columns.AddSubColumn())
+	if state.Uint64ArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.bucketCountsDecoder = state.Uint64ArrayDecoder
+		d.isBucketCountsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.bucketCountsDecoder = new(Uint64ArrayDecoder)
+		err = d.bucketCountsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -409,12 +454,20 @@ func (d *ExpHistogramBucketsDecoder) Continue() {
 	if d.fieldCount <= 1 {
 		return // BucketCounts and subsequent fields are skipped.
 	}
-	d.bucketCountsDecoder.Continue()
+
+	if !d.isBucketCountsRecursive {
+		d.bucketCountsDecoder.Continue()
+	}
+
 }
 
 func (d *ExpHistogramBucketsDecoder) Reset() {
 	d.offsetDecoder.Reset()
-	d.bucketCountsDecoder.Reset()
+
+	if !d.isBucketCountsRecursive {
+		d.bucketCountsDecoder.Reset()
+	}
+
 }
 
 func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {

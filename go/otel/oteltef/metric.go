@@ -378,7 +378,7 @@ func (s *Metric) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Metric) mutateRandom(random *rand.Rand) {
-	const fieldCount = 8
+	const fieldCount = max(8, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
@@ -405,30 +405,38 @@ func (s *Metric) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Metric) IsEqual(val *Metric) bool {
-	if !pkg.StringEqual(e.name, val.name) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Metric) IsEqual(right *Metric) bool {
+	// Compare Name field.
+	if !pkg.StringEqual(s.name, right.name) {
 		return false
 	}
-	if !pkg.StringEqual(e.description, val.description) {
+	// Compare Description field.
+	if !pkg.StringEqual(s.description, right.description) {
 		return false
 	}
-	if !pkg.StringEqual(e.unit, val.unit) {
+	// Compare Unit field.
+	if !pkg.StringEqual(s.unit, right.unit) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.type_, val.type_) {
+	// Compare Type field.
+	if !pkg.Uint64Equal(s.type_, right.type_) {
 		return false
 	}
-	if !e.metadata.IsEqual(&val.metadata) {
+	// Compare Metadata field.
+	if !s.metadata.IsEqual(&right.metadata) {
 		return false
 	}
-	if !e.histogramBounds.IsEqual(&val.histogramBounds) {
+	// Compare HistogramBounds field.
+	if !s.histogramBounds.IsEqual(&right.histogramBounds) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.aggregationTemporality, val.aggregationTemporality) {
+	// Compare AggregationTemporality field.
+	if !pkg.Uint64Equal(s.aggregationTemporality, right.aggregationTemporality) {
 		return false
 	}
-	if !pkg.BoolEqual(e.monotonic, val.monotonic) {
+	// Compare Monotonic field.
+	if !pkg.BoolEqual(s.monotonic, right.monotonic) {
 		return false
 	}
 
@@ -452,27 +460,42 @@ func CmpMetric(left, right *Metric) int {
 		return 1
 	}
 
+	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
+
+	// Compare Description field.
 	if c := strings.Compare(left.description, right.description); c != 0 {
 		return c
 	}
+
+	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
+
+	// Compare Type field.
 	if c := pkg.Uint64Compare(left.type_, right.type_); c != 0 {
 		return c
 	}
+
+	// Compare Metadata field.
 	if c := CmpAttributes(&left.metadata, &right.metadata); c != 0 {
 		return c
 	}
+
+	// Compare HistogramBounds field.
 	if c := CmpFloat64Array(&left.histogramBounds, &right.histogramBounds); c != 0 {
 		return c
 	}
+
+	// Compare AggregationTemporality field.
 	if c := pkg.Uint64Compare(left.aggregationTemporality, right.aggregationTemporality); c != 0 {
 		return c
 	}
+
+	// Compare Monotonic field.
 	if c := pkg.BoolCompare(left.monotonic, right.monotonic); c != 0 {
 		return c
 	}
@@ -491,14 +514,23 @@ type MetricEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder                   encoders.StringEncoder
-	descriptionEncoder            encoders.StringEncoder
-	unitEncoder                   encoders.StringEncoder
-	type_Encoder                  encoders.Uint64Encoder
-	metadataEncoder               AttributesEncoder
-	histogramBoundsEncoder        Float64ArrayEncoder
+	nameEncoder encoders.StringEncoder
+
+	descriptionEncoder encoders.StringEncoder
+
+	unitEncoder encoders.StringEncoder
+
+	type_Encoder encoders.Uint64Encoder
+
+	metadataEncoder     *AttributesEncoder
+	isMetadataRecursive bool // Indicates Metadata field's type is recursive.
+
+	histogramBoundsEncoder     *Float64ArrayEncoder
+	isHistogramBoundsRecursive bool // Indicates HistogramBounds field's type is recursive.
+
 	aggregationTemporalityEncoder encoders.Uint64Encoder
-	monotonicEncoder              encoders.BoolEncoder
+
+	monotonicEncoder encoders.BoolEncoder
 
 	dict *MetricEncoderDict
 
@@ -557,52 +589,99 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		return nil // Name and subsequent fields are skipped.
+		// Name and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.nameEncoder.Init(&state.MetricName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.nameEncoder.Init(&state.MetricName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Description field.
 	if e.fieldCount <= 1 {
-		return nil // Description and subsequent fields are skipped.
+		// Description and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.descriptionEncoder.Init(&state.MetricDescription, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.descriptionEncoder.Init(&state.MetricDescription, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Unit field.
 	if e.fieldCount <= 2 {
-		return nil // Unit and subsequent fields are skipped.
+		// Unit and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.unitEncoder.Init(&state.MetricUnit, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.unitEncoder.Init(&state.MetricUnit, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Type field.
 	if e.fieldCount <= 3 {
-		return nil // Type and subsequent fields are skipped.
+		// Type and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.type_Encoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.type_Encoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Metadata field.
 	if e.fieldCount <= 4 {
-		return nil // Metadata and subsequent fields are skipped.
+		// Metadata and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.metadataEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.metadataEncoder = state.AttributesEncoder
+		e.isMetadataRecursive = true
+	} else {
+		e.metadataEncoder = new(AttributesEncoder)
+		err = e.metadataEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for HistogramBounds field.
 	if e.fieldCount <= 5 {
-		return nil // HistogramBounds and subsequent fields are skipped.
+		// HistogramBounds and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.histogramBoundsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.Float64ArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.histogramBoundsEncoder = state.Float64ArrayEncoder
+		e.isHistogramBoundsRecursive = true
+	} else {
+		e.histogramBoundsEncoder = new(Float64ArrayEncoder)
+		err = e.histogramBoundsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for AggregationTemporality field.
 	if e.fieldCount <= 6 {
-		return nil // AggregationTemporality and subsequent fields are skipped.
+		// AggregationTemporality and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.aggregationTemporalityEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.aggregationTemporalityEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Monotonic field.
 	if e.fieldCount <= 7 {
-		return nil // Monotonic and subsequent fields are skipped.
+		// Monotonic and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.monotonicEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.monotonicEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -617,8 +696,15 @@ func (e *MetricEncoder) Reset() {
 	e.descriptionEncoder.Reset()
 	e.unitEncoder.Reset()
 	e.type_Encoder.Reset()
-	e.metadataEncoder.Reset()
-	e.histogramBoundsEncoder.Reset()
+
+	if !e.isMetadataRecursive {
+		e.metadataEncoder.Reset()
+	}
+
+	if !e.isHistogramBoundsRecursive {
+		e.histogramBoundsEncoder.Reset()
+	}
+
 	e.aggregationTemporalityEncoder.Reset()
 	e.monotonicEncoder.Reset()
 }
@@ -732,39 +818,73 @@ func (e *MetricEncoder) Encode(val *Metric) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *MetricEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-	e.nameEncoder.CollectColumns(columnSet.At(0))
+
+	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Description field.
 	if e.fieldCount <= 1 {
 		return // Description and subsequent fields are skipped.
 	}
-	e.descriptionEncoder.CollectColumns(columnSet.At(1))
+
+	e.descriptionEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Unit field.
 	if e.fieldCount <= 2 {
 		return // Unit and subsequent fields are skipped.
 	}
-	e.unitEncoder.CollectColumns(columnSet.At(2))
+
+	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Type field.
 	if e.fieldCount <= 3 {
 		return // Type and subsequent fields are skipped.
 	}
-	e.type_Encoder.CollectColumns(columnSet.At(3))
+
+	e.type_Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Metadata field.
 	if e.fieldCount <= 4 {
 		return // Metadata and subsequent fields are skipped.
 	}
-	e.metadataEncoder.CollectColumns(columnSet.At(4))
+	if !e.isMetadataRecursive {
+		e.metadataEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect HistogramBounds field.
 	if e.fieldCount <= 5 {
 		return // HistogramBounds and subsequent fields are skipped.
 	}
-	e.histogramBoundsEncoder.CollectColumns(columnSet.At(5))
+	if !e.isHistogramBoundsRecursive {
+		e.histogramBoundsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect AggregationTemporality field.
 	if e.fieldCount <= 6 {
 		return // AggregationTemporality and subsequent fields are skipped.
 	}
-	e.aggregationTemporalityEncoder.CollectColumns(columnSet.At(6))
+
+	e.aggregationTemporalityEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Monotonic field.
 	if e.fieldCount <= 7 {
 		return // Monotonic and subsequent fields are skipped.
 	}
-	e.monotonicEncoder.CollectColumns(columnSet.At(7))
+
+	e.monotonicEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // MetricDecoder implements decoding of Metric
@@ -775,14 +895,23 @@ type MetricDecoder struct {
 	lastVal    Metric
 	fieldCount uint
 
-	nameDecoder                   encoders.StringDecoder
-	descriptionDecoder            encoders.StringDecoder
-	unitDecoder                   encoders.StringDecoder
-	type_Decoder                  encoders.Uint64Decoder
-	metadataDecoder               AttributesDecoder
-	histogramBoundsDecoder        Float64ArrayDecoder
+	nameDecoder encoders.StringDecoder
+
+	descriptionDecoder encoders.StringDecoder
+
+	unitDecoder encoders.StringDecoder
+
+	type_Decoder encoders.Uint64Decoder
+
+	metadataDecoder     *AttributesDecoder
+	isMetadataRecursive bool
+
+	histogramBoundsDecoder     *Float64ArrayDecoder
+	isHistogramBoundsRecursive bool
+
 	aggregationTemporalityDecoder encoders.Uint64Decoder
-	monotonicDecoder              encoders.BoolDecoder
+
+	monotonicDecoder encoders.BoolDecoder
 
 	dict *MetricDecoderDict
 }
@@ -848,14 +977,28 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	if d.fieldCount <= 4 {
 		return nil // Metadata and subsequent fields are skipped.
 	}
-	err = d.metadataDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.metadataDecoder = state.AttributesDecoder
+		d.isMetadataRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.metadataDecoder = new(AttributesDecoder)
+		err = d.metadataDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 5 {
 		return nil // HistogramBounds and subsequent fields are skipped.
 	}
-	err = d.histogramBoundsDecoder.Init(state, columns.AddSubColumn())
+	if state.Float64ArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.histogramBoundsDecoder = state.Float64ArrayDecoder
+		d.isHistogramBoundsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.histogramBoundsDecoder = new(Float64ArrayDecoder)
+		err = d.histogramBoundsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -904,11 +1047,19 @@ func (d *MetricDecoder) Continue() {
 	if d.fieldCount <= 4 {
 		return // Metadata and subsequent fields are skipped.
 	}
-	d.metadataDecoder.Continue()
+
+	if !d.isMetadataRecursive {
+		d.metadataDecoder.Continue()
+	}
+
 	if d.fieldCount <= 5 {
 		return // HistogramBounds and subsequent fields are skipped.
 	}
-	d.histogramBoundsDecoder.Continue()
+
+	if !d.isHistogramBoundsRecursive {
+		d.histogramBoundsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 6 {
 		return // AggregationTemporality and subsequent fields are skipped.
 	}
@@ -924,8 +1075,15 @@ func (d *MetricDecoder) Reset() {
 	d.descriptionDecoder.Reset()
 	d.unitDecoder.Reset()
 	d.type_Decoder.Reset()
-	d.metadataDecoder.Reset()
-	d.histogramBoundsDecoder.Reset()
+
+	if !d.isMetadataRecursive {
+		d.metadataDecoder.Reset()
+	}
+
+	if !d.isHistogramBoundsRecursive {
+		d.histogramBoundsDecoder.Reset()
+	}
+
 	d.aggregationTemporalityDecoder.Reset()
 	d.monotonicDecoder.Reset()
 }

@@ -16,9 +16,12 @@ class ResourceDecoder {
     private int fieldCount;
 
     
-    private StringDecoder schemaURLDecoder = new StringDecoder();
-    private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
+    private StringDecoder schemaURLDecoder;
+    private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
+    private AttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Decoder droppedAttributesCountDecoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
     private ResourceDecoderDict dict;
     
@@ -46,14 +49,23 @@ class ResourceDecoder {
             if (this.fieldCount <= 0) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
+            schemaURLDecoder = new StringDecoder();
             schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.AttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new AttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 2) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountDecoder = new Uint64Decoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
         } finally {
             state.ResourceDecoder = null;
@@ -71,21 +83,27 @@ class ResourceDecoder {
         if (this.fieldCount <= 0) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.continueDecoding();
+        schemaURLDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 2) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.continueDecoding();
+        droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.schemaURLDecoder.reset();
-        this.attributesDecoder.reset();
-        this.droppedAttributesCountDecoder.reset();
+        schemaURLDecoder.reset();
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
+        droppedAttributesCountDecoder.reset();
     }
 
     public Resource decode(Resource dstPtr) throws IOException {
@@ -117,6 +135,9 @@ class ResourceDecoder {
         
         if ((val.modifiedFields.mask & Resource.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new Attributes(val.modifiedFields, Resource.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         

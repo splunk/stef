@@ -209,17 +209,21 @@ public class Point {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Point val) {
-        if (!Types.Uint64Equal(this.startTimestamp, val.startTimestamp)) {
+    public boolean equals(Point right) {
+        // Compare StartTimestamp field.
+        if (!Types.Uint64Equal(this.startTimestamp, right.startTimestamp)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.timestamp, val.timestamp)) {
+        // Compare Timestamp field.
+        if (!Types.Uint64Equal(this.timestamp, right.timestamp)) {
             return false;
         }
-        if (!this.value.equals(val.value)) {
+        // Compare Value field.
+        if (!this.value.equals(right.value)) {
             return false;
         }
-        if (!this.exemplars.equals(val.exemplars)) {
+        // Compare Exemplars field.
+        if (!this.exemplars.equals(right.exemplars)) {
             return false;
         }
         return true;
@@ -243,21 +247,25 @@ public class Point {
         }
         int c;
         
+        // Compare StartTimestamp field.
         c = Types.Uint64Compare(left.startTimestamp, right.startTimestamp);
         if (c != 0) {
             return c;
         }
         
+        // Compare Timestamp field.
         c = Types.Uint64Compare(left.timestamp, right.timestamp);
         if (c != 0) {
             return c;
         }
         
+        // Compare Value field.
         c = PointValue.compare(left.value, right.value);
         if (c != 0) {
             return c;
         }
         
+        // Compare Exemplars field.
         c = ExemplarArray.compare(left.exemplars, right.exemplars);
         if (c != 0) {
             return c;
@@ -268,7 +276,7 @@ public class Point {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 4;
+        final int fieldCount = Math.max(4,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setStartTimestamp(Types.Uint64Random(random));

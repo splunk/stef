@@ -20,9 +20,12 @@ class ResourceEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder schemaURLEncoder = new StringEncoder();
-    private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
+    private StringEncoder schemaURLEncoder;
+    private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
+    private AttributesEncoder attributesEncoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Encoder droppedAttributesCountEncoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
     private ResourceEncoderDict dict;
     
@@ -51,17 +54,29 @@ class ResourceEncoder {
             }
 
             
+            // Init encoder for SchemaURL field.
             if (this.fieldCount <= 0) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
+            schemaURLEncoder = new StringEncoder();
             this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
+            // Init encoder for Attributes field.
             if (this.fieldCount <= 1) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                attributesEncoder = state.AttributesEncoder;
+                isAttributesRecursive = true;
+            } else {
+                attributesEncoder = new AttributesEncoder();
+                attributesEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for DroppedAttributesCount field.
             if (this.fieldCount <= 2) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountEncoder = new Uint64Encoder();
             this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.ResourceEncoder = null;
@@ -70,11 +85,15 @@ class ResourceEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.schemaURLEncoder.reset();
-        this.attributesEncoder.reset();
-        this.droppedAttributesCountEncoder.reset();
+        schemaURLEncoder.reset();
+        
+        if (!isAttributesRecursive) {
+            attributesEncoder.reset();
+        }
+        
+        droppedAttributesCountEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -154,19 +173,33 @@ class ResourceEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect SchemaURL field.
         if (this.fieldCount <= 0) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLEncoder.collectColumns(columnSet.at(0));
+        
+        schemaURLEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Attributes field.
         if (this.fieldCount <= 1) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesEncoder.collectColumns(columnSet.at(1));
+        if (!isAttributesRecursive) {
+            attributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect DroppedAttributesCount field.
         if (this.fieldCount <= 2) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountEncoder.collectColumns(columnSet.at(2));
+        
+        droppedAttributesCountEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

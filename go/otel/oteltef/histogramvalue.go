@@ -343,7 +343,7 @@ func (s *HistogramValue) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *HistogramValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 5
+	const fieldCount = max(5, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetCount(pkg.Int64Random(random))
 	}
@@ -361,21 +361,50 @@ func (s *HistogramValue) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *HistogramValue) IsEqual(val *HistogramValue) bool {
-	if !pkg.Int64Equal(e.count, val.count) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
+	// Compare Count field.
+	if !pkg.Int64Equal(s.count, right.count) {
 		return false
 	}
-	if !pkg.Float64Equal(e.sum, val.sum) {
+	// Compare Sum field.
+	sSumPresent := s.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	rightSumPresent := right.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	if sSumPresent != rightSumPresent {
 		return false
 	}
-	if !pkg.Float64Equal(e.min, val.min) {
+	if sSumPresent { // Compare only if Sum field is present
+		if !pkg.Float64Equal(s.sum, right.sum) {
+			return false
+		}
+	}
+
+	// Compare Min field.
+	sMinPresent := s.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	rightMinPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	if sMinPresent != rightMinPresent {
 		return false
 	}
-	if !pkg.Float64Equal(e.max, val.max) {
+	if sMinPresent { // Compare only if Min field is present
+		if !pkg.Float64Equal(s.min, right.min) {
+			return false
+		}
+	}
+
+	// Compare Max field.
+	sMaxPresent := s.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	rightMaxPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	if sMaxPresent != rightMaxPresent {
 		return false
 	}
-	if !e.bucketCounts.IsEqual(&val.bucketCounts) {
+	if sMaxPresent { // Compare only if Max field is present
+		if !pkg.Float64Equal(s.max, right.max) {
+			return false
+		}
+	}
+
+	// Compare BucketCounts field.
+	if !s.bucketCounts.IsEqual(&right.bucketCounts) {
 		return false
 	}
 
@@ -399,18 +428,51 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 		return 1
 	}
 
+	// Compare Count field.
 	if c := pkg.Int64Compare(left.count, right.count); c != 0 {
 		return c
+	}
+
+	// Compare Sum field.
+	leftSumPresent := left.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	rightSumPresent := right.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	if leftSumPresent != rightSumPresent {
+		if leftSumPresent {
+			return 1
+		}
+		return -1
 	}
 	if c := pkg.Float64Compare(left.sum, right.sum); c != 0 {
 		return c
 	}
+
+	// Compare Min field.
+	leftMinPresent := left.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	rightMinPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	if leftMinPresent != rightMinPresent {
+		if leftMinPresent {
+			return 1
+		}
+		return -1
+	}
 	if c := pkg.Float64Compare(left.min, right.min); c != 0 {
 		return c
+	}
+
+	// Compare Max field.
+	leftMaxPresent := left.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	rightMaxPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	if leftMaxPresent != rightMaxPresent {
+		if leftMaxPresent {
+			return 1
+		}
+		return -1
 	}
 	if c := pkg.Float64Compare(left.max, right.max); c != 0 {
 		return c
 	}
+
+	// Compare BucketCounts field.
 	if c := CmpInt64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
 		return c
 	}
@@ -429,11 +491,16 @@ type HistogramValueEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	countEncoder        encoders.Int64Encoder
-	sumEncoder          encoders.Float64Encoder
-	minEncoder          encoders.Float64Encoder
-	maxEncoder          encoders.Float64Encoder
-	bucketCountsEncoder Int64ArrayEncoder
+	countEncoder encoders.Int64Encoder
+
+	sumEncoder encoders.Float64Encoder
+
+	minEncoder encoders.Float64Encoder
+
+	maxEncoder encoders.Float64Encoder
+
+	bucketCountsEncoder     *Int64ArrayEncoder
+	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -467,34 +534,62 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Count field.
 	if e.fieldCount <= 0 {
-		return nil // Count and subsequent fields are skipped.
+		// Count and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.countEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.countEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Sum field.
 	if e.fieldCount <= 1 {
-		return nil // Sum and subsequent fields are skipped.
+		// Sum and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.sumEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.sumEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Min field.
 	if e.fieldCount <= 2 {
-		return nil // Min and subsequent fields are skipped.
+		// Min and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.minEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.minEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Max field.
 	if e.fieldCount <= 3 {
-		return nil // Max and subsequent fields are skipped.
+		// Max and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.maxEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.maxEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for BucketCounts field.
 	if e.fieldCount <= 4 {
-		return nil // BucketCounts and subsequent fields are skipped.
+		// BucketCounts and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.bucketCountsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.Int64ArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.bucketCountsEncoder = state.Int64ArrayEncoder
+		e.isBucketCountsRecursive = true
+	} else {
+		e.bucketCountsEncoder = new(Int64ArrayEncoder)
+		err = e.bucketCountsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -509,7 +604,11 @@ func (e *HistogramValueEncoder) Reset() {
 	e.sumEncoder.Reset()
 	e.minEncoder.Reset()
 	e.maxEncoder.Reset()
-	e.bucketCountsEncoder.Reset()
+
+	if !e.isBucketCountsRecursive {
+		e.bucketCountsEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -582,27 +681,48 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *HistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Count field.
 	if e.fieldCount <= 0 {
 		return // Count and subsequent fields are skipped.
 	}
-	e.countEncoder.CollectColumns(columnSet.At(0))
+
+	e.countEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Sum field.
 	if e.fieldCount <= 1 {
 		return // Sum and subsequent fields are skipped.
 	}
-	e.sumEncoder.CollectColumns(columnSet.At(1))
+
+	e.sumEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Min field.
 	if e.fieldCount <= 2 {
 		return // Min and subsequent fields are skipped.
 	}
-	e.minEncoder.CollectColumns(columnSet.At(2))
+
+	e.minEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Max field.
 	if e.fieldCount <= 3 {
 		return // Max and subsequent fields are skipped.
 	}
-	e.maxEncoder.CollectColumns(columnSet.At(3))
+
+	e.maxEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect BucketCounts field.
 	if e.fieldCount <= 4 {
 		return // BucketCounts and subsequent fields are skipped.
 	}
-	e.bucketCountsEncoder.CollectColumns(columnSet.At(4))
+	if !e.isBucketCountsRecursive {
+		e.bucketCountsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // HistogramValueDecoder implements decoding of HistogramValue
@@ -613,11 +733,16 @@ type HistogramValueDecoder struct {
 	lastVal    HistogramValue
 	fieldCount uint
 
-	countDecoder        encoders.Int64Decoder
-	sumDecoder          encoders.Float64Decoder
-	minDecoder          encoders.Float64Decoder
-	maxDecoder          encoders.Float64Decoder
-	bucketCountsDecoder Int64ArrayDecoder
+	countDecoder encoders.Int64Decoder
+
+	sumDecoder encoders.Float64Decoder
+
+	minDecoder encoders.Float64Decoder
+
+	maxDecoder encoders.Float64Decoder
+
+	bucketCountsDecoder     *Int64ArrayDecoder
+	isBucketCountsRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -680,7 +805,14 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	if d.fieldCount <= 4 {
 		return nil // BucketCounts and subsequent fields are skipped.
 	}
-	err = d.bucketCountsDecoder.Init(state, columns.AddSubColumn())
+	if state.Int64ArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.bucketCountsDecoder = state.Int64ArrayDecoder
+		d.isBucketCountsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.bucketCountsDecoder = new(Int64ArrayDecoder)
+		err = d.bucketCountsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -715,7 +847,11 @@ func (d *HistogramValueDecoder) Continue() {
 	if d.fieldCount <= 4 {
 		return // BucketCounts and subsequent fields are skipped.
 	}
-	d.bucketCountsDecoder.Continue()
+
+	if !d.isBucketCountsRecursive {
+		d.bucketCountsDecoder.Continue()
+	}
+
 }
 
 func (d *HistogramValueDecoder) Reset() {
@@ -723,7 +859,11 @@ func (d *HistogramValueDecoder) Reset() {
 	d.sumDecoder.Reset()
 	d.minDecoder.Reset()
 	d.maxDecoder.Reset()
-	d.bucketCountsDecoder.Reset()
+
+	if !d.isBucketCountsRecursive {
+		d.bucketCountsDecoder.Reset()
+	}
+
 }
 
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {

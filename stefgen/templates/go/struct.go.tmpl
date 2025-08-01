@@ -71,11 +71,15 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     s.modifiedFields.parentBit = parentModifiedBit
 
     {{ range .Fields }}
+    {{- if not .Type.IsPrimitive }}
     {{- if .Type.Flags.StoreByPtr}}
+    {{- if not .Optional}}
     s.{{.name}} = &{{ .Type.Storage }}{}
-    {{- end }}
-	{{- if not .Type.IsPrimitive }}
     s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end}}
+    {{- else }}
+    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end }}
     {{- end -}}
     {{- end -}}
 }
@@ -177,8 +181,8 @@ func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified b
     return modified
 }
 
-func (s *{{ .StructName }}) Clone() {{if .DictName}}*{{end}}{{.StructName}} {
-	return {{if .DictName}}&{{end}}{{ .StructName }}{
+func (s *{{ .StructName }}) Clone() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
@@ -196,9 +200,19 @@ func (s *{{ .StructName }}) byteSize() uint {
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- range .Fields -}}
     {{- if .Type.MustClone}}
-    copy{{.Type.TypeName}}(
-        {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+    {{- if .Type.Flags.StoreByPtr}}
+    if src.{{.name}} != nil {
+        if dst.{{.name}} == nil {
+            dst.{{.name}} = &{{ .Type.Storage }}{}
+            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        }
+    {{- end}}
+        copy{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+    {{- if .Type.Flags.StoreByPtr}}
+    }
+    {{- end}}
     {{- else}}
 	{{- if .Optional}}
 	if src.Has{{.Name}}() {
@@ -234,11 +248,23 @@ func (s* {{.StructName}}) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
-    const fieldCount = {{len .Fields}}
+    const fieldCount = max({{len .Fields}},2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 {{- range .Fields }}
     if random.IntN(fieldCount)==0 {
     {{- if not .Type.IsPrimitive }}
+        {{- if .Optional}}
+        // Flip the optional field presence bit.
+        s.optionalFieldsPresent ^= fieldPresent{{ $.StructName }}{{.Name}}
+        if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
+            if s.{{.name}} == nil {
+                s.{{.name}} = &{{ .Type.Storage }}{}
+                s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            }
+            s.{{.name}}.mutateRandom(random)
+        }
+        {{- else}}
         s.{{.name}}.mutateRandom(random)
+        {{- end}}
     {{- else }}
         s.Set{{.Name}}({{.Type.RandomFunc}})
     {{- end}}
@@ -246,18 +272,30 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
 {{- end }}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *{{ .StructName }}) IsEqual(right *{{ .StructName }}) bool {
     {{- range .Fields }}
+    // Compare {{.Name}} field.
+    {{- if .Optional}}
+    s{{.Name}}Present := s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+    right{{.Name}}Present := right.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+    if s{{.Name}}Present != right{{.Name}}Present{
+        return false
+    }
+    if s{{.Name}}Present { // Compare only if {{.Name}} field is present
+    {{- end}}
     {{- if .Type.IsPrimitive }}
-    if !{{ .Type.EqualFunc }}(e.{{.name}}, val.{{.name}}) {
+    if !{{ .Type.EqualFunc }}(s.{{.name}}, right.{{.name}}) {
         return false
     }
     {{- else }}
-    if !e.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}}) {
+    if !s.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}right.{{.name}}) {
         return false
     }
     {{- end }}
+    {{- if .Optional}}
+    }
+    {{end}}
     {{- end }}
 
     return true
@@ -280,12 +318,23 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
         return 1
     }
     {{ range .Fields }}
+    // Compare {{.Name}} field.
+    {{- if .Optional}}
+    left{{.Name}}Present := left.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+    right{{.Name}}Present := right.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
+    if left{{.Name}}Present != right{{.Name}}Present{
+        if left{{.Name}}Present {
+            return 1
+        }
+        return -1
+    }
+    {{- end}}
     if c := {{ .Type.CompareFunc }}(
             {{- if .Type.Flags.TakePtr}}&{{end}}left.{{.name}},
             {{- if .Type.Flags.TakePtr}}&{{end}}right.{{.name}}); c != 0 {
         return c
-    }{{ end }}
-
+    }
+    {{ end }}
     return 0
 }
 
@@ -301,7 +350,9 @@ type {{ .StructName }}Encoder struct {
     forceModifiedFields bool
 
     {{ range .Fields }}
-    {{.name}}Encoder {{ .Type.EncoderType }}Encoder
+    {{.name}}Encoder {{if not .IsPrimitive}}*{{end}}{{ .Type.EncoderType }}Encoder
+    {{if not .IsPrimitive}}is{{.Name}}Recursive bool // Indicates {{.Name}} field's type is recursive.
+    {{end}}
     {{- end }}
     {{if .DictName}}
 	dict *{{ .StructName }}EncoderDict{{end}}
@@ -365,27 +416,33 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
         e.keepFieldMask = ^uint64(0)
     }
 
+    var err error
     {{ range $i, $e := .Fields }}
+    // Init encoder for {{.Name}} field.
     if e.fieldCount <= {{$i}} {
-        return nil // {{.Name}} and subsequent fields are skipped.
+        // {{.Name}} and all subsequent fields are skipped.
+        return nil
     }
     {{- if .IsPrimitive}}
         {{- if .Type.DictName}}
-        if err := e.{{.name}}Encoder.Init(&state.{{.Type.DictName}}, e.limiter, columns.AddSubColumn()); err != nil {
-            return err
-        }
+        err = e.{{.name}}Encoder.Init(&state.{{.Type.DictName}}, e.limiter, columns.AddSubColumn())
         {{- else}}
-        if err := e.{{.name}}Encoder.Init({{if .Type.IsDictPossible}}nil, {{end}}e.limiter, columns.AddSubColumn()); err != nil {
-            return err
-        }
+        err = e.{{.name}}Encoder.Init({{if .Type.IsDictPossible}}nil, {{end}}e.limiter, columns.AddSubColumn())
         {{- end}}
     {{- else}}
-    if err := e.{{.name}}Encoder.Init(state, columns.AddSubColumn()); err != nil {
-        return err
+    if state.{{.Type.EncoderType}}Encoder != nil {
+        // Recursion detected, use the existing encoder.
+        e.{{.name}}Encoder = state.{{.Type.EncoderType}}Encoder
+        e.is{{.Name}}Recursive = true
+    } else {
+        e.{{.name}}Encoder = new({{.Type.EncoderType}}Encoder)
+        err = e.{{.name}}Encoder.Init(state, columns.AddSubColumn())
     }
     {{- end}}
-    {{- end}}
-
+    if err != nil {
+        return err
+    }
+    {{end}}
     return nil
 }
 
@@ -395,7 +452,11 @@ func (e *{{ .StructName }}Encoder) Reset() {
     e.forceModifiedFields = true
 
     {{- range .Fields}}
-    e.{{.name}}Encoder.Reset()
+    {{if not .IsPrimitive}}
+    if !e.is{{.Name}}Recursive {
+        e.{{.name}}Encoder.Reset()
+    }
+    {{else}}e.{{.name}}Encoder.Reset(){{end}}
     {{- end}}
 }
 
@@ -480,12 +541,22 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
     columnSet.SetBits(&e.buf)
-	{{ range $i,$e := .Fields }}
+    colIdx := 0
+    {{ range $i,$e := .Fields }}
+    // Collect {{.Name}} field.
     if e.fieldCount <= {{$i}} {
         return // {{.Name}} and subsequent fields are skipped.
     }
-	e.{{.name}}Encoder.CollectColumns(columnSet.At({{$i}}))
-    {{- end }}
+    {{if not .IsPrimitive -}}
+    if !e.is{{.Name}}Recursive {
+        e.{{.name}}Encoder.CollectColumns(columnSet.At(colIdx))
+        colIdx++
+    }
+    {{else}}
+    e.{{.name}}Encoder.CollectColumns(columnSet.At(colIdx))
+    colIdx++
+    {{end -}}
+    {{end -}}
 }
 
 // {{ .StructName }}Decoder implements decoding of {{ .StructName }}
@@ -497,7 +568,9 @@ type {{ .StructName }}Decoder struct {
     fieldCount uint
 
     {{ range .Fields }}
-    {{.name}}Decoder {{ .Type.EncoderType }}Decoder
+    {{.name}}Decoder {{if not .IsPrimitive}}*{{end}}{{ .Type.EncoderType }}Decoder
+    {{if not .IsPrimitive}}is{{.Name}}Recursive bool
+    {{end}}
     {{- end }}
     {{if .DictName}}
     dict *{{ .StructName }}DecoderDict
@@ -553,11 +626,18 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
             err = d.{{.name}}Decoder.Init(columns.AddSubColumn())
         {{- end}}
     {{- else}}
+    if state.{{.Type.EncoderType}}Decoder != nil {
+        // Recursion detected, use the existing decoder.
+        d.{{.name}}Decoder = state.{{.Type.EncoderType}}Decoder
+        d.is{{.Name}}Recursive = true // Mark that we are using a recursive decoder.
+    } else {
+        d.{{.name}}Decoder = new({{.Type.EncoderType}}Decoder)
         err = d.{{.name}}Decoder.Init(state, columns.AddSubColumn())
+    }
     {{- end}}
-        if err != nil {
-            return err
-        }
+    if err != nil {
+        return err
+    }
     {{- end }}
 
     return nil
@@ -575,13 +655,21 @@ func (d *{{ .StructName }}Decoder) Continue() {
     if d.fieldCount <= {{$i}} {
         return // {{.Name}} and subsequent fields are skipped.
     }
-    d.{{.name}}Decoder.Continue()
+    {{if not .IsPrimitive}}
+    if !d.is{{.Name}}Recursive {
+        d.{{.name}}Decoder.Continue()
+    }
+    {{else}}d.{{.name}}Decoder.Continue(){{end}}
     {{- end }}
 }
 
 func (d *{{ .StructName }}Decoder) Reset() {
     {{- range .Fields}}
-    d.{{.name}}Decoder.Reset()
+    {{if not .IsPrimitive}}
+    if !d.is{{.Name}}Recursive {
+        d.{{.name}}Decoder.Reset()
+    }
+    {{else}}d.{{.name}}Decoder.Reset(){{end}}
     {{- end}}
 }
 
@@ -625,6 +713,12 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
     {{- end}} {
 		// Field is changed and is present, decode it.
+        {{- if .Type.Flags.StoreByPtr}}
+        if val.{{.name}} == nil {
+            val.{{.name}} = &{{ .Type.Storage }}{}
+            val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        }
+        {{end}}
  		err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})
         if err != nil {
             return err

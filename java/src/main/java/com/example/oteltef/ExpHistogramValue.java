@@ -452,32 +452,65 @@ public class ExpHistogramValue {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(ExpHistogramValue val) {
-        if (!Types.Uint64Equal(this.count, val.count)) {
+    public boolean equals(ExpHistogramValue right) {
+        // Compare Count field.
+        if (!Types.Uint64Equal(this.count, right.count)) {
             return false;
         }
-        if (!Types.Float64Equal(this.sum, val.sum)) {
+        // Compare Sum field.
+        boolean thisSumPresent = (this.optionalFieldsPresent & fieldPresentSum) != 0;
+        boolean rightSumPresent = (right.optionalFieldsPresent & fieldPresentSum) != 0;
+        if (thisSumPresent != rightSumPresent) {
             return false;
         }
-        if (!Types.Float64Equal(this.min, val.min)) {
+        if (thisSumPresent) { // Compare only if Sum field is present
+        if (!Types.Float64Equal(this.sum, right.sum)) {
             return false;
         }
-        if (!Types.Float64Equal(this.max, val.max)) {
+        }
+        
+        // Compare Min field.
+        boolean thisMinPresent = (this.optionalFieldsPresent & fieldPresentMin) != 0;
+        boolean rightMinPresent = (right.optionalFieldsPresent & fieldPresentMin) != 0;
+        if (thisMinPresent != rightMinPresent) {
             return false;
         }
-        if (!Types.Int64Equal(this.scale, val.scale)) {
+        if (thisMinPresent) { // Compare only if Min field is present
+        if (!Types.Float64Equal(this.min, right.min)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.zeroCount, val.zeroCount)) {
+        }
+        
+        // Compare Max field.
+        boolean thisMaxPresent = (this.optionalFieldsPresent & fieldPresentMax) != 0;
+        boolean rightMaxPresent = (right.optionalFieldsPresent & fieldPresentMax) != 0;
+        if (thisMaxPresent != rightMaxPresent) {
             return false;
         }
-        if (!this.positiveBuckets.equals(val.positiveBuckets)) {
+        if (thisMaxPresent) { // Compare only if Max field is present
+        if (!Types.Float64Equal(this.max, right.max)) {
             return false;
         }
-        if (!this.negativeBuckets.equals(val.negativeBuckets)) {
+        }
+        
+        // Compare Scale field.
+        if (!Types.Int64Equal(this.scale, right.scale)) {
             return false;
         }
-        if (!Types.Float64Equal(this.zeroThreshold, val.zeroThreshold)) {
+        // Compare ZeroCount field.
+        if (!Types.Uint64Equal(this.zeroCount, right.zeroCount)) {
+            return false;
+        }
+        // Compare PositiveBuckets field.
+        if (!this.positiveBuckets.equals(right.positiveBuckets)) {
+            return false;
+        }
+        // Compare NegativeBuckets field.
+        if (!this.negativeBuckets.equals(right.negativeBuckets)) {
+            return false;
+        }
+        // Compare ZeroThreshold field.
+        if (!Types.Float64Equal(this.zeroThreshold, right.zeroThreshold)) {
             return false;
         }
         return true;
@@ -501,46 +534,79 @@ public class ExpHistogramValue {
         }
         int c;
         
+        // Compare Count field.
         c = Types.Uint64Compare(left.count, right.count);
         if (c != 0) {
             return c;
         }
         
+        // Compare Sum field.
+        boolean leftSumPresent = (left.optionalFieldsPresent & fieldPresentSum) != 0;
+        boolean rightSumPresent = (right.optionalFieldsPresent & fieldPresentSum) != 0;
+        if (leftSumPresent != rightSumPresent) {
+            if (leftSumPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.sum, right.sum);
         if (c != 0) {
             return c;
         }
         
+        // Compare Min field.
+        boolean leftMinPresent = (left.optionalFieldsPresent & fieldPresentMin) != 0;
+        boolean rightMinPresent = (right.optionalFieldsPresent & fieldPresentMin) != 0;
+        if (leftMinPresent != rightMinPresent) {
+            if (leftMinPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.min, right.min);
         if (c != 0) {
             return c;
         }
         
+        // Compare Max field.
+        boolean leftMaxPresent = (left.optionalFieldsPresent & fieldPresentMax) != 0;
+        boolean rightMaxPresent = (right.optionalFieldsPresent & fieldPresentMax) != 0;
+        if (leftMaxPresent != rightMaxPresent) {
+            if (leftMaxPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.max, right.max);
         if (c != 0) {
             return c;
         }
         
+        // Compare Scale field.
         c = Types.Int64Compare(left.scale, right.scale);
         if (c != 0) {
             return c;
         }
         
+        // Compare ZeroCount field.
         c = Types.Uint64Compare(left.zeroCount, right.zeroCount);
         if (c != 0) {
             return c;
         }
         
+        // Compare PositiveBuckets field.
         c = ExpHistogramBuckets.compare(left.positiveBuckets, right.positiveBuckets);
         if (c != 0) {
             return c;
         }
         
+        // Compare NegativeBuckets field.
         c = ExpHistogramBuckets.compare(left.negativeBuckets, right.negativeBuckets);
         if (c != 0) {
             return c;
         }
         
+        // Compare ZeroThreshold field.
         c = Types.Float64Compare(left.zeroThreshold, right.zeroThreshold);
         if (c != 0) {
             return c;
@@ -551,7 +617,7 @@ public class ExpHistogramValue {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 9;
+        final int fieldCount = Math.max(9,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setCount(Types.Uint64Random(random));

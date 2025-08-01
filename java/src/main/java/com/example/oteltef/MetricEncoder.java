@@ -20,14 +20,22 @@ class MetricEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder nameEncoder = new StringEncoder();
-    private StringEncoder descriptionEncoder = new StringEncoder();
-    private StringEncoder unitEncoder = new StringEncoder();
-    private Uint64Encoder type_Encoder = new Uint64Encoder();
-    private AttributesEncoder metadataEncoder = new AttributesEncoder();
-    private Float64ArrayEncoder histogramBoundsEncoder = new Float64ArrayEncoder();
-    private Uint64Encoder aggregationTemporalityEncoder = new Uint64Encoder();
-    private BoolEncoder monotonicEncoder = new BoolEncoder();
+    private StringEncoder nameEncoder;
+    private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
+    private StringEncoder descriptionEncoder;
+    private boolean isDescriptionRecursive = false; // Indicates Description field's type is recursive.
+    private StringEncoder unitEncoder;
+    private boolean isUnitRecursive = false; // Indicates Unit field's type is recursive.
+    private Uint64Encoder type_Encoder;
+    private boolean isTypeRecursive = false; // Indicates Type field's type is recursive.
+    private AttributesEncoder metadataEncoder;
+    private boolean isMetadataRecursive = false; // Indicates Metadata field's type is recursive.
+    private Float64ArrayEncoder histogramBoundsEncoder;
+    private boolean isHistogramBoundsRecursive = false; // Indicates HistogramBounds field's type is recursive.
+    private Uint64Encoder aggregationTemporalityEncoder;
+    private boolean isAggregationTemporalityRecursive = false; // Indicates AggregationTemporality field's type is recursive.
+    private BoolEncoder monotonicEncoder;
+    private boolean isMonotonicRecursive = false; // Indicates Monotonic field's type is recursive.
     
     private MetricEncoderDict dict;
     
@@ -56,37 +64,65 @@ class MetricEncoder {
             }
 
             
+            // Init encoder for Name field.
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
+            nameEncoder = new StringEncoder();
             this.nameEncoder.init(state.MetricName, this.limiter, columns.addSubColumn());
+            // Init encoder for Description field.
             if (this.fieldCount <= 1) {
                 return; // Description and subsequent fields are skipped.
             }
+            descriptionEncoder = new StringEncoder();
             this.descriptionEncoder.init(state.MetricDescription, this.limiter, columns.addSubColumn());
+            // Init encoder for Unit field.
             if (this.fieldCount <= 2) {
                 return; // Unit and subsequent fields are skipped.
             }
+            unitEncoder = new StringEncoder();
             this.unitEncoder.init(state.MetricUnit, this.limiter, columns.addSubColumn());
+            // Init encoder for Type field.
             if (this.fieldCount <= 3) {
                 return; // Type and subsequent fields are skipped.
             }
+            type_Encoder = new Uint64Encoder();
             this.type_Encoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Metadata field.
             if (this.fieldCount <= 4) {
                 return; // Metadata and subsequent fields are skipped.
             }
-            this.metadataEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                metadataEncoder = state.AttributesEncoder;
+                isMetadataRecursive = true;
+            } else {
+                metadataEncoder = new AttributesEncoder();
+                metadataEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for HistogramBounds field.
             if (this.fieldCount <= 5) {
                 return; // HistogramBounds and subsequent fields are skipped.
             }
-            this.histogramBoundsEncoder.init(state, columns.addSubColumn());
+            if (state.Float64ArrayEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                histogramBoundsEncoder = state.Float64ArrayEncoder;
+                isHistogramBoundsRecursive = true;
+            } else {
+                histogramBoundsEncoder = new Float64ArrayEncoder();
+                histogramBoundsEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for AggregationTemporality field.
             if (this.fieldCount <= 6) {
                 return; // AggregationTemporality and subsequent fields are skipped.
             }
+            aggregationTemporalityEncoder = new Uint64Encoder();
             this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Monotonic field.
             if (this.fieldCount <= 7) {
                 return; // Monotonic and subsequent fields are skipped.
             }
+            monotonicEncoder = new BoolEncoder();
             this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.MetricEncoder = null;
@@ -95,16 +131,24 @@ class MetricEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.nameEncoder.reset();
-        this.descriptionEncoder.reset();
-        this.unitEncoder.reset();
-        this.type_Encoder.reset();
-        this.metadataEncoder.reset();
-        this.histogramBoundsEncoder.reset();
-        this.aggregationTemporalityEncoder.reset();
-        this.monotonicEncoder.reset();
+        nameEncoder.reset();
+        descriptionEncoder.reset();
+        unitEncoder.reset();
+        type_Encoder.reset();
+        
+        if (!isMetadataRecursive) {
+            metadataEncoder.reset();
+        }
+        
+        
+        if (!isHistogramBoundsRecursive) {
+            histogramBoundsEncoder.reset();
+        }
+        
+        aggregationTemporalityEncoder.reset();
+        monotonicEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -214,39 +258,74 @@ class MetricEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Name field.
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameEncoder.collectColumns(columnSet.at(0));
+        
+        nameEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Description field.
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-        this.descriptionEncoder.collectColumns(columnSet.at(1));
+        
+        descriptionEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Unit field.
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-        this.unitEncoder.collectColumns(columnSet.at(2));
+        
+        unitEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Type field.
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-        this.type_Encoder.collectColumns(columnSet.at(3));
+        
+        type_Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Metadata field.
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
-        this.metadataEncoder.collectColumns(columnSet.at(4));
+        if (!isMetadataRecursive) {
+            metadataEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect HistogramBounds field.
         if (this.fieldCount <= 5) {
             return; // HistogramBounds and subsequent fields are skipped.
         }
-        this.histogramBoundsEncoder.collectColumns(columnSet.at(5));
+        if (!isHistogramBoundsRecursive) {
+            histogramBoundsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect AggregationTemporality field.
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-        this.aggregationTemporalityEncoder.collectColumns(columnSet.at(6));
+        
+        aggregationTemporalityEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Monotonic field.
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-        this.monotonicEncoder.collectColumns(columnSet.at(7));
+        
+        monotonicEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

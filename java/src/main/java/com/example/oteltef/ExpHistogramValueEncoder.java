@@ -20,15 +20,24 @@ class ExpHistogramValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder countEncoder = new Uint64Encoder();
-    private Float64Encoder sumEncoder = new Float64Encoder();
-    private Float64Encoder minEncoder = new Float64Encoder();
-    private Float64Encoder maxEncoder = new Float64Encoder();
-    private Int64Encoder scaleEncoder = new Int64Encoder();
-    private Uint64Encoder zeroCountEncoder = new Uint64Encoder();
-    private ExpHistogramBucketsEncoder positiveBucketsEncoder = new ExpHistogramBucketsEncoder();
-    private ExpHistogramBucketsEncoder negativeBucketsEncoder = new ExpHistogramBucketsEncoder();
-    private Float64Encoder zeroThresholdEncoder = new Float64Encoder();
+    private Uint64Encoder countEncoder;
+    private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
+    private Float64Encoder sumEncoder;
+    private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
+    private Float64Encoder minEncoder;
+    private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
+    private Float64Encoder maxEncoder;
+    private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
+    private Int64Encoder scaleEncoder;
+    private boolean isScaleRecursive = false; // Indicates Scale field's type is recursive.
+    private Uint64Encoder zeroCountEncoder;
+    private boolean isZeroCountRecursive = false; // Indicates ZeroCount field's type is recursive.
+    private ExpHistogramBucketsEncoder positiveBucketsEncoder;
+    private boolean isPositiveBucketsRecursive = false; // Indicates PositiveBuckets field's type is recursive.
+    private ExpHistogramBucketsEncoder negativeBucketsEncoder;
+    private boolean isNegativeBucketsRecursive = false; // Indicates NegativeBuckets field's type is recursive.
+    private Float64Encoder zeroThresholdEncoder;
+    private boolean isZeroThresholdRecursive = false; // Indicates ZeroThreshold field's type is recursive.
     
 
     private long keepFieldMask;
@@ -54,41 +63,71 @@ class ExpHistogramValueEncoder {
             }
 
             
+            // Init encoder for Count field.
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
+            countEncoder = new Uint64Encoder();
             this.countEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
+            sumEncoder = new Float64Encoder();
             this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Min field.
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
+            minEncoder = new Float64Encoder();
             this.minEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Max field.
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
+            maxEncoder = new Float64Encoder();
             this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Scale field.
             if (this.fieldCount <= 4) {
                 return; // Scale and subsequent fields are skipped.
             }
+            scaleEncoder = new Int64Encoder();
             this.scaleEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for ZeroCount field.
             if (this.fieldCount <= 5) {
                 return; // ZeroCount and subsequent fields are skipped.
             }
+            zeroCountEncoder = new Uint64Encoder();
             this.zeroCountEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for PositiveBuckets field.
             if (this.fieldCount <= 6) {
                 return; // PositiveBuckets and subsequent fields are skipped.
             }
-            this.positiveBucketsEncoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramBucketsEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                positiveBucketsEncoder = state.ExpHistogramBucketsEncoder;
+                isPositiveBucketsRecursive = true;
+            } else {
+                positiveBucketsEncoder = new ExpHistogramBucketsEncoder();
+                positiveBucketsEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for NegativeBuckets field.
             if (this.fieldCount <= 7) {
                 return; // NegativeBuckets and subsequent fields are skipped.
             }
-            this.negativeBucketsEncoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramBucketsEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                negativeBucketsEncoder = state.ExpHistogramBucketsEncoder;
+                isNegativeBucketsRecursive = true;
+            } else {
+                negativeBucketsEncoder = new ExpHistogramBucketsEncoder();
+                negativeBucketsEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for ZeroThreshold field.
             if (this.fieldCount <= 8) {
                 return; // ZeroThreshold and subsequent fields are skipped.
             }
+            zeroThresholdEncoder = new Float64Encoder();
             this.zeroThresholdEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.ExpHistogramValueEncoder = null;
@@ -97,17 +136,25 @@ class ExpHistogramValueEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.countEncoder.reset();
-        this.sumEncoder.reset();
-        this.minEncoder.reset();
-        this.maxEncoder.reset();
-        this.scaleEncoder.reset();
-        this.zeroCountEncoder.reset();
-        this.positiveBucketsEncoder.reset();
-        this.negativeBucketsEncoder.reset();
-        this.zeroThresholdEncoder.reset();
+        countEncoder.reset();
+        sumEncoder.reset();
+        minEncoder.reset();
+        maxEncoder.reset();
+        scaleEncoder.reset();
+        zeroCountEncoder.reset();
+        
+        if (!isPositiveBucketsRecursive) {
+            positiveBucketsEncoder.reset();
+        }
+        
+        
+        if (!isNegativeBucketsRecursive) {
+            negativeBucketsEncoder.reset();
+        }
+        
+        zeroThresholdEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -200,43 +247,82 @@ class ExpHistogramValueEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Count field.
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countEncoder.collectColumns(columnSet.at(0));
+        
+        countEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Sum field.
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumEncoder.collectColumns(columnSet.at(1));
+        
+        sumEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Min field.
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minEncoder.collectColumns(columnSet.at(2));
+        
+        minEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Max field.
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxEncoder.collectColumns(columnSet.at(3));
+        
+        maxEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Scale field.
         if (this.fieldCount <= 4) {
             return; // Scale and subsequent fields are skipped.
         }
-        this.scaleEncoder.collectColumns(columnSet.at(4));
+        
+        scaleEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect ZeroCount field.
         if (this.fieldCount <= 5) {
             return; // ZeroCount and subsequent fields are skipped.
         }
-        this.zeroCountEncoder.collectColumns(columnSet.at(5));
+        
+        zeroCountEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect PositiveBuckets field.
         if (this.fieldCount <= 6) {
             return; // PositiveBuckets and subsequent fields are skipped.
         }
-        this.positiveBucketsEncoder.collectColumns(columnSet.at(6));
+        if (!isPositiveBucketsRecursive) {
+            positiveBucketsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect NegativeBuckets field.
         if (this.fieldCount <= 7) {
             return; // NegativeBuckets and subsequent fields are skipped.
         }
-        this.negativeBucketsEncoder.collectColumns(columnSet.at(7));
+        if (!isNegativeBucketsRecursive) {
+            negativeBucketsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect ZeroThreshold field.
         if (this.fieldCount <= 8) {
             return; // ZeroThreshold and subsequent fields are skipped.
         }
-        this.zeroThresholdEncoder.collectColumns(columnSet.at(8));
+        
+        zeroThresholdEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

@@ -244,7 +244,7 @@ func (s *Function) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Function) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
@@ -259,18 +259,22 @@ func (s *Function) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Function) IsEqual(val *Function) bool {
-	if !pkg.StringEqual(e.name, val.name) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Function) IsEqual(right *Function) bool {
+	// Compare Name field.
+	if !pkg.StringEqual(s.name, right.name) {
 		return false
 	}
-	if !pkg.StringEqual(e.systemName, val.systemName) {
+	// Compare SystemName field.
+	if !pkg.StringEqual(s.systemName, right.systemName) {
 		return false
 	}
-	if !pkg.StringEqual(e.filename, val.filename) {
+	// Compare Filename field.
+	if !pkg.StringEqual(s.filename, right.filename) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.startLine, val.startLine) {
+	// Compare StartLine field.
+	if !pkg.Uint64Equal(s.startLine, right.startLine) {
 		return false
 	}
 
@@ -294,15 +298,22 @@ func CmpFunction(left, right *Function) int {
 		return 1
 	}
 
+	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
+
+	// Compare SystemName field.
 	if c := strings.Compare(left.systemName, right.systemName); c != 0 {
 		return c
 	}
+
+	// Compare Filename field.
 	if c := strings.Compare(left.filename, right.filename); c != 0 {
 		return c
 	}
+
+	// Compare StartLine field.
 	if c := pkg.Uint64Compare(left.startLine, right.startLine); c != 0 {
 		return c
 	}
@@ -321,10 +332,13 @@ type FunctionEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder       encoders.StringEncoder
+	nameEncoder encoders.StringEncoder
+
 	systemNameEncoder encoders.StringEncoder
-	filenameEncoder   encoders.StringEncoder
-	startLineEncoder  encoders.Uint64Encoder
+
+	filenameEncoder encoders.StringEncoder
+
+	startLineEncoder encoders.Uint64Encoder
 
 	dict *FunctionEncoderDict
 
@@ -383,28 +397,45 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		return nil // Name and subsequent fields are skipped.
+		// Name and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.nameEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.nameEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for SystemName field.
 	if e.fieldCount <= 1 {
-		return nil // SystemName and subsequent fields are skipped.
+		// SystemName and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.systemNameEncoder.Init(&state.SystemName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.systemNameEncoder.Init(&state.SystemName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Filename field.
 	if e.fieldCount <= 2 {
-		return nil // Filename and subsequent fields are skipped.
+		// Filename and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for StartLine field.
 	if e.fieldCount <= 3 {
-		return nil // StartLine and subsequent fields are skipped.
+		// StartLine and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.startLineEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.startLineEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -506,23 +537,39 @@ func (e *FunctionEncoder) Encode(val *Function) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *FunctionEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-	e.nameEncoder.CollectColumns(columnSet.At(0))
+
+	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect SystemName field.
 	if e.fieldCount <= 1 {
 		return // SystemName and subsequent fields are skipped.
 	}
-	e.systemNameEncoder.CollectColumns(columnSet.At(1))
+
+	e.systemNameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Filename field.
 	if e.fieldCount <= 2 {
 		return // Filename and subsequent fields are skipped.
 	}
-	e.filenameEncoder.CollectColumns(columnSet.At(2))
+
+	e.filenameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect StartLine field.
 	if e.fieldCount <= 3 {
 		return // StartLine and subsequent fields are skipped.
 	}
-	e.startLineEncoder.CollectColumns(columnSet.At(3))
+
+	e.startLineEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // FunctionDecoder implements decoding of Function
@@ -533,10 +580,13 @@ type FunctionDecoder struct {
 	lastVal    Function
 	fieldCount uint
 
-	nameDecoder       encoders.StringDecoder
+	nameDecoder encoders.StringDecoder
+
 	systemNameDecoder encoders.StringDecoder
-	filenameDecoder   encoders.StringDecoder
-	startLineDecoder  encoders.Uint64Decoder
+
+	filenameDecoder encoders.StringDecoder
+
+	startLineDecoder encoders.Uint64Decoder
 
 	dict *FunctionDecoderDict
 }

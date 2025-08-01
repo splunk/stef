@@ -228,7 +228,7 @@ func (s *Point) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Point) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetStartTimestamp(pkg.Uint64Random(random))
 	}
@@ -243,18 +243,22 @@ func (s *Point) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Point) IsEqual(val *Point) bool {
-	if !pkg.Uint64Equal(e.startTimestamp, val.startTimestamp) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Point) IsEqual(right *Point) bool {
+	// Compare StartTimestamp field.
+	if !pkg.Uint64Equal(s.startTimestamp, right.startTimestamp) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.timestamp, val.timestamp) {
+	// Compare Timestamp field.
+	if !pkg.Uint64Equal(s.timestamp, right.timestamp) {
 		return false
 	}
-	if !e.value.IsEqual(&val.value) {
+	// Compare Value field.
+	if !s.value.IsEqual(&right.value) {
 		return false
 	}
-	if !e.exemplars.IsEqual(&val.exemplars) {
+	// Compare Exemplars field.
+	if !s.exemplars.IsEqual(&right.exemplars) {
 		return false
 	}
 
@@ -278,15 +282,22 @@ func CmpPoint(left, right *Point) int {
 		return 1
 	}
 
+	// Compare StartTimestamp field.
 	if c := pkg.Uint64Compare(left.startTimestamp, right.startTimestamp); c != 0 {
 		return c
 	}
+
+	// Compare Timestamp field.
 	if c := pkg.Uint64Compare(left.timestamp, right.timestamp); c != 0 {
 		return c
 	}
+
+	// Compare Value field.
 	if c := CmpPointValue(&left.value, &right.value); c != 0 {
 		return c
 	}
+
+	// Compare Exemplars field.
 	if c := CmpExemplarArray(&left.exemplars, &right.exemplars); c != 0 {
 		return c
 	}
@@ -306,9 +317,14 @@ type PointEncoder struct {
 	forceModifiedFields bool
 
 	startTimestampEncoder encoders.Uint64Encoder
-	timestampEncoder      encoders.Uint64Encoder
-	valueEncoder          PointValueEncoder
-	exemplarsEncoder      ExemplarArrayEncoder
+
+	timestampEncoder encoders.Uint64Encoder
+
+	valueEncoder     *PointValueEncoder
+	isValueRecursive bool // Indicates Value field's type is recursive.
+
+	exemplarsEncoder     *ExemplarArrayEncoder
+	isExemplarsRecursive bool // Indicates Exemplars field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -342,28 +358,59 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for StartTimestamp field.
 	if e.fieldCount <= 0 {
-		return nil // StartTimestamp and subsequent fields are skipped.
+		// StartTimestamp and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.startTimestampEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.startTimestampEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Timestamp field.
 	if e.fieldCount <= 1 {
-		return nil // Timestamp and subsequent fields are skipped.
+		// Timestamp and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.timestampEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.timestampEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Value field.
 	if e.fieldCount <= 2 {
-		return nil // Value and subsequent fields are skipped.
+		// Value and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valueEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.PointValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.valueEncoder = state.PointValueEncoder
+		e.isValueRecursive = true
+	} else {
+		e.valueEncoder = new(PointValueEncoder)
+		err = e.valueEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Exemplars field.
 	if e.fieldCount <= 3 {
-		return nil // Exemplars and subsequent fields are skipped.
+		// Exemplars and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.exemplarsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ExemplarArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.exemplarsEncoder = state.ExemplarArrayEncoder
+		e.isExemplarsRecursive = true
+	} else {
+		e.exemplarsEncoder = new(ExemplarArrayEncoder)
+		err = e.exemplarsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -376,8 +423,15 @@ func (e *PointEncoder) Reset() {
 	e.forceModifiedFields = true
 	e.startTimestampEncoder.Reset()
 	e.timestampEncoder.Reset()
-	e.valueEncoder.Reset()
-	e.exemplarsEncoder.Reset()
+
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
+
+	if !e.isExemplarsRecursive {
+		e.exemplarsEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -437,23 +491,41 @@ func (e *PointEncoder) Encode(val *Point) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect StartTimestamp field.
 	if e.fieldCount <= 0 {
 		return // StartTimestamp and subsequent fields are skipped.
 	}
-	e.startTimestampEncoder.CollectColumns(columnSet.At(0))
+
+	e.startTimestampEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Timestamp field.
 	if e.fieldCount <= 1 {
 		return // Timestamp and subsequent fields are skipped.
 	}
-	e.timestampEncoder.CollectColumns(columnSet.At(1))
+
+	e.timestampEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Value field.
 	if e.fieldCount <= 2 {
 		return // Value and subsequent fields are skipped.
 	}
-	e.valueEncoder.CollectColumns(columnSet.At(2))
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Exemplars field.
 	if e.fieldCount <= 3 {
 		return // Exemplars and subsequent fields are skipped.
 	}
-	e.exemplarsEncoder.CollectColumns(columnSet.At(3))
+	if !e.isExemplarsRecursive {
+		e.exemplarsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // PointDecoder implements decoding of Point
@@ -465,9 +537,14 @@ type PointDecoder struct {
 	fieldCount uint
 
 	startTimestampDecoder encoders.Uint64Decoder
-	timestampDecoder      encoders.Uint64Decoder
-	valueDecoder          PointValueDecoder
-	exemplarsDecoder      ExemplarArrayDecoder
+
+	timestampDecoder encoders.Uint64Decoder
+
+	valueDecoder     *PointValueDecoder
+	isValueRecursive bool
+
+	exemplarsDecoder     *ExemplarArrayDecoder
+	isExemplarsRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -516,14 +593,28 @@ func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if d.fieldCount <= 2 {
 		return nil // Value and subsequent fields are skipped.
 	}
-	err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	if state.PointValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valueDecoder = state.PointValueDecoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valueDecoder = new(PointValueDecoder)
+		err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // Exemplars and subsequent fields are skipped.
 	}
-	err = d.exemplarsDecoder.Init(state, columns.AddSubColumn())
+	if state.ExemplarArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.exemplarsDecoder = state.ExemplarArrayDecoder
+		d.isExemplarsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.exemplarsDecoder = new(ExemplarArrayDecoder)
+		err = d.exemplarsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -550,18 +641,33 @@ func (d *PointDecoder) Continue() {
 	if d.fieldCount <= 2 {
 		return // Value and subsequent fields are skipped.
 	}
-	d.valueDecoder.Continue()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // Exemplars and subsequent fields are skipped.
 	}
-	d.exemplarsDecoder.Continue()
+
+	if !d.isExemplarsRecursive {
+		d.exemplarsDecoder.Continue()
+	}
+
 }
 
 func (d *PointDecoder) Reset() {
 	d.startTimestampDecoder.Reset()
 	d.timestampDecoder.Reset()
-	d.valueDecoder.Reset()
-	d.exemplarsDecoder.Reset()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
+
+	if !d.isExemplarsRecursive {
+		d.exemplarsDecoder.Reset()
+	}
+
 }
 
 func (d *PointDecoder) Decode(dstPtr *Point) error {

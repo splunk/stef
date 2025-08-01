@@ -235,7 +235,7 @@ func (s *Event) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Event) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
@@ -250,18 +250,22 @@ func (s *Event) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Event) IsEqual(val *Event) bool {
-	if !pkg.StringEqual(e.name, val.name) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Event) IsEqual(right *Event) bool {
+	// Compare Name field.
+	if !pkg.StringEqual(s.name, right.name) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.timeUnixNano, val.timeUnixNano) {
+	// Compare TimeUnixNano field.
+	if !pkg.Uint64Equal(s.timeUnixNano, right.timeUnixNano) {
 		return false
 	}
-	if !e.attributes.IsEqual(&val.attributes) {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
+	// Compare DroppedAttributesCount field.
+	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
 		return false
 	}
 
@@ -285,15 +289,22 @@ func CmpEvent(left, right *Event) int {
 		return 1
 	}
 
+	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
+
+	// Compare TimeUnixNano field.
 	if c := pkg.Uint64Compare(left.timeUnixNano, right.timeUnixNano); c != 0 {
 		return c
 	}
+
+	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+
+	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
@@ -312,9 +323,13 @@ type EventEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder                   encoders.StringEncoder
-	timeUnixNanoEncoder           encoders.Uint64Encoder
-	attributesEncoder             AttributesEncoder
+	nameEncoder encoders.StringEncoder
+
+	timeUnixNanoEncoder encoders.Uint64Encoder
+
+	attributesEncoder     *AttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
+
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
@@ -349,28 +364,52 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		return nil // Name and subsequent fields are skipped.
+		// Name and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.nameEncoder.Init(&state.SpanEventName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.nameEncoder.Init(&state.SpanEventName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for TimeUnixNano field.
 	if e.fieldCount <= 1 {
-		return nil // TimeUnixNano and subsequent fields are skipped.
+		// TimeUnixNano and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.timeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.timeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 2 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.AttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(AttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 3 {
-		return nil // DroppedAttributesCount and subsequent fields are skipped.
+		// DroppedAttributesCount and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -383,7 +422,11 @@ func (e *EventEncoder) Reset() {
 	e.forceModifiedFields = true
 	e.nameEncoder.Reset()
 	e.timeUnixNanoEncoder.Reset()
-	e.attributesEncoder.Reset()
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
 	e.droppedAttributesCountEncoder.Reset()
 }
 
@@ -444,23 +487,40 @@ func (e *EventEncoder) Encode(val *Event) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-	e.nameEncoder.CollectColumns(columnSet.At(0))
+
+	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect TimeUnixNano field.
 	if e.fieldCount <= 1 {
 		return // TimeUnixNano and subsequent fields are skipped.
 	}
-	e.timeUnixNanoEncoder.CollectColumns(columnSet.At(1))
+
+	e.timeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Attributes field.
 	if e.fieldCount <= 2 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(2))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 3 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(3))
+
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // EventDecoder implements decoding of Event
@@ -471,9 +531,13 @@ type EventDecoder struct {
 	lastVal    Event
 	fieldCount uint
 
-	nameDecoder                   encoders.StringDecoder
-	timeUnixNanoDecoder           encoders.Uint64Decoder
-	attributesDecoder             AttributesDecoder
+	nameDecoder encoders.StringDecoder
+
+	timeUnixNanoDecoder encoders.Uint64Decoder
+
+	attributesDecoder     *AttributesDecoder
+	isAttributesRecursive bool
+
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 }
 
@@ -523,7 +587,14 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if d.fieldCount <= 2 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.AttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(AttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -557,7 +628,11 @@ func (d *EventDecoder) Continue() {
 	if d.fieldCount <= 2 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
@@ -567,7 +642,11 @@ func (d *EventDecoder) Continue() {
 func (d *EventDecoder) Reset() {
 	d.nameDecoder.Reset()
 	d.timeUnixNanoDecoder.Reset()
-	d.attributesDecoder.Reset()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
 	d.droppedAttributesCountDecoder.Reset()
 }
 

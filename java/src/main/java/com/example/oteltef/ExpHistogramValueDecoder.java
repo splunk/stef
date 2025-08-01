@@ -16,15 +16,24 @@ class ExpHistogramValueDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder countDecoder = new Uint64Decoder();
-    private Float64Decoder sumDecoder = new Float64Decoder();
-    private Float64Decoder minDecoder = new Float64Decoder();
-    private Float64Decoder maxDecoder = new Float64Decoder();
-    private Int64Decoder scaleDecoder = new Int64Decoder();
-    private Uint64Decoder zeroCountDecoder = new Uint64Decoder();
-    private ExpHistogramBucketsDecoder positiveBucketsDecoder = new ExpHistogramBucketsDecoder();
-    private ExpHistogramBucketsDecoder negativeBucketsDecoder = new ExpHistogramBucketsDecoder();
-    private Float64Decoder zeroThresholdDecoder = new Float64Decoder();
+    private Uint64Decoder countDecoder;
+    private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
+    private Float64Decoder sumDecoder;
+    private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
+    private Float64Decoder minDecoder;
+    private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
+    private Float64Decoder maxDecoder;
+    private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
+    private Int64Decoder scaleDecoder;
+    private boolean isScaleRecursive = false; // Indicates Scale field's type is recursive.
+    private Uint64Decoder zeroCountDecoder;
+    private boolean isZeroCountRecursive = false; // Indicates ZeroCount field's type is recursive.
+    private ExpHistogramBucketsDecoder positiveBucketsDecoder;
+    private boolean isPositiveBucketsRecursive = false; // Indicates PositiveBuckets field's type is recursive.
+    private ExpHistogramBucketsDecoder negativeBucketsDecoder;
+    private boolean isNegativeBucketsRecursive = false; // Indicates NegativeBuckets field's type is recursive.
+    private Float64Decoder zeroThresholdDecoder;
+    private boolean isZeroThresholdRecursive = false; // Indicates ZeroThreshold field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -49,38 +58,59 @@ class ExpHistogramValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
+            countDecoder = new Uint64Decoder();
             countDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
+            sumDecoder = new Float64Decoder();
             sumDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
+            minDecoder = new Float64Decoder();
             minDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
+            maxDecoder = new Float64Decoder();
             maxDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Scale and subsequent fields are skipped.
             }
+            scaleDecoder = new Int64Decoder();
             scaleDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 5) {
                 return; // ZeroCount and subsequent fields are skipped.
             }
+            zeroCountDecoder = new Uint64Decoder();
             zeroCountDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 6) {
                 return; // PositiveBuckets and subsequent fields are skipped.
             }
-            positiveBucketsDecoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramBucketsDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                positiveBucketsDecoder = state.ExpHistogramBucketsDecoder;
+                isPositiveBucketsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                positiveBucketsDecoder = new ExpHistogramBucketsDecoder();
+                positiveBucketsDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 7) {
                 return; // NegativeBuckets and subsequent fields are skipped.
             }
-            negativeBucketsDecoder.init(state, columns.addSubColumn());
+            if (state.ExpHistogramBucketsDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                negativeBucketsDecoder = state.ExpHistogramBucketsDecoder;
+                isNegativeBucketsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                negativeBucketsDecoder = new ExpHistogramBucketsDecoder();
+                negativeBucketsDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 8) {
                 return; // ZeroThreshold and subsequent fields are skipped.
             }
+            zeroThresholdDecoder = new Float64Decoder();
             zeroThresholdDecoder.init(columns.addSubColumn());
         } finally {
             state.ExpHistogramValueDecoder = null;
@@ -98,51 +128,63 @@ class ExpHistogramValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countDecoder.continueDecoding();
+        countDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumDecoder.continueDecoding();
+        sumDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minDecoder.continueDecoding();
+        minDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxDecoder.continueDecoding();
+        maxDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Scale and subsequent fields are skipped.
         }
-        this.scaleDecoder.continueDecoding();
+        scaleDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // ZeroCount and subsequent fields are skipped.
         }
-        this.zeroCountDecoder.continueDecoding();
+        zeroCountDecoder.continueDecoding();
         if (this.fieldCount <= 6) {
             return; // PositiveBuckets and subsequent fields are skipped.
         }
-        this.positiveBucketsDecoder.continueDecoding();
+        
+        if (!isPositiveBucketsRecursive) {
+            positiveBucketsDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 7) {
             return; // NegativeBuckets and subsequent fields are skipped.
         }
-        this.negativeBucketsDecoder.continueDecoding();
+        
+        if (!isNegativeBucketsRecursive) {
+            negativeBucketsDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 8) {
             return; // ZeroThreshold and subsequent fields are skipped.
         }
-        this.zeroThresholdDecoder.continueDecoding();
+        zeroThresholdDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.countDecoder.reset();
-        this.sumDecoder.reset();
-        this.minDecoder.reset();
-        this.maxDecoder.reset();
-        this.scaleDecoder.reset();
-        this.zeroCountDecoder.reset();
-        this.positiveBucketsDecoder.reset();
-        this.negativeBucketsDecoder.reset();
-        this.zeroThresholdDecoder.reset();
+        countDecoder.reset();
+        sumDecoder.reset();
+        minDecoder.reset();
+        maxDecoder.reset();
+        scaleDecoder.reset();
+        zeroCountDecoder.reset();
+        if (!isPositiveBucketsRecursive) {
+            positiveBucketsDecoder.reset();
+        }
+        if (!isNegativeBucketsRecursive) {
+            negativeBucketsDecoder.reset();
+        }
+        zeroThresholdDecoder.reset();
     }
 
     public ExpHistogramValue decode(ExpHistogramValue dstPtr) throws IOException {
@@ -185,11 +227,17 @@ class ExpHistogramValueDecoder {
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedPositiveBuckets) != 0) {
             // Field is changed and is present, decode it.
+            if (val.positiveBuckets == null) {
+                val.positiveBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedPositiveBuckets);
+            }
             val.positiveBuckets = positiveBucketsDecoder.decode(val.positiveBuckets);
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedNegativeBuckets) != 0) {
             // Field is changed and is present, decode it.
+            if (val.negativeBuckets == null) {
+                val.negativeBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedNegativeBuckets);
+            }
             val.negativeBuckets = negativeBucketsDecoder.decode(val.negativeBuckets);
         }
         

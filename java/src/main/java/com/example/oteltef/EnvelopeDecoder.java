@@ -16,7 +16,8 @@ class EnvelopeDecoder {
     private int fieldCount;
 
     
-    private EnvelopeAttributesDecoder attributesDecoder = new EnvelopeAttributesDecoder();
+    private EnvelopeAttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -41,7 +42,14 @@ class EnvelopeDecoder {
             if (this.fieldCount <= 0) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeAttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.EnvelopeAttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new EnvelopeAttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.EnvelopeDecoder = null;
         }
@@ -58,11 +66,17 @@ class EnvelopeDecoder {
         if (this.fieldCount <= 0) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.attributesDecoder.reset();
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
     }
 
     public Envelope decode(Envelope dstPtr) throws IOException {
@@ -73,6 +87,9 @@ class EnvelopeDecoder {
         
         if ((val.modifiedFields.mask & Envelope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new EnvelopeAttributes(val.modifiedFields, Envelope.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         

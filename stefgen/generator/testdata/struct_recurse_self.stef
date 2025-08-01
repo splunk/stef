@@ -1,0 +1,9 @@
+package com.example.gentest.struct_recurse_self
+
+struct Root root {
+  RStruct RStruct
+}
+
+struct RStruct {
+  RStruct RStruct optional
+}

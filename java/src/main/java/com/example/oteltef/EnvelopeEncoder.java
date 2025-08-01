@@ -20,7 +20,8 @@ class EnvelopeEncoder {
     private boolean forceModifiedFields;
 
     
-    private EnvelopeAttributesEncoder attributesEncoder = new EnvelopeAttributesEncoder();
+    private EnvelopeAttributesEncoder attributesEncoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
     
 
     private long keepFieldMask;
@@ -46,10 +47,18 @@ class EnvelopeEncoder {
             }
 
             
+            // Init encoder for Attributes field.
             if (this.fieldCount <= 0) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeAttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                attributesEncoder = state.EnvelopeAttributesEncoder;
+                isAttributesRecursive = true;
+            } else {
+                attributesEncoder = new EnvelopeAttributesEncoder();
+                attributesEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.EnvelopeEncoder = null;
         }
@@ -57,9 +66,13 @@ class EnvelopeEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.attributesEncoder.reset();
+        
+        if (!isAttributesRecursive) {
+            attributesEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -102,11 +115,17 @@ class EnvelopeEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Attributes field.
         if (this.fieldCount <= 0) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesEncoder.collectColumns(columnSet.at(0));
+        if (!isAttributesRecursive) {
+            attributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

@@ -250,20 +250,25 @@ public class Scope {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Scope val) {
-        if (!Types.StringEqual(this.name, val.name)) {
+    public boolean equals(Scope right) {
+        // Compare Name field.
+        if (!Types.StringEqual(this.name, right.name)) {
             return false;
         }
-        if (!Types.StringEqual(this.version, val.version)) {
+        // Compare Version field.
+        if (!Types.StringEqual(this.version, right.version)) {
             return false;
         }
-        if (!Types.StringEqual(this.schemaURL, val.schemaURL)) {
+        // Compare SchemaURL field.
+        if (!Types.StringEqual(this.schemaURL, right.schemaURL)) {
             return false;
         }
-        if (!this.attributes.equals(val.attributes)) {
+        // Compare Attributes field.
+        if (!this.attributes.equals(right.attributes)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.droppedAttributesCount, val.droppedAttributesCount)) {
+        // Compare DroppedAttributesCount field.
+        if (!Types.Uint64Equal(this.droppedAttributesCount, right.droppedAttributesCount)) {
             return false;
         }
         return true;
@@ -287,26 +292,31 @@ public class Scope {
         }
         int c;
         
+        // Compare Name field.
         c = Types.StringCompare(left.name, right.name);
         if (c != 0) {
             return c;
         }
         
+        // Compare Version field.
         c = Types.StringCompare(left.version, right.version);
         if (c != 0) {
             return c;
         }
         
+        // Compare SchemaURL field.
         c = Types.StringCompare(left.schemaURL, right.schemaURL);
         if (c != 0) {
             return c;
         }
         
+        // Compare Attributes field.
         c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }
         
+        // Compare DroppedAttributesCount field.
         c = Types.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount);
         if (c != 0) {
             return c;
@@ -317,7 +327,7 @@ public class Scope {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 5;
+        final int fieldCount = Math.max(5,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setName(Types.StringRandom(random));

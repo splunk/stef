@@ -142,11 +142,13 @@ public class ExpHistogramBuckets {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(ExpHistogramBuckets val) {
-        if (!Types.Int64Equal(this.offset, val.offset)) {
+    public boolean equals(ExpHistogramBuckets right) {
+        // Compare Offset field.
+        if (!Types.Int64Equal(this.offset, right.offset)) {
             return false;
         }
-        if (!this.bucketCounts.equals(val.bucketCounts)) {
+        // Compare BucketCounts field.
+        if (!this.bucketCounts.equals(right.bucketCounts)) {
             return false;
         }
         return true;
@@ -170,11 +172,13 @@ public class ExpHistogramBuckets {
         }
         int c;
         
+        // Compare Offset field.
         c = Types.Int64Compare(left.offset, right.offset);
         if (c != 0) {
             return c;
         }
         
+        // Compare BucketCounts field.
         c = Uint64Array.compare(left.bucketCounts, right.bucketCounts);
         if (c != 0) {
             return c;
@@ -185,7 +189,7 @@ public class ExpHistogramBuckets {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 2;
+        final int fieldCount = Math.max(2,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setOffset(Types.Int64Random(random));

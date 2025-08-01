@@ -20,8 +20,10 @@ class SpanStatusEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder messageEncoder = new StringEncoder();
-    private Uint64Encoder codeEncoder = new Uint64Encoder();
+    private StringEncoder messageEncoder;
+    private boolean isMessageRecursive = false; // Indicates Message field's type is recursive.
+    private Uint64Encoder codeEncoder;
+    private boolean isCodeRecursive = false; // Indicates Code field's type is recursive.
     
 
     private long keepFieldMask;
@@ -47,13 +49,17 @@ class SpanStatusEncoder {
             }
 
             
+            // Init encoder for Message field.
             if (this.fieldCount <= 0) {
                 return; // Message and subsequent fields are skipped.
             }
+            messageEncoder = new StringEncoder();
             this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for Code field.
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
+            codeEncoder = new Uint64Encoder();
             this.codeEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.SpanStatusEncoder = null;
@@ -62,10 +68,10 @@ class SpanStatusEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.messageEncoder.reset();
-        this.codeEncoder.reset();
+        messageEncoder.reset();
+        codeEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -114,15 +120,24 @@ class SpanStatusEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Message field.
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-        this.messageEncoder.collectColumns(columnSet.at(0));
+        
+        messageEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Code field.
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-        this.codeEncoder.collectColumns(columnSet.at(1));
+        
+        codeEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

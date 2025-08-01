@@ -168,7 +168,7 @@ func (s *SpanStatus) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *SpanStatus) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetMessage(pkg.StringRandom(random))
 	}
@@ -177,12 +177,14 @@ func (s *SpanStatus) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *SpanStatus) IsEqual(val *SpanStatus) bool {
-	if !pkg.StringEqual(e.message, val.message) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *SpanStatus) IsEqual(right *SpanStatus) bool {
+	// Compare Message field.
+	if !pkg.StringEqual(s.message, right.message) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.code, val.code) {
+	// Compare Code field.
+	if !pkg.Uint64Equal(s.code, right.code) {
 		return false
 	}
 
@@ -206,9 +208,12 @@ func CmpSpanStatus(left, right *SpanStatus) int {
 		return 1
 	}
 
+	// Compare Message field.
 	if c := strings.Compare(left.message, right.message); c != 0 {
 		return c
 	}
+
+	// Compare Code field.
 	if c := pkg.Uint64Compare(left.code, right.code); c != 0 {
 		return c
 	}
@@ -228,7 +233,8 @@ type SpanStatusEncoder struct {
 	forceModifiedFields bool
 
 	messageEncoder encoders.StringEncoder
-	codeEncoder    encoders.Uint64Encoder
+
+	codeEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -262,16 +268,25 @@ func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Message field.
 	if e.fieldCount <= 0 {
-		return nil // Message and subsequent fields are skipped.
+		// Message and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.messageEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.messageEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Code field.
 	if e.fieldCount <= 1 {
-		return nil // Code and subsequent fields are skipped.
+		// Code and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.codeEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.codeEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -331,15 +346,23 @@ func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SpanStatusEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Message field.
 	if e.fieldCount <= 0 {
 		return // Message and subsequent fields are skipped.
 	}
-	e.messageEncoder.CollectColumns(columnSet.At(0))
+
+	e.messageEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Code field.
 	if e.fieldCount <= 1 {
 		return // Code and subsequent fields are skipped.
 	}
-	e.codeEncoder.CollectColumns(columnSet.At(1))
+
+	e.codeEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // SpanStatusDecoder implements decoding of SpanStatus
@@ -351,7 +374,8 @@ type SpanStatusDecoder struct {
 	fieldCount uint
 
 	messageDecoder encoders.StringDecoder
-	codeDecoder    encoders.Uint64Decoder
+
+	codeDecoder encoders.Uint64Decoder
 }
 
 // Init is called once in the lifetime of the stream.

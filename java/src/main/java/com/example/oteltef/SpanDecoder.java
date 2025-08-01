@@ -16,20 +16,34 @@ class SpanDecoder {
     private int fieldCount;
 
     
-    private BytesDecoder traceIDDecoder = new BytesDecoder();
-    private BytesDecoder spanIDDecoder = new BytesDecoder();
-    private StringDecoder traceStateDecoder = new StringDecoder();
-    private BytesDecoder parentSpanIDDecoder = new BytesDecoder();
-    private Uint64Decoder flagsDecoder = new Uint64Decoder();
-    private StringDecoder nameDecoder = new StringDecoder();
-    private Uint64Decoder kindDecoder = new Uint64Decoder();
-    private Uint64Decoder startTimeUnixNanoDecoder = new Uint64Decoder();
-    private Uint64Decoder endTimeUnixNanoDecoder = new Uint64Decoder();
-    private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
-    private EventArrayDecoder eventsDecoder = new EventArrayDecoder();
-    private LinkArrayDecoder linksDecoder = new LinkArrayDecoder();
-    private SpanStatusDecoder statusDecoder = new SpanStatusDecoder();
+    private BytesDecoder traceIDDecoder;
+    private boolean isTraceIDRecursive = false; // Indicates TraceID field's type is recursive.
+    private BytesDecoder spanIDDecoder;
+    private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
+    private StringDecoder traceStateDecoder;
+    private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
+    private BytesDecoder parentSpanIDDecoder;
+    private boolean isParentSpanIDRecursive = false; // Indicates ParentSpanID field's type is recursive.
+    private Uint64Decoder flagsDecoder;
+    private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
+    private StringDecoder nameDecoder;
+    private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
+    private Uint64Decoder kindDecoder;
+    private boolean isKindRecursive = false; // Indicates Kind field's type is recursive.
+    private Uint64Decoder startTimeUnixNanoDecoder;
+    private boolean isStartTimeUnixNanoRecursive = false; // Indicates StartTimeUnixNano field's type is recursive.
+    private Uint64Decoder endTimeUnixNanoDecoder;
+    private boolean isEndTimeUnixNanoRecursive = false; // Indicates EndTimeUnixNano field's type is recursive.
+    private AttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Decoder droppedAttributesCountDecoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
+    private EventArrayDecoder eventsDecoder;
+    private boolean isEventsRecursive = false; // Indicates Events field's type is recursive.
+    private LinkArrayDecoder linksDecoder;
+    private boolean isLinksRecursive = false; // Indicates Links field's type is recursive.
+    private SpanStatusDecoder statusDecoder;
+    private boolean isStatusRecursive = false; // Indicates Status field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -54,59 +68,97 @@ class SpanDecoder {
             if (this.fieldCount <= 0) {
                 return; // TraceID and subsequent fields are skipped.
             }
+            traceIDDecoder = new BytesDecoder();
             traceIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
+            spanIDDecoder = new BytesDecoder();
             spanIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
+            traceStateDecoder = new StringDecoder();
             traceStateDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // ParentSpanID and subsequent fields are skipped.
             }
+            parentSpanIDDecoder = new BytesDecoder();
             parentSpanIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
+            flagsDecoder = new Uint64Decoder();
             flagsDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 5) {
                 return; // Name and subsequent fields are skipped.
             }
+            nameDecoder = new StringDecoder();
             nameDecoder.init(state.SpanName, columns.addSubColumn());
             if (this.fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
             }
+            kindDecoder = new Uint64Decoder();
             kindDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 7) {
                 return; // StartTimeUnixNano and subsequent fields are skipped.
             }
+            startTimeUnixNanoDecoder = new Uint64Decoder();
             startTimeUnixNanoDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 8) {
                 return; // EndTimeUnixNano and subsequent fields are skipped.
             }
+            endTimeUnixNanoDecoder = new Uint64Decoder();
             endTimeUnixNanoDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 9) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.AttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new AttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 10) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountDecoder = new Uint64Decoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 11) {
                 return; // Events and subsequent fields are skipped.
             }
-            eventsDecoder.init(state, columns.addSubColumn());
+            if (state.EventArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                eventsDecoder = state.EventArrayDecoder;
+                isEventsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                eventsDecoder = new EventArrayDecoder();
+                eventsDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 12) {
                 return; // Links and subsequent fields are skipped.
             }
-            linksDecoder.init(state, columns.addSubColumn());
+            if (state.LinkArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                linksDecoder = state.LinkArrayDecoder;
+                isLinksRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                linksDecoder = new LinkArrayDecoder();
+                linksDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 13) {
                 return; // Status and subsequent fields are skipped.
             }
-            statusDecoder.init(state, columns.addSubColumn());
+            if (state.SpanStatusDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                statusDecoder = state.SpanStatusDecoder;
+                isStatusRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                statusDecoder = new SpanStatusDecoder();
+                statusDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.SpanDecoder = null;
         }
@@ -123,76 +175,100 @@ class SpanDecoder {
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.continueDecoding();
+        traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.continueDecoding();
+        spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.continueDecoding();
+        traceStateDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // ParentSpanID and subsequent fields are skipped.
         }
-        this.parentSpanIDDecoder.continueDecoding();
+        parentSpanIDDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.continueDecoding();
+        flagsDecoder.continueDecoding();
         if (this.fieldCount <= 5) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.continueDecoding();
+        nameDecoder.continueDecoding();
         if (this.fieldCount <= 6) {
             return; // Kind and subsequent fields are skipped.
         }
-        this.kindDecoder.continueDecoding();
+        kindDecoder.continueDecoding();
         if (this.fieldCount <= 7) {
             return; // StartTimeUnixNano and subsequent fields are skipped.
         }
-        this.startTimeUnixNanoDecoder.continueDecoding();
+        startTimeUnixNanoDecoder.continueDecoding();
         if (this.fieldCount <= 8) {
             return; // EndTimeUnixNano and subsequent fields are skipped.
         }
-        this.endTimeUnixNanoDecoder.continueDecoding();
+        endTimeUnixNanoDecoder.continueDecoding();
         if (this.fieldCount <= 9) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 10) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.continueDecoding();
+        droppedAttributesCountDecoder.continueDecoding();
         if (this.fieldCount <= 11) {
             return; // Events and subsequent fields are skipped.
         }
-        this.eventsDecoder.continueDecoding();
+        
+        if (!isEventsRecursive) {
+            eventsDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 12) {
             return; // Links and subsequent fields are skipped.
         }
-        this.linksDecoder.continueDecoding();
+        
+        if (!isLinksRecursive) {
+            linksDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 13) {
             return; // Status and subsequent fields are skipped.
         }
-        this.statusDecoder.continueDecoding();
+        
+        if (!isStatusRecursive) {
+            statusDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.traceIDDecoder.reset();
-        this.spanIDDecoder.reset();
-        this.traceStateDecoder.reset();
-        this.parentSpanIDDecoder.reset();
-        this.flagsDecoder.reset();
-        this.nameDecoder.reset();
-        this.kindDecoder.reset();
-        this.startTimeUnixNanoDecoder.reset();
-        this.endTimeUnixNanoDecoder.reset();
-        this.attributesDecoder.reset();
-        this.droppedAttributesCountDecoder.reset();
-        this.eventsDecoder.reset();
-        this.linksDecoder.reset();
-        this.statusDecoder.reset();
+        traceIDDecoder.reset();
+        spanIDDecoder.reset();
+        traceStateDecoder.reset();
+        parentSpanIDDecoder.reset();
+        flagsDecoder.reset();
+        nameDecoder.reset();
+        kindDecoder.reset();
+        startTimeUnixNanoDecoder.reset();
+        endTimeUnixNanoDecoder.reset();
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
+        droppedAttributesCountDecoder.reset();
+        if (!isEventsRecursive) {
+            eventsDecoder.reset();
+        }
+        if (!isLinksRecursive) {
+            linksDecoder.reset();
+        }
+        if (!isStatusRecursive) {
+            statusDecoder.reset();
+        }
     }
 
     public Span decode(Span dstPtr) throws IOException {
@@ -248,6 +324,9 @@ class SpanDecoder {
         
         if ((val.modifiedFields.mask & Span.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new Attributes(val.modifiedFields, Span.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
@@ -258,16 +337,25 @@ class SpanDecoder {
         
         if ((val.modifiedFields.mask & Span.fieldModifiedEvents) != 0) {
             // Field is changed and is present, decode it.
+            if (val.events == null) {
+                val.events = new EventArray(val.modifiedFields, Span.fieldModifiedEvents);
+            }
             val.events = eventsDecoder.decode(val.events);
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedLinks) != 0) {
             // Field is changed and is present, decode it.
+            if (val.links == null) {
+                val.links = new LinkArray(val.modifiedFields, Span.fieldModifiedLinks);
+            }
             val.links = linksDecoder.decode(val.links);
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedStatus) != 0) {
             // Field is changed and is present, decode it.
+            if (val.status == null) {
+                val.status = new SpanStatus(val.modifiedFields, Span.fieldModifiedStatus);
+            }
             val.status = statusDecoder.decode(val.status);
         }
         

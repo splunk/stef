@@ -191,8 +191,20 @@ func (s *Spans) byteSize() uint {
 
 func copySpans(dst *Spans, src *Spans) {
 	copyEnvelope(&dst.envelope, &src.envelope)
-	copyResource(dst.resource, src.resource)
-	copyScope(dst.scope, src.scope)
+	if src.resource != nil {
+		if dst.resource == nil {
+			dst.resource = &Resource{}
+			dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+		}
+		copyResource(dst.resource, src.resource)
+	}
+	if src.scope != nil {
+		if dst.scope == nil {
+			dst.scope = &Scope{}
+			dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+		}
+		copyScope(dst.scope, src.scope)
+	}
 	copySpan(&dst.span, &src.span)
 }
 
@@ -216,7 +228,7 @@ func (s *Spans) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Spans) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.envelope.mutateRandom(random)
 	}
@@ -231,18 +243,22 @@ func (s *Spans) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Spans) IsEqual(val *Spans) bool {
-	if !e.envelope.IsEqual(&val.envelope) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Spans) IsEqual(right *Spans) bool {
+	// Compare Envelope field.
+	if !s.envelope.IsEqual(&right.envelope) {
 		return false
 	}
-	if !e.resource.IsEqual(val.resource) {
+	// Compare Resource field.
+	if !s.resource.IsEqual(right.resource) {
 		return false
 	}
-	if !e.scope.IsEqual(val.scope) {
+	// Compare Scope field.
+	if !s.scope.IsEqual(right.scope) {
 		return false
 	}
-	if !e.span.IsEqual(&val.span) {
+	// Compare Span field.
+	if !s.span.IsEqual(&right.span) {
 		return false
 	}
 
@@ -266,15 +282,22 @@ func CmpSpans(left, right *Spans) int {
 		return 1
 	}
 
+	// Compare Envelope field.
 	if c := CmpEnvelope(&left.envelope, &right.envelope); c != 0 {
 		return c
 	}
+
+	// Compare Resource field.
 	if c := CmpResource(left.resource, right.resource); c != 0 {
 		return c
 	}
+
+	// Compare Scope field.
 	if c := CmpScope(left.scope, right.scope); c != 0 {
 		return c
 	}
+
+	// Compare Span field.
 	if c := CmpSpan(&left.span, &right.span); c != 0 {
 		return c
 	}
@@ -293,10 +316,17 @@ type SpansEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	envelopeEncoder EnvelopeEncoder
-	resourceEncoder ResourceEncoder
-	scopeEncoder    ScopeEncoder
-	spanEncoder     SpanEncoder
+	envelopeEncoder     *EnvelopeEncoder
+	isEnvelopeRecursive bool // Indicates Envelope field's type is recursive.
+
+	resourceEncoder     *ResourceEncoder
+	isResourceRecursive bool // Indicates Resource field's type is recursive.
+
+	scopeEncoder     *ScopeEncoder
+	isScopeRecursive bool // Indicates Scope field's type is recursive.
+
+	spanEncoder     *SpanEncoder
+	isSpanRecursive bool // Indicates Span field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -330,28 +360,73 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Envelope field.
 	if e.fieldCount <= 0 {
-		return nil // Envelope and subsequent fields are skipped.
+		// Envelope and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.envelopeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.EnvelopeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.envelopeEncoder = state.EnvelopeEncoder
+		e.isEnvelopeRecursive = true
+	} else {
+		e.envelopeEncoder = new(EnvelopeEncoder)
+		err = e.envelopeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Resource field.
 	if e.fieldCount <= 1 {
-		return nil // Resource and subsequent fields are skipped.
+		// Resource and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.resourceEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ResourceEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.resourceEncoder = state.ResourceEncoder
+		e.isResourceRecursive = true
+	} else {
+		e.resourceEncoder = new(ResourceEncoder)
+		err = e.resourceEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Scope field.
 	if e.fieldCount <= 2 {
-		return nil // Scope and subsequent fields are skipped.
+		// Scope and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.scopeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ScopeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.scopeEncoder = state.ScopeEncoder
+		e.isScopeRecursive = true
+	} else {
+		e.scopeEncoder = new(ScopeEncoder)
+		err = e.scopeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Span field.
 	if e.fieldCount <= 3 {
-		return nil // Span and subsequent fields are skipped.
+		// Span and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.spanEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SpanEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.spanEncoder = state.SpanEncoder
+		e.isSpanRecursive = true
+	} else {
+		e.spanEncoder = new(SpanEncoder)
+		err = e.spanEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -362,10 +437,23 @@ func (e *SpansEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.envelopeEncoder.Reset()
-	e.resourceEncoder.Reset()
-	e.scopeEncoder.Reset()
-	e.spanEncoder.Reset()
+
+	if !e.isEnvelopeRecursive {
+		e.envelopeEncoder.Reset()
+	}
+
+	if !e.isResourceRecursive {
+		e.resourceEncoder.Reset()
+	}
+
+	if !e.isScopeRecursive {
+		e.scopeEncoder.Reset()
+	}
+
+	if !e.isSpanRecursive {
+		e.spanEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -425,23 +513,43 @@ func (e *SpansEncoder) Encode(val *Spans) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Envelope field.
 	if e.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
 	}
-	e.envelopeEncoder.CollectColumns(columnSet.At(0))
+	if !e.isEnvelopeRecursive {
+		e.envelopeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Resource field.
 	if e.fieldCount <= 1 {
 		return // Resource and subsequent fields are skipped.
 	}
-	e.resourceEncoder.CollectColumns(columnSet.At(1))
+	if !e.isResourceRecursive {
+		e.resourceEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Scope field.
 	if e.fieldCount <= 2 {
 		return // Scope and subsequent fields are skipped.
 	}
-	e.scopeEncoder.CollectColumns(columnSet.At(2))
+	if !e.isScopeRecursive {
+		e.scopeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Span field.
 	if e.fieldCount <= 3 {
 		return // Span and subsequent fields are skipped.
 	}
-	e.spanEncoder.CollectColumns(columnSet.At(3))
+	if !e.isSpanRecursive {
+		e.spanEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // SpansDecoder implements decoding of Spans
@@ -452,10 +560,17 @@ type SpansDecoder struct {
 	lastVal    Spans
 	fieldCount uint
 
-	envelopeDecoder EnvelopeDecoder
-	resourceDecoder ResourceDecoder
-	scopeDecoder    ScopeDecoder
-	spanDecoder     SpanDecoder
+	envelopeDecoder     *EnvelopeDecoder
+	isEnvelopeRecursive bool
+
+	resourceDecoder     *ResourceDecoder
+	isResourceRecursive bool
+
+	scopeDecoder     *ScopeDecoder
+	isScopeRecursive bool
+
+	spanDecoder     *SpanDecoder
+	isSpanRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -490,28 +605,56 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
 	}
-	err = d.envelopeDecoder.Init(state, columns.AddSubColumn())
+	if state.EnvelopeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.envelopeDecoder = state.EnvelopeDecoder
+		d.isEnvelopeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.envelopeDecoder = new(EnvelopeDecoder)
+		err = d.envelopeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // Resource and subsequent fields are skipped.
 	}
-	err = d.resourceDecoder.Init(state, columns.AddSubColumn())
+	if state.ResourceDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.resourceDecoder = state.ResourceDecoder
+		d.isResourceRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.resourceDecoder = new(ResourceDecoder)
+		err = d.resourceDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 2 {
 		return nil // Scope and subsequent fields are skipped.
 	}
-	err = d.scopeDecoder.Init(state, columns.AddSubColumn())
+	if state.ScopeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.scopeDecoder = state.ScopeDecoder
+		d.isScopeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.scopeDecoder = new(ScopeDecoder)
+		err = d.scopeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // Span and subsequent fields are skipped.
 	}
-	err = d.spanDecoder.Init(state, columns.AddSubColumn())
+	if state.SpanDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.spanDecoder = state.SpanDecoder
+		d.isSpanRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.spanDecoder = new(SpanDecoder)
+		err = d.spanDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -530,26 +673,55 @@ func (d *SpansDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
 	}
-	d.envelopeDecoder.Continue()
+
+	if !d.isEnvelopeRecursive {
+		d.envelopeDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Resource and subsequent fields are skipped.
 	}
-	d.resourceDecoder.Continue()
+
+	if !d.isResourceRecursive {
+		d.resourceDecoder.Continue()
+	}
+
 	if d.fieldCount <= 2 {
 		return // Scope and subsequent fields are skipped.
 	}
-	d.scopeDecoder.Continue()
+
+	if !d.isScopeRecursive {
+		d.scopeDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // Span and subsequent fields are skipped.
 	}
-	d.spanDecoder.Continue()
+
+	if !d.isSpanRecursive {
+		d.spanDecoder.Continue()
+	}
+
 }
 
 func (d *SpansDecoder) Reset() {
-	d.envelopeDecoder.Reset()
-	d.resourceDecoder.Reset()
-	d.scopeDecoder.Reset()
-	d.spanDecoder.Reset()
+
+	if !d.isEnvelopeRecursive {
+		d.envelopeDecoder.Reset()
+	}
+
+	if !d.isResourceRecursive {
+		d.resourceDecoder.Reset()
+	}
+
+	if !d.isScopeRecursive {
+		d.scopeDecoder.Reset()
+	}
+
+	if !d.isSpanRecursive {
+		d.spanDecoder.Reset()
+	}
+
 }
 
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {
@@ -570,6 +742,11 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 {
 		// Field is changed and is present, decode it.
+		if val.resource == nil {
+			val.resource = &Resource{}
+			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
+		}
+
 		err = d.resourceDecoder.Decode(&val.resource)
 		if err != nil {
 			return err
@@ -578,6 +755,11 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 {
 		// Field is changed and is present, decode it.
+		if val.scope == nil {
+			val.scope = &Scope{}
+			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
+		}
+
 		err = d.scopeDecoder.Decode(&val.scope)
 		if err != nil {
 			return err

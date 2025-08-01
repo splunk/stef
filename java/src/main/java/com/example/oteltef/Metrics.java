@@ -261,23 +261,29 @@ public class Metrics {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Metrics val) {
-        if (!this.envelope.equals(val.envelope)) {
+    public boolean equals(Metrics right) {
+        // Compare Envelope field.
+        if (!this.envelope.equals(right.envelope)) {
             return false;
         }
-        if (!this.metric.equals(val.metric)) {
+        // Compare Metric field.
+        if (!this.metric.equals(right.metric)) {
             return false;
         }
-        if (!this.resource.equals(val.resource)) {
+        // Compare Resource field.
+        if (!this.resource.equals(right.resource)) {
             return false;
         }
-        if (!this.scope.equals(val.scope)) {
+        // Compare Scope field.
+        if (!this.scope.equals(right.scope)) {
             return false;
         }
-        if (!this.attributes.equals(val.attributes)) {
+        // Compare Attributes field.
+        if (!this.attributes.equals(right.attributes)) {
             return false;
         }
-        if (!this.point.equals(val.point)) {
+        // Compare Point field.
+        if (!this.point.equals(right.point)) {
             return false;
         }
         return true;
@@ -301,31 +307,37 @@ public class Metrics {
         }
         int c;
         
+        // Compare Envelope field.
         c = Envelope.compare(left.envelope, right.envelope);
         if (c != 0) {
             return c;
         }
         
+        // Compare Metric field.
         c = Metric.compare(left.metric, right.metric);
         if (c != 0) {
             return c;
         }
         
+        // Compare Resource field.
         c = Resource.compare(left.resource, right.resource);
         if (c != 0) {
             return c;
         }
         
+        // Compare Scope field.
         c = Scope.compare(left.scope, right.scope);
         if (c != 0) {
             return c;
         }
         
+        // Compare Attributes field.
         c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }
         
+        // Compare Point field.
         c = Point.compare(left.point, right.point);
         if (c != 0) {
             return c;
@@ -336,7 +348,7 @@ public class Metrics {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 6;
+        final int fieldCount = Math.max(6,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.envelope.mutateRandom(random);

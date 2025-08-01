@@ -16,8 +16,10 @@ class ExpHistogramBucketsDecoder {
     private int fieldCount;
 
     
-    private Int64Decoder offsetDecoder = new Int64Decoder();
-    private Uint64ArrayDecoder bucketCountsDecoder = new Uint64ArrayDecoder();
+    private Int64Decoder offsetDecoder;
+    private boolean isOffsetRecursive = false; // Indicates Offset field's type is recursive.
+    private Uint64ArrayDecoder bucketCountsDecoder;
+    private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -42,11 +44,19 @@ class ExpHistogramBucketsDecoder {
             if (this.fieldCount <= 0) {
                 return; // Offset and subsequent fields are skipped.
             }
+            offsetDecoder = new Int64Decoder();
             offsetDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            bucketCountsDecoder.init(state, columns.addSubColumn());
+            if (state.Uint64ArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                bucketCountsDecoder = state.Uint64ArrayDecoder;
+                isBucketCountsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                bucketCountsDecoder = new Uint64ArrayDecoder();
+                bucketCountsDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.ExpHistogramBucketsDecoder = null;
         }
@@ -63,16 +73,22 @@ class ExpHistogramBucketsDecoder {
         if (this.fieldCount <= 0) {
             return; // Offset and subsequent fields are skipped.
         }
-        this.offsetDecoder.continueDecoding();
+        offsetDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsDecoder.continueDecoding();
+        
+        if (!isBucketCountsRecursive) {
+            bucketCountsDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.offsetDecoder.reset();
-        this.bucketCountsDecoder.reset();
+        offsetDecoder.reset();
+        if (!isBucketCountsRecursive) {
+            bucketCountsDecoder.reset();
+        }
     }
 
     public ExpHistogramBuckets decode(ExpHistogramBuckets dstPtr) throws IOException {
@@ -88,6 +104,9 @@ class ExpHistogramBucketsDecoder {
         
         if ((val.modifiedFields.mask & ExpHistogramBuckets.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
+            if (val.bucketCounts == null) {
+                val.bucketCounts = new Uint64Array(val.modifiedFields, ExpHistogramBuckets.fieldModifiedBucketCounts);
+            }
             val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         

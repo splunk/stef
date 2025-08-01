@@ -170,7 +170,7 @@ func (s *SampleValueType) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *SampleValueType) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetType(pkg.StringRandom(random))
 	}
@@ -179,12 +179,14 @@ func (s *SampleValueType) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *SampleValueType) IsEqual(val *SampleValueType) bool {
-	if !pkg.StringEqual(e.type_, val.type_) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *SampleValueType) IsEqual(right *SampleValueType) bool {
+	// Compare Type field.
+	if !pkg.StringEqual(s.type_, right.type_) {
 		return false
 	}
-	if !pkg.StringEqual(e.unit, val.unit) {
+	// Compare Unit field.
+	if !pkg.StringEqual(s.unit, right.unit) {
 		return false
 	}
 
@@ -208,9 +210,12 @@ func CmpSampleValueType(left, right *SampleValueType) int {
 		return 1
 	}
 
+	// Compare Type field.
 	if c := strings.Compare(left.type_, right.type_); c != 0 {
 		return c
 	}
+
+	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
@@ -230,7 +235,8 @@ type SampleValueTypeEncoder struct {
 	forceModifiedFields bool
 
 	type_Encoder encoders.StringEncoder
-	unitEncoder  encoders.StringEncoder
+
+	unitEncoder encoders.StringEncoder
 
 	dict *SampleValueTypeEncoderDict
 
@@ -289,16 +295,25 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Type field.
 	if e.fieldCount <= 0 {
-		return nil // Type and subsequent fields are skipped.
+		// Type and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.type_Encoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.type_Encoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Unit field.
 	if e.fieldCount <= 1 {
-		return nil // Unit and subsequent fields are skipped.
+		// Unit and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.unitEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.unitEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -386,15 +401,23 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SampleValueTypeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Type field.
 	if e.fieldCount <= 0 {
 		return // Type and subsequent fields are skipped.
 	}
-	e.type_Encoder.CollectColumns(columnSet.At(0))
+
+	e.type_Encoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Unit field.
 	if e.fieldCount <= 1 {
 		return // Unit and subsequent fields are skipped.
 	}
-	e.unitEncoder.CollectColumns(columnSet.At(1))
+
+	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // SampleValueTypeDecoder implements decoding of SampleValueType
@@ -406,7 +429,8 @@ type SampleValueTypeDecoder struct {
 	fieldCount uint
 
 	type_Decoder encoders.StringDecoder
-	unitDecoder  encoders.StringDecoder
+
+	unitDecoder encoders.StringDecoder
 
 	dict *SampleValueTypeDecoderDict
 }

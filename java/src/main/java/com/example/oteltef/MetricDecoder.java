@@ -16,14 +16,22 @@ class MetricDecoder {
     private int fieldCount;
 
     
-    private StringDecoder nameDecoder = new StringDecoder();
-    private StringDecoder descriptionDecoder = new StringDecoder();
-    private StringDecoder unitDecoder = new StringDecoder();
-    private Uint64Decoder type_Decoder = new Uint64Decoder();
-    private AttributesDecoder metadataDecoder = new AttributesDecoder();
-    private Float64ArrayDecoder histogramBoundsDecoder = new Float64ArrayDecoder();
-    private Uint64Decoder aggregationTemporalityDecoder = new Uint64Decoder();
-    private BoolDecoder monotonicDecoder = new BoolDecoder();
+    private StringDecoder nameDecoder;
+    private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
+    private StringDecoder descriptionDecoder;
+    private boolean isDescriptionRecursive = false; // Indicates Description field's type is recursive.
+    private StringDecoder unitDecoder;
+    private boolean isUnitRecursive = false; // Indicates Unit field's type is recursive.
+    private Uint64Decoder type_Decoder;
+    private boolean isTypeRecursive = false; // Indicates Type field's type is recursive.
+    private AttributesDecoder metadataDecoder;
+    private boolean isMetadataRecursive = false; // Indicates Metadata field's type is recursive.
+    private Float64ArrayDecoder histogramBoundsDecoder;
+    private boolean isHistogramBoundsRecursive = false; // Indicates HistogramBounds field's type is recursive.
+    private Uint64Decoder aggregationTemporalityDecoder;
+    private boolean isAggregationTemporalityRecursive = false; // Indicates AggregationTemporality field's type is recursive.
+    private BoolDecoder monotonicDecoder;
+    private boolean isMonotonicRecursive = false; // Indicates Monotonic field's type is recursive.
     
     private MetricDecoderDict dict;
     
@@ -51,34 +59,54 @@ class MetricDecoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
+            nameDecoder = new StringDecoder();
             nameDecoder.init(state.MetricName, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Description and subsequent fields are skipped.
             }
+            descriptionDecoder = new StringDecoder();
             descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Unit and subsequent fields are skipped.
             }
+            unitDecoder = new StringDecoder();
             unitDecoder.init(state.MetricUnit, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Type and subsequent fields are skipped.
             }
+            type_Decoder = new Uint64Decoder();
             type_Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Metadata and subsequent fields are skipped.
             }
-            metadataDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                metadataDecoder = state.AttributesDecoder;
+                isMetadataRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                metadataDecoder = new AttributesDecoder();
+                metadataDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 5) {
                 return; // HistogramBounds and subsequent fields are skipped.
             }
-            histogramBoundsDecoder.init(state, columns.addSubColumn());
+            if (state.Float64ArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                histogramBoundsDecoder = state.Float64ArrayDecoder;
+                isHistogramBoundsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                histogramBoundsDecoder = new Float64ArrayDecoder();
+                histogramBoundsDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 6) {
                 return; // AggregationTemporality and subsequent fields are skipped.
             }
+            aggregationTemporalityDecoder = new Uint64Decoder();
             aggregationTemporalityDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 7) {
                 return; // Monotonic and subsequent fields are skipped.
             }
+            monotonicDecoder = new BoolDecoder();
             monotonicDecoder.init(columns.addSubColumn());
         } finally {
             state.MetricDecoder = null;
@@ -96,46 +124,58 @@ class MetricDecoder {
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.continueDecoding();
+        nameDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Description and subsequent fields are skipped.
         }
-        this.descriptionDecoder.continueDecoding();
+        descriptionDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Unit and subsequent fields are skipped.
         }
-        this.unitDecoder.continueDecoding();
+        unitDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Type and subsequent fields are skipped.
         }
-        this.type_Decoder.continueDecoding();
+        type_Decoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Metadata and subsequent fields are skipped.
         }
-        this.metadataDecoder.continueDecoding();
+        
+        if (!isMetadataRecursive) {
+            metadataDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 5) {
             return; // HistogramBounds and subsequent fields are skipped.
         }
-        this.histogramBoundsDecoder.continueDecoding();
+        
+        if (!isHistogramBoundsRecursive) {
+            histogramBoundsDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 6) {
             return; // AggregationTemporality and subsequent fields are skipped.
         }
-        this.aggregationTemporalityDecoder.continueDecoding();
+        aggregationTemporalityDecoder.continueDecoding();
         if (this.fieldCount <= 7) {
             return; // Monotonic and subsequent fields are skipped.
         }
-        this.monotonicDecoder.continueDecoding();
+        monotonicDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.nameDecoder.reset();
-        this.descriptionDecoder.reset();
-        this.unitDecoder.reset();
-        this.type_Decoder.reset();
-        this.metadataDecoder.reset();
-        this.histogramBoundsDecoder.reset();
-        this.aggregationTemporalityDecoder.reset();
-        this.monotonicDecoder.reset();
+        nameDecoder.reset();
+        descriptionDecoder.reset();
+        unitDecoder.reset();
+        type_Decoder.reset();
+        if (!isMetadataRecursive) {
+            metadataDecoder.reset();
+        }
+        if (!isHistogramBoundsRecursive) {
+            histogramBoundsDecoder.reset();
+        }
+        aggregationTemporalityDecoder.reset();
+        monotonicDecoder.reset();
     }
 
     public Metric decode(Metric dstPtr) throws IOException {
@@ -182,11 +222,17 @@ class MetricDecoder {
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedMetadata) != 0) {
             // Field is changed and is present, decode it.
+            if (val.metadata == null) {
+                val.metadata = new Attributes(val.modifiedFields, Metric.fieldModifiedMetadata);
+            }
             val.metadata = metadataDecoder.decode(val.metadata);
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Field is changed and is present, decode it.
+            if (val.histogramBounds == null) {
+                val.histogramBounds = new Float64Array(val.modifiedFields, Metric.fieldModifiedHistogramBounds);
+            }
             val.histogramBounds = histogramBoundsDecoder.decode(val.histogramBounds);
         }
         

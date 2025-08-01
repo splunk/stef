@@ -309,7 +309,7 @@ func (s *Link) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Link) mutateRandom(random *rand.Rand) {
-	const fieldCount = 6
+	const fieldCount = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetTraceID(pkg.BytesRandom(random))
 	}
@@ -330,24 +330,30 @@ func (s *Link) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Link) IsEqual(val *Link) bool {
-	if !pkg.BytesEqual(e.traceID, val.traceID) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Link) IsEqual(right *Link) bool {
+	// Compare TraceID field.
+	if !pkg.BytesEqual(s.traceID, right.traceID) {
 		return false
 	}
-	if !pkg.BytesEqual(e.spanID, val.spanID) {
+	// Compare SpanID field.
+	if !pkg.BytesEqual(s.spanID, right.spanID) {
 		return false
 	}
-	if !pkg.StringEqual(e.traceState, val.traceState) {
+	// Compare TraceState field.
+	if !pkg.StringEqual(s.traceState, right.traceState) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.flags, val.flags) {
+	// Compare Flags field.
+	if !pkg.Uint64Equal(s.flags, right.flags) {
 		return false
 	}
-	if !e.attributes.IsEqual(&val.attributes) {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
+	// Compare DroppedAttributesCount field.
+	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
 		return false
 	}
 
@@ -371,21 +377,32 @@ func CmpLink(left, right *Link) int {
 		return 1
 	}
 
+	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
+
+	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
+
+	// Compare TraceState field.
 	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
+
+	// Compare Flags field.
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {
 		return c
 	}
+
+	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+
+	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
@@ -404,11 +421,17 @@ type LinkEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	traceIDEncoder                encoders.BytesEncoder
-	spanIDEncoder                 encoders.BytesEncoder
-	traceStateEncoder             encoders.StringEncoder
-	flagsEncoder                  encoders.Uint64Encoder
-	attributesEncoder             AttributesEncoder
+	traceIDEncoder encoders.BytesEncoder
+
+	spanIDEncoder encoders.BytesEncoder
+
+	traceStateEncoder encoders.StringEncoder
+
+	flagsEncoder encoders.Uint64Encoder
+
+	attributesEncoder     *AttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
+
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
@@ -443,40 +466,72 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for TraceID field.
 	if e.fieldCount <= 0 {
-		return nil // TraceID and subsequent fields are skipped.
+		// TraceID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for SpanID field.
 	if e.fieldCount <= 1 {
-		return nil // SpanID and subsequent fields are skipped.
+		// SpanID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for TraceState field.
 	if e.fieldCount <= 2 {
-		return nil // TraceState and subsequent fields are skipped.
+		// TraceState and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Flags field.
 	if e.fieldCount <= 3 {
-		return nil // Flags and subsequent fields are skipped.
+		// Flags and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.flagsEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.flagsEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 4 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.AttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(AttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 5 {
-		return nil // DroppedAttributesCount and subsequent fields are skipped.
+		// DroppedAttributesCount and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -491,7 +546,11 @@ func (e *LinkEncoder) Reset() {
 	e.spanIDEncoder.Reset()
 	e.traceStateEncoder.Reset()
 	e.flagsEncoder.Reset()
-	e.attributesEncoder.Reset()
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
 	e.droppedAttributesCountEncoder.Reset()
 }
 
@@ -564,31 +623,56 @@ func (e *LinkEncoder) Encode(val *Link) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect TraceID field.
 	if e.fieldCount <= 0 {
 		return // TraceID and subsequent fields are skipped.
 	}
-	e.traceIDEncoder.CollectColumns(columnSet.At(0))
+
+	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect SpanID field.
 	if e.fieldCount <= 1 {
 		return // SpanID and subsequent fields are skipped.
 	}
-	e.spanIDEncoder.CollectColumns(columnSet.At(1))
+
+	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect TraceState field.
 	if e.fieldCount <= 2 {
 		return // TraceState and subsequent fields are skipped.
 	}
-	e.traceStateEncoder.CollectColumns(columnSet.At(2))
+
+	e.traceStateEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Flags field.
 	if e.fieldCount <= 3 {
 		return // Flags and subsequent fields are skipped.
 	}
-	e.flagsEncoder.CollectColumns(columnSet.At(3))
+
+	e.flagsEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Attributes field.
 	if e.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(4))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 5 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(5))
+
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // LinkDecoder implements decoding of Link
@@ -599,11 +683,17 @@ type LinkDecoder struct {
 	lastVal    Link
 	fieldCount uint
 
-	traceIDDecoder                encoders.BytesDecoder
-	spanIDDecoder                 encoders.BytesDecoder
-	traceStateDecoder             encoders.StringDecoder
-	flagsDecoder                  encoders.Uint64Decoder
-	attributesDecoder             AttributesDecoder
+	traceIDDecoder encoders.BytesDecoder
+
+	spanIDDecoder encoders.BytesDecoder
+
+	traceStateDecoder encoders.StringDecoder
+
+	flagsDecoder encoders.Uint64Decoder
+
+	attributesDecoder     *AttributesDecoder
+	isAttributesRecursive bool
+
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 }
 
@@ -667,7 +757,14 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if d.fieldCount <= 4 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.AttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(AttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -709,7 +806,11 @@ func (d *LinkDecoder) Continue() {
 	if d.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 5 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
@@ -721,7 +822,11 @@ func (d *LinkDecoder) Reset() {
 	d.spanIDDecoder.Reset()
 	d.traceStateDecoder.Reset()
 	d.flagsDecoder.Reset()
-	d.attributesDecoder.Reset()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
 	d.droppedAttributesCountDecoder.Reset()
 }
 
