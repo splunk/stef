@@ -12,5 +12,5 @@ func (g *Generator) oTools() error {
 	data := map[string]any{
 		"Structs": structs,
 	}
-	return g.oTemplates("tools_test", "tools_test", data)
+	return g.oTemplates("tools", g.stefSymbol2FileName("Tools"), data)
 }
