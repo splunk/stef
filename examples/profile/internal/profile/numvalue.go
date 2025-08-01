@@ -168,7 +168,7 @@ func (s *NumValue) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *NumValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetVal(pkg.Int64Random(random))
 	}
@@ -177,12 +177,14 @@ func (s *NumValue) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *NumValue) IsEqual(val *NumValue) bool {
-	if !pkg.Int64Equal(e.val, val.val) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *NumValue) IsEqual(right *NumValue) bool {
+	// Compare Val field.
+	if !pkg.Int64Equal(s.val, right.val) {
 		return false
 	}
-	if !pkg.StringEqual(e.unit, val.unit) {
+	// Compare Unit field.
+	if !pkg.StringEqual(s.unit, right.unit) {
 		return false
 	}
 
@@ -206,9 +208,12 @@ func CmpNumValue(left, right *NumValue) int {
 		return 1
 	}
 
+	// Compare Val field.
 	if c := pkg.Int64Compare(left.val, right.val); c != 0 {
 		return c
 	}
+
+	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
@@ -227,7 +232,8 @@ type NumValueEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	valEncoder  encoders.Int64Encoder
+	valEncoder encoders.Int64Encoder
+
 	unitEncoder encoders.StringEncoder
 
 	keepFieldMask uint64
@@ -262,16 +268,25 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Val field.
 	if e.fieldCount <= 0 {
-		return nil // Val and subsequent fields are skipped.
+		// Val and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.valEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Unit field.
 	if e.fieldCount <= 1 {
-		return nil // Unit and subsequent fields are skipped.
+		// Unit and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.unitEncoder.Init(&state.NumValueUnit, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.unitEncoder.Init(&state.NumValueUnit, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -331,15 +346,23 @@ func (e *NumValueEncoder) Encode(val *NumValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *NumValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Val field.
 	if e.fieldCount <= 0 {
 		return // Val and subsequent fields are skipped.
 	}
-	e.valEncoder.CollectColumns(columnSet.At(0))
+
+	e.valEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Unit field.
 	if e.fieldCount <= 1 {
 		return // Unit and subsequent fields are skipped.
 	}
-	e.unitEncoder.CollectColumns(columnSet.At(1))
+
+	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // NumValueDecoder implements decoding of NumValue
@@ -350,7 +373,8 @@ type NumValueDecoder struct {
 	lastVal    NumValue
 	fieldCount uint
 
-	valDecoder  encoders.Int64Decoder
+	valDecoder encoders.Int64Decoder
+
 	unitDecoder encoders.StringDecoder
 }
 

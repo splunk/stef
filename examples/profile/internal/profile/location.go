@@ -207,7 +207,13 @@ func (s *Location) byteSize() uint {
 }
 
 func copyLocation(dst *Location, src *Location) {
-	copyMapping(dst.mapping, src.mapping)
+	if src.mapping != nil {
+		if dst.mapping == nil {
+			dst.mapping = &Mapping{}
+			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+		}
+		copyMapping(dst.mapping, src.mapping)
+	}
 	dst.SetAddress(src.address)
 	copyLineArray(&dst.lines, &src.lines)
 	dst.SetIsFolded(src.isFolded)
@@ -231,7 +237,7 @@ func (s *Location) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Location) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.mapping.mutateRandom(random)
 	}
@@ -246,18 +252,22 @@ func (s *Location) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Location) IsEqual(val *Location) bool {
-	if !e.mapping.IsEqual(val.mapping) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Location) IsEqual(right *Location) bool {
+	// Compare Mapping field.
+	if !s.mapping.IsEqual(right.mapping) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.address, val.address) {
+	// Compare Address field.
+	if !pkg.Uint64Equal(s.address, right.address) {
 		return false
 	}
-	if !e.lines.IsEqual(&val.lines) {
+	// Compare Lines field.
+	if !s.lines.IsEqual(&right.lines) {
 		return false
 	}
-	if !pkg.BoolEqual(e.isFolded, val.isFolded) {
+	// Compare IsFolded field.
+	if !pkg.BoolEqual(s.isFolded, right.isFolded) {
 		return false
 	}
 
@@ -281,15 +291,22 @@ func CmpLocation(left, right *Location) int {
 		return 1
 	}
 
+	// Compare Mapping field.
 	if c := CmpMapping(left.mapping, right.mapping); c != 0 {
 		return c
 	}
+
+	// Compare Address field.
 	if c := pkg.Uint64Compare(left.address, right.address); c != 0 {
 		return c
 	}
+
+	// Compare Lines field.
 	if c := CmpLineArray(&left.lines, &right.lines); c != 0 {
 		return c
 	}
+
+	// Compare IsFolded field.
 	if c := pkg.BoolCompare(left.isFolded, right.isFolded); c != 0 {
 		return c
 	}
@@ -308,9 +325,14 @@ type LocationEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	mappingEncoder  MappingEncoder
-	addressEncoder  encoders.Uint64Encoder
-	linesEncoder    LineArrayEncoder
+	mappingEncoder     *MappingEncoder
+	isMappingRecursive bool // Indicates Mapping field's type is recursive.
+
+	addressEncoder encoders.Uint64Encoder
+
+	linesEncoder     *LineArrayEncoder
+	isLinesRecursive bool // Indicates Lines field's type is recursive.
+
 	isFoldedEncoder encoders.BoolEncoder
 
 	dict *LocationEncoderDict
@@ -370,28 +392,59 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Mapping field.
 	if e.fieldCount <= 0 {
-		return nil // Mapping and subsequent fields are skipped.
+		// Mapping and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.mappingEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.MappingEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.mappingEncoder = state.MappingEncoder
+		e.isMappingRecursive = true
+	} else {
+		e.mappingEncoder = new(MappingEncoder)
+		err = e.mappingEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Address field.
 	if e.fieldCount <= 1 {
-		return nil // Address and subsequent fields are skipped.
+		// Address and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.addressEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.addressEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Lines field.
 	if e.fieldCount <= 2 {
-		return nil // Lines and subsequent fields are skipped.
+		// Lines and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.linesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.LineArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.linesEncoder = state.LineArrayEncoder
+		e.isLinesRecursive = true
+	} else {
+		e.linesEncoder = new(LineArrayEncoder)
+		err = e.linesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for IsFolded field.
 	if e.fieldCount <= 3 {
-		return nil // IsFolded and subsequent fields are skipped.
+		// IsFolded and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.isFoldedEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.isFoldedEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -402,9 +455,17 @@ func (e *LocationEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.mappingEncoder.Reset()
+
+	if !e.isMappingRecursive {
+		e.mappingEncoder.Reset()
+	}
+
 	e.addressEncoder.Reset()
-	e.linesEncoder.Reset()
+
+	if !e.isLinesRecursive {
+		e.linesEncoder.Reset()
+	}
+
 	e.isFoldedEncoder.Reset()
 }
 
@@ -493,23 +554,41 @@ func (e *LocationEncoder) Encode(val *Location) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Mapping field.
 	if e.fieldCount <= 0 {
 		return // Mapping and subsequent fields are skipped.
 	}
-	e.mappingEncoder.CollectColumns(columnSet.At(0))
+	if !e.isMappingRecursive {
+		e.mappingEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Address field.
 	if e.fieldCount <= 1 {
 		return // Address and subsequent fields are skipped.
 	}
-	e.addressEncoder.CollectColumns(columnSet.At(1))
+
+	e.addressEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Lines field.
 	if e.fieldCount <= 2 {
 		return // Lines and subsequent fields are skipped.
 	}
-	e.linesEncoder.CollectColumns(columnSet.At(2))
+	if !e.isLinesRecursive {
+		e.linesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect IsFolded field.
 	if e.fieldCount <= 3 {
 		return // IsFolded and subsequent fields are skipped.
 	}
-	e.isFoldedEncoder.CollectColumns(columnSet.At(3))
+
+	e.isFoldedEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // LocationDecoder implements decoding of Location
@@ -520,9 +599,14 @@ type LocationDecoder struct {
 	lastVal    Location
 	fieldCount uint
 
-	mappingDecoder  MappingDecoder
-	addressDecoder  encoders.Uint64Decoder
-	linesDecoder    LineArrayDecoder
+	mappingDecoder     *MappingDecoder
+	isMappingRecursive bool
+
+	addressDecoder encoders.Uint64Decoder
+
+	linesDecoder     *LineArrayDecoder
+	isLinesRecursive bool
+
 	isFoldedDecoder encoders.BoolDecoder
 
 	dict *LocationDecoderDict
@@ -561,7 +645,14 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 0 {
 		return nil // Mapping and subsequent fields are skipped.
 	}
-	err = d.mappingDecoder.Init(state, columns.AddSubColumn())
+	if state.MappingDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.mappingDecoder = state.MappingDecoder
+		d.isMappingRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.mappingDecoder = new(MappingDecoder)
+		err = d.mappingDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -575,7 +666,14 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 2 {
 		return nil // Lines and subsequent fields are skipped.
 	}
-	err = d.linesDecoder.Init(state, columns.AddSubColumn())
+	if state.LineArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.linesDecoder = state.LineArrayDecoder
+		d.isLinesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.linesDecoder = new(LineArrayDecoder)
+		err = d.linesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -601,7 +699,11 @@ func (d *LocationDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Mapping and subsequent fields are skipped.
 	}
-	d.mappingDecoder.Continue()
+
+	if !d.isMappingRecursive {
+		d.mappingDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Address and subsequent fields are skipped.
 	}
@@ -609,7 +711,11 @@ func (d *LocationDecoder) Continue() {
 	if d.fieldCount <= 2 {
 		return // Lines and subsequent fields are skipped.
 	}
-	d.linesDecoder.Continue()
+
+	if !d.isLinesRecursive {
+		d.linesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // IsFolded and subsequent fields are skipped.
 	}
@@ -617,9 +723,17 @@ func (d *LocationDecoder) Continue() {
 }
 
 func (d *LocationDecoder) Reset() {
-	d.mappingDecoder.Reset()
+
+	if !d.isMappingRecursive {
+		d.mappingDecoder.Reset()
+	}
+
 	d.addressDecoder.Reset()
-	d.linesDecoder.Reset()
+
+	if !d.isLinesRecursive {
+		d.linesDecoder.Reset()
+	}
+
 	d.isFoldedDecoder.Reset()
 }
 
@@ -649,6 +763,11 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 {
 		// Field is changed and is present, decode it.
+		if val.mapping == nil {
+			val.mapping = &Mapping{}
+			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
+		}
+
 		err = d.mappingDecoder.Decode(&val.mapping)
 		if err != nil {
 			return err

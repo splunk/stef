@@ -274,7 +274,7 @@ func (s *Scope) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Scope) mutateRandom(random *rand.Rand) {
-	const fieldCount = 5
+	const fieldCount = max(5, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
@@ -292,21 +292,26 @@ func (s *Scope) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Scope) IsEqual(val *Scope) bool {
-	if !pkg.StringEqual(e.name, val.name) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Scope) IsEqual(right *Scope) bool {
+	// Compare Name field.
+	if !pkg.StringEqual(s.name, right.name) {
 		return false
 	}
-	if !pkg.StringEqual(e.version, val.version) {
+	// Compare Version field.
+	if !pkg.StringEqual(s.version, right.version) {
 		return false
 	}
-	if !pkg.StringEqual(e.schemaURL, val.schemaURL) {
+	// Compare SchemaURL field.
+	if !pkg.StringEqual(s.schemaURL, right.schemaURL) {
 		return false
 	}
-	if !e.attributes.IsEqual(&val.attributes) {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
+	// Compare DroppedAttributesCount field.
+	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
 		return false
 	}
 
@@ -330,18 +335,27 @@ func CmpScope(left, right *Scope) int {
 		return 1
 	}
 
+	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
+
+	// Compare Version field.
 	if c := strings.Compare(left.version, right.version); c != 0 {
 		return c
 	}
+
+	// Compare SchemaURL field.
 	if c := strings.Compare(left.schemaURL, right.schemaURL); c != 0 {
 		return c
 	}
+
+	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+
+	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
@@ -360,10 +374,15 @@ type ScopeEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder                   encoders.StringEncoder
-	versionEncoder                encoders.StringEncoder
-	schemaURLEncoder              encoders.StringEncoder
-	attributesEncoder             AttributesEncoder
+	nameEncoder encoders.StringEncoder
+
+	versionEncoder encoders.StringEncoder
+
+	schemaURLEncoder encoders.StringEncoder
+
+	attributesEncoder     *AttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
+
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	dict *ScopeEncoderDict
@@ -423,34 +442,62 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		return nil // Name and subsequent fields are skipped.
+		// Name and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.nameEncoder.Init(&state.ScopeName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.nameEncoder.Init(&state.ScopeName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Version field.
 	if e.fieldCount <= 1 {
-		return nil // Version and subsequent fields are skipped.
+		// Version and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.versionEncoder.Init(&state.ScopeVersion, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.versionEncoder.Init(&state.ScopeVersion, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for SchemaURL field.
 	if e.fieldCount <= 2 {
-		return nil // SchemaURL and subsequent fields are skipped.
+		// SchemaURL and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.schemaURLEncoder.Init(&state.SchemaURL, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.schemaURLEncoder.Init(&state.SchemaURL, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 3 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.AttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(AttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 4 {
-		return nil // DroppedAttributesCount and subsequent fields are skipped.
+		// DroppedAttributesCount and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -464,7 +511,11 @@ func (e *ScopeEncoder) Reset() {
 	e.nameEncoder.Reset()
 	e.versionEncoder.Reset()
 	e.schemaURLEncoder.Reset()
-	e.attributesEncoder.Reset()
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
 	e.droppedAttributesCountEncoder.Reset()
 }
 
@@ -559,27 +610,48 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-	e.nameEncoder.CollectColumns(columnSet.At(0))
+
+	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Version field.
 	if e.fieldCount <= 1 {
 		return // Version and subsequent fields are skipped.
 	}
-	e.versionEncoder.CollectColumns(columnSet.At(1))
+
+	e.versionEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect SchemaURL field.
 	if e.fieldCount <= 2 {
 		return // SchemaURL and subsequent fields are skipped.
 	}
-	e.schemaURLEncoder.CollectColumns(columnSet.At(2))
+
+	e.schemaURLEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Attributes field.
 	if e.fieldCount <= 3 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(3))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 4 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(4))
+
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // ScopeDecoder implements decoding of Scope
@@ -590,10 +662,15 @@ type ScopeDecoder struct {
 	lastVal    Scope
 	fieldCount uint
 
-	nameDecoder                   encoders.StringDecoder
-	versionDecoder                encoders.StringDecoder
-	schemaURLDecoder              encoders.StringDecoder
-	attributesDecoder             AttributesDecoder
+	nameDecoder encoders.StringDecoder
+
+	versionDecoder encoders.StringDecoder
+
+	schemaURLDecoder encoders.StringDecoder
+
+	attributesDecoder     *AttributesDecoder
+	isAttributesRecursive bool
+
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ScopeDecoderDict
@@ -653,7 +730,14 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if d.fieldCount <= 3 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.AttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(AttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -691,7 +775,11 @@ func (d *ScopeDecoder) Continue() {
 	if d.fieldCount <= 3 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 4 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
@@ -702,7 +790,11 @@ func (d *ScopeDecoder) Reset() {
 	d.nameDecoder.Reset()
 	d.versionDecoder.Reset()
 	d.schemaURLDecoder.Reset()
-	d.attributesDecoder.Reset()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
 	d.droppedAttributesCountDecoder.Reset()
 }
 

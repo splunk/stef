@@ -19,7 +19,8 @@ class {{ .StructName }}Encoder {
     private boolean forceModifiedFields;
 
     {{ range .Fields }}
-    private {{ .Type.EncoderType }}Encoder {{.name}}Encoder = new {{ .Type.EncoderType }}Encoder();
+    private {{ .Type.EncoderType }}Encoder {{.name}}Encoder;
+    private boolean is{{.Name}}Recursive = false; // Indicates {{.Name}} field's type is recursive.
     {{- end }}
     {{if .DictName}}
     private {{ .StructName }}EncoderDict dict;
@@ -51,17 +52,26 @@ class {{ .StructName }}Encoder {
             }
 
             {{ range $i, $e := .Fields }}
+            // Init encoder for {{.Name}} field.
             if (this.fieldCount <= {{$i}}) {
                 return; // {{.Name}} and subsequent fields are skipped.
             }
             {{- if .IsPrimitive}}
+            {{.name}}Encoder = new {{.Type.EncoderType}}Encoder();
             {{- if .Type.DictName}}
             this.{{.name}}Encoder.init(state.{{.Type.DictName}}, this.limiter, columns.addSubColumn());
             {{- else}}
             this.{{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}this.limiter, columns.addSubColumn());
             {{- end}}
             {{- else}}
-            this.{{.name}}Encoder.init(state, columns.addSubColumn());
+            if (state.{{.Type.EncoderType}}Encoder != null) {
+                // Recursion detected, use the existing encoder.
+                {{.name}}Encoder = state.{{.Type.EncoderType}}Encoder;
+                is{{.Name}}Recursive = true;
+            } else {
+                {{.name}}Encoder = new {{.Type.EncoderType}}Encoder();
+                {{.name}}Encoder.init(state, columns.addSubColumn());
+            }
             {{- end}}
             {{- end }}
         } finally {
@@ -71,10 +81,14 @@ class {{ .StructName }}Encoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
         {{- range .Fields}}
-        this.{{.name}}Encoder.reset();
+        {{if not .IsPrimitive}}
+        if (!is{{.Name}}Recursive) {
+            {{.name}}Encoder.reset();
+        }
+        {{else}}{{.name}}Encoder.reset();{{end}}
         {{- end}}
     }
 
@@ -148,11 +162,21 @@ class {{ .StructName }}Encoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         {{ range $i,$e := .Fields }}
+        // Collect {{.Name}} field.
         if (this.fieldCount <= {{$i}}) {
             return; // {{.Name}} and subsequent fields are skipped.
         }
-        this.{{.name}}Encoder.collectColumns(columnSet.at({{$i}}));
+        {{if not .IsPrimitive -}}
+        if (!is{{.Name}}Recursive) {
+            {{.name}}Encoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        {{else}}
+        {{.name}}Encoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        {{end -}}
         {{- end }}
     }
 }

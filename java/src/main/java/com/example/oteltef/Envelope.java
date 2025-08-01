@@ -106,8 +106,9 @@ public class Envelope {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Envelope val) {
-        if (!this.attributes.equals(val.attributes)) {
+    public boolean equals(Envelope right) {
+        // Compare Attributes field.
+        if (!this.attributes.equals(right.attributes)) {
             return false;
         }
         return true;
@@ -131,6 +132,7 @@ public class Envelope {
         }
         int c;
         
+        // Compare Attributes field.
         c = EnvelopeAttributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
@@ -141,7 +143,7 @@ public class Envelope {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 1;
+        final int fieldCount = Math.max(1,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.attributes.mutateRandom(random);

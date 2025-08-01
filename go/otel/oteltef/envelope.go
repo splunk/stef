@@ -124,15 +124,16 @@ func (s *Envelope) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Envelope) mutateRandom(random *rand.Rand) {
-	const fieldCount = 1
+	const fieldCount = max(1, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.attributes.mutateRandom(random)
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Envelope) IsEqual(val *Envelope) bool {
-	if !e.attributes.IsEqual(&val.attributes) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Envelope) IsEqual(right *Envelope) bool {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
 
@@ -156,6 +157,7 @@ func CmpEnvelope(left, right *Envelope) int {
 		return 1
 	}
 
+	// Compare Attributes field.
 	if c := CmpEnvelopeAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
@@ -174,7 +176,8 @@ type EnvelopeEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	attributesEncoder EnvelopeAttributesEncoder
+	attributesEncoder     *EnvelopeAttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -208,10 +211,22 @@ func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 0 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.EnvelopeAttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.EnvelopeAttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(EnvelopeAttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -222,7 +237,11 @@ func (e *EnvelopeEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.attributesEncoder.Reset()
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -264,11 +283,16 @@ func (e *EnvelopeEncoder) Encode(val *Envelope) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *EnvelopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Attributes field.
 	if e.fieldCount <= 0 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(0))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // EnvelopeDecoder implements decoding of Envelope
@@ -279,7 +303,8 @@ type EnvelopeDecoder struct {
 	lastVal    Envelope
 	fieldCount uint
 
-	attributesDecoder EnvelopeAttributesDecoder
+	attributesDecoder     *EnvelopeAttributesDecoder
+	isAttributesRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -314,7 +339,14 @@ func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 0 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.EnvelopeAttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.EnvelopeAttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(EnvelopeAttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -333,11 +365,19 @@ func (d *EnvelopeDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 }
 
 func (d *EnvelopeDecoder) Reset() {
-	d.attributesDecoder.Reset()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
 }
 
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {

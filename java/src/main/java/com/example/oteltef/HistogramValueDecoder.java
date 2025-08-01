@@ -16,11 +16,16 @@ class HistogramValueDecoder {
     private int fieldCount;
 
     
-    private Int64Decoder countDecoder = new Int64Decoder();
-    private Float64Decoder sumDecoder = new Float64Decoder();
-    private Float64Decoder minDecoder = new Float64Decoder();
-    private Float64Decoder maxDecoder = new Float64Decoder();
-    private Int64ArrayDecoder bucketCountsDecoder = new Int64ArrayDecoder();
+    private Int64Decoder countDecoder;
+    private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
+    private Float64Decoder sumDecoder;
+    private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
+    private Float64Decoder minDecoder;
+    private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
+    private Float64Decoder maxDecoder;
+    private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
+    private Int64ArrayDecoder bucketCountsDecoder;
+    private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -45,23 +50,34 @@ class HistogramValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
+            countDecoder = new Int64Decoder();
             countDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
+            sumDecoder = new Float64Decoder();
             sumDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
+            minDecoder = new Float64Decoder();
             minDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
+            maxDecoder = new Float64Decoder();
             maxDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            bucketCountsDecoder.init(state, columns.addSubColumn());
+            if (state.Int64ArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                bucketCountsDecoder = state.Int64ArrayDecoder;
+                isBucketCountsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                bucketCountsDecoder = new Int64ArrayDecoder();
+                bucketCountsDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.HistogramValueDecoder = null;
         }
@@ -78,31 +94,37 @@ class HistogramValueDecoder {
         if (this.fieldCount <= 0) {
             return; // Count and subsequent fields are skipped.
         }
-        this.countDecoder.continueDecoding();
+        countDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Sum and subsequent fields are skipped.
         }
-        this.sumDecoder.continueDecoding();
+        sumDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Min and subsequent fields are skipped.
         }
-        this.minDecoder.continueDecoding();
+        minDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Max and subsequent fields are skipped.
         }
-        this.maxDecoder.continueDecoding();
+        maxDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsDecoder.continueDecoding();
+        
+        if (!isBucketCountsRecursive) {
+            bucketCountsDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.countDecoder.reset();
-        this.sumDecoder.reset();
-        this.minDecoder.reset();
-        this.maxDecoder.reset();
-        this.bucketCountsDecoder.reset();
+        countDecoder.reset();
+        sumDecoder.reset();
+        minDecoder.reset();
+        maxDecoder.reset();
+        if (!isBucketCountsRecursive) {
+            bucketCountsDecoder.reset();
+        }
     }
 
     public HistogramValue decode(HistogramValue dstPtr) throws IOException {
@@ -135,6 +157,9 @@ class HistogramValueDecoder {
         
         if ((val.modifiedFields.mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
+            if (val.bucketCounts == null) {
+                val.bucketCounts = new Int64Array(val.modifiedFields, HistogramValue.fieldModifiedBucketCounts);
+            }
             val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         

@@ -20,11 +20,16 @@ class ExemplarEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder timestampEncoder = new Uint64Encoder();
-    private ExemplarValueEncoder valueEncoder = new ExemplarValueEncoder();
-    private BytesEncoder spanIDEncoder = new BytesEncoder();
-    private BytesEncoder traceIDEncoder = new BytesEncoder();
-    private AttributesEncoder filteredAttributesEncoder = new AttributesEncoder();
+    private Uint64Encoder timestampEncoder;
+    private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
+    private ExemplarValueEncoder valueEncoder;
+    private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
+    private BytesEncoder spanIDEncoder;
+    private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
+    private BytesEncoder traceIDEncoder;
+    private boolean isTraceIDRecursive = false; // Indicates TraceID field's type is recursive.
+    private AttributesEncoder filteredAttributesEncoder;
+    private boolean isFilteredAttributesRecursive = false; // Indicates FilteredAttributes field's type is recursive.
     
 
     private long keepFieldMask;
@@ -50,26 +55,48 @@ class ExemplarEncoder {
             }
 
             
+            // Init encoder for Timestamp field.
             if (this.fieldCount <= 0) {
                 return; // Timestamp and subsequent fields are skipped.
             }
+            timestampEncoder = new Uint64Encoder();
             this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Value field.
             if (this.fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.
             }
-            this.valueEncoder.init(state, columns.addSubColumn());
+            if (state.ExemplarValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                valueEncoder = state.ExemplarValueEncoder;
+                isValueRecursive = true;
+            } else {
+                valueEncoder = new ExemplarValueEncoder();
+                valueEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for SpanID field.
             if (this.fieldCount <= 2) {
                 return; // SpanID and subsequent fields are skipped.
             }
+            spanIDEncoder = new BytesEncoder();
             this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for TraceID field.
             if (this.fieldCount <= 3) {
                 return; // TraceID and subsequent fields are skipped.
             }
+            traceIDEncoder = new BytesEncoder();
             this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for FilteredAttributes field.
             if (this.fieldCount <= 4) {
                 return; // FilteredAttributes and subsequent fields are skipped.
             }
-            this.filteredAttributesEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                filteredAttributesEncoder = state.AttributesEncoder;
+                isFilteredAttributesRecursive = true;
+            } else {
+                filteredAttributesEncoder = new AttributesEncoder();
+                filteredAttributesEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.ExemplarEncoder = null;
         }
@@ -77,13 +104,21 @@ class ExemplarEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.timestampEncoder.reset();
-        this.valueEncoder.reset();
-        this.spanIDEncoder.reset();
-        this.traceIDEncoder.reset();
-        this.filteredAttributesEncoder.reset();
+        timestampEncoder.reset();
+        
+        if (!isValueRecursive) {
+            valueEncoder.reset();
+        }
+        
+        spanIDEncoder.reset();
+        traceIDEncoder.reset();
+        
+        if (!isFilteredAttributesRecursive) {
+            filteredAttributesEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -150,27 +185,50 @@ class ExemplarEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Timestamp field.
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampEncoder.collectColumns(columnSet.at(0));
+        
+        timestampEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Value field.
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueEncoder.collectColumns(columnSet.at(1));
+        if (!isValueRecursive) {
+            valueEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect SpanID field.
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDEncoder.collectColumns(columnSet.at(2));
+        
+        spanIDEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect TraceID field.
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDEncoder.collectColumns(columnSet.at(3));
+        
+        traceIDEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect FilteredAttributes field.
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
-        this.filteredAttributesEncoder.collectColumns(columnSet.at(4));
+        if (!isFilteredAttributesRecursive) {
+            filteredAttributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

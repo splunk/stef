@@ -353,29 +353,37 @@ public class Metric {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Metric val) {
-        if (!Types.StringEqual(this.name, val.name)) {
+    public boolean equals(Metric right) {
+        // Compare Name field.
+        if (!Types.StringEqual(this.name, right.name)) {
             return false;
         }
-        if (!Types.StringEqual(this.description, val.description)) {
+        // Compare Description field.
+        if (!Types.StringEqual(this.description, right.description)) {
             return false;
         }
-        if (!Types.StringEqual(this.unit, val.unit)) {
+        // Compare Unit field.
+        if (!Types.StringEqual(this.unit, right.unit)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.type_, val.type_)) {
+        // Compare Type field.
+        if (!Types.Uint64Equal(this.type_, right.type_)) {
             return false;
         }
-        if (!this.metadata.equals(val.metadata)) {
+        // Compare Metadata field.
+        if (!this.metadata.equals(right.metadata)) {
             return false;
         }
-        if (!this.histogramBounds.equals(val.histogramBounds)) {
+        // Compare HistogramBounds field.
+        if (!this.histogramBounds.equals(right.histogramBounds)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.aggregationTemporality, val.aggregationTemporality)) {
+        // Compare AggregationTemporality field.
+        if (!Types.Uint64Equal(this.aggregationTemporality, right.aggregationTemporality)) {
             return false;
         }
-        if (!Types.BoolEqual(this.monotonic, val.monotonic)) {
+        // Compare Monotonic field.
+        if (!Types.BoolEqual(this.monotonic, right.monotonic)) {
             return false;
         }
         return true;
@@ -399,41 +407,49 @@ public class Metric {
         }
         int c;
         
+        // Compare Name field.
         c = Types.StringCompare(left.name, right.name);
         if (c != 0) {
             return c;
         }
         
+        // Compare Description field.
         c = Types.StringCompare(left.description, right.description);
         if (c != 0) {
             return c;
         }
         
+        // Compare Unit field.
         c = Types.StringCompare(left.unit, right.unit);
         if (c != 0) {
             return c;
         }
         
+        // Compare Type field.
         c = Types.Uint64Compare(left.type_, right.type_);
         if (c != 0) {
             return c;
         }
         
+        // Compare Metadata field.
         c = Attributes.compare(left.metadata, right.metadata);
         if (c != 0) {
             return c;
         }
         
+        // Compare HistogramBounds field.
         c = Float64Array.compare(left.histogramBounds, right.histogramBounds);
         if (c != 0) {
             return c;
         }
         
+        // Compare AggregationTemporality field.
         c = Types.Uint64Compare(left.aggregationTemporality, right.aggregationTemporality);
         if (c != 0) {
             return c;
         }
         
+        // Compare Monotonic field.
         c = Types.BoolCompare(left.monotonic, right.monotonic);
         if (c != 0) {
             return c;
@@ -444,7 +460,7 @@ public class Metric {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 8;
+        final int fieldCount = Math.max(8,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setName(Types.StringRandom(random));

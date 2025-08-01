@@ -584,7 +584,7 @@ func (s *Span) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Span) mutateRandom(random *rand.Rand) {
-	const fieldCount = 14
+	const fieldCount = max(14, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetTraceID(pkg.BytesRandom(random))
 	}
@@ -629,48 +629,62 @@ func (s *Span) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Span) IsEqual(val *Span) bool {
-	if !pkg.BytesEqual(e.traceID, val.traceID) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Span) IsEqual(right *Span) bool {
+	// Compare TraceID field.
+	if !pkg.BytesEqual(s.traceID, right.traceID) {
 		return false
 	}
-	if !pkg.BytesEqual(e.spanID, val.spanID) {
+	// Compare SpanID field.
+	if !pkg.BytesEqual(s.spanID, right.spanID) {
 		return false
 	}
-	if !pkg.StringEqual(e.traceState, val.traceState) {
+	// Compare TraceState field.
+	if !pkg.StringEqual(s.traceState, right.traceState) {
 		return false
 	}
-	if !pkg.BytesEqual(e.parentSpanID, val.parentSpanID) {
+	// Compare ParentSpanID field.
+	if !pkg.BytesEqual(s.parentSpanID, right.parentSpanID) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.flags, val.flags) {
+	// Compare Flags field.
+	if !pkg.Uint64Equal(s.flags, right.flags) {
 		return false
 	}
-	if !pkg.StringEqual(e.name, val.name) {
+	// Compare Name field.
+	if !pkg.StringEqual(s.name, right.name) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.kind, val.kind) {
+	// Compare Kind field.
+	if !pkg.Uint64Equal(s.kind, right.kind) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.startTimeUnixNano, val.startTimeUnixNano) {
+	// Compare StartTimeUnixNano field.
+	if !pkg.Uint64Equal(s.startTimeUnixNano, right.startTimeUnixNano) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.endTimeUnixNano, val.endTimeUnixNano) {
+	// Compare EndTimeUnixNano field.
+	if !pkg.Uint64Equal(s.endTimeUnixNano, right.endTimeUnixNano) {
 		return false
 	}
-	if !e.attributes.IsEqual(&val.attributes) {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.droppedAttributesCount, val.droppedAttributesCount) {
+	// Compare DroppedAttributesCount field.
+	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
 		return false
 	}
-	if !e.events.IsEqual(&val.events) {
+	// Compare Events field.
+	if !s.events.IsEqual(&right.events) {
 		return false
 	}
-	if !e.links.IsEqual(&val.links) {
+	// Compare Links field.
+	if !s.links.IsEqual(&right.links) {
 		return false
 	}
-	if !e.status.IsEqual(&val.status) {
+	// Compare Status field.
+	if !s.status.IsEqual(&right.status) {
 		return false
 	}
 
@@ -694,45 +708,72 @@ func CmpSpan(left, right *Span) int {
 		return 1
 	}
 
+	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
+
+	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
+
+	// Compare TraceState field.
 	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
+
+	// Compare ParentSpanID field.
 	if c := pkg.BytesCompare(left.parentSpanID, right.parentSpanID); c != 0 {
 		return c
 	}
+
+	// Compare Flags field.
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {
 		return c
 	}
+
+	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
+
+	// Compare Kind field.
 	if c := pkg.Uint64Compare(left.kind, right.kind); c != 0 {
 		return c
 	}
+
+	// Compare StartTimeUnixNano field.
 	if c := pkg.Uint64Compare(left.startTimeUnixNano, right.startTimeUnixNano); c != 0 {
 		return c
 	}
+
+	// Compare EndTimeUnixNano field.
 	if c := pkg.Uint64Compare(left.endTimeUnixNano, right.endTimeUnixNano); c != 0 {
 		return c
 	}
+
+	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+
+	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
+
+	// Compare Events field.
 	if c := CmpEventArray(&left.events, &right.events); c != 0 {
 		return c
 	}
+
+	// Compare Links field.
 	if c := CmpLinkArray(&left.links, &right.links); c != 0 {
 		return c
 	}
+
+	// Compare Status field.
 	if c := CmpSpanStatus(&left.status, &right.status); c != 0 {
 		return c
 	}
@@ -751,20 +792,37 @@ type SpanEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	traceIDEncoder                encoders.BytesEncoder
-	spanIDEncoder                 encoders.BytesEncoder
-	traceStateEncoder             encoders.StringEncoder
-	parentSpanIDEncoder           encoders.BytesEncoder
-	flagsEncoder                  encoders.Uint64Encoder
-	nameEncoder                   encoders.StringEncoder
-	kindEncoder                   encoders.Uint64Encoder
-	startTimeUnixNanoEncoder      encoders.Uint64Encoder
-	endTimeUnixNanoEncoder        encoders.Uint64Encoder
-	attributesEncoder             AttributesEncoder
+	traceIDEncoder encoders.BytesEncoder
+
+	spanIDEncoder encoders.BytesEncoder
+
+	traceStateEncoder encoders.StringEncoder
+
+	parentSpanIDEncoder encoders.BytesEncoder
+
+	flagsEncoder encoders.Uint64Encoder
+
+	nameEncoder encoders.StringEncoder
+
+	kindEncoder encoders.Uint64Encoder
+
+	startTimeUnixNanoEncoder encoders.Uint64Encoder
+
+	endTimeUnixNanoEncoder encoders.Uint64Encoder
+
+	attributesEncoder     *AttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
+
 	droppedAttributesCountEncoder encoders.Uint64Encoder
-	eventsEncoder                 EventArrayEncoder
-	linksEncoder                  LinkArrayEncoder
-	statusEncoder                 SpanStatusEncoder
+
+	eventsEncoder     *EventArrayEncoder
+	isEventsRecursive bool // Indicates Events field's type is recursive.
+
+	linksEncoder     *LinkArrayEncoder
+	isLinksRecursive bool // Indicates Links field's type is recursive.
+
+	statusEncoder     *SpanStatusEncoder
+	isStatusRecursive bool // Indicates Status field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -798,88 +856,173 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for TraceID field.
 	if e.fieldCount <= 0 {
-		return nil // TraceID and subsequent fields are skipped.
+		// TraceID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for SpanID field.
 	if e.fieldCount <= 1 {
-		return nil // SpanID and subsequent fields are skipped.
+		// SpanID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for TraceState field.
 	if e.fieldCount <= 2 {
-		return nil // TraceState and subsequent fields are skipped.
+		// TraceState and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for ParentSpanID field.
 	if e.fieldCount <= 3 {
-		return nil // ParentSpanID and subsequent fields are skipped.
+		// ParentSpanID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.parentSpanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.parentSpanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Flags field.
 	if e.fieldCount <= 4 {
-		return nil // Flags and subsequent fields are skipped.
+		// Flags and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.flagsEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.flagsEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Name field.
 	if e.fieldCount <= 5 {
-		return nil // Name and subsequent fields are skipped.
+		// Name and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.nameEncoder.Init(&state.SpanName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.nameEncoder.Init(&state.SpanName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Kind field.
 	if e.fieldCount <= 6 {
-		return nil // Kind and subsequent fields are skipped.
+		// Kind and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.kindEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.kindEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for StartTimeUnixNano field.
 	if e.fieldCount <= 7 {
-		return nil // StartTimeUnixNano and subsequent fields are skipped.
+		// StartTimeUnixNano and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.startTimeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.startTimeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for EndTimeUnixNano field.
 	if e.fieldCount <= 8 {
-		return nil // EndTimeUnixNano and subsequent fields are skipped.
+		// EndTimeUnixNano and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.endTimeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.endTimeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 9 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.AttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(AttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 10 {
-		return nil // DroppedAttributesCount and subsequent fields are skipped.
+		// DroppedAttributesCount and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Events field.
 	if e.fieldCount <= 11 {
-		return nil // Events and subsequent fields are skipped.
+		// Events and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.eventsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.EventArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.eventsEncoder = state.EventArrayEncoder
+		e.isEventsRecursive = true
+	} else {
+		e.eventsEncoder = new(EventArrayEncoder)
+		err = e.eventsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Links field.
 	if e.fieldCount <= 12 {
-		return nil // Links and subsequent fields are skipped.
+		// Links and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.linksEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.LinkArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.linksEncoder = state.LinkArrayEncoder
+		e.isLinksRecursive = true
+	} else {
+		e.linksEncoder = new(LinkArrayEncoder)
+		err = e.linksEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Status field.
 	if e.fieldCount <= 13 {
-		return nil // Status and subsequent fields are skipped.
+		// Status and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.statusEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SpanStatusEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.statusEncoder = state.SpanStatusEncoder
+		e.isStatusRecursive = true
+	} else {
+		e.statusEncoder = new(SpanStatusEncoder)
+		err = e.statusEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -899,11 +1042,25 @@ func (e *SpanEncoder) Reset() {
 	e.kindEncoder.Reset()
 	e.startTimeUnixNanoEncoder.Reset()
 	e.endTimeUnixNanoEncoder.Reset()
-	e.attributesEncoder.Reset()
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
 	e.droppedAttributesCountEncoder.Reset()
-	e.eventsEncoder.Reset()
-	e.linksEncoder.Reset()
-	e.statusEncoder.Reset()
+
+	if !e.isEventsRecursive {
+		e.eventsEncoder.Reset()
+	}
+
+	if !e.isLinksRecursive {
+		e.linksEncoder.Reset()
+	}
+
+	if !e.isStatusRecursive {
+		e.statusEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -1023,63 +1180,123 @@ func (e *SpanEncoder) Encode(val *Span) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect TraceID field.
 	if e.fieldCount <= 0 {
 		return // TraceID and subsequent fields are skipped.
 	}
-	e.traceIDEncoder.CollectColumns(columnSet.At(0))
+
+	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect SpanID field.
 	if e.fieldCount <= 1 {
 		return // SpanID and subsequent fields are skipped.
 	}
-	e.spanIDEncoder.CollectColumns(columnSet.At(1))
+
+	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect TraceState field.
 	if e.fieldCount <= 2 {
 		return // TraceState and subsequent fields are skipped.
 	}
-	e.traceStateEncoder.CollectColumns(columnSet.At(2))
+
+	e.traceStateEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect ParentSpanID field.
 	if e.fieldCount <= 3 {
 		return // ParentSpanID and subsequent fields are skipped.
 	}
-	e.parentSpanIDEncoder.CollectColumns(columnSet.At(3))
+
+	e.parentSpanIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Flags field.
 	if e.fieldCount <= 4 {
 		return // Flags and subsequent fields are skipped.
 	}
-	e.flagsEncoder.CollectColumns(columnSet.At(4))
+
+	e.flagsEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Name field.
 	if e.fieldCount <= 5 {
 		return // Name and subsequent fields are skipped.
 	}
-	e.nameEncoder.CollectColumns(columnSet.At(5))
+
+	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Kind field.
 	if e.fieldCount <= 6 {
 		return // Kind and subsequent fields are skipped.
 	}
-	e.kindEncoder.CollectColumns(columnSet.At(6))
+
+	e.kindEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect StartTimeUnixNano field.
 	if e.fieldCount <= 7 {
 		return // StartTimeUnixNano and subsequent fields are skipped.
 	}
-	e.startTimeUnixNanoEncoder.CollectColumns(columnSet.At(7))
+
+	e.startTimeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect EndTimeUnixNano field.
 	if e.fieldCount <= 8 {
 		return // EndTimeUnixNano and subsequent fields are skipped.
 	}
-	e.endTimeUnixNanoEncoder.CollectColumns(columnSet.At(8))
+
+	e.endTimeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Attributes field.
 	if e.fieldCount <= 9 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(9))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 10 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(10))
+
+	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Events field.
 	if e.fieldCount <= 11 {
 		return // Events and subsequent fields are skipped.
 	}
-	e.eventsEncoder.CollectColumns(columnSet.At(11))
+	if !e.isEventsRecursive {
+		e.eventsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Links field.
 	if e.fieldCount <= 12 {
 		return // Links and subsequent fields are skipped.
 	}
-	e.linksEncoder.CollectColumns(columnSet.At(12))
+	if !e.isLinksRecursive {
+		e.linksEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Status field.
 	if e.fieldCount <= 13 {
 		return // Status and subsequent fields are skipped.
 	}
-	e.statusEncoder.CollectColumns(columnSet.At(13))
+	if !e.isStatusRecursive {
+		e.statusEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // SpanDecoder implements decoding of Span
@@ -1090,20 +1307,37 @@ type SpanDecoder struct {
 	lastVal    Span
 	fieldCount uint
 
-	traceIDDecoder                encoders.BytesDecoder
-	spanIDDecoder                 encoders.BytesDecoder
-	traceStateDecoder             encoders.StringDecoder
-	parentSpanIDDecoder           encoders.BytesDecoder
-	flagsDecoder                  encoders.Uint64Decoder
-	nameDecoder                   encoders.StringDecoder
-	kindDecoder                   encoders.Uint64Decoder
-	startTimeUnixNanoDecoder      encoders.Uint64Decoder
-	endTimeUnixNanoDecoder        encoders.Uint64Decoder
-	attributesDecoder             AttributesDecoder
+	traceIDDecoder encoders.BytesDecoder
+
+	spanIDDecoder encoders.BytesDecoder
+
+	traceStateDecoder encoders.StringDecoder
+
+	parentSpanIDDecoder encoders.BytesDecoder
+
+	flagsDecoder encoders.Uint64Decoder
+
+	nameDecoder encoders.StringDecoder
+
+	kindDecoder encoders.Uint64Decoder
+
+	startTimeUnixNanoDecoder encoders.Uint64Decoder
+
+	endTimeUnixNanoDecoder encoders.Uint64Decoder
+
+	attributesDecoder     *AttributesDecoder
+	isAttributesRecursive bool
+
 	droppedAttributesCountDecoder encoders.Uint64Decoder
-	eventsDecoder                 EventArrayDecoder
-	linksDecoder                  LinkArrayDecoder
-	statusDecoder                 SpanStatusDecoder
+
+	eventsDecoder     *EventArrayDecoder
+	isEventsRecursive bool
+
+	linksDecoder     *LinkArrayDecoder
+	isLinksRecursive bool
+
+	statusDecoder     *SpanStatusDecoder
+	isStatusRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1201,7 +1435,14 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if d.fieldCount <= 9 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.AttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(AttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -1215,21 +1456,42 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if d.fieldCount <= 11 {
 		return nil // Events and subsequent fields are skipped.
 	}
-	err = d.eventsDecoder.Init(state, columns.AddSubColumn())
+	if state.EventArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.eventsDecoder = state.EventArrayDecoder
+		d.isEventsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.eventsDecoder = new(EventArrayDecoder)
+		err = d.eventsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 12 {
 		return nil // Links and subsequent fields are skipped.
 	}
-	err = d.linksDecoder.Init(state, columns.AddSubColumn())
+	if state.LinkArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.linksDecoder = state.LinkArrayDecoder
+		d.isLinksRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.linksDecoder = new(LinkArrayDecoder)
+		err = d.linksDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 13 {
 		return nil // Status and subsequent fields are skipped.
 	}
-	err = d.statusDecoder.Init(state, columns.AddSubColumn())
+	if state.SpanStatusDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.statusDecoder = state.SpanStatusDecoder
+		d.isStatusRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.statusDecoder = new(SpanStatusDecoder)
+		err = d.statusDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -1284,7 +1546,11 @@ func (d *SpanDecoder) Continue() {
 	if d.fieldCount <= 9 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 10 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
@@ -1292,15 +1558,27 @@ func (d *SpanDecoder) Continue() {
 	if d.fieldCount <= 11 {
 		return // Events and subsequent fields are skipped.
 	}
-	d.eventsDecoder.Continue()
+
+	if !d.isEventsRecursive {
+		d.eventsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 12 {
 		return // Links and subsequent fields are skipped.
 	}
-	d.linksDecoder.Continue()
+
+	if !d.isLinksRecursive {
+		d.linksDecoder.Continue()
+	}
+
 	if d.fieldCount <= 13 {
 		return // Status and subsequent fields are skipped.
 	}
-	d.statusDecoder.Continue()
+
+	if !d.isStatusRecursive {
+		d.statusDecoder.Continue()
+	}
+
 }
 
 func (d *SpanDecoder) Reset() {
@@ -1313,11 +1591,25 @@ func (d *SpanDecoder) Reset() {
 	d.kindDecoder.Reset()
 	d.startTimeUnixNanoDecoder.Reset()
 	d.endTimeUnixNanoDecoder.Reset()
-	d.attributesDecoder.Reset()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
 	d.droppedAttributesCountDecoder.Reset()
-	d.eventsDecoder.Reset()
-	d.linksDecoder.Reset()
-	d.statusDecoder.Reset()
+
+	if !d.isEventsRecursive {
+		d.eventsDecoder.Reset()
+	}
+
+	if !d.isLinksRecursive {
+		d.linksDecoder.Reset()
+	}
+
+	if !d.isStatusRecursive {
+		d.statusDecoder.Reset()
+	}
+
 }
 
 func (d *SpanDecoder) Decode(dstPtr *Span) error {

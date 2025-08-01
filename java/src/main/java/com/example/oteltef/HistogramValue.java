@@ -313,20 +313,49 @@ public class HistogramValue {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(HistogramValue val) {
-        if (!Types.Int64Equal(this.count, val.count)) {
+    public boolean equals(HistogramValue right) {
+        // Compare Count field.
+        if (!Types.Int64Equal(this.count, right.count)) {
             return false;
         }
-        if (!Types.Float64Equal(this.sum, val.sum)) {
+        // Compare Sum field.
+        boolean thisSumPresent = (this.optionalFieldsPresent & fieldPresentSum) != 0;
+        boolean rightSumPresent = (right.optionalFieldsPresent & fieldPresentSum) != 0;
+        if (thisSumPresent != rightSumPresent) {
             return false;
         }
-        if (!Types.Float64Equal(this.min, val.min)) {
+        if (thisSumPresent) { // Compare only if Sum field is present
+        if (!Types.Float64Equal(this.sum, right.sum)) {
             return false;
         }
-        if (!Types.Float64Equal(this.max, val.max)) {
+        }
+        
+        // Compare Min field.
+        boolean thisMinPresent = (this.optionalFieldsPresent & fieldPresentMin) != 0;
+        boolean rightMinPresent = (right.optionalFieldsPresent & fieldPresentMin) != 0;
+        if (thisMinPresent != rightMinPresent) {
             return false;
         }
-        if (!this.bucketCounts.equals(val.bucketCounts)) {
+        if (thisMinPresent) { // Compare only if Min field is present
+        if (!Types.Float64Equal(this.min, right.min)) {
+            return false;
+        }
+        }
+        
+        // Compare Max field.
+        boolean thisMaxPresent = (this.optionalFieldsPresent & fieldPresentMax) != 0;
+        boolean rightMaxPresent = (right.optionalFieldsPresent & fieldPresentMax) != 0;
+        if (thisMaxPresent != rightMaxPresent) {
+            return false;
+        }
+        if (thisMaxPresent) { // Compare only if Max field is present
+        if (!Types.Float64Equal(this.max, right.max)) {
+            return false;
+        }
+        }
+        
+        // Compare BucketCounts field.
+        if (!this.bucketCounts.equals(right.bucketCounts)) {
             return false;
         }
         return true;
@@ -350,26 +379,55 @@ public class HistogramValue {
         }
         int c;
         
+        // Compare Count field.
         c = Types.Int64Compare(left.count, right.count);
         if (c != 0) {
             return c;
         }
         
+        // Compare Sum field.
+        boolean leftSumPresent = (left.optionalFieldsPresent & fieldPresentSum) != 0;
+        boolean rightSumPresent = (right.optionalFieldsPresent & fieldPresentSum) != 0;
+        if (leftSumPresent != rightSumPresent) {
+            if (leftSumPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.sum, right.sum);
         if (c != 0) {
             return c;
         }
         
+        // Compare Min field.
+        boolean leftMinPresent = (left.optionalFieldsPresent & fieldPresentMin) != 0;
+        boolean rightMinPresent = (right.optionalFieldsPresent & fieldPresentMin) != 0;
+        if (leftMinPresent != rightMinPresent) {
+            if (leftMinPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.min, right.min);
         if (c != 0) {
             return c;
         }
         
+        // Compare Max field.
+        boolean leftMaxPresent = (left.optionalFieldsPresent & fieldPresentMax) != 0;
+        boolean rightMaxPresent = (right.optionalFieldsPresent & fieldPresentMax) != 0;
+        if (leftMaxPresent != rightMaxPresent) {
+            if (leftMaxPresent) {
+                return 1;
+            }
+            return -1;
+        }
         c = Types.Float64Compare(left.max, right.max);
         if (c != 0) {
             return c;
         }
         
+        // Compare BucketCounts field.
         c = Int64Array.compare(left.bucketCounts, right.bucketCounts);
         if (c != 0) {
             return c;
@@ -380,7 +438,7 @@ public class HistogramValue {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 5;
+        final int fieldCount = Math.max(5,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setCount(Types.Int64Random(random));

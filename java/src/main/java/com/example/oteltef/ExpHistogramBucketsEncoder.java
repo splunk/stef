@@ -20,8 +20,10 @@ class ExpHistogramBucketsEncoder {
     private boolean forceModifiedFields;
 
     
-    private Int64Encoder offsetEncoder = new Int64Encoder();
-    private Uint64ArrayEncoder bucketCountsEncoder = new Uint64ArrayEncoder();
+    private Int64Encoder offsetEncoder;
+    private boolean isOffsetRecursive = false; // Indicates Offset field's type is recursive.
+    private Uint64ArrayEncoder bucketCountsEncoder;
+    private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
     private long keepFieldMask;
@@ -47,14 +49,24 @@ class ExpHistogramBucketsEncoder {
             }
 
             
+            // Init encoder for Offset field.
             if (this.fieldCount <= 0) {
                 return; // Offset and subsequent fields are skipped.
             }
+            offsetEncoder = new Int64Encoder();
             this.offsetEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for BucketCounts field.
             if (this.fieldCount <= 1) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            this.bucketCountsEncoder.init(state, columns.addSubColumn());
+            if (state.Uint64ArrayEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                bucketCountsEncoder = state.Uint64ArrayEncoder;
+                isBucketCountsRecursive = true;
+            } else {
+                bucketCountsEncoder = new Uint64ArrayEncoder();
+                bucketCountsEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.ExpHistogramBucketsEncoder = null;
         }
@@ -62,10 +74,14 @@ class ExpHistogramBucketsEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.offsetEncoder.reset();
-        this.bucketCountsEncoder.reset();
+        offsetEncoder.reset();
+        
+        if (!isBucketCountsRecursive) {
+            bucketCountsEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -114,15 +130,25 @@ class ExpHistogramBucketsEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Offset field.
         if (this.fieldCount <= 0) {
             return; // Offset and subsequent fields are skipped.
         }
-        this.offsetEncoder.collectColumns(columnSet.at(0));
+        
+        offsetEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect BucketCounts field.
         if (this.fieldCount <= 1) {
             return; // BucketCounts and subsequent fields are skipped.
         }
-        this.bucketCountsEncoder.collectColumns(columnSet.at(1));
+        if (!isBucketCountsRecursive) {
+            bucketCountsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

@@ -16,12 +16,18 @@ class LinkDecoder {
     private int fieldCount;
 
     
-    private BytesDecoder traceIDDecoder = new BytesDecoder();
-    private BytesDecoder spanIDDecoder = new BytesDecoder();
-    private StringDecoder traceStateDecoder = new StringDecoder();
-    private Uint64Decoder flagsDecoder = new Uint64Decoder();
-    private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
+    private BytesDecoder traceIDDecoder;
+    private boolean isTraceIDRecursive = false; // Indicates TraceID field's type is recursive.
+    private BytesDecoder spanIDDecoder;
+    private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
+    private StringDecoder traceStateDecoder;
+    private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
+    private Uint64Decoder flagsDecoder;
+    private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
+    private AttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Decoder droppedAttributesCountDecoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -46,26 +52,38 @@ class LinkDecoder {
             if (this.fieldCount <= 0) {
                 return; // TraceID and subsequent fields are skipped.
             }
+            traceIDDecoder = new BytesDecoder();
             traceIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
+            spanIDDecoder = new BytesDecoder();
             spanIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
+            traceStateDecoder = new StringDecoder();
             traceStateDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }
+            flagsDecoder = new Uint64Decoder();
             flagsDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.AttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new AttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 5) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountDecoder = new Uint64Decoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
         } finally {
             state.LinkDecoder = null;
@@ -83,36 +101,42 @@ class LinkDecoder {
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.continueDecoding();
+        traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.continueDecoding();
+        spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateDecoder.continueDecoding();
+        traceStateDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsDecoder.continueDecoding();
+        flagsDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.continueDecoding();
+        droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.traceIDDecoder.reset();
-        this.spanIDDecoder.reset();
-        this.traceStateDecoder.reset();
-        this.flagsDecoder.reset();
-        this.attributesDecoder.reset();
-        this.droppedAttributesCountDecoder.reset();
+        traceIDDecoder.reset();
+        spanIDDecoder.reset();
+        traceStateDecoder.reset();
+        flagsDecoder.reset();
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
+        droppedAttributesCountDecoder.reset();
     }
 
     public Link decode(Link dstPtr) throws IOException {
@@ -143,6 +167,9 @@ class LinkDecoder {
         
         if ((val.modifiedFields.mask & Link.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new Attributes(val.modifiedFields, Link.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         

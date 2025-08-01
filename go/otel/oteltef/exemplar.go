@@ -265,7 +265,7 @@ func (s *Exemplar) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Exemplar) mutateRandom(random *rand.Rand) {
-	const fieldCount = 5
+	const fieldCount = max(5, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetTimestamp(pkg.Uint64Random(random))
 	}
@@ -283,21 +283,26 @@ func (s *Exemplar) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Exemplar) IsEqual(val *Exemplar) bool {
-	if !pkg.Uint64Equal(e.timestamp, val.timestamp) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Exemplar) IsEqual(right *Exemplar) bool {
+	// Compare Timestamp field.
+	if !pkg.Uint64Equal(s.timestamp, right.timestamp) {
 		return false
 	}
-	if !e.value.IsEqual(&val.value) {
+	// Compare Value field.
+	if !s.value.IsEqual(&right.value) {
 		return false
 	}
-	if !pkg.BytesEqual(e.spanID, val.spanID) {
+	// Compare SpanID field.
+	if !pkg.BytesEqual(s.spanID, right.spanID) {
 		return false
 	}
-	if !pkg.BytesEqual(e.traceID, val.traceID) {
+	// Compare TraceID field.
+	if !pkg.BytesEqual(s.traceID, right.traceID) {
 		return false
 	}
-	if !e.filteredAttributes.IsEqual(&val.filteredAttributes) {
+	// Compare FilteredAttributes field.
+	if !s.filteredAttributes.IsEqual(&right.filteredAttributes) {
 		return false
 	}
 
@@ -321,18 +326,27 @@ func CmpExemplar(left, right *Exemplar) int {
 		return 1
 	}
 
+	// Compare Timestamp field.
 	if c := pkg.Uint64Compare(left.timestamp, right.timestamp); c != 0 {
 		return c
 	}
+
+	// Compare Value field.
 	if c := CmpExemplarValue(&left.value, &right.value); c != 0 {
 		return c
 	}
+
+	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
+
+	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
+
+	// Compare FilteredAttributes field.
 	if c := CmpAttributes(&left.filteredAttributes, &right.filteredAttributes); c != 0 {
 		return c
 	}
@@ -351,11 +365,17 @@ type ExemplarEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	timestampEncoder          encoders.Uint64Encoder
-	valueEncoder              ExemplarValueEncoder
-	spanIDEncoder             encoders.BytesEncoder
-	traceIDEncoder            encoders.BytesEncoder
-	filteredAttributesEncoder AttributesEncoder
+	timestampEncoder encoders.Uint64Encoder
+
+	valueEncoder     *ExemplarValueEncoder
+	isValueRecursive bool // Indicates Value field's type is recursive.
+
+	spanIDEncoder encoders.BytesEncoder
+
+	traceIDEncoder encoders.BytesEncoder
+
+	filteredAttributesEncoder     *AttributesEncoder
+	isFilteredAttributesRecursive bool // Indicates FilteredAttributes field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -389,34 +409,69 @@ func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Timestamp field.
 	if e.fieldCount <= 0 {
-		return nil // Timestamp and subsequent fields are skipped.
+		// Timestamp and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.timestampEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.timestampEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Value field.
 	if e.fieldCount <= 1 {
-		return nil // Value and subsequent fields are skipped.
+		// Value and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valueEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ExemplarValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.valueEncoder = state.ExemplarValueEncoder
+		e.isValueRecursive = true
+	} else {
+		e.valueEncoder = new(ExemplarValueEncoder)
+		err = e.valueEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for SpanID field.
 	if e.fieldCount <= 2 {
-		return nil // SpanID and subsequent fields are skipped.
+		// SpanID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for TraceID field.
 	if e.fieldCount <= 3 {
-		return nil // TraceID and subsequent fields are skipped.
+		// TraceID and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for FilteredAttributes field.
 	if e.fieldCount <= 4 {
-		return nil // FilteredAttributes and subsequent fields are skipped.
+		// FilteredAttributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.filteredAttributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.filteredAttributesEncoder = state.AttributesEncoder
+		e.isFilteredAttributesRecursive = true
+	} else {
+		e.filteredAttributesEncoder = new(AttributesEncoder)
+		err = e.filteredAttributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -428,10 +483,18 @@ func (e *ExemplarEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 	e.timestampEncoder.Reset()
-	e.valueEncoder.Reset()
+
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
+
 	e.spanIDEncoder.Reset()
 	e.traceIDEncoder.Reset()
-	e.filteredAttributesEncoder.Reset()
+
+	if !e.isFilteredAttributesRecursive {
+		e.filteredAttributesEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -497,27 +560,49 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Timestamp field.
 	if e.fieldCount <= 0 {
 		return // Timestamp and subsequent fields are skipped.
 	}
-	e.timestampEncoder.CollectColumns(columnSet.At(0))
+
+	e.timestampEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Value field.
 	if e.fieldCount <= 1 {
 		return // Value and subsequent fields are skipped.
 	}
-	e.valueEncoder.CollectColumns(columnSet.At(1))
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect SpanID field.
 	if e.fieldCount <= 2 {
 		return // SpanID and subsequent fields are skipped.
 	}
-	e.spanIDEncoder.CollectColumns(columnSet.At(2))
+
+	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect TraceID field.
 	if e.fieldCount <= 3 {
 		return // TraceID and subsequent fields are skipped.
 	}
-	e.traceIDEncoder.CollectColumns(columnSet.At(3))
+
+	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect FilteredAttributes field.
 	if e.fieldCount <= 4 {
 		return // FilteredAttributes and subsequent fields are skipped.
 	}
-	e.filteredAttributesEncoder.CollectColumns(columnSet.At(4))
+	if !e.isFilteredAttributesRecursive {
+		e.filteredAttributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // ExemplarDecoder implements decoding of Exemplar
@@ -528,11 +613,17 @@ type ExemplarDecoder struct {
 	lastVal    Exemplar
 	fieldCount uint
 
-	timestampDecoder          encoders.Uint64Decoder
-	valueDecoder              ExemplarValueDecoder
-	spanIDDecoder             encoders.BytesDecoder
-	traceIDDecoder            encoders.BytesDecoder
-	filteredAttributesDecoder AttributesDecoder
+	timestampDecoder encoders.Uint64Decoder
+
+	valueDecoder     *ExemplarValueDecoder
+	isValueRecursive bool
+
+	spanIDDecoder encoders.BytesDecoder
+
+	traceIDDecoder encoders.BytesDecoder
+
+	filteredAttributesDecoder     *AttributesDecoder
+	isFilteredAttributesRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -574,7 +665,14 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 1 {
 		return nil // Value and subsequent fields are skipped.
 	}
-	err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	if state.ExemplarValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valueDecoder = state.ExemplarValueDecoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valueDecoder = new(ExemplarValueDecoder)
+		err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -595,7 +693,14 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 4 {
 		return nil // FilteredAttributes and subsequent fields are skipped.
 	}
-	err = d.filteredAttributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.filteredAttributesDecoder = state.AttributesDecoder
+		d.isFilteredAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.filteredAttributesDecoder = new(AttributesDecoder)
+		err = d.filteredAttributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -618,7 +723,11 @@ func (d *ExemplarDecoder) Continue() {
 	if d.fieldCount <= 1 {
 		return // Value and subsequent fields are skipped.
 	}
-	d.valueDecoder.Continue()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Continue()
+	}
+
 	if d.fieldCount <= 2 {
 		return // SpanID and subsequent fields are skipped.
 	}
@@ -630,15 +739,27 @@ func (d *ExemplarDecoder) Continue() {
 	if d.fieldCount <= 4 {
 		return // FilteredAttributes and subsequent fields are skipped.
 	}
-	d.filteredAttributesDecoder.Continue()
+
+	if !d.isFilteredAttributesRecursive {
+		d.filteredAttributesDecoder.Continue()
+	}
+
 }
 
 func (d *ExemplarDecoder) Reset() {
 	d.timestampDecoder.Reset()
-	d.valueDecoder.Reset()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
+
 	d.spanIDDecoder.Reset()
 	d.traceIDDecoder.Reset()
-	d.filteredAttributesDecoder.Reset()
+
+	if !d.isFilteredAttributesRecursive {
+		d.filteredAttributesDecoder.Reset()
+	}
+
 }
 
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {

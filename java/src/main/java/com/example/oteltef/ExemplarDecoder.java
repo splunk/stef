@@ -16,11 +16,16 @@ class ExemplarDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder timestampDecoder = new Uint64Decoder();
-    private ExemplarValueDecoder valueDecoder = new ExemplarValueDecoder();
-    private BytesDecoder spanIDDecoder = new BytesDecoder();
-    private BytesDecoder traceIDDecoder = new BytesDecoder();
-    private AttributesDecoder filteredAttributesDecoder = new AttributesDecoder();
+    private Uint64Decoder timestampDecoder;
+    private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
+    private ExemplarValueDecoder valueDecoder;
+    private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
+    private BytesDecoder spanIDDecoder;
+    private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
+    private BytesDecoder traceIDDecoder;
+    private boolean isTraceIDRecursive = false; // Indicates TraceID field's type is recursive.
+    private AttributesDecoder filteredAttributesDecoder;
+    private boolean isFilteredAttributesRecursive = false; // Indicates FilteredAttributes field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -45,23 +50,40 @@ class ExemplarDecoder {
             if (this.fieldCount <= 0) {
                 return; // Timestamp and subsequent fields are skipped.
             }
+            timestampDecoder = new Uint64Decoder();
             timestampDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.
             }
-            valueDecoder.init(state, columns.addSubColumn());
+            if (state.ExemplarValueDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                valueDecoder = state.ExemplarValueDecoder;
+                isValueRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                valueDecoder = new ExemplarValueDecoder();
+                valueDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 2) {
                 return; // SpanID and subsequent fields are skipped.
             }
+            spanIDDecoder = new BytesDecoder();
             spanIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // TraceID and subsequent fields are skipped.
             }
+            traceIDDecoder = new BytesDecoder();
             traceIDDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // FilteredAttributes and subsequent fields are skipped.
             }
-            filteredAttributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                filteredAttributesDecoder = state.AttributesDecoder;
+                isFilteredAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                filteredAttributesDecoder = new AttributesDecoder();
+                filteredAttributesDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.ExemplarDecoder = null;
         }
@@ -78,31 +100,43 @@ class ExemplarDecoder {
         if (this.fieldCount <= 0) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.continueDecoding();
+        timestampDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.continueDecoding();
+        
+        if (!isValueRecursive) {
+            valueDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 2) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDDecoder.continueDecoding();
+        spanIDDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDDecoder.continueDecoding();
+        traceIDDecoder.continueDecoding();
         if (this.fieldCount <= 4) {
             return; // FilteredAttributes and subsequent fields are skipped.
         }
-        this.filteredAttributesDecoder.continueDecoding();
+        
+        if (!isFilteredAttributesRecursive) {
+            filteredAttributesDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.timestampDecoder.reset();
-        this.valueDecoder.reset();
-        this.spanIDDecoder.reset();
-        this.traceIDDecoder.reset();
-        this.filteredAttributesDecoder.reset();
+        timestampDecoder.reset();
+        if (!isValueRecursive) {
+            valueDecoder.reset();
+        }
+        spanIDDecoder.reset();
+        traceIDDecoder.reset();
+        if (!isFilteredAttributesRecursive) {
+            filteredAttributesDecoder.reset();
+        }
     }
 
     public Exemplar decode(Exemplar dstPtr) throws IOException {
@@ -118,6 +152,9 @@ class ExemplarDecoder {
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
+            if (val.value == null) {
+                val.value = new ExemplarValue(val.modifiedFields, Exemplar.fieldModifiedValue);
+            }
             val.value = valueDecoder.decode(val.value);
         }
         
@@ -133,6 +170,9 @@ class ExemplarDecoder {
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.filteredAttributes == null) {
+                val.filteredAttributes = new Attributes(val.modifiedFields, Exemplar.fieldModifiedFilteredAttributes);
+            }
             val.filteredAttributes = filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         

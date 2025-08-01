@@ -20,10 +20,14 @@ class EventEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder nameEncoder = new StringEncoder();
-    private Uint64Encoder timeUnixNanoEncoder = new Uint64Encoder();
-    private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
+    private StringEncoder nameEncoder;
+    private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
+    private Uint64Encoder timeUnixNanoEncoder;
+    private boolean isTimeUnixNanoRecursive = false; // Indicates TimeUnixNano field's type is recursive.
+    private AttributesEncoder attributesEncoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Encoder droppedAttributesCountEncoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
 
     private long keepFieldMask;
@@ -49,21 +53,35 @@ class EventEncoder {
             }
 
             
+            // Init encoder for Name field.
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
+            nameEncoder = new StringEncoder();
             this.nameEncoder.init(state.SpanEventName, this.limiter, columns.addSubColumn());
+            // Init encoder for TimeUnixNano field.
             if (this.fieldCount <= 1) {
                 return; // TimeUnixNano and subsequent fields are skipped.
             }
+            timeUnixNanoEncoder = new Uint64Encoder();
             this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Attributes field.
             if (this.fieldCount <= 2) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                attributesEncoder = state.AttributesEncoder;
+                isAttributesRecursive = true;
+            } else {
+                attributesEncoder = new AttributesEncoder();
+                attributesEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for DroppedAttributesCount field.
             if (this.fieldCount <= 3) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountEncoder = new Uint64Encoder();
             this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.EventEncoder = null;
@@ -72,12 +90,16 @@ class EventEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.nameEncoder.reset();
-        this.timeUnixNanoEncoder.reset();
-        this.attributesEncoder.reset();
-        this.droppedAttributesCountEncoder.reset();
+        nameEncoder.reset();
+        timeUnixNanoEncoder.reset();
+        
+        if (!isAttributesRecursive) {
+            attributesEncoder.reset();
+        }
+        
+        droppedAttributesCountEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -138,23 +160,41 @@ class EventEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Name field.
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameEncoder.collectColumns(columnSet.at(0));
+        
+        nameEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect TimeUnixNano field.
         if (this.fieldCount <= 1) {
             return; // TimeUnixNano and subsequent fields are skipped.
         }
-        this.timeUnixNanoEncoder.collectColumns(columnSet.at(1));
+        
+        timeUnixNanoEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Attributes field.
         if (this.fieldCount <= 2) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesEncoder.collectColumns(columnSet.at(2));
+        if (!isAttributesRecursive) {
+            attributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect DroppedAttributesCount field.
         if (this.fieldCount <= 3) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountEncoder.collectColumns(columnSet.at(3));
+        
+        droppedAttributesCountEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

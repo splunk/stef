@@ -16,12 +16,18 @@ class MetricsDecoder {
     private int fieldCount;
 
     
-    private EnvelopeDecoder envelopeDecoder = new EnvelopeDecoder();
-    private MetricDecoder metricDecoder = new MetricDecoder();
-    private ResourceDecoder resourceDecoder = new ResourceDecoder();
-    private ScopeDecoder scopeDecoder = new ScopeDecoder();
-    private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private PointDecoder pointDecoder = new PointDecoder();
+    private EnvelopeDecoder envelopeDecoder;
+    private boolean isEnvelopeRecursive = false; // Indicates Envelope field's type is recursive.
+    private MetricDecoder metricDecoder;
+    private boolean isMetricRecursive = false; // Indicates Metric field's type is recursive.
+    private ResourceDecoder resourceDecoder;
+    private boolean isResourceRecursive = false; // Indicates Resource field's type is recursive.
+    private ScopeDecoder scopeDecoder;
+    private boolean isScopeRecursive = false; // Indicates Scope field's type is recursive.
+    private AttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private PointDecoder pointDecoder;
+    private boolean isPointRecursive = false; // Indicates Point field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -46,27 +52,69 @@ class MetricsDecoder {
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.
             }
-            envelopeDecoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                envelopeDecoder = state.EnvelopeDecoder;
+                isEnvelopeRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                envelopeDecoder = new EnvelopeDecoder();
+                envelopeDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 1) {
                 return; // Metric and subsequent fields are skipped.
             }
-            metricDecoder.init(state, columns.addSubColumn());
+            if (state.MetricDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                metricDecoder = state.MetricDecoder;
+                isMetricRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                metricDecoder = new MetricDecoder();
+                metricDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 2) {
                 return; // Resource and subsequent fields are skipped.
             }
-            resourceDecoder.init(state, columns.addSubColumn());
+            if (state.ResourceDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                resourceDecoder = state.ResourceDecoder;
+                isResourceRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                resourceDecoder = new ResourceDecoder();
+                resourceDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 3) {
                 return; // Scope and subsequent fields are skipped.
             }
-            scopeDecoder.init(state, columns.addSubColumn());
+            if (state.ScopeDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                scopeDecoder = state.ScopeDecoder;
+                isScopeRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                scopeDecoder = new ScopeDecoder();
+                scopeDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.AttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new AttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 5) {
                 return; // Point and subsequent fields are skipped.
             }
-            pointDecoder.init(state, columns.addSubColumn());
+            if (state.PointDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                pointDecoder = state.PointDecoder;
+                isPointRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                pointDecoder = new PointDecoder();
+                pointDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.MetricsDecoder = null;
         }
@@ -83,36 +131,72 @@ class MetricsDecoder {
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeDecoder.continueDecoding();
+        
+        if (!isEnvelopeRecursive) {
+            envelopeDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 1) {
             return; // Metric and subsequent fields are skipped.
         }
-        this.metricDecoder.continueDecoding();
+        
+        if (!isMetricRecursive) {
+            metricDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 2) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceDecoder.continueDecoding();
+        
+        if (!isResourceRecursive) {
+            resourceDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 3) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeDecoder.continueDecoding();
+        
+        if (!isScopeRecursive) {
+            scopeDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 5) {
             return; // Point and subsequent fields are skipped.
         }
-        this.pointDecoder.continueDecoding();
+        
+        if (!isPointRecursive) {
+            pointDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.envelopeDecoder.reset();
-        this.metricDecoder.reset();
-        this.resourceDecoder.reset();
-        this.scopeDecoder.reset();
-        this.attributesDecoder.reset();
-        this.pointDecoder.reset();
+        if (!isEnvelopeRecursive) {
+            envelopeDecoder.reset();
+        }
+        if (!isMetricRecursive) {
+            metricDecoder.reset();
+        }
+        if (!isResourceRecursive) {
+            resourceDecoder.reset();
+        }
+        if (!isScopeRecursive) {
+            scopeDecoder.reset();
+        }
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
+        if (!isPointRecursive) {
+            pointDecoder.reset();
+        }
     }
 
     public Metrics decode(Metrics dstPtr) throws IOException {
@@ -123,31 +207,49 @@ class MetricsDecoder {
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedEnvelope) != 0) {
             // Field is changed and is present, decode it.
+            if (val.envelope == null) {
+                val.envelope = new Envelope(val.modifiedFields, Metrics.fieldModifiedEnvelope);
+            }
             val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedMetric) != 0) {
             // Field is changed and is present, decode it.
+            if (val.metric == null) {
+                val.metric = new Metric(val.modifiedFields, Metrics.fieldModifiedMetric);
+            }
             val.metric = metricDecoder.decode(val.metric);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedResource) != 0) {
             // Field is changed and is present, decode it.
+            if (val.resource == null) {
+                val.resource = new Resource(val.modifiedFields, Metrics.fieldModifiedResource);
+            }
             val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedScope) != 0) {
             // Field is changed and is present, decode it.
+            if (val.scope == null) {
+                val.scope = new Scope(val.modifiedFields, Metrics.fieldModifiedScope);
+            }
             val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new Attributes(val.modifiedFields, Metrics.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedPoint) != 0) {
             // Field is changed and is present, decode it.
+            if (val.point == null) {
+                val.point = new Point(val.modifiedFields, Metrics.fieldModifiedPoint);
+            }
             val.point = pointDecoder.decode(val.point);
         }
         
