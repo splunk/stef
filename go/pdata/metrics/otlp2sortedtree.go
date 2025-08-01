@@ -50,6 +50,11 @@ func (c *OtlpToSortedTree) FromOtlp(rms pmetric.ResourceMetricsSlice) (*sortedby
 					if err != nil {
 						return nil, err
 					}
+				case pmetric.MetricTypeSummary:
+					err := c.covertSummaryDataPoints(sm, rm, sms, metric, metric.Summary())
+					if err != nil {
+						return nil, err
+					}
 				default:
 					panic(fmt.Sprintf("Unsupported metric type: %v (metric name=%s)", metric.Type(), metric.Name()))
 				}
@@ -207,6 +212,42 @@ func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
 
 		err := c.ConvertExpHistogram(dstPoint, srcPoint)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *OtlpToSortedTree) covertSummaryDataPoints(
+	sm *sortedbymetric.SortedTree,
+	rm pmetric.ResourceMetrics,
+	sms pmetric.ScopeMetrics,
+	metric pmetric.Metric,
+	summary pmetric.Summary,
+) error {
+	var byMetric *sortedbymetric.ByMetric
+	var byScope *sortedbymetric.ByScope
+	flags := internal.MetricFlags(0) // No monotonic/temporality for summary
+	srcPoints := summary.DataPoints()
+
+	for l := 0; l < srcPoints.Len(); l++ {
+		srcPoint := srcPoints.At(l)
+		c.recordCount++
+
+		byMetric = sm.ByMetric(metric, oteltef.MetricTypeSummary, flags, nil)
+		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
+		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
+		dstPoints := byScope.ByAttrs(&c.TempAttrs)
+		dstPoint := oteltef.NewPoint()
+		*dstPoints = append(*dstPoints, dstPoint)
+
+		dstPoint.SetTimestamp(uint64(srcPoint.Timestamp()))
+		dstPoint.SetStartTimestamp(uint64(srcPoint.StartTimestamp()))
+		// No exemplars for summary
+
+		err := c.ConvertSummary(dstPoint, srcPoint)
 		if err != nil {
 			return err
 		}

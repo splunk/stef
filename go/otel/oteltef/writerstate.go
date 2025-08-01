@@ -54,11 +54,14 @@ type WriterState struct {
 	MetricsEncoder             *MetricsEncoder
 	PointEncoder               *PointEncoder
 	PointValueEncoder          *PointValueEncoder
+	QuantileValueEncoder       *QuantileValueEncoder
+	QuantileValueArrayEncoder  *QuantileValueArrayEncoder
 	ResourceEncoder            *ResourceEncoder
 	ScopeEncoder               *ScopeEncoder
 	SpanEncoder                *SpanEncoder
 	SpanStatusEncoder          *SpanStatusEncoder
 	SpansEncoder               *SpansEncoder
+	SummaryValueEncoder        *SummaryValueEncoder
 	Uint64ArrayEncoder         *Uint64ArrayEncoder
 }
 

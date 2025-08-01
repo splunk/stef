@@ -127,7 +127,8 @@ func (g *metricGenerator) populateMetrics(cfg MetricsCfg, ilm pmetric.ScopeMetri
 			histo.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 			populateExpoHistogram(cfg, histo)
 		case pmetric.MetricTypeSummary:
-			panic("unsupported type summary")
+			summary := metric.SetEmptySummary()
+			populateSummary(cfg, summary)
 		}
 	}
 }
@@ -226,5 +227,23 @@ func populateExpoHistogram(cfg MetricsCfg, dh pmetric.ExponentialHistogram) {
 		pt.SetMax(float64(cfg.PtVal))
 		pt.Positive().SetOffset(int32(cfg.PtVal))
 		pt.Positive().BucketCounts().FromRaw([]uint64{uint64(cfg.PtVal)})
+	}
+}
+
+func populateSummary(cfg MetricsCfg, dh pmetric.Summary) {
+	pts := dh.DataPoints()
+	pts.EnsureCapacity(cfg.NumPtsPerMetric)
+	for i := 0; i < cfg.NumPtsPerMetric; i++ {
+		pt := pts.AppendEmpty()
+		pt.SetStartTimestamp(pcommon.Timestamp(cfg.StartTime))
+		ts := getTimestamp(cfg.StartTime, cfg.StepSize, i)
+		pt.SetTimestamp(ts)
+		populatePtAttributes(cfg, pt.Attributes())
+
+		pt.SetSum(100 * float64(cfg.PtVal))
+		pt.SetCount(uint64(cfg.PtVal))
+		qv := pt.QuantileValues().AppendEmpty()
+		qv.SetValue(float64(cfg.PtVal))
+		qv.SetQuantile(0.5)
 	}
 }

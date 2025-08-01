@@ -25,6 +25,8 @@ class PointValueEncoder {
     private boolean isHistogramRecursive = false; // Indicates Histogram field's type is recursive.
     private ExpHistogramValueEncoder expHistogramEncoder;
     private boolean isExpHistogramRecursive = false; // Indicates ExpHistogram field's type is recursive.
+    private SummaryValueEncoder summaryEncoder;
+    private boolean isSummaryRecursive = false; // Indicates Summary field's type is recursive.
     
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
@@ -42,7 +44,7 @@ class PointValueEncoder {
                 int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
                 this.fieldCount = fieldCount;
             } else {
-                this.fieldCount = 4;
+                this.fieldCount = 5;
             }
 
             
@@ -82,6 +84,18 @@ class PointValueEncoder {
                 expHistogramEncoder = new ExpHistogramValueEncoder();
                 expHistogramEncoder.init(state, columns.addSubColumn());
             }
+            // Init encoder for Summary field.
+            if (this.fieldCount <= 4) {
+                return; // Summary and subsequent fields are skipped.
+            }
+            if (state.SummaryValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                summaryEncoder = state.SummaryValueEncoder;
+                isSummaryRecursive = true;
+            } else {
+                summaryEncoder = new SummaryValueEncoder();
+                summaryEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointValueEncoder = null;
         }
@@ -99,6 +113,11 @@ class PointValueEncoder {
         
         if (!isExpHistogramRecursive) {
             expHistogramEncoder.reset();
+        }
+        
+        
+        if (!isSummaryRecursive) {
+            summaryEncoder.reset();
         }
         
     }
@@ -140,6 +159,10 @@ class PointValueEncoder {
             // Encode ExpHistogram
             expHistogramEncoder.encode(val.expHistogram);
             break;
+        case TypeSummary:
+            // Encode Summary
+            summaryEncoder.encode(val.summary);
+            break;
         }
     }
 
@@ -179,6 +202,15 @@ class PointValueEncoder {
         }
         if (!isExpHistogramRecursive) {
             expHistogramEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Summary field.
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        if (!isSummaryRecursive) {
+            summaryEncoder.collectColumns(columnSet.at(colIdx));
             colIdx++;
         }
         
