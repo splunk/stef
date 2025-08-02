@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,13 +33,10 @@ func newGrpcServer() (*grpc.Server, net.Listener, int) {
 // mockDestinationServer unified mock server that handles both basic functionality and schema capabilities
 type mockDestinationServer struct {
 	stef_proto.UnimplementedSTEFDestinationServer
-	serverSchema     *schema.WireSchema
-	receivedData     []byte
-	receivedCount    atomic.Int64
-	receivedMessages [][]byte
-	mu               sync.Mutex
-	acksSent         []uint64
-	useSchemaMode    bool // determines whether to use schema capabilities mode or basic mode
+	serverSchema  *schema.WireSchema
+	receivedData  []byte
+	receivedCount atomic.Int64
+	useSchemaMode bool // determines whether to use schema capabilities mode or basic mode
 }
 
 // testLogger implements a simple logger for testing
@@ -117,6 +113,8 @@ func (s *mockDestinationServer) handleCapabilitiesExchange(server stef_proto.STE
 
 // processMessages handles the main message processing loop for schema mode
 func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestination_StreamServer) error {
+	ackId := uint64(1) // Simple counter for ack IDs
+	
 	for {
 		msg, err := server.Recv()
 		if err != nil {
@@ -124,16 +122,7 @@ func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestinatio
 		}
 
 		if len(msg.StefBytes) > 0 {
-			s.mu.Lock()
-			s.receivedMessages = append(s.receivedMessages, msg.StefBytes)
-			s.mu.Unlock()
-
-			// Send ack response
-			ackId := uint64(len(s.receivedMessages))
-			s.mu.Lock()
-			s.acksSent = append(s.acksSent, ackId)
-			s.mu.Unlock()
-
+			// Send ack response with incrementing ID
 			ackMsg := &stef_proto.STEFServerMessage{
 				Message: &stef_proto.STEFServerMessage_Response{
 					Response: &stef_proto.STEFDataResponse{
@@ -145,6 +134,8 @@ func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestinatio
 			if err := server.Send(ackMsg); err != nil {
 				return fmt.Errorf("failed to send ack: %w", err)
 			}
+			
+			ackId++ // Increment for next ack
 		}
 	}
 }
