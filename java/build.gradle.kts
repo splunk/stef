@@ -3,6 +3,7 @@ import org.gradle.jvm.toolchain.internal.DefaultJavaLanguageVersion
 
 plugins {
     id("java")
+    id("application")
 }
 
 group = "net.stef"
@@ -49,3 +50,16 @@ val jmh by tasks.registering(JavaExec::class) {
     mainClass.set("net.stef.benchmarks.AllBenchmarks")
 }
 
+application {
+    mainClass.set(findProperty("mainClass") as String? ?: "default.MainClass")
+}
+
+val runTestMain by tasks.registering(JavaExec::class) {
+    // To run TestTools in generated tests run:
+    // ./gradlew runTestMain -PmainClass=com.example.gentest.oneof_recurse_self.ToolsTest --args="-generate -root=Root -out=random.stef"
+    group = "application"
+    description = "Run main() in test class"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set(findProperty("mainClass") as String)
+
+}
