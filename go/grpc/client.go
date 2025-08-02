@@ -229,7 +229,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	case schema.CompatibilityIncompatible:
 		// It is neither exact match nor is server schema a superset, but server schema maybe subset.
 		// Check the opposite direction: if client schema is backward compatible with server schema.
-		compatibility, err = serverSchema.Compatible(c.clientSchema.WireSchema)
+		compatibility, err = c.clientSchema.WireSchema.Compatible(&serverSchema)
 
 		if err != nil || compatibility == schema.CompatibilityIncompatible {
 			return nil, opts, fmt.Errorf("client and server schemas are incompatble: %w", err)
