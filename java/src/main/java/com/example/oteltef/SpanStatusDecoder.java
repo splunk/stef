@@ -16,8 +16,10 @@ class SpanStatusDecoder {
     private int fieldCount;
 
     
-    private StringDecoder messageDecoder = new StringDecoder();
-    private Uint64Decoder codeDecoder = new Uint64Decoder();
+    private StringDecoder messageDecoder;
+    private boolean isMessageRecursive = false; // Indicates Message field's type is recursive.
+    private Uint64Decoder codeDecoder;
+    private boolean isCodeRecursive = false; // Indicates Code field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -42,10 +44,12 @@ class SpanStatusDecoder {
             if (this.fieldCount <= 0) {
                 return; // Message and subsequent fields are skipped.
             }
+            messageDecoder = new StringDecoder();
             messageDecoder.init(null, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
+            codeDecoder = new Uint64Decoder();
             codeDecoder.init(columns.addSubColumn());
         } finally {
             state.SpanStatusDecoder = null;
@@ -63,16 +67,16 @@ class SpanStatusDecoder {
         if (this.fieldCount <= 0) {
             return; // Message and subsequent fields are skipped.
         }
-        this.messageDecoder.continueDecoding();
+        messageDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Code and subsequent fields are skipped.
         }
-        this.codeDecoder.continueDecoding();
+        codeDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.messageDecoder.reset();
-        this.codeDecoder.reset();
+        messageDecoder.reset();
+        codeDecoder.reset();
     }
 
     public SpanStatus decode(SpanStatus dstPtr) throws IOException {

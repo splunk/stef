@@ -16,11 +16,16 @@ class ScopeDecoder {
     private int fieldCount;
 
     
-    private StringDecoder nameDecoder = new StringDecoder();
-    private StringDecoder versionDecoder = new StringDecoder();
-    private StringDecoder schemaURLDecoder = new StringDecoder();
-    private AttributesDecoder attributesDecoder = new AttributesDecoder();
-    private Uint64Decoder droppedAttributesCountDecoder = new Uint64Decoder();
+    private StringDecoder nameDecoder;
+    private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
+    private StringDecoder versionDecoder;
+    private boolean isVersionRecursive = false; // Indicates Version field's type is recursive.
+    private StringDecoder schemaURLDecoder;
+    private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
+    private AttributesDecoder attributesDecoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Decoder droppedAttributesCountDecoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
     private ScopeDecoderDict dict;
     
@@ -48,22 +53,33 @@ class ScopeDecoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
+            nameDecoder = new StringDecoder();
             nameDecoder.init(state.ScopeName, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Version and subsequent fields are skipped.
             }
+            versionDecoder = new StringDecoder();
             versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
+            schemaURLDecoder = new StringDecoder();
             schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            attributesDecoder.init(state, columns.addSubColumn());
+            if (state.AttributesDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                attributesDecoder = state.AttributesDecoder;
+                isAttributesRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                attributesDecoder = new AttributesDecoder();
+                attributesDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 4) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountDecoder = new Uint64Decoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
         } finally {
             state.ScopeDecoder = null;
@@ -81,31 +97,37 @@ class ScopeDecoder {
         if (this.fieldCount <= 0) {
             return; // Name and subsequent fields are skipped.
         }
-        this.nameDecoder.continueDecoding();
+        nameDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Version and subsequent fields are skipped.
         }
-        this.versionDecoder.continueDecoding();
+        versionDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // SchemaURL and subsequent fields are skipped.
         }
-        this.schemaURLDecoder.continueDecoding();
+        schemaURLDecoder.continueDecoding();
         if (this.fieldCount <= 3) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesDecoder.continueDecoding();
+        
+        if (!isAttributesRecursive) {
+            attributesDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 4) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountDecoder.continueDecoding();
+        droppedAttributesCountDecoder.continueDecoding();
     }
 
     public void reset() {
-        this.nameDecoder.reset();
-        this.versionDecoder.reset();
-        this.schemaURLDecoder.reset();
-        this.attributesDecoder.reset();
-        this.droppedAttributesCountDecoder.reset();
+        nameDecoder.reset();
+        versionDecoder.reset();
+        schemaURLDecoder.reset();
+        if (!isAttributesRecursive) {
+            attributesDecoder.reset();
+        }
+        droppedAttributesCountDecoder.reset();
     }
 
     public Scope decode(Scope dstPtr) throws IOException {
@@ -147,6 +169,9 @@ class ScopeDecoder {
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedAttributes) != 0) {
             // Field is changed and is present, decode it.
+            if (val.attributes == null) {
+                val.attributes = new Attributes(val.modifiedFields, Scope.fieldModifiedAttributes);
+            }
             val.attributes = attributesDecoder.decode(val.attributes);
         }
         

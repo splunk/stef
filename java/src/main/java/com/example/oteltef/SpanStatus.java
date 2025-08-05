@@ -147,11 +147,13 @@ public class SpanStatus {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(SpanStatus val) {
-        if (!Types.StringEqual(this.message, val.message)) {
+    public boolean equals(SpanStatus right) {
+        // Compare Message field.
+        if (!Types.StringEqual(this.message, right.message)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.code, val.code)) {
+        // Compare Code field.
+        if (!Types.Uint64Equal(this.code, right.code)) {
             return false;
         }
         return true;
@@ -175,11 +177,13 @@ public class SpanStatus {
         }
         int c;
         
+        // Compare Message field.
         c = Types.StringCompare(left.message, right.message);
         if (c != 0) {
             return c;
         }
         
+        // Compare Code field.
         c = Types.Uint64Compare(left.code, right.code);
         if (c != 0) {
             return c;
@@ -190,7 +194,7 @@ public class SpanStatus {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 2;
+        final int fieldCount = Math.max(2,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setMessage(Types.StringRandom(random));

@@ -20,10 +20,14 @@ class SpansEncoder {
     private boolean forceModifiedFields;
 
     
-    private EnvelopeEncoder envelopeEncoder = new EnvelopeEncoder();
-    private ResourceEncoder resourceEncoder = new ResourceEncoder();
-    private ScopeEncoder scopeEncoder = new ScopeEncoder();
-    private SpanEncoder spanEncoder = new SpanEncoder();
+    private EnvelopeEncoder envelopeEncoder;
+    private boolean isEnvelopeRecursive = false; // Indicates Envelope field's type is recursive.
+    private ResourceEncoder resourceEncoder;
+    private boolean isResourceRecursive = false; // Indicates Resource field's type is recursive.
+    private ScopeEncoder scopeEncoder;
+    private boolean isScopeRecursive = false; // Indicates Scope field's type is recursive.
+    private SpanEncoder spanEncoder;
+    private boolean isSpanRecursive = false; // Indicates Span field's type is recursive.
     
 
     private long keepFieldMask;
@@ -49,22 +53,54 @@ class SpansEncoder {
             }
 
             
+            // Init encoder for Envelope field.
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.
             }
-            this.envelopeEncoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                envelopeEncoder = state.EnvelopeEncoder;
+                isEnvelopeRecursive = true;
+            } else {
+                envelopeEncoder = new EnvelopeEncoder();
+                envelopeEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Resource field.
             if (this.fieldCount <= 1) {
                 return; // Resource and subsequent fields are skipped.
             }
-            this.resourceEncoder.init(state, columns.addSubColumn());
+            if (state.ResourceEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                resourceEncoder = state.ResourceEncoder;
+                isResourceRecursive = true;
+            } else {
+                resourceEncoder = new ResourceEncoder();
+                resourceEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Scope field.
             if (this.fieldCount <= 2) {
                 return; // Scope and subsequent fields are skipped.
             }
-            this.scopeEncoder.init(state, columns.addSubColumn());
+            if (state.ScopeEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                scopeEncoder = state.ScopeEncoder;
+                isScopeRecursive = true;
+            } else {
+                scopeEncoder = new ScopeEncoder();
+                scopeEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Span field.
             if (this.fieldCount <= 3) {
                 return; // Span and subsequent fields are skipped.
             }
-            this.spanEncoder.init(state, columns.addSubColumn());
+            if (state.SpanEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                spanEncoder = state.SpanEncoder;
+                isSpanRecursive = true;
+            } else {
+                spanEncoder = new SpanEncoder();
+                spanEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.SpansEncoder = null;
         }
@@ -72,12 +108,28 @@ class SpansEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.envelopeEncoder.reset();
-        this.resourceEncoder.reset();
-        this.scopeEncoder.reset();
-        this.spanEncoder.reset();
+        
+        if (!isEnvelopeRecursive) {
+            envelopeEncoder.reset();
+        }
+        
+        
+        if (!isResourceRecursive) {
+            resourceEncoder.reset();
+        }
+        
+        
+        if (!isScopeRecursive) {
+            scopeEncoder.reset();
+        }
+        
+        
+        if (!isSpanRecursive) {
+            spanEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -138,23 +190,44 @@ class SpansEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Envelope field.
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeEncoder.collectColumns(columnSet.at(0));
+        if (!isEnvelopeRecursive) {
+            envelopeEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Resource field.
         if (this.fieldCount <= 1) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceEncoder.collectColumns(columnSet.at(1));
+        if (!isResourceRecursive) {
+            resourceEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Scope field.
         if (this.fieldCount <= 2) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeEncoder.collectColumns(columnSet.at(2));
+        if (!isScopeRecursive) {
+            scopeEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Span field.
         if (this.fieldCount <= 3) {
             return; // Span and subsequent fields are skipped.
         }
-        this.spanEncoder.collectColumns(columnSet.at(3));
+        if (!isSpanRecursive) {
+            spanEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

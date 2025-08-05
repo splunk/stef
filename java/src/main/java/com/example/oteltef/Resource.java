@@ -178,14 +178,17 @@ public class Resource {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Resource val) {
-        if (!Types.StringEqual(this.schemaURL, val.schemaURL)) {
+    public boolean equals(Resource right) {
+        // Compare SchemaURL field.
+        if (!Types.StringEqual(this.schemaURL, right.schemaURL)) {
             return false;
         }
-        if (!this.attributes.equals(val.attributes)) {
+        // Compare Attributes field.
+        if (!this.attributes.equals(right.attributes)) {
             return false;
         }
-        if (!Types.Uint64Equal(this.droppedAttributesCount, val.droppedAttributesCount)) {
+        // Compare DroppedAttributesCount field.
+        if (!Types.Uint64Equal(this.droppedAttributesCount, right.droppedAttributesCount)) {
             return false;
         }
         return true;
@@ -209,16 +212,19 @@ public class Resource {
         }
         int c;
         
+        // Compare SchemaURL field.
         c = Types.StringCompare(left.schemaURL, right.schemaURL);
         if (c != 0) {
             return c;
         }
         
+        // Compare Attributes field.
         c = Attributes.compare(left.attributes, right.attributes);
         if (c != 0) {
             return c;
         }
         
+        // Compare DroppedAttributesCount field.
         c = Types.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount);
         if (c != 0) {
             return c;
@@ -229,7 +235,7 @@ public class Resource {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 3;
+        final int fieldCount = Math.max(3,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.setSchemaURL(Types.StringRandom(random));

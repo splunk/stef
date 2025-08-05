@@ -20,12 +20,18 @@ class LinkEncoder {
     private boolean forceModifiedFields;
 
     
-    private BytesEncoder traceIDEncoder = new BytesEncoder();
-    private BytesEncoder spanIDEncoder = new BytesEncoder();
-    private StringEncoder traceStateEncoder = new StringEncoder();
-    private Uint64Encoder flagsEncoder = new Uint64Encoder();
-    private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private Uint64Encoder droppedAttributesCountEncoder = new Uint64Encoder();
+    private BytesEncoder traceIDEncoder;
+    private boolean isTraceIDRecursive = false; // Indicates TraceID field's type is recursive.
+    private BytesEncoder spanIDEncoder;
+    private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
+    private StringEncoder traceStateEncoder;
+    private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
+    private Uint64Encoder flagsEncoder;
+    private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
+    private AttributesEncoder attributesEncoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private Uint64Encoder droppedAttributesCountEncoder;
+    private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
 
     private long keepFieldMask;
@@ -51,29 +57,47 @@ class LinkEncoder {
             }
 
             
+            // Init encoder for TraceID field.
             if (this.fieldCount <= 0) {
                 return; // TraceID and subsequent fields are skipped.
             }
+            traceIDEncoder = new BytesEncoder();
             this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for SpanID field.
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
+            spanIDEncoder = new BytesEncoder();
             this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for TraceState field.
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
+            traceStateEncoder = new StringEncoder();
             this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+            // Init encoder for Flags field.
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }
+            flagsEncoder = new Uint64Encoder();
             this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Attributes field.
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                attributesEncoder = state.AttributesEncoder;
+                isAttributesRecursive = true;
+            } else {
+                attributesEncoder = new AttributesEncoder();
+                attributesEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for DroppedAttributesCount field.
             if (this.fieldCount <= 5) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
+            droppedAttributesCountEncoder = new Uint64Encoder();
             this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.LinkEncoder = null;
@@ -82,14 +106,18 @@ class LinkEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.traceIDEncoder.reset();
-        this.spanIDEncoder.reset();
-        this.traceStateEncoder.reset();
-        this.flagsEncoder.reset();
-        this.attributesEncoder.reset();
-        this.droppedAttributesCountEncoder.reset();
+        traceIDEncoder.reset();
+        spanIDEncoder.reset();
+        traceStateEncoder.reset();
+        flagsEncoder.reset();
+        
+        if (!isAttributesRecursive) {
+            attributesEncoder.reset();
+        }
+        
+        droppedAttributesCountEncoder.reset();
     }
 
     // encode encodes val into buf
@@ -162,31 +190,57 @@ class LinkEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect TraceID field.
         if (this.fieldCount <= 0) {
             return; // TraceID and subsequent fields are skipped.
         }
-        this.traceIDEncoder.collectColumns(columnSet.at(0));
+        
+        traceIDEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect SpanID field.
         if (this.fieldCount <= 1) {
             return; // SpanID and subsequent fields are skipped.
         }
-        this.spanIDEncoder.collectColumns(columnSet.at(1));
+        
+        spanIDEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect TraceState field.
         if (this.fieldCount <= 2) {
             return; // TraceState and subsequent fields are skipped.
         }
-        this.traceStateEncoder.collectColumns(columnSet.at(2));
+        
+        traceStateEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Flags field.
         if (this.fieldCount <= 3) {
             return; // Flags and subsequent fields are skipped.
         }
-        this.flagsEncoder.collectColumns(columnSet.at(3));
+        
+        flagsEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Attributes field.
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesEncoder.collectColumns(columnSet.at(4));
+        if (!isAttributesRecursive) {
+            attributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect DroppedAttributesCount field.
         if (this.fieldCount <= 5) {
             return; // DroppedAttributesCount and subsequent fields are skipped.
         }
-        this.droppedAttributesCountEncoder.collectColumns(columnSet.at(5));
+        
+        droppedAttributesCountEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
     }
 }
 

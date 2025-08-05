@@ -16,10 +16,14 @@ class PointDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder startTimestampDecoder = new Uint64Decoder();
-    private Uint64Decoder timestampDecoder = new Uint64Decoder();
-    private PointValueDecoder valueDecoder = new PointValueDecoder();
-    private ExemplarArrayDecoder exemplarsDecoder = new ExemplarArrayDecoder();
+    private Uint64Decoder startTimestampDecoder;
+    private boolean isStartTimestampRecursive = false; // Indicates StartTimestamp field's type is recursive.
+    private Uint64Decoder timestampDecoder;
+    private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
+    private PointValueDecoder valueDecoder;
+    private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
+    private ExemplarArrayDecoder exemplarsDecoder;
+    private boolean isExemplarsRecursive = false; // Indicates Exemplars field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -44,19 +48,35 @@ class PointDecoder {
             if (this.fieldCount <= 0) {
                 return; // StartTimestamp and subsequent fields are skipped.
             }
+            startTimestampDecoder = new Uint64Decoder();
             startTimestampDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Timestamp and subsequent fields are skipped.
             }
+            timestampDecoder = new Uint64Decoder();
             timestampDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Value and subsequent fields are skipped.
             }
-            valueDecoder.init(state, columns.addSubColumn());
+            if (state.PointValueDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                valueDecoder = state.PointValueDecoder;
+                isValueRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                valueDecoder = new PointValueDecoder();
+                valueDecoder.init(state, columns.addSubColumn());
+            }
             if (this.fieldCount <= 3) {
                 return; // Exemplars and subsequent fields are skipped.
             }
-            exemplarsDecoder.init(state, columns.addSubColumn());
+            if (state.ExemplarArrayDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                exemplarsDecoder = state.ExemplarArrayDecoder;
+                isExemplarsRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                exemplarsDecoder = new ExemplarArrayDecoder();
+                exemplarsDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointDecoder = null;
         }
@@ -73,26 +93,38 @@ class PointDecoder {
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-        this.startTimestampDecoder.continueDecoding();
+        startTimestampDecoder.continueDecoding();
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampDecoder.continueDecoding();
+        timestampDecoder.continueDecoding();
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueDecoder.continueDecoding();
+        
+        if (!isValueRecursive) {
+            valueDecoder.continueDecoding();
+        }
+        
         if (this.fieldCount <= 3) {
             return; // Exemplars and subsequent fields are skipped.
         }
-        this.exemplarsDecoder.continueDecoding();
+        
+        if (!isExemplarsRecursive) {
+            exemplarsDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
-        this.startTimestampDecoder.reset();
-        this.timestampDecoder.reset();
-        this.valueDecoder.reset();
-        this.exemplarsDecoder.reset();
+        startTimestampDecoder.reset();
+        timestampDecoder.reset();
+        if (!isValueRecursive) {
+            valueDecoder.reset();
+        }
+        if (!isExemplarsRecursive) {
+            exemplarsDecoder.reset();
+        }
     }
 
     public Point decode(Point dstPtr) throws IOException {
@@ -113,11 +145,17 @@ class PointDecoder {
         
         if ((val.modifiedFields.mask & Point.fieldModifiedValue) != 0) {
             // Field is changed and is present, decode it.
+            if (val.value == null) {
+                val.value = new PointValue(val.modifiedFields, Point.fieldModifiedValue);
+            }
             val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.modifiedFields.mask & Point.fieldModifiedExemplars) != 0) {
             // Field is changed and is present, decode it.
+            if (val.exemplars == null) {
+                val.exemplars = new ExemplarArray(val.modifiedFields, Point.fieldModifiedExemplars);
+            }
             val.exemplars = exemplarsDecoder.decode(val.exemplars);
         }
         

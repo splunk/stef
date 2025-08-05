@@ -1,0 +1,13 @@
+package com.example.gentest.struct_recurse_oneof
+
+struct Root root {
+  RStruct RStruct
+}
+
+struct RStruct {
+  ROneof ROneof optional
+}
+
+oneof ROneof {
+  RStruct RStruct
+}

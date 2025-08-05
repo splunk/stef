@@ -15,7 +15,8 @@ class {{ .StructName }}Decoder {
     private int fieldCount;
 
     {{ range .Fields }}
-    private {{ .Type.EncoderType }}Decoder {{.name}}Decoder = new {{ .Type.EncoderType }}Decoder();
+    private {{ .Type.EncoderType }}Decoder {{.name}}Decoder;
+    private boolean is{{.Name}}Recursive = false; // Indicates {{.Name}} field's type is recursive.
     {{- end }}
     {{if .DictName}}
     private {{ .StructName }}DecoderDict dict;
@@ -50,15 +51,23 @@ class {{ .StructName }}Decoder {
                 return; // {{.Name}} and subsequent fields are skipped.
             }
             {{- if .Type.IsPrimitive}}
-                {{- if .Type.DictName}}
+            {{.name}}Decoder = new {{.Type.EncoderType}}Decoder();
+            {{- if .Type.DictName}}
             {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
-                {{- else if .Type.IsDictPossible}}
+            {{- else if .Type.IsDictPossible}}
             {{.name}}Decoder.init(null, columns.addSubColumn());
-                {{- else}}
-            {{.name}}Decoder.init(columns.addSubColumn());
-                {{- end}}
             {{- else}}
-            {{.name}}Decoder.init(state, columns.addSubColumn());
+            {{.name}}Decoder.init(columns.addSubColumn());
+            {{- end}}
+            {{- else}}
+            if (state.{{.Type.EncoderType}}Decoder != null) {
+                // Recursion detected, use the existing decoder.
+                {{.name}}Decoder = state.{{.Type.EncoderType}}Decoder;
+                is{{.Name}}Recursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                {{.name}}Decoder = new {{.Type.EncoderType}}Decoder();
+                {{.name}}Decoder.init(state, columns.addSubColumn());
+            }
             {{- end}}
             {{- end }}
         } finally {
@@ -77,13 +86,23 @@ class {{ .StructName }}Decoder {
         if (this.fieldCount <= {{$i}}) {
             return; // {{.Name}} and subsequent fields are skipped.
         }
-        this.{{.name}}Decoder.continueDecoding();
+        {{if not .IsPrimitive}}
+        if (!is{{.Name}}Recursive) {
+            {{.name}}Decoder.continueDecoding();
+        }
+        {{else}}{{.name}}Decoder.continueDecoding();{{end}}
         {{- end }}
     }
 
     public void reset() {
         {{- range .Fields}}
-        this.{{.name}}Decoder.reset();
+        {{if not .IsPrimitive -}}
+        if (!is{{.Name}}Recursive) {
+            {{.name}}Decoder.reset();
+        }
+        {{- else -}}
+        {{.name}}Decoder.reset();
+        {{- end}}
         {{- end}}
     }
 
@@ -119,7 +138,14 @@ class {{ .StructName }}Decoder {
         if ((val.modifiedFields.mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Field is changed and is present, decode it.
-            val.{{.name}} = {{.name}}Decoder.decode({{if not .Type.IsPrimitive}}val.{{.name}}{{end}});
+            {{if not .Type.IsPrimitive -}}
+            if (val.{{.name}} == null) {
+                val.{{.name}} = new {{ .Type.Storage }}(val.modifiedFields, {{ $.StructName }}.fieldModified{{.Name}});
+            }
+            val.{{.name}} = {{.name}}Decoder.decode(val.{{.name}});
+            {{- else -}}
+            val.{{.name}} = {{.name}}Decoder.decode();
+            {{- end}}
         }
         {{ end }}
         {{if .DictName}}

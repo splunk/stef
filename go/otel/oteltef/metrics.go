@@ -248,9 +248,27 @@ func (s *Metrics) byteSize() uint {
 
 func copyMetrics(dst *Metrics, src *Metrics) {
 	copyEnvelope(&dst.envelope, &src.envelope)
-	copyMetric(dst.metric, src.metric)
-	copyResource(dst.resource, src.resource)
-	copyScope(dst.scope, src.scope)
+	if src.metric != nil {
+		if dst.metric == nil {
+			dst.metric = &Metric{}
+			dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
+		}
+		copyMetric(dst.metric, src.metric)
+	}
+	if src.resource != nil {
+		if dst.resource == nil {
+			dst.resource = &Resource{}
+			dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
+		}
+		copyResource(dst.resource, src.resource)
+	}
+	if src.scope != nil {
+		if dst.scope == nil {
+			dst.scope = &Scope{}
+			dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
+		}
+		copyScope(dst.scope, src.scope)
+	}
 	copyAttributes(&dst.attributes, &src.attributes)
 	copyPoint(&dst.point, &src.point)
 }
@@ -277,7 +295,7 @@ func (s *Metrics) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Metrics) mutateRandom(random *rand.Rand) {
-	const fieldCount = 6
+	const fieldCount = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.envelope.mutateRandom(random)
 	}
@@ -298,24 +316,30 @@ func (s *Metrics) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Metrics) IsEqual(val *Metrics) bool {
-	if !e.envelope.IsEqual(&val.envelope) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Metrics) IsEqual(right *Metrics) bool {
+	// Compare Envelope field.
+	if !s.envelope.IsEqual(&right.envelope) {
 		return false
 	}
-	if !e.metric.IsEqual(val.metric) {
+	// Compare Metric field.
+	if !s.metric.IsEqual(right.metric) {
 		return false
 	}
-	if !e.resource.IsEqual(val.resource) {
+	// Compare Resource field.
+	if !s.resource.IsEqual(right.resource) {
 		return false
 	}
-	if !e.scope.IsEqual(val.scope) {
+	// Compare Scope field.
+	if !s.scope.IsEqual(right.scope) {
 		return false
 	}
-	if !e.attributes.IsEqual(&val.attributes) {
+	// Compare Attributes field.
+	if !s.attributes.IsEqual(&right.attributes) {
 		return false
 	}
-	if !e.point.IsEqual(&val.point) {
+	// Compare Point field.
+	if !s.point.IsEqual(&right.point) {
 		return false
 	}
 
@@ -339,21 +363,32 @@ func CmpMetrics(left, right *Metrics) int {
 		return 1
 	}
 
+	// Compare Envelope field.
 	if c := CmpEnvelope(&left.envelope, &right.envelope); c != 0 {
 		return c
 	}
+
+	// Compare Metric field.
 	if c := CmpMetric(left.metric, right.metric); c != 0 {
 		return c
 	}
+
+	// Compare Resource field.
 	if c := CmpResource(left.resource, right.resource); c != 0 {
 		return c
 	}
+
+	// Compare Scope field.
 	if c := CmpScope(left.scope, right.scope); c != 0 {
 		return c
 	}
+
+	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
+
+	// Compare Point field.
 	if c := CmpPoint(&left.point, &right.point); c != 0 {
 		return c
 	}
@@ -372,12 +407,23 @@ type MetricsEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	envelopeEncoder   EnvelopeEncoder
-	metricEncoder     MetricEncoder
-	resourceEncoder   ResourceEncoder
-	scopeEncoder      ScopeEncoder
-	attributesEncoder AttributesEncoder
-	pointEncoder      PointEncoder
+	envelopeEncoder     *EnvelopeEncoder
+	isEnvelopeRecursive bool // Indicates Envelope field's type is recursive.
+
+	metricEncoder     *MetricEncoder
+	isMetricRecursive bool // Indicates Metric field's type is recursive.
+
+	resourceEncoder     *ResourceEncoder
+	isResourceRecursive bool // Indicates Resource field's type is recursive.
+
+	scopeEncoder     *ScopeEncoder
+	isScopeRecursive bool // Indicates Scope field's type is recursive.
+
+	attributesEncoder     *AttributesEncoder
+	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
+
+	pointEncoder     *PointEncoder
+	isPointRecursive bool // Indicates Point field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -411,40 +457,107 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Envelope field.
 	if e.fieldCount <= 0 {
-		return nil // Envelope and subsequent fields are skipped.
+		// Envelope and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.envelopeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.EnvelopeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.envelopeEncoder = state.EnvelopeEncoder
+		e.isEnvelopeRecursive = true
+	} else {
+		e.envelopeEncoder = new(EnvelopeEncoder)
+		err = e.envelopeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Metric field.
 	if e.fieldCount <= 1 {
-		return nil // Metric and subsequent fields are skipped.
+		// Metric and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.metricEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.MetricEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.metricEncoder = state.MetricEncoder
+		e.isMetricRecursive = true
+	} else {
+		e.metricEncoder = new(MetricEncoder)
+		err = e.metricEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Resource field.
 	if e.fieldCount <= 2 {
-		return nil // Resource and subsequent fields are skipped.
+		// Resource and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.resourceEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ResourceEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.resourceEncoder = state.ResourceEncoder
+		e.isResourceRecursive = true
+	} else {
+		e.resourceEncoder = new(ResourceEncoder)
+		err = e.resourceEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Scope field.
 	if e.fieldCount <= 3 {
-		return nil // Scope and subsequent fields are skipped.
+		// Scope and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.scopeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ScopeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.scopeEncoder = state.ScopeEncoder
+		e.isScopeRecursive = true
+	} else {
+		e.scopeEncoder = new(ScopeEncoder)
+		err = e.scopeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Attributes field.
 	if e.fieldCount <= 4 {
-		return nil // Attributes and subsequent fields are skipped.
+		// Attributes and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.attributesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.AttributesEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.attributesEncoder = state.AttributesEncoder
+		e.isAttributesRecursive = true
+	} else {
+		e.attributesEncoder = new(AttributesEncoder)
+		err = e.attributesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Point field.
 	if e.fieldCount <= 5 {
-		return nil // Point and subsequent fields are skipped.
+		// Point and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.pointEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.PointEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.pointEncoder = state.PointEncoder
+		e.isPointRecursive = true
+	} else {
+		e.pointEncoder = new(PointEncoder)
+		err = e.pointEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -455,12 +568,31 @@ func (e *MetricsEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.envelopeEncoder.Reset()
-	e.metricEncoder.Reset()
-	e.resourceEncoder.Reset()
-	e.scopeEncoder.Reset()
-	e.attributesEncoder.Reset()
-	e.pointEncoder.Reset()
+
+	if !e.isEnvelopeRecursive {
+		e.envelopeEncoder.Reset()
+	}
+
+	if !e.isMetricRecursive {
+		e.metricEncoder.Reset()
+	}
+
+	if !e.isResourceRecursive {
+		e.resourceEncoder.Reset()
+	}
+
+	if !e.isScopeRecursive {
+		e.scopeEncoder.Reset()
+	}
+
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.Reset()
+	}
+
+	if !e.isPointRecursive {
+		e.pointEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -532,31 +664,61 @@ func (e *MetricsEncoder) Encode(val *Metrics) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Envelope field.
 	if e.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
 	}
-	e.envelopeEncoder.CollectColumns(columnSet.At(0))
+	if !e.isEnvelopeRecursive {
+		e.envelopeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Metric field.
 	if e.fieldCount <= 1 {
 		return // Metric and subsequent fields are skipped.
 	}
-	e.metricEncoder.CollectColumns(columnSet.At(1))
+	if !e.isMetricRecursive {
+		e.metricEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Resource field.
 	if e.fieldCount <= 2 {
 		return // Resource and subsequent fields are skipped.
 	}
-	e.resourceEncoder.CollectColumns(columnSet.At(2))
+	if !e.isResourceRecursive {
+		e.resourceEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Scope field.
 	if e.fieldCount <= 3 {
 		return // Scope and subsequent fields are skipped.
 	}
-	e.scopeEncoder.CollectColumns(columnSet.At(3))
+	if !e.isScopeRecursive {
+		e.scopeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Attributes field.
 	if e.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	e.attributesEncoder.CollectColumns(columnSet.At(4))
+	if !e.isAttributesRecursive {
+		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Point field.
 	if e.fieldCount <= 5 {
 		return // Point and subsequent fields are skipped.
 	}
-	e.pointEncoder.CollectColumns(columnSet.At(5))
+	if !e.isPointRecursive {
+		e.pointEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // MetricsDecoder implements decoding of Metrics
@@ -567,12 +729,23 @@ type MetricsDecoder struct {
 	lastVal    Metrics
 	fieldCount uint
 
-	envelopeDecoder   EnvelopeDecoder
-	metricDecoder     MetricDecoder
-	resourceDecoder   ResourceDecoder
-	scopeDecoder      ScopeDecoder
-	attributesDecoder AttributesDecoder
-	pointDecoder      PointDecoder
+	envelopeDecoder     *EnvelopeDecoder
+	isEnvelopeRecursive bool
+
+	metricDecoder     *MetricDecoder
+	isMetricRecursive bool
+
+	resourceDecoder     *ResourceDecoder
+	isResourceRecursive bool
+
+	scopeDecoder     *ScopeDecoder
+	isScopeRecursive bool
+
+	attributesDecoder     *AttributesDecoder
+	isAttributesRecursive bool
+
+	pointDecoder     *PointDecoder
+	isPointRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -607,42 +780,84 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
 	}
-	err = d.envelopeDecoder.Init(state, columns.AddSubColumn())
+	if state.EnvelopeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.envelopeDecoder = state.EnvelopeDecoder
+		d.isEnvelopeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.envelopeDecoder = new(EnvelopeDecoder)
+		err = d.envelopeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // Metric and subsequent fields are skipped.
 	}
-	err = d.metricDecoder.Init(state, columns.AddSubColumn())
+	if state.MetricDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.metricDecoder = state.MetricDecoder
+		d.isMetricRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.metricDecoder = new(MetricDecoder)
+		err = d.metricDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 2 {
 		return nil // Resource and subsequent fields are skipped.
 	}
-	err = d.resourceDecoder.Init(state, columns.AddSubColumn())
+	if state.ResourceDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.resourceDecoder = state.ResourceDecoder
+		d.isResourceRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.resourceDecoder = new(ResourceDecoder)
+		err = d.resourceDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // Scope and subsequent fields are skipped.
 	}
-	err = d.scopeDecoder.Init(state, columns.AddSubColumn())
+	if state.ScopeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.scopeDecoder = state.ScopeDecoder
+		d.isScopeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.scopeDecoder = new(ScopeDecoder)
+		err = d.scopeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 4 {
 		return nil // Attributes and subsequent fields are skipped.
 	}
-	err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	if state.AttributesDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.attributesDecoder = state.AttributesDecoder
+		d.isAttributesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.attributesDecoder = new(AttributesDecoder)
+		err = d.attributesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 5 {
 		return nil // Point and subsequent fields are skipped.
 	}
-	err = d.pointDecoder.Init(state, columns.AddSubColumn())
+	if state.PointDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.pointDecoder = state.PointDecoder
+		d.isPointRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.pointDecoder = new(PointDecoder)
+		err = d.pointDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -661,36 +876,79 @@ func (d *MetricsDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
 	}
-	d.envelopeDecoder.Continue()
+
+	if !d.isEnvelopeRecursive {
+		d.envelopeDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Metric and subsequent fields are skipped.
 	}
-	d.metricDecoder.Continue()
+
+	if !d.isMetricRecursive {
+		d.metricDecoder.Continue()
+	}
+
 	if d.fieldCount <= 2 {
 		return // Resource and subsequent fields are skipped.
 	}
-	d.resourceDecoder.Continue()
+
+	if !d.isResourceRecursive {
+		d.resourceDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // Scope and subsequent fields are skipped.
 	}
-	d.scopeDecoder.Continue()
+
+	if !d.isScopeRecursive {
+		d.scopeDecoder.Continue()
+	}
+
 	if d.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
 	}
-	d.attributesDecoder.Continue()
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 5 {
 		return // Point and subsequent fields are skipped.
 	}
-	d.pointDecoder.Continue()
+
+	if !d.isPointRecursive {
+		d.pointDecoder.Continue()
+	}
+
 }
 
 func (d *MetricsDecoder) Reset() {
-	d.envelopeDecoder.Reset()
-	d.metricDecoder.Reset()
-	d.resourceDecoder.Reset()
-	d.scopeDecoder.Reset()
-	d.attributesDecoder.Reset()
-	d.pointDecoder.Reset()
+
+	if !d.isEnvelopeRecursive {
+		d.envelopeDecoder.Reset()
+	}
+
+	if !d.isMetricRecursive {
+		d.metricDecoder.Reset()
+	}
+
+	if !d.isResourceRecursive {
+		d.resourceDecoder.Reset()
+	}
+
+	if !d.isScopeRecursive {
+		d.scopeDecoder.Reset()
+	}
+
+	if !d.isAttributesRecursive {
+		d.attributesDecoder.Reset()
+	}
+
+	if !d.isPointRecursive {
+		d.pointDecoder.Reset()
+	}
+
 }
 
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
@@ -711,6 +969,11 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 {
 		// Field is changed and is present, decode it.
+		if val.metric == nil {
+			val.metric = &Metric{}
+			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
+		}
+
 		err = d.metricDecoder.Decode(&val.metric)
 		if err != nil {
 			return err
@@ -719,6 +982,11 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 {
 		// Field is changed and is present, decode it.
+		if val.resource == nil {
+			val.resource = &Resource{}
+			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
+		}
+
 		err = d.resourceDecoder.Decode(&val.resource)
 		if err != nil {
 			return err
@@ -727,6 +995,11 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 {
 		// Field is changed and is present, decode it.
+		if val.scope == nil {
+			val.scope = &Scope{}
+			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
+		}
+
 		err = d.scopeDecoder.Decode(&val.scope)
 		if err != nil {
 			return err

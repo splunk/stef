@@ -124,15 +124,16 @@ func (s *Record) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Record) mutateRandom(random *rand.Rand) {
-	const fieldCount = 1
+	const fieldCount = max(1, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.value.mutateRandom(random)
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Record) IsEqual(val *Record) bool {
-	if !e.value.IsEqual(&val.value) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Record) IsEqual(right *Record) bool {
+	// Compare Value field.
+	if !s.value.IsEqual(&right.value) {
 		return false
 	}
 
@@ -156,6 +157,7 @@ func CmpRecord(left, right *Record) int {
 		return 1
 	}
 
+	// Compare Value field.
 	if c := CmpJsonValue(&left.value, &right.value); c != 0 {
 		return c
 	}
@@ -174,7 +176,8 @@ type RecordEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	valueEncoder JsonValueEncoder
+	valueEncoder     *JsonValueEncoder
+	isValueRecursive bool // Indicates Value field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -208,10 +211,22 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Value field.
 	if e.fieldCount <= 0 {
-		return nil // Value and subsequent fields are skipped.
+		// Value and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valueEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.JsonValueEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.valueEncoder = state.JsonValueEncoder
+		e.isValueRecursive = true
+	} else {
+		e.valueEncoder = new(JsonValueEncoder)
+		err = e.valueEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -222,7 +237,11 @@ func (e *RecordEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.valueEncoder.Reset()
+
+	if !e.isValueRecursive {
+		e.valueEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -264,11 +283,16 @@ func (e *RecordEncoder) Encode(val *Record) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *RecordEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Value field.
 	if e.fieldCount <= 0 {
 		return // Value and subsequent fields are skipped.
 	}
-	e.valueEncoder.CollectColumns(columnSet.At(0))
+	if !e.isValueRecursive {
+		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // RecordDecoder implements decoding of Record
@@ -279,7 +303,8 @@ type RecordDecoder struct {
 	lastVal    Record
 	fieldCount uint
 
-	valueDecoder JsonValueDecoder
+	valueDecoder     *JsonValueDecoder
+	isValueRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -314,7 +339,14 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	if d.fieldCount <= 0 {
 		return nil // Value and subsequent fields are skipped.
 	}
-	err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	if state.JsonValueDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valueDecoder = state.JsonValueDecoder
+		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valueDecoder = new(JsonValueDecoder)
+		err = d.valueDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -333,11 +365,19 @@ func (d *RecordDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Value and subsequent fields are skipped.
 	}
-	d.valueDecoder.Continue()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Continue()
+	}
+
 }
 
 func (d *RecordDecoder) Reset() {
-	d.valueDecoder.Reset()
+
+	if !d.isValueRecursive {
+		d.valueDecoder.Reset()
+	}
+
 }
 
 func (d *RecordDecoder) Decode(dstPtr *Record) error {

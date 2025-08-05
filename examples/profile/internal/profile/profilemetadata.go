@@ -346,10 +346,22 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 	dst.SetKeepFrames(src.keepFrames)
 	dst.SetTimeNanos(src.timeNanos)
 	dst.SetDurationNanos(src.durationNanos)
-	copySampleValueType(dst.periodType, src.periodType)
+	if src.periodType != nil {
+		if dst.periodType == nil {
+			dst.periodType = &SampleValueType{}
+			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		}
+		copySampleValueType(dst.periodType, src.periodType)
+	}
 	dst.SetPeriod(src.period)
 	copyStringArray(&dst.comments, &src.comments)
-	copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
+	if src.defaultSampleType != nil {
+		if dst.defaultSampleType == nil {
+			dst.defaultSampleType = &SampleValueType{}
+			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		}
+		copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
+	}
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -371,7 +383,7 @@ func (s *ProfileMetadata) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *ProfileMetadata) mutateRandom(random *rand.Rand) {
-	const fieldCount = 8
+	const fieldCount = max(8, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetDropFrames(pkg.StringRandom(random))
 	}
@@ -398,30 +410,38 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *ProfileMetadata) IsEqual(val *ProfileMetadata) bool {
-	if !pkg.StringEqual(e.dropFrames, val.dropFrames) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
+	// Compare DropFrames field.
+	if !pkg.StringEqual(s.dropFrames, right.dropFrames) {
 		return false
 	}
-	if !pkg.StringEqual(e.keepFrames, val.keepFrames) {
+	// Compare KeepFrames field.
+	if !pkg.StringEqual(s.keepFrames, right.keepFrames) {
 		return false
 	}
-	if !pkg.Int64Equal(e.timeNanos, val.timeNanos) {
+	// Compare TimeNanos field.
+	if !pkg.Int64Equal(s.timeNanos, right.timeNanos) {
 		return false
 	}
-	if !pkg.Int64Equal(e.durationNanos, val.durationNanos) {
+	// Compare DurationNanos field.
+	if !pkg.Int64Equal(s.durationNanos, right.durationNanos) {
 		return false
 	}
-	if !e.periodType.IsEqual(val.periodType) {
+	// Compare PeriodType field.
+	if !s.periodType.IsEqual(right.periodType) {
 		return false
 	}
-	if !pkg.Int64Equal(e.period, val.period) {
+	// Compare Period field.
+	if !pkg.Int64Equal(s.period, right.period) {
 		return false
 	}
-	if !e.comments.IsEqual(&val.comments) {
+	// Compare Comments field.
+	if !s.comments.IsEqual(&right.comments) {
 		return false
 	}
-	if !e.defaultSampleType.IsEqual(val.defaultSampleType) {
+	// Compare DefaultSampleType field.
+	if !s.defaultSampleType.IsEqual(right.defaultSampleType) {
 		return false
 	}
 
@@ -445,27 +465,42 @@ func CmpProfileMetadata(left, right *ProfileMetadata) int {
 		return 1
 	}
 
+	// Compare DropFrames field.
 	if c := strings.Compare(left.dropFrames, right.dropFrames); c != 0 {
 		return c
 	}
+
+	// Compare KeepFrames field.
 	if c := strings.Compare(left.keepFrames, right.keepFrames); c != 0 {
 		return c
 	}
+
+	// Compare TimeNanos field.
 	if c := pkg.Int64Compare(left.timeNanos, right.timeNanos); c != 0 {
 		return c
 	}
+
+	// Compare DurationNanos field.
 	if c := pkg.Int64Compare(left.durationNanos, right.durationNanos); c != 0 {
 		return c
 	}
+
+	// Compare PeriodType field.
 	if c := CmpSampleValueType(left.periodType, right.periodType); c != 0 {
 		return c
 	}
+
+	// Compare Period field.
 	if c := pkg.Int64Compare(left.period, right.period); c != 0 {
 		return c
 	}
+
+	// Compare Comments field.
 	if c := CmpStringArray(&left.comments, &right.comments); c != 0 {
 		return c
 	}
+
+	// Compare DefaultSampleType field.
 	if c := CmpSampleValueType(left.defaultSampleType, right.defaultSampleType); c != 0 {
 		return c
 	}
@@ -484,14 +519,24 @@ type ProfileMetadataEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	dropFramesEncoder        encoders.StringEncoder
-	keepFramesEncoder        encoders.StringEncoder
-	timeNanosEncoder         encoders.Int64Encoder
-	durationNanosEncoder     encoders.Int64Encoder
-	periodTypeEncoder        SampleValueTypeEncoder
-	periodEncoder            encoders.Int64Encoder
-	commentsEncoder          StringArrayEncoder
-	defaultSampleTypeEncoder SampleValueTypeEncoder
+	dropFramesEncoder encoders.StringEncoder
+
+	keepFramesEncoder encoders.StringEncoder
+
+	timeNanosEncoder encoders.Int64Encoder
+
+	durationNanosEncoder encoders.Int64Encoder
+
+	periodTypeEncoder     *SampleValueTypeEncoder
+	isPeriodTypeRecursive bool // Indicates PeriodType field's type is recursive.
+
+	periodEncoder encoders.Int64Encoder
+
+	commentsEncoder     *StringArrayEncoder
+	isCommentsRecursive bool // Indicates Comments field's type is recursive.
+
+	defaultSampleTypeEncoder     *SampleValueTypeEncoder
+	isDefaultSampleTypeRecursive bool // Indicates DefaultSampleType field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -525,52 +570,106 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for DropFrames field.
 	if e.fieldCount <= 0 {
-		return nil // DropFrames and subsequent fields are skipped.
+		// DropFrames and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.dropFramesEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.dropFramesEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for KeepFrames field.
 	if e.fieldCount <= 1 {
-		return nil // KeepFrames and subsequent fields are skipped.
+		// KeepFrames and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.keepFramesEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.keepFramesEncoder.Init(&state.FunctionName, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for TimeNanos field.
 	if e.fieldCount <= 2 {
-		return nil // TimeNanos and subsequent fields are skipped.
+		// TimeNanos and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.timeNanosEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.timeNanosEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DurationNanos field.
 	if e.fieldCount <= 3 {
-		return nil // DurationNanos and subsequent fields are skipped.
+		// DurationNanos and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.durationNanosEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.durationNanosEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for PeriodType field.
 	if e.fieldCount <= 4 {
-		return nil // PeriodType and subsequent fields are skipped.
+		// PeriodType and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.periodTypeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SampleValueTypeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.periodTypeEncoder = state.SampleValueTypeEncoder
+		e.isPeriodTypeRecursive = true
+	} else {
+		e.periodTypeEncoder = new(SampleValueTypeEncoder)
+		err = e.periodTypeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Period field.
 	if e.fieldCount <= 5 {
-		return nil // Period and subsequent fields are skipped.
+		// Period and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.periodEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.periodEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Comments field.
 	if e.fieldCount <= 6 {
-		return nil // Comments and subsequent fields are skipped.
+		// Comments and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.commentsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.StringArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.commentsEncoder = state.StringArrayEncoder
+		e.isCommentsRecursive = true
+	} else {
+		e.commentsEncoder = new(StringArrayEncoder)
+		err = e.commentsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for DefaultSampleType field.
 	if e.fieldCount <= 7 {
-		return nil // DefaultSampleType and subsequent fields are skipped.
+		// DefaultSampleType and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.defaultSampleTypeEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SampleValueTypeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.defaultSampleTypeEncoder = state.SampleValueTypeEncoder
+		e.isDefaultSampleTypeRecursive = true
+	} else {
+		e.defaultSampleTypeEncoder = new(SampleValueTypeEncoder)
+		err = e.defaultSampleTypeEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -585,10 +684,21 @@ func (e *ProfileMetadataEncoder) Reset() {
 	e.keepFramesEncoder.Reset()
 	e.timeNanosEncoder.Reset()
 	e.durationNanosEncoder.Reset()
-	e.periodTypeEncoder.Reset()
+
+	if !e.isPeriodTypeRecursive {
+		e.periodTypeEncoder.Reset()
+	}
+
 	e.periodEncoder.Reset()
-	e.commentsEncoder.Reset()
-	e.defaultSampleTypeEncoder.Reset()
+
+	if !e.isCommentsRecursive {
+		e.commentsEncoder.Reset()
+	}
+
+	if !e.isDefaultSampleTypeRecursive {
+		e.defaultSampleTypeEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -672,39 +782,74 @@ func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect DropFrames field.
 	if e.fieldCount <= 0 {
 		return // DropFrames and subsequent fields are skipped.
 	}
-	e.dropFramesEncoder.CollectColumns(columnSet.At(0))
+
+	e.dropFramesEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect KeepFrames field.
 	if e.fieldCount <= 1 {
 		return // KeepFrames and subsequent fields are skipped.
 	}
-	e.keepFramesEncoder.CollectColumns(columnSet.At(1))
+
+	e.keepFramesEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect TimeNanos field.
 	if e.fieldCount <= 2 {
 		return // TimeNanos and subsequent fields are skipped.
 	}
-	e.timeNanosEncoder.CollectColumns(columnSet.At(2))
+
+	e.timeNanosEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect DurationNanos field.
 	if e.fieldCount <= 3 {
 		return // DurationNanos and subsequent fields are skipped.
 	}
-	e.durationNanosEncoder.CollectColumns(columnSet.At(3))
+
+	e.durationNanosEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect PeriodType field.
 	if e.fieldCount <= 4 {
 		return // PeriodType and subsequent fields are skipped.
 	}
-	e.periodTypeEncoder.CollectColumns(columnSet.At(4))
+	if !e.isPeriodTypeRecursive {
+		e.periodTypeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Period field.
 	if e.fieldCount <= 5 {
 		return // Period and subsequent fields are skipped.
 	}
-	e.periodEncoder.CollectColumns(columnSet.At(5))
+
+	e.periodEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Comments field.
 	if e.fieldCount <= 6 {
 		return // Comments and subsequent fields are skipped.
 	}
-	e.commentsEncoder.CollectColumns(columnSet.At(6))
+	if !e.isCommentsRecursive {
+		e.commentsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect DefaultSampleType field.
 	if e.fieldCount <= 7 {
 		return // DefaultSampleType and subsequent fields are skipped.
 	}
-	e.defaultSampleTypeEncoder.CollectColumns(columnSet.At(7))
+	if !e.isDefaultSampleTypeRecursive {
+		e.defaultSampleTypeEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // ProfileMetadataDecoder implements decoding of ProfileMetadata
@@ -715,14 +860,24 @@ type ProfileMetadataDecoder struct {
 	lastVal    ProfileMetadata
 	fieldCount uint
 
-	dropFramesDecoder        encoders.StringDecoder
-	keepFramesDecoder        encoders.StringDecoder
-	timeNanosDecoder         encoders.Int64Decoder
-	durationNanosDecoder     encoders.Int64Decoder
-	periodTypeDecoder        SampleValueTypeDecoder
-	periodDecoder            encoders.Int64Decoder
-	commentsDecoder          StringArrayDecoder
-	defaultSampleTypeDecoder SampleValueTypeDecoder
+	dropFramesDecoder encoders.StringDecoder
+
+	keepFramesDecoder encoders.StringDecoder
+
+	timeNanosDecoder encoders.Int64Decoder
+
+	durationNanosDecoder encoders.Int64Decoder
+
+	periodTypeDecoder     *SampleValueTypeDecoder
+	isPeriodTypeRecursive bool
+
+	periodDecoder encoders.Int64Decoder
+
+	commentsDecoder     *StringArrayDecoder
+	isCommentsRecursive bool
+
+	defaultSampleTypeDecoder     *SampleValueTypeDecoder
+	isDefaultSampleTypeRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -785,7 +940,14 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	if d.fieldCount <= 4 {
 		return nil // PeriodType and subsequent fields are skipped.
 	}
-	err = d.periodTypeDecoder.Init(state, columns.AddSubColumn())
+	if state.SampleValueTypeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.periodTypeDecoder = state.SampleValueTypeDecoder
+		d.isPeriodTypeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.periodTypeDecoder = new(SampleValueTypeDecoder)
+		err = d.periodTypeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -799,14 +961,28 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	if d.fieldCount <= 6 {
 		return nil // Comments and subsequent fields are skipped.
 	}
-	err = d.commentsDecoder.Init(state, columns.AddSubColumn())
+	if state.StringArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.commentsDecoder = state.StringArrayDecoder
+		d.isCommentsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.commentsDecoder = new(StringArrayDecoder)
+		err = d.commentsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 7 {
 		return nil // DefaultSampleType and subsequent fields are skipped.
 	}
-	err = d.defaultSampleTypeDecoder.Init(state, columns.AddSubColumn())
+	if state.SampleValueTypeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.defaultSampleTypeDecoder = state.SampleValueTypeDecoder
+		d.isDefaultSampleTypeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.defaultSampleTypeDecoder = new(SampleValueTypeDecoder)
+		err = d.defaultSampleTypeDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -841,7 +1017,11 @@ func (d *ProfileMetadataDecoder) Continue() {
 	if d.fieldCount <= 4 {
 		return // PeriodType and subsequent fields are skipped.
 	}
-	d.periodTypeDecoder.Continue()
+
+	if !d.isPeriodTypeRecursive {
+		d.periodTypeDecoder.Continue()
+	}
+
 	if d.fieldCount <= 5 {
 		return // Period and subsequent fields are skipped.
 	}
@@ -849,11 +1029,19 @@ func (d *ProfileMetadataDecoder) Continue() {
 	if d.fieldCount <= 6 {
 		return // Comments and subsequent fields are skipped.
 	}
-	d.commentsDecoder.Continue()
+
+	if !d.isCommentsRecursive {
+		d.commentsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 7 {
 		return // DefaultSampleType and subsequent fields are skipped.
 	}
-	d.defaultSampleTypeDecoder.Continue()
+
+	if !d.isDefaultSampleTypeRecursive {
+		d.defaultSampleTypeDecoder.Continue()
+	}
+
 }
 
 func (d *ProfileMetadataDecoder) Reset() {
@@ -861,10 +1049,21 @@ func (d *ProfileMetadataDecoder) Reset() {
 	d.keepFramesDecoder.Reset()
 	d.timeNanosDecoder.Reset()
 	d.durationNanosDecoder.Reset()
-	d.periodTypeDecoder.Reset()
+
+	if !d.isPeriodTypeRecursive {
+		d.periodTypeDecoder.Reset()
+	}
+
 	d.periodDecoder.Reset()
-	d.commentsDecoder.Reset()
-	d.defaultSampleTypeDecoder.Reset()
+
+	if !d.isCommentsRecursive {
+		d.commentsDecoder.Reset()
+	}
+
+	if !d.isDefaultSampleTypeRecursive {
+		d.defaultSampleTypeDecoder.Reset()
+	}
+
 }
 
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
@@ -909,6 +1108,11 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 {
 		// Field is changed and is present, decode it.
+		if val.periodType == nil {
+			val.periodType = &SampleValueType{}
+			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		}
+
 		err = d.periodTypeDecoder.Decode(&val.periodType)
 		if err != nil {
 			return err
@@ -933,6 +1137,11 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 {
 		// Field is changed and is present, decode it.
+		if val.defaultSampleType == nil {
+			val.defaultSampleType = &SampleValueType{}
+			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		}
+
 		err = d.defaultSampleTypeDecoder.Decode(&val.defaultSampleType)
 		if err != nil {
 			return err

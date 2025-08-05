@@ -142,7 +142,13 @@ func (s *SampleValue) byteSize() uint {
 
 func copySampleValue(dst *SampleValue, src *SampleValue) {
 	dst.SetVal(src.val)
-	copySampleValueType(dst.type_, src.type_)
+	if src.type_ != nil {
+		if dst.type_ == nil {
+			dst.type_ = &SampleValueType{}
+			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+		}
+		copySampleValueType(dst.type_, src.type_)
+	}
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -162,7 +168,7 @@ func (s *SampleValue) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *SampleValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+	const fieldCount = max(2, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetVal(pkg.Int64Random(random))
 	}
@@ -171,12 +177,14 @@ func (s *SampleValue) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *SampleValue) IsEqual(val *SampleValue) bool {
-	if !pkg.Int64Equal(e.val, val.val) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *SampleValue) IsEqual(right *SampleValue) bool {
+	// Compare Val field.
+	if !pkg.Int64Equal(s.val, right.val) {
 		return false
 	}
-	if !e.type_.IsEqual(val.type_) {
+	// Compare Type field.
+	if !s.type_.IsEqual(right.type_) {
 		return false
 	}
 
@@ -200,9 +208,12 @@ func CmpSampleValue(left, right *SampleValue) int {
 		return 1
 	}
 
+	// Compare Val field.
 	if c := pkg.Int64Compare(left.val, right.val); c != 0 {
 		return c
 	}
+
+	// Compare Type field.
 	if c := CmpSampleValueType(left.type_, right.type_); c != 0 {
 		return c
 	}
@@ -221,8 +232,10 @@ type SampleValueEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	valEncoder   encoders.Int64Encoder
-	type_Encoder SampleValueTypeEncoder
+	valEncoder encoders.Int64Encoder
+
+	type_Encoder    *SampleValueTypeEncoder
+	isTypeRecursive bool // Indicates Type field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -256,16 +269,32 @@ func (e *SampleValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Val field.
 	if e.fieldCount <= 0 {
-		return nil // Val and subsequent fields are skipped.
+		// Val and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.valEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Type field.
 	if e.fieldCount <= 1 {
-		return nil // Type and subsequent fields are skipped.
+		// Type and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.type_Encoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SampleValueTypeEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.type_Encoder = state.SampleValueTypeEncoder
+		e.isTypeRecursive = true
+	} else {
+		e.type_Encoder = new(SampleValueTypeEncoder)
+		err = e.type_Encoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -277,7 +306,11 @@ func (e *SampleValueEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 	e.valEncoder.Reset()
-	e.type_Encoder.Reset()
+
+	if !e.isTypeRecursive {
+		e.type_Encoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -325,15 +358,24 @@ func (e *SampleValueEncoder) Encode(val *SampleValue) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SampleValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Val field.
 	if e.fieldCount <= 0 {
 		return // Val and subsequent fields are skipped.
 	}
-	e.valEncoder.CollectColumns(columnSet.At(0))
+
+	e.valEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Type field.
 	if e.fieldCount <= 1 {
 		return // Type and subsequent fields are skipped.
 	}
-	e.type_Encoder.CollectColumns(columnSet.At(1))
+	if !e.isTypeRecursive {
+		e.type_Encoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // SampleValueDecoder implements decoding of SampleValue
@@ -344,8 +386,10 @@ type SampleValueDecoder struct {
 	lastVal    SampleValue
 	fieldCount uint
 
-	valDecoder   encoders.Int64Decoder
-	type_Decoder SampleValueTypeDecoder
+	valDecoder encoders.Int64Decoder
+
+	type_Decoder    *SampleValueTypeDecoder
+	isTypeRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -387,7 +431,14 @@ func (d *SampleValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	if d.fieldCount <= 1 {
 		return nil // Type and subsequent fields are skipped.
 	}
-	err = d.type_Decoder.Init(state, columns.AddSubColumn())
+	if state.SampleValueTypeDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.type_Decoder = state.SampleValueTypeDecoder
+		d.isTypeRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.type_Decoder = new(SampleValueTypeDecoder)
+		err = d.type_Decoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -410,12 +461,20 @@ func (d *SampleValueDecoder) Continue() {
 	if d.fieldCount <= 1 {
 		return // Type and subsequent fields are skipped.
 	}
-	d.type_Decoder.Continue()
+
+	if !d.isTypeRecursive {
+		d.type_Decoder.Continue()
+	}
+
 }
 
 func (d *SampleValueDecoder) Reset() {
 	d.valDecoder.Reset()
-	d.type_Decoder.Reset()
+
+	if !d.isTypeRecursive {
+		d.type_Decoder.Reset()
+	}
+
 }
 
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
@@ -436,6 +495,11 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 {
 		// Field is changed and is present, decode it.
+		if val.type_ == nil {
+			val.type_ = &SampleValueType{}
+			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
+		}
+
 		err = d.type_Decoder.Decode(&val.type_)
 		if err != nil {
 			return err

@@ -20,10 +20,14 @@ class PointEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder startTimestampEncoder = new Uint64Encoder();
-    private Uint64Encoder timestampEncoder = new Uint64Encoder();
-    private PointValueEncoder valueEncoder = new PointValueEncoder();
-    private ExemplarArrayEncoder exemplarsEncoder = new ExemplarArrayEncoder();
+    private Uint64Encoder startTimestampEncoder;
+    private boolean isStartTimestampRecursive = false; // Indicates StartTimestamp field's type is recursive.
+    private Uint64Encoder timestampEncoder;
+    private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
+    private PointValueEncoder valueEncoder;
+    private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
+    private ExemplarArrayEncoder exemplarsEncoder;
+    private boolean isExemplarsRecursive = false; // Indicates Exemplars field's type is recursive.
     
 
     private long keepFieldMask;
@@ -49,22 +53,42 @@ class PointEncoder {
             }
 
             
+            // Init encoder for StartTimestamp field.
             if (this.fieldCount <= 0) {
                 return; // StartTimestamp and subsequent fields are skipped.
             }
+            startTimestampEncoder = new Uint64Encoder();
             this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Timestamp field.
             if (this.fieldCount <= 1) {
                 return; // Timestamp and subsequent fields are skipped.
             }
+            timestampEncoder = new Uint64Encoder();
             this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            // Init encoder for Value field.
             if (this.fieldCount <= 2) {
                 return; // Value and subsequent fields are skipped.
             }
-            this.valueEncoder.init(state, columns.addSubColumn());
+            if (state.PointValueEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                valueEncoder = state.PointValueEncoder;
+                isValueRecursive = true;
+            } else {
+                valueEncoder = new PointValueEncoder();
+                valueEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Exemplars field.
             if (this.fieldCount <= 3) {
                 return; // Exemplars and subsequent fields are skipped.
             }
-            this.exemplarsEncoder.init(state, columns.addSubColumn());
+            if (state.ExemplarArrayEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                exemplarsEncoder = state.ExemplarArrayEncoder;
+                isExemplarsRecursive = true;
+            } else {
+                exemplarsEncoder = new ExemplarArrayEncoder();
+                exemplarsEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointEncoder = null;
         }
@@ -72,12 +96,20 @@ class PointEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.startTimestampEncoder.reset();
-        this.timestampEncoder.reset();
-        this.valueEncoder.reset();
-        this.exemplarsEncoder.reset();
+        startTimestampEncoder.reset();
+        timestampEncoder.reset();
+        
+        if (!isValueRecursive) {
+            valueEncoder.reset();
+        }
+        
+        
+        if (!isExemplarsRecursive) {
+            exemplarsEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -138,23 +170,42 @@ class PointEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect StartTimestamp field.
         if (this.fieldCount <= 0) {
             return; // StartTimestamp and subsequent fields are skipped.
         }
-        this.startTimestampEncoder.collectColumns(columnSet.at(0));
+        
+        startTimestampEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Timestamp field.
         if (this.fieldCount <= 1) {
             return; // Timestamp and subsequent fields are skipped.
         }
-        this.timestampEncoder.collectColumns(columnSet.at(1));
+        
+        timestampEncoder.collectColumns(columnSet.at(colIdx));
+        colIdx++;
+        
+        // Collect Value field.
         if (this.fieldCount <= 2) {
             return; // Value and subsequent fields are skipped.
         }
-        this.valueEncoder.collectColumns(columnSet.at(2));
+        if (!isValueRecursive) {
+            valueEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Exemplars field.
         if (this.fieldCount <= 3) {
             return; // Exemplars and subsequent fields are skipped.
         }
-        this.exemplarsEncoder.collectColumns(columnSet.at(3));
+        if (!isExemplarsRecursive) {
+            exemplarsEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

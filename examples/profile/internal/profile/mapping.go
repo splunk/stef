@@ -429,7 +429,7 @@ func (s *Mapping) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Mapping) mutateRandom(random *rand.Rand) {
-	const fieldCount = 9
+	const fieldCount = max(9, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.SetMemoryStart(pkg.Uint64Random(random))
 	}
@@ -459,33 +459,42 @@ func (s *Mapping) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Mapping) IsEqual(val *Mapping) bool {
-	if !pkg.Uint64Equal(e.memoryStart, val.memoryStart) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Mapping) IsEqual(right *Mapping) bool {
+	// Compare MemoryStart field.
+	if !pkg.Uint64Equal(s.memoryStart, right.memoryStart) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.memoryLimit, val.memoryLimit) {
+	// Compare MemoryLimit field.
+	if !pkg.Uint64Equal(s.memoryLimit, right.memoryLimit) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.fileOffset, val.fileOffset) {
+	// Compare FileOffset field.
+	if !pkg.Uint64Equal(s.fileOffset, right.fileOffset) {
 		return false
 	}
-	if !pkg.StringEqual(e.filename, val.filename) {
+	// Compare Filename field.
+	if !pkg.StringEqual(s.filename, right.filename) {
 		return false
 	}
-	if !pkg.StringEqual(e.buildId, val.buildId) {
+	// Compare BuildId field.
+	if !pkg.StringEqual(s.buildId, right.buildId) {
 		return false
 	}
-	if !pkg.BoolEqual(e.hasFunctions, val.hasFunctions) {
+	// Compare HasFunctions field.
+	if !pkg.BoolEqual(s.hasFunctions, right.hasFunctions) {
 		return false
 	}
-	if !pkg.BoolEqual(e.hasFilenames, val.hasFilenames) {
+	// Compare HasFilenames field.
+	if !pkg.BoolEqual(s.hasFilenames, right.hasFilenames) {
 		return false
 	}
-	if !pkg.BoolEqual(e.hasLineNumbers, val.hasLineNumbers) {
+	// Compare HasLineNumbers field.
+	if !pkg.BoolEqual(s.hasLineNumbers, right.hasLineNumbers) {
 		return false
 	}
-	if !pkg.BoolEqual(e.hasInlineFrames, val.hasInlineFrames) {
+	// Compare HasInlineFrames field.
+	if !pkg.BoolEqual(s.hasInlineFrames, right.hasInlineFrames) {
 		return false
 	}
 
@@ -509,30 +518,47 @@ func CmpMapping(left, right *Mapping) int {
 		return 1
 	}
 
+	// Compare MemoryStart field.
 	if c := pkg.Uint64Compare(left.memoryStart, right.memoryStart); c != 0 {
 		return c
 	}
+
+	// Compare MemoryLimit field.
 	if c := pkg.Uint64Compare(left.memoryLimit, right.memoryLimit); c != 0 {
 		return c
 	}
+
+	// Compare FileOffset field.
 	if c := pkg.Uint64Compare(left.fileOffset, right.fileOffset); c != 0 {
 		return c
 	}
+
+	// Compare Filename field.
 	if c := strings.Compare(left.filename, right.filename); c != 0 {
 		return c
 	}
+
+	// Compare BuildId field.
 	if c := strings.Compare(left.buildId, right.buildId); c != 0 {
 		return c
 	}
+
+	// Compare HasFunctions field.
 	if c := pkg.BoolCompare(left.hasFunctions, right.hasFunctions); c != 0 {
 		return c
 	}
+
+	// Compare HasFilenames field.
 	if c := pkg.BoolCompare(left.hasFilenames, right.hasFilenames); c != 0 {
 		return c
 	}
+
+	// Compare HasLineNumbers field.
 	if c := pkg.BoolCompare(left.hasLineNumbers, right.hasLineNumbers); c != 0 {
 		return c
 	}
+
+	// Compare HasInlineFrames field.
 	if c := pkg.BoolCompare(left.hasInlineFrames, right.hasInlineFrames); c != 0 {
 		return c
 	}
@@ -551,14 +577,22 @@ type MappingEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	memoryStartEncoder     encoders.Uint64Encoder
-	memoryLimitEncoder     encoders.Uint64Encoder
-	fileOffsetEncoder      encoders.Uint64Encoder
-	filenameEncoder        encoders.StringEncoder
-	buildIdEncoder         encoders.StringEncoder
-	hasFunctionsEncoder    encoders.BoolEncoder
-	hasFilenamesEncoder    encoders.BoolEncoder
-	hasLineNumbersEncoder  encoders.BoolEncoder
+	memoryStartEncoder encoders.Uint64Encoder
+
+	memoryLimitEncoder encoders.Uint64Encoder
+
+	fileOffsetEncoder encoders.Uint64Encoder
+
+	filenameEncoder encoders.StringEncoder
+
+	buildIdEncoder encoders.StringEncoder
+
+	hasFunctionsEncoder encoders.BoolEncoder
+
+	hasFilenamesEncoder encoders.BoolEncoder
+
+	hasLineNumbersEncoder encoders.BoolEncoder
+
 	hasInlineFramesEncoder encoders.BoolEncoder
 
 	dict *MappingEncoderDict
@@ -618,58 +652,95 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for MemoryStart field.
 	if e.fieldCount <= 0 {
-		return nil // MemoryStart and subsequent fields are skipped.
+		// MemoryStart and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.memoryStartEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.memoryStartEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for MemoryLimit field.
 	if e.fieldCount <= 1 {
-		return nil // MemoryLimit and subsequent fields are skipped.
+		// MemoryLimit and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.memoryLimitEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.memoryLimitEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for FileOffset field.
 	if e.fieldCount <= 2 {
-		return nil // FileOffset and subsequent fields are skipped.
+		// FileOffset and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.fileOffsetEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.fileOffsetEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Filename field.
 	if e.fieldCount <= 3 {
-		return nil // Filename and subsequent fields are skipped.
+		// Filename and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.filenameEncoder.Init(&state.Filename, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for BuildId field.
 	if e.fieldCount <= 4 {
-		return nil // BuildId and subsequent fields are skipped.
+		// BuildId and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.buildIdEncoder.Init(&state.BuildID, e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.buildIdEncoder.Init(&state.BuildID, e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for HasFunctions field.
 	if e.fieldCount <= 5 {
-		return nil // HasFunctions and subsequent fields are skipped.
+		// HasFunctions and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.hasFunctionsEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.hasFunctionsEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for HasFilenames field.
 	if e.fieldCount <= 6 {
-		return nil // HasFilenames and subsequent fields are skipped.
+		// HasFilenames and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.hasFilenamesEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.hasFilenamesEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for HasLineNumbers field.
 	if e.fieldCount <= 7 {
-		return nil // HasLineNumbers and subsequent fields are skipped.
+		// HasLineNumbers and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.hasLineNumbersEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.hasLineNumbersEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for HasInlineFrames field.
 	if e.fieldCount <= 8 {
-		return nil // HasInlineFrames and subsequent fields are skipped.
+		// HasInlineFrames and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.hasInlineFramesEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.hasInlineFramesEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -806,43 +877,79 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *MappingEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect MemoryStart field.
 	if e.fieldCount <= 0 {
 		return // MemoryStart and subsequent fields are skipped.
 	}
-	e.memoryStartEncoder.CollectColumns(columnSet.At(0))
+
+	e.memoryStartEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect MemoryLimit field.
 	if e.fieldCount <= 1 {
 		return // MemoryLimit and subsequent fields are skipped.
 	}
-	e.memoryLimitEncoder.CollectColumns(columnSet.At(1))
+
+	e.memoryLimitEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect FileOffset field.
 	if e.fieldCount <= 2 {
 		return // FileOffset and subsequent fields are skipped.
 	}
-	e.fileOffsetEncoder.CollectColumns(columnSet.At(2))
+
+	e.fileOffsetEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Filename field.
 	if e.fieldCount <= 3 {
 		return // Filename and subsequent fields are skipped.
 	}
-	e.filenameEncoder.CollectColumns(columnSet.At(3))
+
+	e.filenameEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect BuildId field.
 	if e.fieldCount <= 4 {
 		return // BuildId and subsequent fields are skipped.
 	}
-	e.buildIdEncoder.CollectColumns(columnSet.At(4))
+
+	e.buildIdEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect HasFunctions field.
 	if e.fieldCount <= 5 {
 		return // HasFunctions and subsequent fields are skipped.
 	}
-	e.hasFunctionsEncoder.CollectColumns(columnSet.At(5))
+
+	e.hasFunctionsEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect HasFilenames field.
 	if e.fieldCount <= 6 {
 		return // HasFilenames and subsequent fields are skipped.
 	}
-	e.hasFilenamesEncoder.CollectColumns(columnSet.At(6))
+
+	e.hasFilenamesEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect HasLineNumbers field.
 	if e.fieldCount <= 7 {
 		return // HasLineNumbers and subsequent fields are skipped.
 	}
-	e.hasLineNumbersEncoder.CollectColumns(columnSet.At(7))
+
+	e.hasLineNumbersEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect HasInlineFrames field.
 	if e.fieldCount <= 8 {
 		return // HasInlineFrames and subsequent fields are skipped.
 	}
-	e.hasInlineFramesEncoder.CollectColumns(columnSet.At(8))
+
+	e.hasInlineFramesEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // MappingDecoder implements decoding of Mapping
@@ -853,14 +960,22 @@ type MappingDecoder struct {
 	lastVal    Mapping
 	fieldCount uint
 
-	memoryStartDecoder     encoders.Uint64Decoder
-	memoryLimitDecoder     encoders.Uint64Decoder
-	fileOffsetDecoder      encoders.Uint64Decoder
-	filenameDecoder        encoders.StringDecoder
-	buildIdDecoder         encoders.StringDecoder
-	hasFunctionsDecoder    encoders.BoolDecoder
-	hasFilenamesDecoder    encoders.BoolDecoder
-	hasLineNumbersDecoder  encoders.BoolDecoder
+	memoryStartDecoder encoders.Uint64Decoder
+
+	memoryLimitDecoder encoders.Uint64Decoder
+
+	fileOffsetDecoder encoders.Uint64Decoder
+
+	filenameDecoder encoders.StringDecoder
+
+	buildIdDecoder encoders.StringDecoder
+
+	hasFunctionsDecoder encoders.BoolDecoder
+
+	hasFilenamesDecoder encoders.BoolDecoder
+
+	hasLineNumbersDecoder encoders.BoolDecoder
+
 	hasInlineFramesDecoder encoders.BoolDecoder
 
 	dict *MappingDecoderDict

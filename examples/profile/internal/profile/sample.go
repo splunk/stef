@@ -214,7 +214,7 @@ func (s *Sample) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Sample) mutateRandom(random *rand.Rand) {
-	const fieldCount = 4
+	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.metadata.mutateRandom(random)
 	}
@@ -229,18 +229,22 @@ func (s *Sample) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Sample) IsEqual(val *Sample) bool {
-	if !e.metadata.IsEqual(&val.metadata) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Sample) IsEqual(right *Sample) bool {
+	// Compare Metadata field.
+	if !s.metadata.IsEqual(&right.metadata) {
 		return false
 	}
-	if !e.locations.IsEqual(&val.locations) {
+	// Compare Locations field.
+	if !s.locations.IsEqual(&right.locations) {
 		return false
 	}
-	if !e.values.IsEqual(&val.values) {
+	// Compare Values field.
+	if !s.values.IsEqual(&right.values) {
 		return false
 	}
-	if !e.labels.IsEqual(&val.labels) {
+	// Compare Labels field.
+	if !s.labels.IsEqual(&right.labels) {
 		return false
 	}
 
@@ -264,15 +268,22 @@ func CmpSample(left, right *Sample) int {
 		return 1
 	}
 
+	// Compare Metadata field.
 	if c := CmpProfileMetadata(&left.metadata, &right.metadata); c != 0 {
 		return c
 	}
+
+	// Compare Locations field.
 	if c := CmpLocationArray(&left.locations, &right.locations); c != 0 {
 		return c
 	}
+
+	// Compare Values field.
 	if c := CmpSampleValueArray(&left.values, &right.values); c != 0 {
 		return c
 	}
+
+	// Compare Labels field.
 	if c := CmpLabels(&left.labels, &right.labels); c != 0 {
 		return c
 	}
@@ -291,10 +302,17 @@ type SampleEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	metadataEncoder  ProfileMetadataEncoder
-	locationsEncoder LocationArrayEncoder
-	valuesEncoder    SampleValueArrayEncoder
-	labelsEncoder    LabelsEncoder
+	metadataEncoder     *ProfileMetadataEncoder
+	isMetadataRecursive bool // Indicates Metadata field's type is recursive.
+
+	locationsEncoder     *LocationArrayEncoder
+	isLocationsRecursive bool // Indicates Locations field's type is recursive.
+
+	valuesEncoder     *SampleValueArrayEncoder
+	isValuesRecursive bool // Indicates Values field's type is recursive.
+
+	labelsEncoder     *LabelsEncoder
+	isLabelsRecursive bool // Indicates Labels field's type is recursive.
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -328,28 +346,73 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Metadata field.
 	if e.fieldCount <= 0 {
-		return nil // Metadata and subsequent fields are skipped.
+		// Metadata and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.metadataEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.ProfileMetadataEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.metadataEncoder = state.ProfileMetadataEncoder
+		e.isMetadataRecursive = true
+	} else {
+		e.metadataEncoder = new(ProfileMetadataEncoder)
+		err = e.metadataEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Locations field.
 	if e.fieldCount <= 1 {
-		return nil // Locations and subsequent fields are skipped.
+		// Locations and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.locationsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.LocationArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.locationsEncoder = state.LocationArrayEncoder
+		e.isLocationsRecursive = true
+	} else {
+		e.locationsEncoder = new(LocationArrayEncoder)
+		err = e.locationsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Values field.
 	if e.fieldCount <= 2 {
-		return nil // Values and subsequent fields are skipped.
+		// Values and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.valuesEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.SampleValueArrayEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.valuesEncoder = state.SampleValueArrayEncoder
+		e.isValuesRecursive = true
+	} else {
+		e.valuesEncoder = new(SampleValueArrayEncoder)
+		err = e.valuesEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Labels field.
 	if e.fieldCount <= 3 {
-		return nil // Labels and subsequent fields are skipped.
+		// Labels and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.labelsEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.LabelsEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.labelsEncoder = state.LabelsEncoder
+		e.isLabelsRecursive = true
+	} else {
+		e.labelsEncoder = new(LabelsEncoder)
+		err = e.labelsEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
 
@@ -360,10 +423,23 @@ func (e *SampleEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.metadataEncoder.Reset()
-	e.locationsEncoder.Reset()
-	e.valuesEncoder.Reset()
-	e.labelsEncoder.Reset()
+
+	if !e.isMetadataRecursive {
+		e.metadataEncoder.Reset()
+	}
+
+	if !e.isLocationsRecursive {
+		e.locationsEncoder.Reset()
+	}
+
+	if !e.isValuesRecursive {
+		e.valuesEncoder.Reset()
+	}
+
+	if !e.isLabelsRecursive {
+		e.labelsEncoder.Reset()
+	}
+
 }
 
 // Encode encodes val into buf
@@ -423,23 +499,43 @@ func (e *SampleEncoder) Encode(val *Sample) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Metadata field.
 	if e.fieldCount <= 0 {
 		return // Metadata and subsequent fields are skipped.
 	}
-	e.metadataEncoder.CollectColumns(columnSet.At(0))
+	if !e.isMetadataRecursive {
+		e.metadataEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Locations field.
 	if e.fieldCount <= 1 {
 		return // Locations and subsequent fields are skipped.
 	}
-	e.locationsEncoder.CollectColumns(columnSet.At(1))
+	if !e.isLocationsRecursive {
+		e.locationsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Values field.
 	if e.fieldCount <= 2 {
 		return // Values and subsequent fields are skipped.
 	}
-	e.valuesEncoder.CollectColumns(columnSet.At(2))
+	if !e.isValuesRecursive {
+		e.valuesEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Labels field.
 	if e.fieldCount <= 3 {
 		return // Labels and subsequent fields are skipped.
 	}
-	e.labelsEncoder.CollectColumns(columnSet.At(3))
+	if !e.isLabelsRecursive {
+		e.labelsEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
 }
 
 // SampleDecoder implements decoding of Sample
@@ -450,10 +546,17 @@ type SampleDecoder struct {
 	lastVal    Sample
 	fieldCount uint
 
-	metadataDecoder  ProfileMetadataDecoder
-	locationsDecoder LocationArrayDecoder
-	valuesDecoder    SampleValueArrayDecoder
-	labelsDecoder    LabelsDecoder
+	metadataDecoder     *ProfileMetadataDecoder
+	isMetadataRecursive bool
+
+	locationsDecoder     *LocationArrayDecoder
+	isLocationsRecursive bool
+
+	valuesDecoder     *SampleValueArrayDecoder
+	isValuesRecursive bool
+
+	labelsDecoder     *LabelsDecoder
+	isLabelsRecursive bool
 }
 
 // Init is called once in the lifetime of the stream.
@@ -488,28 +591,56 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	if d.fieldCount <= 0 {
 		return nil // Metadata and subsequent fields are skipped.
 	}
-	err = d.metadataDecoder.Init(state, columns.AddSubColumn())
+	if state.ProfileMetadataDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.metadataDecoder = state.ProfileMetadataDecoder
+		d.isMetadataRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.metadataDecoder = new(ProfileMetadataDecoder)
+		err = d.metadataDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // Locations and subsequent fields are skipped.
 	}
-	err = d.locationsDecoder.Init(state, columns.AddSubColumn())
+	if state.LocationArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.locationsDecoder = state.LocationArrayDecoder
+		d.isLocationsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.locationsDecoder = new(LocationArrayDecoder)
+		err = d.locationsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 2 {
 		return nil // Values and subsequent fields are skipped.
 	}
-	err = d.valuesDecoder.Init(state, columns.AddSubColumn())
+	if state.SampleValueArrayDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.valuesDecoder = state.SampleValueArrayDecoder
+		d.isValuesRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.valuesDecoder = new(SampleValueArrayDecoder)
+		err = d.valuesDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // Labels and subsequent fields are skipped.
 	}
-	err = d.labelsDecoder.Init(state, columns.AddSubColumn())
+	if state.LabelsDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.labelsDecoder = state.LabelsDecoder
+		d.isLabelsRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.labelsDecoder = new(LabelsDecoder)
+		err = d.labelsDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -528,26 +659,55 @@ func (d *SampleDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Metadata and subsequent fields are skipped.
 	}
-	d.metadataDecoder.Continue()
+
+	if !d.isMetadataRecursive {
+		d.metadataDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Locations and subsequent fields are skipped.
 	}
-	d.locationsDecoder.Continue()
+
+	if !d.isLocationsRecursive {
+		d.locationsDecoder.Continue()
+	}
+
 	if d.fieldCount <= 2 {
 		return // Values and subsequent fields are skipped.
 	}
-	d.valuesDecoder.Continue()
+
+	if !d.isValuesRecursive {
+		d.valuesDecoder.Continue()
+	}
+
 	if d.fieldCount <= 3 {
 		return // Labels and subsequent fields are skipped.
 	}
-	d.labelsDecoder.Continue()
+
+	if !d.isLabelsRecursive {
+		d.labelsDecoder.Continue()
+	}
+
 }
 
 func (d *SampleDecoder) Reset() {
-	d.metadataDecoder.Reset()
-	d.locationsDecoder.Reset()
-	d.valuesDecoder.Reset()
-	d.labelsDecoder.Reset()
+
+	if !d.isMetadataRecursive {
+		d.metadataDecoder.Reset()
+	}
+
+	if !d.isLocationsRecursive {
+		d.locationsDecoder.Reset()
+	}
+
+	if !d.isValuesRecursive {
+		d.valuesDecoder.Reset()
+	}
+
+	if !d.isLabelsRecursive {
+		d.labelsDecoder.Reset()
+	}
+
 }
 
 func (d *SampleDecoder) Decode(dstPtr *Sample) error {

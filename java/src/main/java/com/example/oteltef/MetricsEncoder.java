@@ -20,12 +20,18 @@ class MetricsEncoder {
     private boolean forceModifiedFields;
 
     
-    private EnvelopeEncoder envelopeEncoder = new EnvelopeEncoder();
-    private MetricEncoder metricEncoder = new MetricEncoder();
-    private ResourceEncoder resourceEncoder = new ResourceEncoder();
-    private ScopeEncoder scopeEncoder = new ScopeEncoder();
-    private AttributesEncoder attributesEncoder = new AttributesEncoder();
-    private PointEncoder pointEncoder = new PointEncoder();
+    private EnvelopeEncoder envelopeEncoder;
+    private boolean isEnvelopeRecursive = false; // Indicates Envelope field's type is recursive.
+    private MetricEncoder metricEncoder;
+    private boolean isMetricRecursive = false; // Indicates Metric field's type is recursive.
+    private ResourceEncoder resourceEncoder;
+    private boolean isResourceRecursive = false; // Indicates Resource field's type is recursive.
+    private ScopeEncoder scopeEncoder;
+    private boolean isScopeRecursive = false; // Indicates Scope field's type is recursive.
+    private AttributesEncoder attributesEncoder;
+    private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
+    private PointEncoder pointEncoder;
+    private boolean isPointRecursive = false; // Indicates Point field's type is recursive.
     
 
     private long keepFieldMask;
@@ -51,30 +57,78 @@ class MetricsEncoder {
             }
 
             
+            // Init encoder for Envelope field.
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.
             }
-            this.envelopeEncoder.init(state, columns.addSubColumn());
+            if (state.EnvelopeEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                envelopeEncoder = state.EnvelopeEncoder;
+                isEnvelopeRecursive = true;
+            } else {
+                envelopeEncoder = new EnvelopeEncoder();
+                envelopeEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Metric field.
             if (this.fieldCount <= 1) {
                 return; // Metric and subsequent fields are skipped.
             }
-            this.metricEncoder.init(state, columns.addSubColumn());
+            if (state.MetricEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                metricEncoder = state.MetricEncoder;
+                isMetricRecursive = true;
+            } else {
+                metricEncoder = new MetricEncoder();
+                metricEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Resource field.
             if (this.fieldCount <= 2) {
                 return; // Resource and subsequent fields are skipped.
             }
-            this.resourceEncoder.init(state, columns.addSubColumn());
+            if (state.ResourceEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                resourceEncoder = state.ResourceEncoder;
+                isResourceRecursive = true;
+            } else {
+                resourceEncoder = new ResourceEncoder();
+                resourceEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Scope field.
             if (this.fieldCount <= 3) {
                 return; // Scope and subsequent fields are skipped.
             }
-            this.scopeEncoder.init(state, columns.addSubColumn());
+            if (state.ScopeEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                scopeEncoder = state.ScopeEncoder;
+                isScopeRecursive = true;
+            } else {
+                scopeEncoder = new ScopeEncoder();
+                scopeEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Attributes field.
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
             }
-            this.attributesEncoder.init(state, columns.addSubColumn());
+            if (state.AttributesEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                attributesEncoder = state.AttributesEncoder;
+                isAttributesRecursive = true;
+            } else {
+                attributesEncoder = new AttributesEncoder();
+                attributesEncoder.init(state, columns.addSubColumn());
+            }
+            // Init encoder for Point field.
             if (this.fieldCount <= 5) {
                 return; // Point and subsequent fields are skipped.
             }
-            this.pointEncoder.init(state, columns.addSubColumn());
+            if (state.PointEncoder != null) {
+                // Recursion detected, use the existing encoder.
+                pointEncoder = state.PointEncoder;
+                isPointRecursive = true;
+            } else {
+                pointEncoder = new PointEncoder();
+                pointEncoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.MetricsEncoder = null;
         }
@@ -82,14 +136,38 @@ class MetricsEncoder {
 
     public void reset() {
         // Since we are resetting the state of encoder make sure the next encode()
-        // call forcedly writes all fields and does not attempt to skip.
+        // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        this.envelopeEncoder.reset();
-        this.metricEncoder.reset();
-        this.resourceEncoder.reset();
-        this.scopeEncoder.reset();
-        this.attributesEncoder.reset();
-        this.pointEncoder.reset();
+        
+        if (!isEnvelopeRecursive) {
+            envelopeEncoder.reset();
+        }
+        
+        
+        if (!isMetricRecursive) {
+            metricEncoder.reset();
+        }
+        
+        
+        if (!isResourceRecursive) {
+            resourceEncoder.reset();
+        }
+        
+        
+        if (!isScopeRecursive) {
+            scopeEncoder.reset();
+        }
+        
+        
+        if (!isAttributesRecursive) {
+            attributesEncoder.reset();
+        }
+        
+        
+        if (!isPointRecursive) {
+            pointEncoder.reset();
+        }
+        
     }
 
     // encode encodes val into buf
@@ -162,31 +240,62 @@ class MetricsEncoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        int colIdx = 0;
         
+        // Collect Envelope field.
         if (this.fieldCount <= 0) {
             return; // Envelope and subsequent fields are skipped.
         }
-        this.envelopeEncoder.collectColumns(columnSet.at(0));
+        if (!isEnvelopeRecursive) {
+            envelopeEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Metric field.
         if (this.fieldCount <= 1) {
             return; // Metric and subsequent fields are skipped.
         }
-        this.metricEncoder.collectColumns(columnSet.at(1));
+        if (!isMetricRecursive) {
+            metricEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Resource field.
         if (this.fieldCount <= 2) {
             return; // Resource and subsequent fields are skipped.
         }
-        this.resourceEncoder.collectColumns(columnSet.at(2));
+        if (!isResourceRecursive) {
+            resourceEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Scope field.
         if (this.fieldCount <= 3) {
             return; // Scope and subsequent fields are skipped.
         }
-        this.scopeEncoder.collectColumns(columnSet.at(3));
+        if (!isScopeRecursive) {
+            scopeEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Attributes field.
         if (this.fieldCount <= 4) {
             return; // Attributes and subsequent fields are skipped.
         }
-        this.attributesEncoder.collectColumns(columnSet.at(4));
+        if (!isAttributesRecursive) {
+            attributesEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
+        // Collect Point field.
         if (this.fieldCount <= 5) {
             return; // Point and subsequent fields are skipped.
         }
-        this.pointEncoder.collectColumns(columnSet.at(5));
+        if (!isPointRecursive) {
+            pointEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
+        }
+        
     }
 }
 

@@ -1,0 +1,13 @@
+package com.example.gentest.struct_recurse_mutual
+
+struct Root root {
+  RStruct1 RStruct1
+}
+
+struct RStruct1 {
+  RStruct2 RStruct2 optional
+}
+
+struct RStruct2 {
+  RStruct1 RStruct1 optional
+}

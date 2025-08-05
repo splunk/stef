@@ -199,17 +199,21 @@ public class Spans {
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
-    public boolean equals(Spans val) {
-        if (!this.envelope.equals(val.envelope)) {
+    public boolean equals(Spans right) {
+        // Compare Envelope field.
+        if (!this.envelope.equals(right.envelope)) {
             return false;
         }
-        if (!this.resource.equals(val.resource)) {
+        // Compare Resource field.
+        if (!this.resource.equals(right.resource)) {
             return false;
         }
-        if (!this.scope.equals(val.scope)) {
+        // Compare Scope field.
+        if (!this.scope.equals(right.scope)) {
             return false;
         }
-        if (!this.span.equals(val.span)) {
+        // Compare Span field.
+        if (!this.span.equals(right.span)) {
             return false;
         }
         return true;
@@ -233,21 +237,25 @@ public class Spans {
         }
         int c;
         
+        // Compare Envelope field.
         c = Envelope.compare(left.envelope, right.envelope);
         if (c != 0) {
             return c;
         }
         
+        // Compare Resource field.
         c = Resource.compare(left.resource, right.resource);
         if (c != 0) {
             return c;
         }
         
+        // Compare Scope field.
         c = Scope.compare(left.scope, right.scope);
         if (c != 0) {
             return c;
         }
         
+        // Compare Span field.
         c = Span.compare(left.span, right.span);
         if (c != 0) {
             return c;
@@ -258,7 +266,7 @@ public class Spans {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random) {
-        final int fieldCount = 4;
+        final int fieldCount = Math.max(4,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
             this.envelope.mutateRandom(random);

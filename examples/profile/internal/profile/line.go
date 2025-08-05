@@ -177,7 +177,13 @@ func (s *Line) byteSize() uint {
 }
 
 func copyLine(dst *Line, src *Line) {
-	copyFunction(dst.function, src.function)
+	if src.function != nil {
+		if dst.function == nil {
+			dst.function = &Function{}
+			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		}
+		copyFunction(dst.function, src.function)
+	}
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
 }
@@ -199,7 +205,7 @@ func (s *Line) markUnmodified() {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator.
 func (s *Line) mutateRandom(random *rand.Rand) {
-	const fieldCount = 3
+	const fieldCount = max(3, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
 	if random.IntN(fieldCount) == 0 {
 		s.function.mutateRandom(random)
 	}
@@ -211,15 +217,18 @@ func (s *Line) mutateRandom(random *rand.Rand) {
 	}
 }
 
-// IsEqual performs deep comparison and returns true if struct is equal to val.
-func (e *Line) IsEqual(val *Line) bool {
-	if !e.function.IsEqual(val.function) {
+// IsEqual performs deep comparison and returns true if struct is equal to right.
+func (s *Line) IsEqual(right *Line) bool {
+	// Compare Function field.
+	if !s.function.IsEqual(right.function) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.line, val.line) {
+	// Compare Line field.
+	if !pkg.Uint64Equal(s.line, right.line) {
 		return false
 	}
-	if !pkg.Uint64Equal(e.column, val.column) {
+	// Compare Column field.
+	if !pkg.Uint64Equal(s.column, right.column) {
 		return false
 	}
 
@@ -243,12 +252,17 @@ func CmpLine(left, right *Line) int {
 		return 1
 	}
 
+	// Compare Function field.
 	if c := CmpFunction(left.function, right.function); c != 0 {
 		return c
 	}
+
+	// Compare Line field.
 	if c := pkg.Uint64Compare(left.line, right.line); c != 0 {
 		return c
 	}
+
+	// Compare Column field.
 	if c := pkg.Uint64Compare(left.column, right.column); c != 0 {
 		return c
 	}
@@ -267,9 +281,12 @@ type LineEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	functionEncoder FunctionEncoder
-	lineEncoder     encoders.Uint64Encoder
-	columnEncoder   encoders.Uint64Encoder
+	functionEncoder     *FunctionEncoder
+	isFunctionRecursive bool // Indicates Function field's type is recursive.
+
+	lineEncoder encoders.Uint64Encoder
+
+	columnEncoder encoders.Uint64Encoder
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -303,22 +320,42 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 		e.keepFieldMask = ^uint64(0)
 	}
 
+	var err error
+
+	// Init encoder for Function field.
 	if e.fieldCount <= 0 {
-		return nil // Function and subsequent fields are skipped.
+		// Function and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.functionEncoder.Init(state, columns.AddSubColumn()); err != nil {
+	if state.FunctionEncoder != nil {
+		// Recursion detected, use the existing encoder.
+		e.functionEncoder = state.FunctionEncoder
+		e.isFunctionRecursive = true
+	} else {
+		e.functionEncoder = new(FunctionEncoder)
+		err = e.functionEncoder.Init(state, columns.AddSubColumn())
+	}
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Line field.
 	if e.fieldCount <= 1 {
-		return nil // Line and subsequent fields are skipped.
+		// Line and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.lineEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.lineEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
+
+	// Init encoder for Column field.
 	if e.fieldCount <= 2 {
-		return nil // Column and subsequent fields are skipped.
+		// Column and all subsequent fields are skipped.
+		return nil
 	}
-	if err := e.columnEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
+	err = e.columnEncoder.Init(e.limiter, columns.AddSubColumn())
+	if err != nil {
 		return err
 	}
 
@@ -329,7 +366,11 @@ func (e *LineEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
-	e.functionEncoder.Reset()
+
+	if !e.isFunctionRecursive {
+		e.functionEncoder.Reset()
+	}
+
 	e.lineEncoder.Reset()
 	e.columnEncoder.Reset()
 }
@@ -385,19 +426,32 @@ func (e *LineEncoder) Encode(val *Line) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *LineEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
+	colIdx := 0
 
+	// Collect Function field.
 	if e.fieldCount <= 0 {
 		return // Function and subsequent fields are skipped.
 	}
-	e.functionEncoder.CollectColumns(columnSet.At(0))
+	if !e.isFunctionRecursive {
+		e.functionEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
+	}
+
+	// Collect Line field.
 	if e.fieldCount <= 1 {
 		return // Line and subsequent fields are skipped.
 	}
-	e.lineEncoder.CollectColumns(columnSet.At(1))
+
+	e.lineEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
+
+	// Collect Column field.
 	if e.fieldCount <= 2 {
 		return // Column and subsequent fields are skipped.
 	}
-	e.columnEncoder.CollectColumns(columnSet.At(2))
+
+	e.columnEncoder.CollectColumns(columnSet.At(colIdx))
+	colIdx++
 }
 
 // LineDecoder implements decoding of Line
@@ -408,9 +462,12 @@ type LineDecoder struct {
 	lastVal    Line
 	fieldCount uint
 
-	functionDecoder FunctionDecoder
-	lineDecoder     encoders.Uint64Decoder
-	columnDecoder   encoders.Uint64Decoder
+	functionDecoder     *FunctionDecoder
+	isFunctionRecursive bool
+
+	lineDecoder encoders.Uint64Decoder
+
+	columnDecoder encoders.Uint64Decoder
 }
 
 // Init is called once in the lifetime of the stream.
@@ -445,7 +502,14 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if d.fieldCount <= 0 {
 		return nil // Function and subsequent fields are skipped.
 	}
-	err = d.functionDecoder.Init(state, columns.AddSubColumn())
+	if state.FunctionDecoder != nil {
+		// Recursion detected, use the existing decoder.
+		d.functionDecoder = state.FunctionDecoder
+		d.isFunctionRecursive = true // Mark that we are using a recursive decoder.
+	} else {
+		d.functionDecoder = new(FunctionDecoder)
+		err = d.functionDecoder.Init(state, columns.AddSubColumn())
+	}
 	if err != nil {
 		return err
 	}
@@ -478,7 +542,11 @@ func (d *LineDecoder) Continue() {
 	if d.fieldCount <= 0 {
 		return // Function and subsequent fields are skipped.
 	}
-	d.functionDecoder.Continue()
+
+	if !d.isFunctionRecursive {
+		d.functionDecoder.Continue()
+	}
+
 	if d.fieldCount <= 1 {
 		return // Line and subsequent fields are skipped.
 	}
@@ -490,7 +558,11 @@ func (d *LineDecoder) Continue() {
 }
 
 func (d *LineDecoder) Reset() {
-	d.functionDecoder.Reset()
+
+	if !d.isFunctionRecursive {
+		d.functionDecoder.Reset()
+	}
+
 	d.lineDecoder.Reset()
 	d.columnDecoder.Reset()
 }
@@ -505,6 +577,11 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 
 	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 {
 		// Field is changed and is present, decode it.
+		if val.function == nil {
+			val.function = &Function{}
+			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
+		}
+
 		err = d.functionDecoder.Decode(&val.function)
 		if err != nil {
 			return err
