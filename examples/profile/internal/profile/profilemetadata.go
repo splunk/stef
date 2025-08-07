@@ -168,6 +168,10 @@ func (s *ProfileMetadata) PeriodType() *SampleValueType {
 	return s.periodType
 }
 
+func (s *ProfileMetadata) markPeriodTypeModified() {
+	s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
+}
+
 // IsPeriodTypeModified returns true the value of PeriodType field was modified since
 // ProfileMetadata was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -204,6 +208,10 @@ func (s *ProfileMetadata) Comments() *StringArray {
 	return &s.comments
 }
 
+func (s *ProfileMetadata) markCommentsModified() {
+	s.modifiedFields.markModified(fieldModifiedProfileMetadataComments)
+}
+
 // IsCommentsModified returns true the value of Comments field was modified since
 // ProfileMetadata was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -214,6 +222,10 @@ func (s *ProfileMetadata) IsCommentsModified() bool {
 
 func (s *ProfileMetadata) DefaultSampleType() *SampleValueType {
 	return s.defaultSampleType
+}
+
+func (s *ProfileMetadata) markDefaultSampleTypeModified() {
+	s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
 }
 
 // IsDefaultSampleTypeModified returns true the value of DefaultSampleType field was modified since

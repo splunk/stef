@@ -276,13 +276,6 @@ public class {{ .MultimapName }} {
             ensureLen(src.elemsLen);
             modified = true;
         }
-    
-        {{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
-        if (!Arrays.equals(elems, src.elems)) {
-            System.arraycopy(src.elems, 0, elems, 0, src.elemsLen);
-            modified = true;
-        }
-        {{else}}
         for (int i=0; i < src.elemsLen; i++) {
         {{- if .Key.Type.IsPrimitive}}
             if (!{{.Key.Type.EqualFunc}}(elems[i].key, src.elems[i].key)) {
@@ -308,7 +301,7 @@ public class {{ .MultimapName }} {
             }
         {{- end}}
         }
-        {{end}}
+
         if (modified) {
             markModified();
         }

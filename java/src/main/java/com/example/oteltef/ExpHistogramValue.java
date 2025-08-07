@@ -262,6 +262,10 @@ public class ExpHistogramValue {
         return this.positiveBuckets;
     }
 
+    private void markPositiveBucketsModified() {
+        this.modifiedFields.markModified(fieldModifiedPositiveBuckets);
+    }
+
     // isPositiveBucketsModified returns true if the value of PositiveBuckets field was modified since
     // ExpHistogramValue was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -272,6 +276,10 @@ public class ExpHistogramValue {
     
     public ExpHistogramBuckets getNegativeBuckets() {
         return this.negativeBuckets;
+    }
+
+    private void markNegativeBucketsModified() {
+        this.modifiedFields.markModified(fieldModifiedNegativeBuckets);
     }
 
     // isNegativeBucketsModified returns true if the value of NegativeBuckets field was modified since
@@ -449,6 +457,7 @@ public class ExpHistogramValue {
         positiveBuckets.copyFrom(src.positiveBuckets);
         negativeBuckets.copyFrom(src.negativeBuckets);
         setZeroThreshold(src.getZeroThreshold());
+        this.optionalFieldsPresent = src.optionalFieldsPresent;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

@@ -72,6 +72,10 @@ func (s *Metrics) Envelope() *Envelope {
 	return &s.envelope
 }
 
+func (s *Metrics) markEnvelopeModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsEnvelope)
+}
+
 // IsEnvelopeModified returns true the value of Envelope field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -82,6 +86,10 @@ func (s *Metrics) IsEnvelopeModified() bool {
 
 func (s *Metrics) Metric() *Metric {
 	return s.metric
+}
+
+func (s *Metrics) markMetricModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 }
 
 // IsMetricModified returns true the value of Metric field was modified since
@@ -96,6 +104,10 @@ func (s *Metrics) Resource() *Resource {
 	return s.resource
 }
 
+func (s *Metrics) markResourceModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsResource)
+}
+
 // IsResourceModified returns true the value of Resource field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -106,6 +118,10 @@ func (s *Metrics) IsResourceModified() bool {
 
 func (s *Metrics) Scope() *Scope {
 	return s.scope
+}
+
+func (s *Metrics) markScopeModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsScope)
 }
 
 // IsScopeModified returns true the value of Scope field was modified since
@@ -120,6 +136,10 @@ func (s *Metrics) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Metrics) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -130,6 +150,10 @@ func (s *Metrics) IsAttributesModified() bool {
 
 func (s *Metrics) Point() *Point {
 	return &s.point
+}
+
+func (s *Metrics) markPointModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsPoint)
 }
 
 // IsPointModified returns true the value of Point field was modified since

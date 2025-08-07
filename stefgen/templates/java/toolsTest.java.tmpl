@@ -1,0 +1,212 @@
+package {{ .PackageName }};
+
+// Additional tooling used for example by interop tests.
+
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.Random;
+
+import net.stef.ReadOptions;
+import net.stef.WrapChunkWriter;
+import net.stef.WriterOptions;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+public class ToolsTest {
+    // diffData compares two STEF files containing records of the specified root struct.
+    private void diffData(String rootStruct, String fname1, String fname2) throws Exception {
+        if (!Files.exists(Paths.get(fname1))) {
+            throw new FileNotFoundException("Cannot open " + fname1);
+        }
+        if (!Files.exists(Paths.get(fname2))) {
+            throw new FileNotFoundException("Cannot open " + fname2);
+        }
+
+        try (FileInputStream file1 = new FileInputStream(fname1);
+             FileInputStream file2 = new FileInputStream(fname2)) {
+
+            switch (rootStruct) {
+{{ range $i, $StructName := .Structs }}
+            case "{{$StructName}}": {
+                {{$StructName}}Reader reader1 = new {{$StructName}}Reader(file1);
+                {{$StructName}}Reader reader2 = new {{$StructName}}Reader(file2);
+
+                boolean hasMore1 = true;
+                boolean hasMore2 = true;
+                while (true) {
+                    try {
+                        reader1.read(ReadOptions.none);
+                    } catch (EOFException e) {
+                        hasMore1 = false;
+                    }
+
+                    try {
+                        reader2.read(ReadOptions.none);
+                    } catch (EOFException e) {
+                        hasMore2 = false;
+                    }
+
+                    if (!hasMore1 && !hasMore2) {
+                        break;
+                    }
+                    if (!hasMore1) {
+                        throw new RuntimeException(fname2 + " has more records than " + fname1);
+                    }
+                    if (!hasMore2) {
+                        throw new RuntimeException(fname1 + " has more records than " + fname2);
+                    }
+
+                    if (!reader1.record.equals(reader2.record)) {
+                        throw new RuntimeException("Record #" + reader1.getRecordCount() + " differs.");
+                    }
+                }
+
+                System.out.printf("%d records compared. Content is identical.%n", reader1.getRecordCount());
+                break;
+            }
+{{end}}
+            default:
+                throw new IllegalArgumentException("Unsupported root struct: " + rootStruct);
+            }
+        }
+    }
+
+    // copyData copies records from one STEF file to another for the specified root struct.
+    private void copyData(String rootStruct, String fname1, String fname2) throws Exception {
+        System.out.printf("Copying content from %s to %s...%n", fname1, fname2);
+
+        try (FileInputStream sourceFile = new FileInputStream(fname1);
+             FileOutputStream destFile = new FileOutputStream(fname2)) {
+
+            switch (rootStruct) {
+{{ range $i, $StructName := .Structs }}
+            case "{{$StructName}}": {
+                {{$StructName}}Reader reader = new {{$StructName}}Reader(sourceFile);
+                {{$StructName}}Writer writer = new {{$StructName}}Writer(new WrapChunkWriter(destFile), WriterOptions.builder().build());
+
+                long recordCount = 0;
+                while (true) {
+                    try {
+                        reader.read(ReadOptions.none);
+                    } catch (EOFException e) {
+                        break; // End of file reached
+                    }
+                    // Copy the record from reader to writer
+                    writer.record.copyFrom(reader.record);
+                    writer.write();
+                    recordCount++;
+                }
+
+                writer.flush();
+                System.out.printf("Successfully copied %d records.%n", recordCount);
+                break;
+            }
+{{end}}
+            default:
+                throw new IllegalArgumentException("Unsupported root struct: " + rootStruct);
+            }
+        }
+    }
+
+    // generateData generates random records of the specified root struct and writes them to the output file.
+    private void generateData(String rootStruct, String outFileName, long seed, long recordCount) throws Exception {
+        System.out.printf("Generating %d random %s records...%n", recordCount, rootStruct);
+
+        try (FileOutputStream outFile = new FileOutputStream(outFileName)) {
+            switch (rootStruct) {
+{{ range $i, $StructName := .Structs }}
+            case "{{$StructName}}": {
+                {{$StructName}}Writer writer = new {{$StructName}}Writer(new WrapChunkWriter(outFile), WriterOptions.builder().build());
+
+                if (seed == 0) {
+                    seed = Instant.now().toEpochMilli();
+                    System.out.printf("Using random seed: %d%n", seed);
+                }
+                Random random = new Random(seed);
+
+                for (long i = 0; i < recordCount; i++) {
+                    writer.record.mutateRandom(random);
+                    writer.write();
+                }
+
+                writer.flush();
+                break;
+            }
+{{end}}
+            default:
+                throw new IllegalArgumentException("Unsupported root struct: " + rootStruct);
+            }
+        }
+    }
+
+    private static final String packageFull = "{{ .PackageName }}";
+    private static final String packageName = packageFull.substring(packageFull.lastIndexOf(".")+1);
+    private static String goPkgDir = "../stefgen/generator/testdata/out/"+packageName+".stef/"+packageName;
+
+    // runGoTest runs the Go test tool with the specified command line flags in the given directory.
+    private int runGoTest(String inDir, String... command) throws Exception {
+        String[] goTestCommand = {"go", "test", "-run", "TestTool"};
+
+        // Compose the full command line arguments
+        String[] allArgs = new String[goTestCommand.length + command.length];
+        System.arraycopy(goTestCommand, 0, allArgs, 0, goTestCommand.length);
+        System.arraycopy(command, 0, allArgs, goTestCommand.length, command.length);
+
+        // Run the Go test tool
+        ProcessBuilder pb = new ProcessBuilder(allArgs);
+        pb.directory(new java.io.File(inDir));
+
+        // Show output in console for debugging
+        pb.inheritIO();
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+        return exitCode;
+    }
+
+{{ range $i, $StructName := .Structs }}
+    @Test
+    void testFormatInterop{{$StructName}}() throws Exception {
+        File tempDir = new File(goPkgDir+"/tempdata");
+        if (!tempDir.exists()) {
+            assertTrue(tempDir.mkdir());
+        }
+
+        // Choose a seed (non-pseudo) randomly. We will print the seed
+        // on failure for easy reproduction.
+        long seed1 = System.nanoTime();
+
+        try {
+            // Test interop: generate in Java, copy in Go, compare in Java.
+
+            // Generate data using Java code
+            generateData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef", seed1, 1000);
+
+            // Run the Go test tool to create a copy of the data
+            int exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-copy", "tempdata/{{$StructName}}_java_gen_for_go.stef", "tempdata/{{$StructName}}_go_copy_from_java.stef");
+            assertEquals(0, exitCode, "go test failed, seed " + seed1);
+
+            // Verify that the generated data matches the copied data.
+            diffData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef", goPkgDir+"/tempdata/{{$StructName}}_go_copy_from_java.stef");
+
+            // Now test the opposite direction: generate in Go, copy in Java, compare in Go.
+
+            // Run the Go test tool to generate data
+            exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-generate", "-seed="+seed1, "-out=tempdata/{{$StructName}}_go_gen_for_java.stef");
+            assertEquals(0, exitCode, "go test failed, seed " + seed1);
+
+            // Copy using Java code
+            copyData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_go_gen_for_java.stef", goPkgDir+"/tempdata/{{$StructName}}_java_copy_from_go.stef");
+
+            // Run the Go test tool to compare data
+            exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-diff", "tempdata/{{$StructName}}_go_gen_for_java.stef", "tempdata/{{$StructName}}_java_copy_from_go.stef");
+            assertEquals(0, exitCode, "go test failed, seed " + seed1);
+
+        } catch (Exception e) {
+            fail("seed " + seed1 + ": " + e.getMessage());
+        }
+    }
+{{end}}
+}

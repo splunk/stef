@@ -20,7 +20,6 @@ build:
 	go build -o bin/stefstats cmd/stats/main.go
 	go build -o bin/stefbench cmd/stefbench/main.go
 	go build -o bin/otlp2tef cmd/otlp2tef/main.go
-	go build -o bin/diff cmd/diff/main.go
 
 .PHONY: test
 test:

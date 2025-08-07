@@ -224,11 +224,19 @@ public class EnvelopeAttributes {
             ensureLen(src.elemsLen);
             modified = true;
         }
-        if (!Arrays.equals(elems, src.elems)) {
-            System.arraycopy(src.elems, 0, elems, 0, src.elemsLen);
-            modified = true;
-        }
+        for (int i=0; i < src.elemsLen; i++) {
+            if (!Types.StringEqual(elems[i].key, src.elems[i].key)) {
+                elems[i].key = src.elems[i].key;
+                modified = true;
+            }
         
+            if (!Types.BytesEqual(elems[i].value, src.elems[i].value)) {
+                elems[i].value = src.elems[i].value;
+                modified = true;
+            }
+        
+        }
+
         if (modified) {
             markModified();
         }

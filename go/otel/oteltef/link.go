@@ -160,6 +160,10 @@ func (s *Link) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Link) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedLinkAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Link was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

@@ -82,6 +82,10 @@ public class Exemplar {
         return this.value;
     }
 
+    private void markValueModified() {
+        this.modifiedFields.markModified(fieldModifiedValue);
+    }
+
     // isValueModified returns true if the value of Value field was modified since
     // Exemplar was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -140,6 +144,10 @@ public class Exemplar {
     
     public Attributes getFilteredAttributes() {
         return this.filteredAttributes;
+    }
+
+    private void markFilteredAttributesModified() {
+        this.modifiedFields.markModified(fieldModifiedFilteredAttributes);
     }
 
     // isFilteredAttributesModified returns true if the value of FilteredAttributes field was modified since

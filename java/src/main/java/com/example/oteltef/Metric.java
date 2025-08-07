@@ -163,6 +163,10 @@ public class Metric {
         return this.metadata;
     }
 
+    private void markMetadataModified() {
+        this.modifiedFields.markModified(fieldModifiedMetadata);
+    }
+
     // isMetadataModified returns true if the value of Metadata field was modified since
     // Metric was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -173,6 +177,10 @@ public class Metric {
     
     public Float64Array getHistogramBounds() {
         return this.histogramBounds;
+    }
+
+    private void markHistogramBoundsModified() {
+        this.modifiedFields.markModified(fieldModifiedHistogramBounds);
     }
 
     // isHistogramBoundsModified returns true if the value of HistogramBounds field was modified since

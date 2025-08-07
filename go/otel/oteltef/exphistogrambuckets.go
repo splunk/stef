@@ -80,6 +80,10 @@ func (s *ExpHistogramBuckets) BucketCounts() *Uint64Array {
 	return &s.bucketCounts
 }
 
+func (s *ExpHistogramBuckets) markBucketCountsModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramBucketsBucketCounts)
+}
+
 // IsBucketCountsModified returns true the value of BucketCounts field was modified since
 // ExpHistogramBuckets was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

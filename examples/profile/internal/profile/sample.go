@@ -63,6 +63,10 @@ func (s *Sample) Metadata() *ProfileMetadata {
 	return &s.metadata
 }
 
+func (s *Sample) markMetadataModified() {
+	s.modifiedFields.markModified(fieldModifiedSampleMetadata)
+}
+
 // IsMetadataModified returns true the value of Metadata field was modified since
 // Sample was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -73,6 +77,10 @@ func (s *Sample) IsMetadataModified() bool {
 
 func (s *Sample) Locations() *LocationArray {
 	return &s.locations
+}
+
+func (s *Sample) markLocationsModified() {
+	s.modifiedFields.markModified(fieldModifiedSampleLocations)
 }
 
 // IsLocationsModified returns true the value of Locations field was modified since
@@ -87,6 +95,10 @@ func (s *Sample) Values() *SampleValueArray {
 	return &s.values
 }
 
+func (s *Sample) markValuesModified() {
+	s.modifiedFields.markModified(fieldModifiedSampleValues)
+}
+
 // IsValuesModified returns true the value of Values field was modified since
 // Sample was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -97,6 +109,10 @@ func (s *Sample) IsValuesModified() bool {
 
 func (s *Sample) Labels() *Labels {
 	return &s.labels
+}
+
+func (s *Sample) markLabelsModified() {
+	s.modifiedFields.markModified(fieldModifiedSampleLabels)
 }
 
 // IsLabelsModified returns true the value of Labels field was modified since

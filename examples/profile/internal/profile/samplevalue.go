@@ -81,6 +81,10 @@ func (s *SampleValue) Type() *SampleValueType {
 	return s.type_
 }
 
+func (s *SampleValue) markTypeModified() {
+	s.modifiedFields.markModified(fieldModifiedSampleValueType)
+}
+
 // IsTypeModified returns true the value of Type field was modified since
 // SampleValue was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the

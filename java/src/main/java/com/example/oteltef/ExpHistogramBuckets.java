@@ -73,6 +73,10 @@ public class ExpHistogramBuckets {
         return this.bucketCounts;
     }
 
+    private void markBucketCountsModified() {
+        this.modifiedFields.markModified(fieldModifiedBucketCounts);
+    }
+
     // isBucketCountsModified returns true if the value of BucketCounts field was modified since
     // ExpHistogramBuckets was created, encoded or decoded. If the field is modified
     // it will be encoded by the next Write() operation. If the field is decoded by the

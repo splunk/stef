@@ -241,7 +241,7 @@ public class KeyValueList {
                 modified = true;
             }
         }
-        
+
         if (modified) {
             markModified();
         }

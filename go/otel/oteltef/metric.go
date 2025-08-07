@@ -167,6 +167,10 @@ func (s *Metric) Metadata() *Attributes {
 	return &s.metadata
 }
 
+func (s *Metric) markMetadataModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricMetadata)
+}
+
 // IsMetadataModified returns true the value of Metadata field was modified since
 // Metric was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -177,6 +181,10 @@ func (s *Metric) IsMetadataModified() bool {
 
 func (s *Metric) HistogramBounds() *Float64Array {
 	return &s.histogramBounds
+}
+
+func (s *Metric) markHistogramBoundsModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricHistogramBounds)
 }
 
 // IsHistogramBoundsModified returns true the value of HistogramBounds field was modified since

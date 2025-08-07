@@ -241,7 +241,7 @@ public class Attributes {
                 modified = true;
             }
         }
-        
+
         if (modified) {
             markModified();
         }

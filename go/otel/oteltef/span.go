@@ -299,6 +299,10 @@ func (s *Span) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Span) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedSpanAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Span was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -335,6 +339,10 @@ func (s *Span) Events() *EventArray {
 	return &s.events
 }
 
+func (s *Span) markEventsModified() {
+	s.modifiedFields.markModified(fieldModifiedSpanEvents)
+}
+
 // IsEventsModified returns true the value of Events field was modified since
 // Span was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -347,6 +355,10 @@ func (s *Span) Links() *LinkArray {
 	return &s.links
 }
 
+func (s *Span) markLinksModified() {
+	s.modifiedFields.markModified(fieldModifiedSpanLinks)
+}
+
 // IsLinksModified returns true the value of Links field was modified since
 // Span was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -357,6 +369,10 @@ func (s *Span) IsLinksModified() bool {
 
 func (s *Span) Status() *SpanStatus {
 	return &s.status
+}
+
+func (s *Span) markStatusModified() {
+	s.modifiedFields.markModified(fieldModifiedSpanStatus)
 }
 
 // IsStatusModified returns true the value of Status field was modified since

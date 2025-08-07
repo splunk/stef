@@ -115,6 +115,10 @@ func (s *ExpHistogramValue) SetSum(v float64) {
 	}
 }
 
+func (s *ExpHistogramValue) markSumModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramValueSum)
+}
+
 // UnsetSum unsets the precense flag of Sum field. A subsequent HasSum() will return false.
 func (s *ExpHistogramValue) UnsetSum() {
 	if s.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 {
@@ -126,10 +130,6 @@ func (s *ExpHistogramValue) UnsetSum() {
 // HasSum returns true if the presence flag Sum field is set and false if it is unset.
 func (s *ExpHistogramValue) HasSum() bool {
 	return s.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
-}
-
-func (s *ExpHistogramValue) markSumModified() {
-	s.modifiedFields.markModified(fieldModifiedExpHistogramValueSum)
 }
 
 // IsSumModified returns true the value of Sum field was modified since
@@ -153,6 +153,10 @@ func (s *ExpHistogramValue) SetMin(v float64) {
 	}
 }
 
+func (s *ExpHistogramValue) markMinModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramValueMin)
+}
+
 // UnsetMin unsets the precense flag of Min field. A subsequent HasMin() will return false.
 func (s *ExpHistogramValue) UnsetMin() {
 	if s.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 {
@@ -164,10 +168,6 @@ func (s *ExpHistogramValue) UnsetMin() {
 // HasMin returns true if the presence flag Min field is set and false if it is unset.
 func (s *ExpHistogramValue) HasMin() bool {
 	return s.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
-}
-
-func (s *ExpHistogramValue) markMinModified() {
-	s.modifiedFields.markModified(fieldModifiedExpHistogramValueMin)
 }
 
 // IsMinModified returns true the value of Min field was modified since
@@ -191,6 +191,10 @@ func (s *ExpHistogramValue) SetMax(v float64) {
 	}
 }
 
+func (s *ExpHistogramValue) markMaxModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramValueMax)
+}
+
 // UnsetMax unsets the precense flag of Max field. A subsequent HasMax() will return false.
 func (s *ExpHistogramValue) UnsetMax() {
 	if s.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 {
@@ -202,10 +206,6 @@ func (s *ExpHistogramValue) UnsetMax() {
 // HasMax returns true if the presence flag Max field is set and false if it is unset.
 func (s *ExpHistogramValue) HasMax() bool {
 	return s.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
-}
-
-func (s *ExpHistogramValue) markMaxModified() {
-	s.modifiedFields.markModified(fieldModifiedExpHistogramValueMax)
 }
 
 // IsMaxModified returns true the value of Max field was modified since
@@ -268,6 +268,10 @@ func (s *ExpHistogramValue) PositiveBuckets() *ExpHistogramBuckets {
 	return &s.positiveBuckets
 }
 
+func (s *ExpHistogramValue) markPositiveBucketsModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramValuePositiveBuckets)
+}
+
 // IsPositiveBucketsModified returns true the value of PositiveBuckets field was modified since
 // ExpHistogramValue was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -278,6 +282,10 @@ func (s *ExpHistogramValue) IsPositiveBucketsModified() bool {
 
 func (s *ExpHistogramValue) NegativeBuckets() *ExpHistogramBuckets {
 	return &s.negativeBuckets
+}
+
+func (s *ExpHistogramValue) markNegativeBucketsModified() {
+	s.modifiedFields.markModified(fieldModifiedExpHistogramValueNegativeBuckets)
 }
 
 // IsNegativeBucketsModified returns true the value of NegativeBuckets field was modified since
@@ -464,6 +472,7 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	copyExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets)
 	copyExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
+	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -85,6 +85,7 @@ public class {{ .StructName }} {
         }
     }
 
+    {{- end}}
     {{- if .Optional}}
     // unset{{.Name}} unsets the presence flag of {{.Name}} field. A subsequent has{{.Name}}() will return false.
     public void unset{{.Name}}() {
@@ -103,7 +104,6 @@ public class {{ .StructName }} {
     private void mark{{.Name}}Modified() {
         this.modifiedFields.markModified(fieldModified{{.Name}});
     }
-    {{- end}}
 
     // is{{.Name}}Modified returns true if the value of {{.Name}} field was modified since
     // {{ $.StructName }} was created, encoded or decoded. If the field is modified
@@ -193,6 +193,9 @@ public class {{ .StructName }} {
         {{- range .Fields }}
         {{- if .Type.MustClone }}
         {{- if .Optional }}
+        if (src.has{{.Name}}() != this.has{{.Name}}()) {
+            this.mark{{.Name}}Modified();
+        }
         if (src.{{.name}} != null) {
             if ({{.name}} == null) {
                {{.name}} = new {{ .Type.Storage }}(modifiedFields, fieldModified{{.Name}});
@@ -214,6 +217,9 @@ public class {{ .StructName }} {
         {{- end }}
         {{- end }}
         {{- end }}
+        {{- if .OptionalFieldCount}}
+        this.optionalFieldsPresent = src.optionalFieldsPresent;
+        {{- end}}
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.
@@ -290,6 +296,7 @@ public class {{ .StructName }} {
             {{- if .Optional}}
             // Flip the optional field presence bit.
             this.optionalFieldsPresent ^= fieldPresent{{.Name}};
+            this.mark{{.Name}}Modified();
             if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) !=0) {
                 if (this.{{.name}} == null) {
                     this.{{.name}} = new {{ .Type.Storage }}(this.modifiedFields, fieldModified{{.Name}});
