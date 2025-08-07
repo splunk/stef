@@ -154,6 +154,30 @@ func (c *BaseOTLPToSTEF) ConvertExpHistogram(dst *oteltef.Point, src pmetric.Exp
 	return nil
 }
 
+func (c *BaseOTLPToSTEF) ConvertSummary(dst *oteltef.Point, src pmetric.SummaryDataPoint) error {
+	dst.SetTimestamp(uint64(src.Timestamp()))
+	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
+
+	dstVal := dst.Value()
+	dstVal.SetType(oteltef.PointValueTypeSummary)
+	dstSummary := dstVal.Summary()
+	dstSummary.SetCount(src.Count())
+	dstSummary.SetSum(src.Sum())
+
+	// Copy quantile values
+	qv := src.QuantileValues()
+	dstQv := dstSummary.QuantileValues()
+	dstQv.EnsureLen(qv.Len())
+
+	for i := 0; i < qv.Len(); i++ {
+		q := qv.At(i)
+		dstQv.At(i).SetQuantile(q.Quantile())
+		dstQv.At(i).SetValue(q.Value())
+	}
+
+	return nil
+}
+
 func expBucketsToStef(
 	dst *oteltef.ExpHistogramBuckets, src pmetric.ExponentialHistogramDataPointBuckets,
 ) {

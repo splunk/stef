@@ -51,11 +51,14 @@ type ReaderState struct {
 	MetricsDecoder             *MetricsDecoder
 	PointDecoder               *PointDecoder
 	PointValueDecoder          *PointValueDecoder
+	QuantileValueDecoder       *QuantileValueDecoder
+	QuantileValueArrayDecoder  *QuantileValueArrayDecoder
 	ResourceDecoder            *ResourceDecoder
 	ScopeDecoder               *ScopeDecoder
 	SpanDecoder                *SpanDecoder
 	SpanStatusDecoder          *SpanStatusDecoder
 	SpansDecoder               *SpansDecoder
+	SummaryValueDecoder        *SummaryValueDecoder
 	Uint64ArrayDecoder         *Uint64ArrayDecoder
 }
 

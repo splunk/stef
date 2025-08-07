@@ -27,6 +27,8 @@ class PointValueDecoder {
     private boolean isHistogramRecursive = false; // Indicates Histogram field's type is recursive.
     private ExpHistogramValueDecoder expHistogramDecoder;
     private boolean isExpHistogramRecursive = false; // Indicates ExpHistogram field's type is recursive.
+    private SummaryValueDecoder summaryDecoder;
+    private boolean isSummaryRecursive = false; // Indicates Summary field's type is recursive.
     
 
     // Init is called once in the lifetime of the stream.
@@ -43,7 +45,7 @@ class PointValueDecoder {
                 int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
                 this.fieldCount = fieldCount;
             } else {
-                this.fieldCount = 4;
+                this.fieldCount = 5;
             }
             this.column = columns.getColumn();
             this.lastVal.init(null, 0);
@@ -82,6 +84,17 @@ class PointValueDecoder {
                 expHistogramDecoder = new ExpHistogramValueDecoder();
                 expHistogramDecoder.init(state, columns.addSubColumn());
             }
+            if (this.fieldCount <= 4) {
+                return; // Summary and subsequent fields are skipped.
+            }
+            if (state.SummaryValueDecoder != null) {
+                // Recursion detected, use the existing decoder.
+                summaryDecoder = state.SummaryValueDecoder;
+                isSummaryRecursive = true; // Mark that we are using a recursive decoder.
+            } else {
+                summaryDecoder = new SummaryValueDecoder();
+                summaryDecoder.init(state, columns.addSubColumn());
+            }
         } finally {
             state.PointValueDecoder = null;
         }
@@ -119,6 +132,14 @@ class PointValueDecoder {
             expHistogramDecoder.continueDecoding();
         }
         
+        if (this.fieldCount <= 4) {
+            return; // Summary and subsequent fields are skipped.
+        }
+        
+        if (!isSummaryRecursive) {
+            summaryDecoder.continueDecoding();
+        }
+        
     }
 
     public void reset() {
@@ -131,6 +152,9 @@ class PointValueDecoder {
         }
         if (!isExpHistogramRecursive) {
             expHistogramDecoder.reset();
+        }
+        if (!isSummaryRecursive) {
+            summaryDecoder.reset();
         }
     }
 
@@ -164,6 +188,12 @@ class PointValueDecoder {
                 dst.expHistogram = new ExpHistogramValue(dst.parentModifiedFields, dst.parentModifiedBit);
             }
             dst.expHistogram = this.expHistogramDecoder.decode(dst.expHistogram);
+            break;
+        case TypeSummary:
+            if (dst.summary == null) {
+                dst.summary = new SummaryValue(dst.parentModifiedFields, dst.parentModifiedBit);
+            }
+            dst.summary = this.summaryDecoder.decode(dst.summary);
             break;
         default:
             break;
