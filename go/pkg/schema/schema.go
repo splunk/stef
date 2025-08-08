@@ -152,7 +152,7 @@ func isCompatibleFieldType(
 	}
 
 	if newField.Array != nil {
-		if !isCompatibleFieldType(newField.Array, oldField.Array) {
+		if !isCompatibleFieldType(&newField.Array.ElemType, &oldField.Array.ElemType) {
 			return false
 		}
 	}
@@ -209,7 +209,8 @@ func (d *Schema) ResolveRefs() error {
 			return err
 		}
 	}
-	return nil
+
+	return d.computeRecursive()
 }
 
 func (d *Schema) resolveFieldType(fieldType *FieldType) error {
@@ -233,8 +234,7 @@ func (d *Schema) resolveFieldType(fieldType *FieldType) error {
 		_, isEnum := d.Enums[typeName]
 		if isEnum {
 			// All enums are uint64.
-			t := PrimitiveTypeUint64
-			fieldType.Primitive = &t
+			fieldType.Primitive = &PrimitiveType{Type: PrimitiveTypeUint64}
 			fieldType.Enum = typeName
 			fieldType.Struct = ""
 			matches++
@@ -250,7 +250,7 @@ func (d *Schema) resolveFieldType(fieldType *FieldType) error {
 	}
 
 	if fieldType.Array != nil {
-		if err := d.resolveFieldType(fieldType.Array); err != nil {
+		if err := d.resolveFieldType(&fieldType.Array.ElemType); err != nil {
 			return err
 		}
 		return nil
@@ -269,7 +269,7 @@ func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
 			return err
 		}
 	} else if fieldType.Array != nil {
-		if err := d.copyPrunedFieldType(fieldType.Array, dst); err != nil {
+		if err := d.copyPrunedFieldType(&fieldType.Array.ElemType, dst); err != nil {
 			return err
 		}
 	}
@@ -357,6 +357,17 @@ func (d *Schema) ToWireForRoot(root string) WireSchema {
 	return w
 }
 
+func (d *Schema) computeRecursive() error {
+	for _, struc := range d.Structs {
+		if !struc.IsRoot {
+			continue
+		}
+		stack := recurseStack{asMap: map[string]bool{}}
+		computeRecursiveStruct(struc, &stack)
+	}
+	return nil
+}
+
 func computeWireSchemaFieldCounts(src *Struct, dst *StructWireSchema) {
 	dst.FieldCount = uint(len(src.Fields))
 	dst.StructFields = make([]StructWireSchema, len(src.Fields))
@@ -439,7 +450,7 @@ func computeRecursiveType(typ FieldType, stack *recurseStack) {
 		return
 	}
 	if typ.Array != nil {
-		computeRecursiveType(*typ.Array, stack)
+		computeRecursiveType(typ.Array.ElemType, stack)
 		return
 	}
 
@@ -456,22 +467,31 @@ func findLast(stack []string, name string) int {
 }
 
 type Struct struct {
-	Name     string         `json:"name,omitempty"`
-	OneOf    bool           `json:"oneof,omitempty"`
-	DictName string         `json:"dict,omitempty"`
-	IsRoot   bool           `json:"root,omitempty"`
-	Fields   []*StructField `json:"fields"`
+	Name      string         `json:"name,omitempty"`
+	OneOf     bool           `json:"oneof,omitempty"`
+	DictName  string         `json:"dict,omitempty"`
+	IsRoot    bool           `json:"root,omitempty"`
+	Fields    []*StructField `json:"fields"`
+	recursive bool
+}
+
+func (s Struct) Recursive() bool {
+	return s.recursive
 }
 
 type StructField struct {
 	FieldType
-	Name      string `json:"name,omitempty"`
-	Optional  bool   `json:"optional,omitempty"`
-	Recursive bool
+	Name     string `json:"name,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
+	//Recursive bool
 }
 
 func (s *StructField) SetRecursive() {
-	s.Recursive = true
+	s.FieldType.SetRecursive()
+}
+
+func (s *StructField) Recursive() bool {
+	return s.FieldType.Recursive()
 }
 
 type PrimitiveFieldType int
@@ -485,30 +505,74 @@ const (
 	PrimitiveTypeBytes
 )
 
+type PrimitiveType struct {
+	Type      PrimitiveFieldType
+	recursive bool
+}
+
+type ArrayType struct {
+	ElemType  FieldType
+	recursive bool
+}
+
 type FieldType struct {
-	Primitive   *PrimitiveFieldType `json:"primitive,omitempty"`
-	Array       *FieldType          `json:"array,omitempty"`
-	Struct      string              `json:"struct,omitempty"`
-	MultiMap    string              `json:"multimap,omitempty"`
+	Primitive   *PrimitiveType `json:"primitive,omitempty"`
+	Array       *ArrayType     `json:"array,omitempty"`
+	Struct      string         `json:"struct,omitempty"`
+	MultiMap    string         `json:"multimap,omitempty"`
 	Enum        string
 	DictName    string `json:"dict,omitempty"`
 	StructDef   *Struct
 	MultimapDef *Multimap
+
+	// True if the type is recursive
+	//recursive bool
+}
+
+func (t *FieldType) SetRecursive() {
+	switch {
+	case t.Primitive != nil:
+		t.Primitive.recursive = true
+	case t.Array != nil:
+		t.Array.recursive = true
+	case t.StructDef != nil:
+		t.StructDef.recursive = true
+	case t.MultimapDef != nil:
+		t.MultimapDef.recursive = true
+	default:
+		panic("invalid FieldType")
+	}
+}
+
+func (t *FieldType) Recursive() bool {
+	switch {
+	case t.Primitive != nil:
+		return t.Primitive.recursive
+	case t.Array != nil:
+		return t.Array.recursive
+	case t.StructDef != nil:
+		return t.StructDef.recursive
+	case t.MultimapDef != nil:
+		return t.MultimapDef.recursive
+	default:
+		panic("invalid FieldType")
+	}
 }
 
 type MultimapField struct {
-	Type      FieldType `json:"type"`
-	Recursive bool
+	Type FieldType `json:"type"`
+	//Recursive bool
 }
 
 func (m *MultimapField) SetRecursive() {
-	m.Recursive = true
+	m.Type.SetRecursive()
 }
 
 type Multimap struct {
-	Name  string        `json:"name,omitempty"`
-	Key   MultimapField `json:"key"`
-	Value MultimapField `json:"value"`
+	Name      string        `json:"name,omitempty"`
+	Key       MultimapField `json:"key"`
+	Value     MultimapField `json:"value"`
+	recursive bool
 }
 
 type Enum struct {

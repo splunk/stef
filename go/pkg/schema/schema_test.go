@@ -90,7 +90,7 @@ func FuzzDeserialize(f *testing.F) {
 }
 
 func TestSchemaSelfCompatible(t *testing.T) {
-	p := PrimitiveTypeString
+	p := PrimitiveType{Type: PrimitiveTypeString}
 	schemas := []*Schema{
 		{
 			PackageName: []string{"pkg"},
@@ -103,7 +103,7 @@ func TestSchemaSelfCompatible(t *testing.T) {
 			Structs: map[string]*Struct{
 				"Root": {
 					Name: "Root",
-					Fields: []StructField{
+					Fields: []*StructField{
 						{
 							FieldType: FieldType{MultiMap: "Multi"},
 							Name:      "F1",
@@ -130,8 +130,8 @@ func TestSchemaSelfCompatible(t *testing.T) {
 }
 
 func TestSchemaSuperset(t *testing.T) {
-	primitiveTypeInt64 := PrimitiveTypeInt64
-	primitiveTypeString := PrimitiveTypeString
+	primitiveTypeInt64 := PrimitiveType{Type: PrimitiveTypeInt64}
+	primitiveTypeString := PrimitiveType{Type: PrimitiveTypeString}
 
 	tests := []struct {
 		old *Schema
@@ -143,7 +143,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -160,7 +160,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -185,7 +185,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -202,7 +202,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"A": {
 						Name: "A",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -226,7 +226,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"B": {
 						Name: "B",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -255,7 +255,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -278,7 +278,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"A": {
 						Name: "A",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -302,7 +302,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"B": {
 						Name: "B",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -327,7 +327,7 @@ func TestSchemaSuperset(t *testing.T) {
 						Name:     "D",
 						OneOf:    true,
 						DictName: "",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{Primitive: &primitiveTypeInt64},
 								Name:      "F1",
@@ -357,7 +357,7 @@ func TestSchemaSuperset(t *testing.T) {
 }
 
 func TestSchemaIncompatible(t *testing.T) {
-	primitiveTypeInt64 := PrimitiveTypeInt64
+	primitiveTypeInt64 := PrimitiveType{Type: PrimitiveTypeInt64}
 
 	tests := []struct {
 		old *Schema
@@ -370,7 +370,7 @@ func TestSchemaIncompatible(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -393,7 +393,7 @@ func TestSchemaIncompatible(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -438,7 +438,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 			Name:      fmt.Sprintf("Field#%d", len(str.Fields)+1),
 		}
 
-		p := PrimitiveTypeString
+		p := PrimitiveType{Type: PrimitiveTypeString}
 		switch r.Intn(4) {
 		case 0:
 			field.FieldType.Primitive = &p
@@ -448,7 +448,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 
 		case 1:
 			f := FieldType{Primitive: &p}
-			field.FieldType.Array = &f
+			field.FieldType.Array = &ArrayType{ElemType: f}
 		case 2:
 			multimapIdx := r.Intn(len(schema.Multimaps))
 			i := 0
@@ -464,7 +464,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 				// Add new struct
 				struc := Struct{
 					Name:   fmt.Sprintf("Struct#%d", len(schema.Structs)),
-					Fields: []StructField{},
+					Fields: []*StructField{},
 				}
 				schema.Structs[struc.Name] = &struc
 				field.FieldType.Struct = struc.Name
@@ -481,7 +481,7 @@ func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 			}
 		}
 
-		str.Fields = append(str.Fields, field)
+		str.Fields = append(str.Fields, &field)
 		return true
 	}
 
