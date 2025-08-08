@@ -72,6 +72,10 @@ func (s *Metrics) Envelope() *Envelope {
 	return &s.envelope
 }
 
+func (s *Metrics) markEnvelopeModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsEnvelope)
+}
+
 // IsEnvelopeModified returns true the value of Envelope field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -82,6 +86,10 @@ func (s *Metrics) IsEnvelopeModified() bool {
 
 func (s *Metrics) Metric() *Metric {
 	return s.metric
+}
+
+func (s *Metrics) markMetricModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 }
 
 // IsMetricModified returns true the value of Metric field was modified since
@@ -96,6 +104,10 @@ func (s *Metrics) Resource() *Resource {
 	return s.resource
 }
 
+func (s *Metrics) markResourceModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsResource)
+}
+
 // IsResourceModified returns true the value of Resource field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -106,6 +118,10 @@ func (s *Metrics) IsResourceModified() bool {
 
 func (s *Metrics) Scope() *Scope {
 	return s.scope
+}
+
+func (s *Metrics) markScopeModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsScope)
 }
 
 // IsScopeModified returns true the value of Scope field was modified since
@@ -120,6 +136,10 @@ func (s *Metrics) Attributes() *Attributes {
 	return &s.attributes
 }
 
+func (s *Metrics) markAttributesModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsAttributes)
+}
+
 // IsAttributesModified returns true the value of Attributes field was modified since
 // Metrics was created, encoded or decoded. If the field is modified
 // it will be encoded by the next Write() operation. If the field is decoded by the
@@ -130,6 +150,10 @@ func (s *Metrics) IsAttributesModified() bool {
 
 func (s *Metrics) Point() *Point {
 	return &s.point
+}
+
+func (s *Metrics) markPointModified() {
+	s.modifiedFields.markModified(fieldModifiedMetricsPoint)
 }
 
 // IsPointModified returns true the value of Point field was modified since
@@ -1025,7 +1049,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	return nil
 }
 
-var wireSchemaMetrics = []byte{0x0D, 0x08, 0x41, 0x6E, 0x79, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x07, 0x08, 0x45, 0x6E, 0x76, 0x65, 0x6C, 0x6F, 0x70, 0x65, 0x01, 0x08, 0x45, 0x78, 0x65, 0x6D, 0x70, 0x6C, 0x61, 0x72, 0x05, 0x0D, 0x45, 0x78, 0x65, 0x6D, 0x70, 0x6C, 0x61, 0x72, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x13, 0x45, 0x78, 0x70, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x42, 0x75, 0x63, 0x6B, 0x65, 0x74, 0x73, 0x02, 0x11, 0x45, 0x78, 0x70, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x09, 0x0E, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x06, 0x4D, 0x65, 0x74, 0x72, 0x69, 0x63, 0x08, 0x07, 0x4D, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x06, 0x05, 0x50, 0x6F, 0x69, 0x6E, 0x74, 0x04, 0x0A, 0x50, 0x6F, 0x69, 0x6E, 0x74, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x04, 0x08, 0x52, 0x65, 0x73, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x03, 0x05, 0x53, 0x63, 0x6F, 0x70, 0x65, 0x05}
+var wireSchemaMetrics = []byte{0x06, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 func MetricsWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

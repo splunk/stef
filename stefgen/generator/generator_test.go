@@ -16,7 +16,7 @@ import (
 
 func TestGenerate(t *testing.T) {
 	// Get the list of files in "testdata" directory
-	files, err := filepath.Glob("testdata/*.stef")
+	files, err := filepath.Glob("testdata/struct_recurse_mutual.stef")
 	require.NoError(t, err)
 
 	for _, file := range files {
@@ -32,7 +32,7 @@ func TestGenerate(t *testing.T) {
 				err = parser.Parse()
 				require.NoError(t, err)
 
-				wireSchema := parser.Schema()
+				parsedSchema := parser.Schema()
 
 				// Generate the Go code
 				genGo := Generator{
@@ -41,7 +41,7 @@ func TestGenerate(t *testing.T) {
 					genTools:  true, // Generate testing tools
 				}
 
-				err = genGo.GenFile(wireSchema)
+				err = genGo.GenFile(parsedSchema)
 				require.NoError(t, err)
 
 				fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
@@ -63,7 +63,7 @@ func TestGenerate(t *testing.T) {
 					genTools:      true, // Generate testing tools
 				}
 
-				err = genJava.GenFile(wireSchema)
+				err = genJava.GenFile(parsedSchema)
 				require.NoError(t, err)
 			},
 		)

@@ -76,7 +76,10 @@ func (p *Parser) Parse() error {
 			break
 		}
 	}
-	return p.schema.ResolveRefs()
+	if err := p.schema.ResolveRefs(); err != nil {
+		return p.error(err.Error())
+	}
+	return nil
 }
 
 func (p *Parser) isTopLevelNameUsed(name string) bool {
@@ -297,27 +300,27 @@ func (p *Parser) parseFieldType(field *schema.FieldType) error {
 
 	case tBool:
 		v := schema.PrimitiveTypeBool
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	case tInt64:
 		v := schema.PrimitiveTypeInt64
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	case tUint64:
 		v := schema.PrimitiveTypeUint64
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	case tFloat64:
 		v := schema.PrimitiveTypeFloat64
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	case tString:
 		v := schema.PrimitiveTypeString
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	case tBytes:
 		v := schema.PrimitiveTypeBytes
-		ft.Primitive = &v
+		ft.Primitive = &schema.PrimitiveType{Type: v}
 
 	default:
 		if isArray {
@@ -338,7 +341,7 @@ func (p *Parser) parseFieldType(field *schema.FieldType) error {
 	}
 
 	if isArray {
-		field.Array = &ft
+		field.Array = &schema.ArrayType{ElemType: ft}
 	} else {
 		*field = ft
 	}

@@ -125,6 +125,7 @@ func multimapFieldWireToAst(src schema.MultimapField, lang Lang) genMapFieldDef 
 
 func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 	dst := &genStructDef{
+		Def:    src,
 		Name:   src.Name,
 		OneOf:  src.OneOf,
 		IsRoot: src.IsRoot,
@@ -139,8 +140,9 @@ func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 
 func structFieldWireToAst(src *schema.StructField, lang Lang) *genStructFieldDef {
 	dst := &genStructFieldDef{
-		Name:     src.Name,
-		Optional: src.Optional,
+		Name:      src.Name,
+		Optional:  src.Optional,
+		Recursive: src.Recursive(),
 	}
 
 	dst.Type = typeWireToGen(src.FieldType, lang)
@@ -152,7 +154,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Primitive != nil {
 		return &genPrimitiveTypeRef{
 			Lang: lang,
-			Type: *src.Primitive,
+			Type: src.Primitive.Type,
 			Dict: src.DictName,
 			Enum: src.Enum,
 		}
@@ -161,7 +163,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Array != nil {
 		return &genArrayTypeRef{
 			Lang:     lang,
-			ElemType: typeWireToGen(*src.Array, lang),
+			ElemType: typeWireToGen(src.Array.ElemType, lang),
 		}
 	}
 

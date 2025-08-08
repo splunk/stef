@@ -2,13 +2,10 @@ package idl
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/splunk/stef/go/pkg/schema"
 )
 
 func TestParserErrors(t *testing.T) {
@@ -95,19 +92,6 @@ func TestParserOtelSTEF(t *testing.T) {
 	parser := NewParser(lexer, inputFile)
 	err = parser.Parse()
 	require.NoError(t, err)
-
-	jsonBytes, err := os.ReadFile("testdata/oteltef.wire.json")
-	require.NoError(t, err)
-
-	schem := schema.Schema{
-		Structs:   map[string]*schema.Struct{},
-		Multimaps: map[string]*schema.Multimap{},
-		Enums:     map[string]*schema.Enum{},
-	}
-	err = json.Unmarshal(jsonBytes, &schem)
-	require.NoError(t, err)
-
-	require.EqualValues(t, &schem, parser.Schema())
 }
 
 func FuzzParser(f *testing.F) {

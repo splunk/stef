@@ -23,7 +23,7 @@ type KeyValueList struct {
 
 type KeyValueListElem struct {
 	key   string
-	value AnyValue
+	value *AnyValue
 }
 
 func (e *KeyValueListElem) Key() string {
@@ -63,8 +63,13 @@ func (m *KeyValueList) EnsureLen(newLen int) {
 	if newLen != oldLen {
 		m.elems = pkg.EnsureLen(m.elems, newLen)
 
-		// Init elements with pointers to the parent struct.
+		var newVals []AnyValue
+		if newLen > m.initedCount {
+			newVals = make([]AnyValue, newLen-m.initedCount)
+		}
+		// Set pointers to elements in the slice and init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
+			m.elems[i].value = &newVals[i-m.initedCount]
 			m.elems[i].value.init(m.parentModifiedFields, m.parentModifiedBit)
 		}
 

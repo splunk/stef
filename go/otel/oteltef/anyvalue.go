@@ -162,8 +162,8 @@ func (s *AnyValue) SetBytes(v pkg.Bytes) {
 	}
 }
 
-func (s *AnyValue) Clone() AnyValue {
-	return AnyValue{
+func (s *AnyValue) Clone() *AnyValue {
+	return &AnyValue{
 		string:  s.string,
 		bool:    s.bool,
 		int64:   s.int64,
