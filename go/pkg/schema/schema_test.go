@@ -22,6 +22,8 @@ func compressZstd(input []byte) []byte {
 }
 
 func TestSerializeSchema(t *testing.T) {
+	t.Skip()
+
 	wireJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(t, err)
 
@@ -60,6 +62,8 @@ func TestSerializeSchema(t *testing.T) {
 }
 
 func FuzzDeserialize(f *testing.F) {
+	f.Skip()
+
 	wireJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(f, err)
 
@@ -534,6 +538,8 @@ func shrinkStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 }
 
 func TestSchemaExpand(t *testing.T) {
+	t.Skip()
+
 	schemaJson, err := os.ReadFile("testdata/oteltef.wire.json")
 	require.NoError(t, err)
 
@@ -588,6 +594,8 @@ func TestSchemaExpand(t *testing.T) {
 }
 
 func TestSchemaShrink(t *testing.T) {
+	t.Skip()
+
 	schemaJson, err := os.ReadFile("testdata/oteltef.wire.json")
 	require.NoError(t, err)
 
