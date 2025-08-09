@@ -467,11 +467,14 @@ func findLast(stack []string, name string) int {
 }
 
 type Struct struct {
-	Name      string         `json:"name,omitempty"`
-	OneOf     bool           `json:"oneof,omitempty"`
-	DictName  string         `json:"dict,omitempty"`
-	IsRoot    bool           `json:"root,omitempty"`
-	Fields    []*StructField `json:"fields"`
+	Name     string         `json:"name,omitempty"`
+	OneOf    bool           `json:"oneof,omitempty"`
+	DictName string         `json:"dict,omitempty"`
+	IsRoot   bool           `json:"root,omitempty"`
+	Fields   []*StructField `json:"fields"`
+
+	// This is not good. Causes performance degradation. We don't want the top-level field
+	// that starts a recursion to be stored by pointer since that results in extra allocation.
 	recursive bool
 }
 
