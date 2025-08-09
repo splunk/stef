@@ -229,7 +229,10 @@ func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	}
 
 	for i := 0; i < l; i++ {
-		c := pkg.BytesCompare(left.elems[i].value, right.elems[i].value)
+		c := pkg.BytesCompare(
+			left.elems[i].value,
+			right.elems[i].value,
+		)
 		if c != 0 {
 			return c
 		}

@@ -230,7 +230,10 @@ func CmpAttributes(left, right *Attributes) int {
 	}
 
 	for i := 0; i < l; i++ {
-		c := CmpAnyValue(&left.elems[i].value, &right.elems[i].value)
+		c := CmpAnyValue(
+			&left.elems[i].value,
+			&right.elems[i].value,
+		)
 		if c != 0 {
 			return c
 		}
@@ -412,9 +415,7 @@ func (e *AttributesEncoder) encodeValuesOnly(lastVal *Attributes, list *Attribut
 	changedValuesBits := uint64(0)
 	for i := range list.elems {
 		changedValuesBits <<= 1
-		if !AnyValueEqual(
-			&lastVal.elems[i].value,
-			&list.elems[i].value) {
+		if !AnyValueEqual(&lastVal.elems[i].value, &list.elems[i].value) {
 			changedValuesBits |= 1
 		}
 	}
