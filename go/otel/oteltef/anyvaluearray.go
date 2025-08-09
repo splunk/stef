@@ -420,7 +420,7 @@ func (s *AnyValueArrayDecoderLastValStack) removeFromTop() {
 
 type AnyValueArrayDecoderLastValElem struct {
 	prevLen int
-	elem    *AnyValue
+	elem    AnyValue
 }
 
 func (e *AnyValueArrayDecoderLastValElem) init() {
@@ -429,7 +429,8 @@ func (e *AnyValueArrayDecoderLastValElem) init() {
 func (e *AnyValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
 
-	e.elem = nil
+	//e.elem = nil
+	e.elem = AnyValue{}
 
 }
 
@@ -493,7 +494,7 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 		if err != nil {
 			return err
 		}
-		copyAnyValue(dst.elems[i], lastVal.elem)
+		copyAnyValue(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

@@ -519,7 +519,7 @@ func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
 
 type {{ .ArrayName }}DecoderLastValElem struct {
 	prevLen int
-	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
+	elem {{.ElemType.Storage}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) init() {
@@ -528,7 +528,8 @@ func (e *{{ .ArrayName }}DecoderLastValElem) init() {
 func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
 	e.prevLen = 0
 	{{if .ElemType.Flags.StoreByPtr}}
-	e.elem = nil
+	//e.elem = nil
+	e.elem = {{.ElemType.Storage}}{}
 	{{else}}
 	e.elem = {{.ElemType.Storage}}{}
 	{{end}}
@@ -618,7 +619,7 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
-		err := d.elemDecoder.Decode(&dst.elems[i])
+		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}dst.elems[i])
 		if err != nil {
 			return err
 		}
@@ -627,7 +628,7 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
+		copy{{.ElemType.TypeName}}(dst.elems[i], &lastVal.elem)
 		{{- end}}
 	}
 

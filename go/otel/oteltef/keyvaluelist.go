@@ -31,7 +31,7 @@ func (e *KeyValueListElem) Key() string {
 }
 
 func (e *KeyValueListElem) Value() *AnyValue {
-	return &e.value
+	return e.value
 }
 
 func (m *KeyValueList) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -119,7 +119,7 @@ func (m *KeyValueList) markDiffModified(v *KeyValueList) (modified bool) {
 			modified = true
 		}
 
-		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
+		if m.elems[i].value.markDiffModified(v.elems[i].value) {
 			modified = true
 		}
 	}
@@ -142,7 +142,7 @@ func (m *KeyValueList) markDiffModified(v *KeyValueList) (modified bool) {
 func (m *KeyValueList) markValueDiffModified(v *KeyValueList) (modified bool) {
 	// Scan the elements and mark them as modified if they are different.
 	for i := 0; i < len(m.elems); i++ {
-		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
+		if m.elems[i].value.markDiffModified(v.elems[i].value) {
 			modified = true
 		}
 	}
@@ -186,8 +186,8 @@ func copyKeyValueList(dst *KeyValueList, src *KeyValueList) {
 			modified = true
 		}
 
-		if !AnyValueEqual(&dst.elems[i].value, &src.elems[i].value) {
-			copyAnyValue(&dst.elems[i].value, &src.elems[i].value)
+		if !AnyValueEqual(dst.elems[i].value, src.elems[i].value) {
+			copyAnyValue(dst.elems[i].value, src.elems[i].value)
 			modified = true
 		}
 	}
@@ -209,7 +209,7 @@ func (e *KeyValueList) IsEqual(val *KeyValueList) bool {
 		if !pkg.StringEqual(e.elems[i].key, val.elems[i].key) {
 			return false
 		}
-		if !e.elems[i].value.IsEqual(&val.elems[i].value) {
+		if !e.elems[i].value.IsEqual(val.elems[i].value) {
 			return false
 		}
 	}
@@ -223,7 +223,10 @@ func KeyValueListEqual(left, right *KeyValueList) bool {
 func CmpKeyValueList(left, right *KeyValueList) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(left.elems[i].key, right.elems[i].key)
+		c := strings.Compare(
+			left.elems[i].key,
+			right.elems[i].key,
+		)
 		if c != 0 {
 			return c
 		}
@@ -236,8 +239,8 @@ func CmpKeyValueList(left, right *KeyValueList) int {
 
 	for i := 0; i < l; i++ {
 		c := CmpAnyValue(
-			&left.elems[i].value,
-			&right.elems[i].value,
+			left.elems[i].value,
+			right.elems[i].value,
 		)
 		if c != 0 {
 			return c
@@ -420,7 +423,7 @@ func (e *KeyValueListEncoder) encodeValuesOnly(lastVal *KeyValueList, list *KeyV
 	changedValuesBits := uint64(0)
 	for i := range list.elems {
 		changedValuesBits <<= 1
-		if !AnyValueEqual(&lastVal.elems[i].value, &list.elems[i].value) {
+		if !AnyValueEqual(lastVal.elems[i].value, list.elems[i].value) {
 			changedValuesBits |= 1
 		}
 	}
@@ -431,7 +434,7 @@ func (e *KeyValueListEncoder) encodeValuesOnly(lastVal *KeyValueList, list *KeyV
 	bitToRead := uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			e.valueEncoder.Encode(&list.elems[i].value)
+			e.valueEncoder.Encode(list.elems[i].value)
 		}
 		bitToRead >>= 1
 		if bitToRead == 0 {
@@ -444,7 +447,7 @@ func (e *KeyValueListEncoder) encodeValuesOnly(lastVal *KeyValueList, list *KeyV
 	bitToRead = uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			copyAnyValue(&lastVal.elems[i].value, &list.elems[i].value)
+			copyAnyValue(lastVal.elems[i].value, list.elems[i].value)
 		}
 		bitToRead >>= 1
 		if bitToRead == 0 {
@@ -461,14 +464,14 @@ func (e *KeyValueListEncoder) encodeFull(lastVal *KeyValueList, list *KeyValueLi
 	// Encode values first.
 	for i := range list.elems {
 		e.keyEncoder.Encode(list.elems[i].key)
-		e.valueEncoder.Encode(&list.elems[i].value)
+		e.valueEncoder.Encode(list.elems[i].value)
 	}
 
 	// Store changed values in lastVal.
 	lastVal.EnsureLen(len(list.elems))
 	for i := range list.elems {
 		lastVal.elems[i].key = list.elems[i].key
-		copyAnyValue(&lastVal.elems[i].value, &list.elems[i].value)
+		copyAnyValue(lastVal.elems[i].value, list.elems[i].value)
 	}
 }
 
@@ -592,7 +595,7 @@ func (d *KeyValueListDecoder) decodeCopyOfLast(lastVal *KeyValueList, dst *KeyVa
 	dst.EnsureLen(len(lastVal.elems))
 	for i := range dst.elems {
 		dst.elems[i].key = lastVal.elems[i].key
-		copyAnyValue(&dst.elems[i].value, &lastVal.elems[i].value)
+		copyAnyValue(dst.elems[i].value, lastVal.elems[i].value)
 	}
 	return nil
 }
@@ -613,7 +616,7 @@ func (d *KeyValueListDecoder) decodeValuesOnly(lastVal *KeyValueList, changedVal
 		dst.elems[i].key = lastVal.elems[i].key
 		if (bitToRead & changedValuesBits) == 0 {
 			// Value is not changed, copy from lastVal.
-			copyAnyValue(&dst.elems[i].value, &lastVal.elems[i].value)
+			copyAnyValue(dst.elems[i].value, lastVal.elems[i].value)
 		}
 		bitToRead >>= 1
 	}
@@ -624,12 +627,12 @@ func (d *KeyValueListDecoder) decodeValuesOnly(lastVal *KeyValueList, changedVal
 	for i := range dst.elems {
 		if (bitToRead & changedValuesBits) != 0 {
 			// Value is changed, decode it.
-			err = d.valueDecoder.Decode(&dst.elems[i].value)
+			err = d.valueDecoder.Decode(dst.elems[i].value)
 			if err != nil {
 				return err
 			}
 			// Store the values in lastVal
-			copyAnyValue(&lastVal.elems[i].value, &dst.elems[i].value)
+			copyAnyValue(lastVal.elems[i].value, dst.elems[i].value)
 		}
 		bitToRead >>= 1
 	}
@@ -652,14 +655,14 @@ func (d *KeyValueListDecoder) decodeFull(lastVal *KeyValueList, count int, dst *
 		if err != nil {
 			return err
 		}
-		err = d.valueDecoder.Decode(&dst.elems[i].value)
+		err = d.valueDecoder.Decode(dst.elems[i].value)
 		if err != nil {
 			return err
 		}
 
 		// Store decoded values in lastVal.
 		lastVal.elems[i].key = dst.elems[i].key
-		copyAnyValue(&lastVal.elems[i].value, &dst.elems[i].value)
+		copyAnyValue(lastVal.elems[i].value, dst.elems[i].value)
 	}
 
 	return nil

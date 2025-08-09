@@ -506,8 +506,7 @@ const (
 )
 
 type PrimitiveType struct {
-	Type      PrimitiveFieldType
-	recursive bool
+	Type PrimitiveFieldType
 }
 
 type ArrayType struct {
@@ -532,7 +531,7 @@ type FieldType struct {
 func (t *FieldType) SetRecursive() {
 	switch {
 	case t.Primitive != nil:
-		t.Primitive.recursive = true
+		panic("cannot set recursive on Primitive")
 	case t.Array != nil:
 		t.Array.recursive = true
 	case t.StructDef != nil:
@@ -547,7 +546,7 @@ func (t *FieldType) SetRecursive() {
 func (t *FieldType) Recursive() bool {
 	switch {
 	case t.Primitive != nil:
-		return t.Primitive.recursive
+		return false
 	case t.Array != nil:
 		return t.Array.recursive
 	case t.StructDef != nil:

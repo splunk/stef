@@ -16,7 +16,7 @@ import (
 
 func TestGenerate(t *testing.T) {
 	// Get the list of files in "testdata" directory
-	files, err := filepath.Glob("testdata/struct_recurse_mutual.stef")
+	files, err := filepath.Glob("testdata/*.stef")
 	require.NoError(t, err)
 
 	for _, file := range files {

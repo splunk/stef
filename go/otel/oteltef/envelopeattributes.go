@@ -217,7 +217,10 @@ func EnvelopeAttributesEqual(left, right *EnvelopeAttributes) bool {
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(left.elems[i].key, right.elems[i].key)
+		c := strings.Compare(
+			left.elems[i].key,
+			right.elems[i].key,
+		)
 		if c != 0 {
 			return c
 		}
