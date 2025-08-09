@@ -527,12 +527,7 @@ func (e *{{ .ArrayName }}DecoderLastValElem) init() {
 
 func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
 	e.prevLen = 0
-	{{if .ElemType.Flags.StoreByPtr}}
-	//e.elem = nil
 	e.elem = {{.ElemType.Storage}}{}
-	{{else}}
-	e.elem = {{.ElemType.Storage}}{}
-	{{end}}
 }
 {{- end}}
 

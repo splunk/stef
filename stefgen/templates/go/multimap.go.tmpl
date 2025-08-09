@@ -334,10 +334,7 @@ func {{.MultimapName}}Equal(left, right *{{.MultimapName}}) bool {
 func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
     l := min(len(left.elems), len(right.elems))
     for i := 0; i < l; i++ {
-        c := {{.Key.Type.CompareFunc}}(
-			{{if not .Key.Type.IsPrimitive}}&{{end}}left.elems[i].key,
-			{{if not .Key.Type.IsPrimitive}}&{{end}}right.elems[i].key,
-		)
+        c := {{.Key.Type.CompareFunc}}({{if not .Key.Type.IsPrimitive}}&{{end}}left.elems[i].key,{{if not .Key.Type.IsPrimitive}}&{{end}}right.elems[i].key)
         if c != 0 {
             return c
         }
@@ -349,10 +346,7 @@ func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
     }
 
     for i := 0; i < l; i++ {
-        c := {{.Value.Type.CompareFunc}}(
-			{{if not .Value.Type.IsPrimitive}}&{{end}}left.elems[i].value,
-			{{if not .Value.Type.IsPrimitive}}&{{end}}right.elems[i].value,
-		)
+        c := {{.Value.Type.CompareFunc}}({{if not .Value.Type.IsPrimitive}}&{{end}}left.elems[i].value,	{{if not .Value.Type.IsPrimitive}}&{{end}}right.elems[i].value)
         if c != 0 {
             return c
         }

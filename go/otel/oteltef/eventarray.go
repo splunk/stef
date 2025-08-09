@@ -428,9 +428,7 @@ func (e *EventArrayDecoderLastValElem) init() {
 
 func (e *EventArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = Event{}
-
 }
 
 // Init is called once in the lifetime of the stream.

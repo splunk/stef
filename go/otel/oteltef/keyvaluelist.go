@@ -218,10 +218,7 @@ func KeyValueListEqual(left, right *KeyValueList) bool {
 func CmpKeyValueList(left, right *KeyValueList) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(
-			left.elems[i].key,
-			right.elems[i].key,
-		)
+		c := strings.Compare(left.elems[i].key, right.elems[i].key)
 		if c != 0 {
 			return c
 		}
@@ -233,10 +230,7 @@ func CmpKeyValueList(left, right *KeyValueList) int {
 	}
 
 	for i := 0; i < l; i++ {
-		c := CmpAnyValue(
-			&left.elems[i].value,
-			&right.elems[i].value,
-		)
+		c := CmpAnyValue(&left.elems[i].value, &right.elems[i].value)
 		if c != 0 {
 			return c
 		}

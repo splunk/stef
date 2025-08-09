@@ -428,9 +428,7 @@ func (e *QuantileValueArrayDecoderLastValElem) init() {
 
 func (e *QuantileValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = QuantileValue{}
-
 }
 
 // Init is called once in the lifetime of the stream.

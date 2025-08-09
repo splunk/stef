@@ -428,10 +428,7 @@ func (e *AnyValueArrayDecoderLastValElem) init() {
 
 func (e *AnyValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
-	//e.elem = nil
 	e.elem = AnyValue{}
-
 }
 
 // Init is called once in the lifetime of the stream.

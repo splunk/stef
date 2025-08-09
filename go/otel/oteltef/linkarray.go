@@ -428,9 +428,7 @@ func (e *LinkArrayDecoderLastValElem) init() {
 
 func (e *LinkArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = Link{}
-
 }
 
 // Init is called once in the lifetime of the stream.

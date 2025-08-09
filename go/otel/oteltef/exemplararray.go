@@ -428,9 +428,7 @@ func (e *ExemplarArrayDecoderLastValElem) init() {
 
 func (e *ExemplarArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = Exemplar{}
-
 }
 
 // Init is called once in the lifetime of the stream.
