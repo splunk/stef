@@ -41,7 +41,7 @@ func TestSerializeSchema(t *testing.T) {
 
 	fmt.Printf("JSON: %5d, zstd: %4d\n", len(minifiedJson), len(compressedJson))
 
-	wireSchema := prunedSchema.ToWire()
+	wireSchema := prunedSchema.toWire()
 	var wireBytes bytes.Buffer
 	err = wireSchema.Serialize(&wireBytes)
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func FuzzDeserialize(f *testing.F) {
 		prunedSchema, err := schema.PrunedForRoot(root)
 		require.NoError(f, err)
 
-		wireSchema := prunedSchema.ToWire()
+		wireSchema := prunedSchema.toWire()
 		var wireBytes bytes.Buffer
 		err = wireSchema.Serialize(&wireBytes)
 		require.NoError(f, err)
@@ -126,7 +126,7 @@ func TestSchemaSelfCompatible(t *testing.T) {
 	}
 
 	for _, schema := range schemas {
-		wireSchema := schema.ToWire()
+		wireSchema := schema.toWire()
 		compat, err := wireSchema.Compatible(&wireSchema)
 		require.NoError(t, err)
 		assert.EqualValues(t, CompatibilityExact, compat)
@@ -351,8 +351,8 @@ func TestSchemaSuperset(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		oldSchema := test.old.ToWire()
-		newSchema := test.new.ToWire()
+		oldSchema := test.old.toWire()
+		newSchema := test.new.toWire()
 
 		compat, err := newSchema.Compatible(&oldSchema)
 		require.NoError(t, err)
@@ -413,8 +413,8 @@ func TestSchemaIncompatible(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		oldSchema := test.old.ToWire()
-		newSchema := test.new.ToWire()
+		oldSchema := test.old.toWire()
+		newSchema := test.new.toWire()
 
 		compat, err := newSchema.Compatible(&oldSchema)
 		require.Error(t, err)
@@ -554,7 +554,7 @@ func TestSchemaExpand(t *testing.T) {
 	// Expand one field at a time and check compatibility.
 	for i := 0; i < 200; i++ {
 		expanded := expandSchema(t, r, orig)
-		expandedWire := expanded.ToWire()
+		expandedWire := expanded.toWire()
 		require.NoError(t, err)
 
 		// Exact compatible with itself
@@ -563,7 +563,7 @@ func TestSchemaExpand(t *testing.T) {
 		assert.EqualValues(t, CompatibilityExact, compat, i)
 
 		// Expanding is compatible / superset
-		origWire := orig.ToWire()
+		origWire := orig.toWire()
 		require.NoError(t, err, i)
 		compat, err = expandedWire.Compatible(&origWire)
 		require.NoError(t, err, i)
@@ -613,11 +613,11 @@ func TestSchemaShrink(t *testing.T) {
 	// Now shrink one field at a time and check compatibility.
 	for i := 0; i < 100; i++ {
 		shrinked := shrinkSchema(t, r, orig)
-		shrinkedWire := shrinked.ToWire()
+		shrinkedWire := shrinked.toWire()
 		require.NoError(t, err)
 
 		// Shrinking is incompatible
-		origWire := orig.ToWire()
+		origWire := orig.toWire()
 		compat, err := shrinkedWire.Compatible(&origWire)
 		require.Error(t, err, i)
 		assert.EqualValues(t, CompatibilityIncompatible, compat, i)

@@ -335,25 +335,22 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 	return nil
 }
 
-func (d *Schema) ToWire() WireSchema {
-	w := WireSchema{
-		StructFieldCount: make(map[string]uint),
+// TODO: remove this. Use ToWireForRoot instead.
+func (d *Schema) toWire() WireSchema {
+	var root string
+	for _, struc := range d.Structs {
+		if struc.IsRoot {
+			root = struc.Name
+			break
+		}
 	}
-	for k, v := range d.Structs {
-		w.StructFieldCount[k] = uint(len(v.Fields))
-	}
+
+	w := NewWireSchema(d, root)
 	return w
 }
 
 func (d *Schema) ToWireForRoot(root string) WireSchema {
-	w := d.ToWire()
-
-	struc := d.Structs[root]
-	stack := recurseStack{asMap: map[string]bool{}}
-	computeRecursiveStruct(struc, &stack)
-
-	computeWireSchemaFieldCounts(struc, &w.StructWireSchema)
-
+	w := NewWireSchema(d, root)
 	return w
 }
 
@@ -368,26 +365,6 @@ func (d *Schema) computeRecursive() error {
 	return nil
 }
 
-func computeWireSchemaFieldCounts(src *Struct, dst *StructWireSchema) {
-	dst.FieldCount = uint(len(src.Fields))
-	dst.StructFields = make([]StructWireSchema, len(src.Fields))
-	for i, field := range src.Fields {
-		if field.StructDef != nil && dst.StructFields == nil {
-			computeWireSchemaFieldCounts(field.StructDef, &dst.StructFields[i])
-		}
-	}
-}
-
-type recursable interface {
-	SetRecursive()
-}
-
-type recurseStack struct {
-	fields  []recursable
-	asStack []string
-	asMap   map[string]bool
-}
-
 func markRecursive(typeName string, stack *recurseStack) {
 	startIdx := findLast(stack.asStack, typeName)
 	if startIdx == -1 {
@@ -396,6 +373,15 @@ func markRecursive(typeName string, stack *recurseStack) {
 	for i := startIdx; i < len(stack.fields); i++ {
 		stack.fields[i].SetRecursive()
 	}
+}
+
+func findLast(stack []string, name string) int {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == name {
+			return i
+		}
+	}
+	return -1
 }
 
 func computeRecursiveStruct(struc *Struct, stack *recurseStack) {
@@ -457,15 +443,6 @@ func computeRecursiveType(typ FieldType, stack *recurseStack) {
 	panic("unknown type")
 }
 
-func findLast(stack []string, name string) int {
-	for i := len(stack) - 1; i >= 0; i-- {
-		if stack[i] == name {
-			return i
-		}
-	}
-	return -1
-}
-
 type Struct struct {
 	Name     string         `json:"name,omitempty"`
 	OneOf    bool           `json:"oneof,omitempty"`
@@ -473,8 +450,6 @@ type Struct struct {
 	IsRoot   bool           `json:"root,omitempty"`
 	Fields   []*StructField `json:"fields"`
 
-	// This is not good. Causes performance degradation. We don't want the top-level field
-	// that starts a recursion to be stored by pointer since that results in extra allocation.
 	recursive bool
 }
 
@@ -486,7 +461,6 @@ type StructField struct {
 	FieldType
 	Name     string `json:"name,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
-	//Recursive bool
 }
 
 func (s *StructField) SetRecursive() {
@@ -526,9 +500,6 @@ type FieldType struct {
 	DictName    string `json:"dict,omitempty"`
 	StructDef   *Struct
 	MultimapDef *Multimap
-
-	// True if the type is recursive
-	//recursive bool
 }
 
 func (t *FieldType) SetRecursive() {
@@ -561,9 +532,9 @@ func (t *FieldType) Recursive() bool {
 	}
 }
 
+// MultimapField is either a key or a value field in a multimap.
 type MultimapField struct {
 	Type FieldType `json:"type"`
-	//Recursive bool
 }
 
 func (m *MultimapField) SetRecursive() {
