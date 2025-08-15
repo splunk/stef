@@ -214,7 +214,15 @@ func (d *Schema) ResolveRefs() error {
 }
 
 func (d *Schema) resolveFieldType(fieldType *FieldType) error {
-	typeName := fieldType.Struct
+	var typeName string
+	if fieldType.Struct != "" {
+		typeName = fieldType.Struct
+	} else if fieldType.MultiMap != "" {
+		typeName = fieldType.MultiMap
+	} else if fieldType.Enum != "" {
+		typeName = fieldType.Enum
+	}
+
 	if typeName != "" {
 		matches := 0
 		var isStruct bool
@@ -333,20 +341,6 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 	}
 
 	return nil
-}
-
-// TODO: remove this. Use ToWireForRoot instead.
-func (d *Schema) toWire() WireSchema {
-	var root string
-	for _, struc := range d.Structs {
-		if struc.IsRoot {
-			root = struc.Name
-			break
-		}
-	}
-
-	w := NewWireSchema(d, root)
-	return w
 }
 
 func (d *Schema) ToWireForRoot(root string) WireSchema {
