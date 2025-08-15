@@ -22,8 +22,6 @@ func compressZstd(input []byte) []byte {
 }
 
 func TestSerializeSchema(t *testing.T) {
-	t.Skip()
-
 	wireJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(t, err)
 
@@ -33,13 +31,6 @@ func TestSerializeSchema(t *testing.T) {
 
 	prunedSchema, err := schema.PrunedForRoot("Metrics")
 	require.NoError(t, err)
-
-	minifiedJson, err := json.Marshal(prunedSchema)
-	require.NoError(t, err)
-
-	compressedJson := compressZstd(minifiedJson)
-
-	fmt.Printf("JSON: %5d, zstd: %4d\n", len(minifiedJson), len(compressedJson))
 
 	wireSchema := NewWireSchema(prunedSchema, "Metrics")
 	var wireBytes bytes.Buffer
@@ -53,7 +44,7 @@ func TestSerializeSchema(t *testing.T) {
 	err = readSchema.Deserialize(&wireBytes)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(wireSchema, readSchema)
+	diff := cmp.Diff(wireSchema, readSchema, cmp.AllowUnexported(WireSchema{}))
 	if diff != "" {
 		assert.Fail(t, diff)
 	}
@@ -62,8 +53,6 @@ func TestSerializeSchema(t *testing.T) {
 }
 
 func FuzzDeserialize(f *testing.F) {
-	f.Skip()
-
 	wireJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(f, err)
 

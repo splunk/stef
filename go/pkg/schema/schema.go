@@ -509,7 +509,7 @@ type PrimitiveType struct {
 }
 
 type ArrayType struct {
-	ElemType  FieldType
+	ElemType  FieldType `json:"elem,omitempty"`
 	recursive bool
 }
 
