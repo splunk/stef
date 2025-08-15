@@ -250,10 +250,10 @@ func (e *QuantileValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("QuantileValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "QuantileValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "QuantileValue", err)
 		}
 
 		// Number of fields in the target schema.
@@ -387,10 +387,10 @@ func (d *QuantileValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	state.QuantileValueDecoder = d
 	defer func() { state.QuantileValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("QuantileValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "QuantileValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "QuantileValue", err)
 		}
 
 		// Number of fields in the target schema.

@@ -428,10 +428,10 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	e.limiter = &state.limiter
 	e.dict = &state.Scope
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Scope")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Scope")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Scope", err)
 		}
 
 		// Number of fields in the target schema.
@@ -689,10 +689,10 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.ScopeDecoder = d
 	defer func() { state.ScopeDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Scope")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Scope")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Scope", err)
 		}
 
 		// Number of fields in the target schema.

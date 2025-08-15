@@ -260,10 +260,10 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("LabelValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "LabelValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "LabelValue", err)
 		}
 
 		// Number of fields in the target schema.
@@ -392,10 +392,10 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	state.LabelValueDecoder = d
 	defer func() { state.LabelValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("LabelValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "LabelValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "LabelValue", err)
 		}
 
 		// Number of fields in the target schema.

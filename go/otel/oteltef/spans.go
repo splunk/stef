@@ -358,10 +358,10 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Spans")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Spans")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Spans", err)
 		}
 
 		// Number of fields in the target schema.
@@ -598,10 +598,10 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.SpansDecoder = d
 	defer func() { state.SpansDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Spans")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Spans")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Spans", err)
 		}
 
 		// Number of fields in the target schema.

@@ -306,10 +306,10 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Line")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Line")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Line", err)
 		}
 
 		// Number of fields in the target schema.
@@ -483,10 +483,10 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	state.LineDecoder = d
 	defer func() { state.LineDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Line")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Line")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Line", err)
 		}
 
 		// Number of fields in the target schema.

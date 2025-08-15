@@ -128,8 +128,8 @@ func (s *JsonValue) SetBool(v bool) {
 	}
 }
 
-func (s *JsonValue) Clone() JsonValue {
-	return JsonValue{
+func (s *JsonValue) Clone() *JsonValue {
+	return &JsonValue{
 		object: s.object.Clone(),
 		array:  s.array.Clone(),
 		string: s.string,
@@ -367,10 +367,10 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("JsonValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "JsonValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
 		}
 
 		// Number of fields in the target schema.
@@ -583,10 +583,10 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	state.JsonValueDecoder = d
 	defer func() { state.JsonValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("JsonValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "JsonValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
 		}
 
 		// Number of fields in the target schema.

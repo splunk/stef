@@ -248,10 +248,10 @@ func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.Write
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExpHistogramBuckets")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "ExpHistogramBuckets")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ExpHistogramBuckets", err)
 		}
 
 		// Number of fields in the target schema.
@@ -398,10 +398,10 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	state.ExpHistogramBucketsDecoder = d
 	defer func() { state.ExpHistogramBucketsDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExpHistogramBuckets")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "ExpHistogramBuckets")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ExpHistogramBuckets", err)
 		}
 
 		// Number of fields in the target schema.

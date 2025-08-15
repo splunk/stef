@@ -564,10 +564,10 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ProfileMetadata")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "ProfileMetadata")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ProfileMetadata", err)
 		}
 
 		// Number of fields in the target schema.
@@ -901,10 +901,10 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	state.ProfileMetadataDecoder = d
 	defer func() { state.ProfileMetadataDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ProfileMetadata")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "ProfileMetadata")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ProfileMetadata", err)
 		}
 
 		// Number of fields in the target schema.

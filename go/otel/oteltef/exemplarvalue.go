@@ -262,10 +262,10 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "ExemplarValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
 		}
 
 		// Number of fields in the target schema.
@@ -381,10 +381,10 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	state.ExemplarValueDecoder = d
 	defer func() { state.ExemplarValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "ExemplarValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
 		}
 
 		// Number of fields in the target schema.

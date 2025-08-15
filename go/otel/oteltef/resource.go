@@ -326,10 +326,10 @@ func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	e.limiter = &state.limiter
 	e.dict = &state.Resource
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Resource")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Resource")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Resource", err)
 		}
 
 		// Number of fields in the target schema.
@@ -533,10 +533,10 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	state.ResourceDecoder = d
 	defer func() { state.ResourceDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Resource")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Resource")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Resource", err)
 		}
 
 		// Number of fields in the target schema.

@@ -299,10 +299,10 @@ func (e *SummaryValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SummaryValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SummaryValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "SummaryValue", err)
 		}
 
 		// Number of fields in the target schema.
@@ -476,10 +476,10 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	state.SummaryValueDecoder = d
 	defer func() { state.SummaryValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SummaryValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SummaryValue")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "SummaryValue", err)
 		}
 
 		// Number of fields in the target schema.

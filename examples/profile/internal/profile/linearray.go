@@ -428,9 +428,7 @@ func (e *LineArrayDecoderLastValElem) init() {
 
 func (e *LineArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = Line{}
-
 }
 
 // Init is called once in the lifetime of the stream.

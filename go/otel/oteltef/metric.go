@@ -579,10 +579,10 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	e.limiter = &state.limiter
 	e.dict = &state.Metric
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metric")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metric")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Metric", err)
 		}
 
 		// Number of fields in the target schema.
@@ -933,10 +933,10 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	state.MetricDecoder = d
 	defer func() { state.MetricDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metric")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metric")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Metric", err)
 		}
 
 		// Number of fields in the target schema.

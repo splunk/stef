@@ -428,9 +428,7 @@ func (e *JsonValueArrayDecoderLastValElem) init() {
 
 func (e *JsonValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
 	e.elem = JsonValue{}
-
 }
 
 // Init is called once in the lifetime of the stream.

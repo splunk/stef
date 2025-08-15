@@ -348,10 +348,10 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Point")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Point")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Point", err)
 		}
 
 		// Number of fields in the target schema.
@@ -564,10 +564,10 @@ func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.PointDecoder = d
 	defer func() { state.PointDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Point")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Point")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Point", err)
 		}
 
 		// Number of fields in the target schema.

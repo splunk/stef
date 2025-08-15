@@ -382,10 +382,10 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	e.limiter = &state.limiter
 	e.dict = &state.Location
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Location")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Location")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
 		}
 
 		// Number of fields in the target schema.
@@ -629,10 +629,10 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	state.LocationDecoder = d
 	defer func() { state.LocationDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Location")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Location")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
 		}
 
 		// Number of fields in the target schema.

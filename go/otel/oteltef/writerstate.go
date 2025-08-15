@@ -14,7 +14,8 @@ type WriterState struct {
 
 	// OverrideSchema is set if encoding should perform a translation into the target
 	// schema. The specified schema must be compatible with encoders' schema.
-	OverrideSchema *schema.WireSchema
+	OverrideSchema     bool
+	OverrideSchemaIter schema.WireSchemaIter
 
 	// Dictionaries
 	AnyValueString    encoders.StringEncoderDict
@@ -67,7 +68,11 @@ type WriterState struct {
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {
 	d.limiter.Init(opts)
-	d.OverrideSchema = opts.Schema
+
+	if opts.Schema != nil {
+		d.OverrideSchema = true
+		d.OverrideSchemaIter = schema.NewWireSchemaIter(opts.Schema)
+	}
 
 	// Init dictionaries
 	d.AnyValueString.Init(&d.limiter)

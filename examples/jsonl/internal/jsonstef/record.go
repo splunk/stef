@@ -19,7 +19,7 @@ var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
 type Record struct {
-	value JsonValue
+	value *JsonValue
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -47,11 +47,12 @@ func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
+	s.value = &JsonValue{}
 	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
 }
 
 func (s *Record) Value() *JsonValue {
-	return &s.value
+	return s.value
 }
 
 func (s *Record) markValueModified() {
@@ -86,7 +87,7 @@ func (s *Record) markUnmodifiedRecursively() {
 // markDiffModified marks fields in this struct modified if they differ from
 // the corresponding fields in v.
 func (s *Record) markDiffModified(v *Record) (modified bool) {
-	if s.value.markDiffModified(&v.value) {
+	if s.value.markDiffModified(v.value) {
 		s.modifiedFields.markModified(fieldModifiedRecordValue)
 		modified = true
 	}
@@ -108,7 +109,13 @@ func (s *Record) byteSize() uint {
 }
 
 func copyRecord(dst *Record, src *Record) {
-	copyJsonValue(&dst.value, &src.value)
+	if src.value != nil {
+		if dst.value == nil {
+			dst.value = &JsonValue{}
+			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		}
+		copyJsonValue(dst.value, src.value)
+	}
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -137,7 +144,7 @@ func (s *Record) mutateRandom(random *rand.Rand) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Record) IsEqual(right *Record) bool {
 	// Compare Value field.
-	if !s.value.IsEqual(&right.value) {
+	if !s.value.IsEqual(right.value) {
 		return false
 	}
 
@@ -162,7 +169,7 @@ func CmpRecord(left, right *Record) int {
 	}
 
 	// Compare Value field.
-	if c := CmpJsonValue(&left.value, &right.value); c != 0 {
+	if c := CmpJsonValue(left.value, right.value); c != 0 {
 		return c
 	}
 
@@ -197,10 +204,10 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Record")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Record")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Record", err)
 		}
 
 		// Number of fields in the target schema.
@@ -273,7 +280,7 @@ func (e *RecordEncoder) Encode(val *Record) {
 
 	if fieldMask&fieldModifiedRecordValue != 0 {
 		// Encode Value
-		e.valueEncoder.Encode(&val.value)
+		e.valueEncoder.Encode(val.value)
 	}
 
 	// Account written bits in the limiter.
@@ -320,10 +327,10 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	state.RecordDecoder = d
 	defer func() { state.RecordDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Record")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Record")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "Record", err)
 		}
 
 		// Number of fields in the target schema.
@@ -394,7 +401,12 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 
 	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 {
 		// Field is changed and is present, decode it.
-		err = d.valueDecoder.Decode(&val.value)
+		if val.value == nil {
+			val.value = &JsonValue{}
+			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
+		}
+
+		err = d.valueDecoder.Decode(val.value)
 		if err != nil {
 			return err
 		}
@@ -403,7 +415,7 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	return nil
 }
 
-var wireSchemaRecord = []byte{0x02, 0x09, 0x4A, 0x73, 0x6F, 0x6E, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x06, 0x52, 0x65, 0x63, 0x6F, 0x72, 0x64, 0x01}
+var wireSchemaRecord = []byte{0x02, 0x09, 0x4A, 0x73, 0x6F, 0x6E, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x06, 0x52, 0x65, 0x63, 0x6F, 0x72, 0x64, 0x01, 0x02, 0x01, 0x05}
 
 func RecordWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

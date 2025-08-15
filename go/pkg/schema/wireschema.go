@@ -233,3 +233,28 @@ func (w *WireSchema) setStructCounts(s *structCountTree) {
 		w.setStructCounts(&s.structFields[i])
 	}
 }
+
+type WireSchemaIter struct {
+	schema    *WireSchema
+	structIdx int
+}
+
+func NewWireSchemaIter(schema *WireSchema) WireSchemaIter {
+	return WireSchemaIter{
+		schema:    schema,
+		structIdx: 0,
+	}
+}
+
+// NextFieldCount returns the field count for the next struct in the schema.
+func (i *WireSchemaIter) NextFieldCount() (fieldCount uint, err error) {
+	if i.structIdx >= len(i.schema.structCounts) {
+		return 0, errors.New("struct count limit exceeded")
+	}
+
+	count := i.schema.structCounts[i.structIdx]
+	i.structIdx++
+
+	return count, nil
+
+}

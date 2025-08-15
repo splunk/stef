@@ -250,10 +250,10 @@ func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SpanStatus")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SpanStatus")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "SpanStatus", err)
 		}
 
 		// Number of fields in the target schema.
@@ -387,10 +387,10 @@ func (d *SpanStatusDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	state.SpanStatusDecoder = d
 	defer func() { state.SpanStatusDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("SpanStatus")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "SpanStatus")
+	if state.OverrideSchema {
+		fieldCount, err := state.OverrideSchemaIter.NextFieldCount()
+		if err != nil {
+			return fmt.Errorf("cannot find struct %s in override schema: %v", "SpanStatus", err)
 		}
 
 		// Number of fields in the target schema.

@@ -11,7 +11,8 @@ var _ = (*encoders.StringEncoder)(nil)
 type ReaderState struct {
 	// OverrideSchema is set if decoding should perform a translation from specified
 	// schema. OverrideSchema must be compatible with decoders' schema.
-	OverrideSchema *schema.WireSchema
+	OverrideSchema     bool
+	OverrideSchemaIter schema.WireSchemaIter
 
 	// Dictionaries
 	AnyValueString    encoders.StringDecoderDict
@@ -63,7 +64,10 @@ type ReaderState struct {
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
-	d.OverrideSchema = overrideSchema
+	if overrideSchema != nil {
+		d.OverrideSchema = true
+		d.OverrideSchemaIter = schema.NewWireSchemaIter(overrideSchema)
+	}
 	d.AnyValueString.Init()
 	d.AttributeKey.Init()
 	d.Metric.Init()
