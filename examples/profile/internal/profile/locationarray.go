@@ -419,16 +419,19 @@ func (s *LocationArrayDecoderLastValStack) removeFromTop() {
 }
 
 type LocationArrayDecoderLastValElem struct {
-	prevLen int
-	elem    Location
+	prevLen     int
+	elem        *Location
+	elemStorage Location
 }
 
 func (e *LocationArrayDecoderLastValElem) init() {
+	e.elem = &e.elemStorage
+
 }
 
 func (e *LocationArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-	e.elem = Location{}
+	*e.elem = Location{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -491,7 +494,7 @@ func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 		if err != nil {
 			return err
 		}
-		copyLocation(dst.elems[i], &lastVal.elem)
+		copyLocation(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

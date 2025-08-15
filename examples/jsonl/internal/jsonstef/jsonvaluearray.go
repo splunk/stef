@@ -419,16 +419,19 @@ func (s *JsonValueArrayDecoderLastValStack) removeFromTop() {
 }
 
 type JsonValueArrayDecoderLastValElem struct {
-	prevLen int
-	elem    JsonValue
+	prevLen     int
+	elem        *JsonValue
+	elemStorage JsonValue
 }
 
 func (e *JsonValueArrayDecoderLastValElem) init() {
+	e.elem = &e.elemStorage
+
 }
 
 func (e *JsonValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-	e.elem = JsonValue{}
+	*e.elem = JsonValue{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -487,11 +490,11 @@ func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copyJsonValue(dst.elems[i], &lastVal.elem)
+		copyJsonValue(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

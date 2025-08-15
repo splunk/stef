@@ -519,15 +519,19 @@ func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
 
 type {{ .ArrayName }}DecoderLastValElem struct {
 	prevLen int
-	elem {{.ElemType.Storage}}
+	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
+	{{if .ElemType.Flags.StoreByPtr}}elemStorage {{.ElemType.Storage}}{{end}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) init() {
+	{{- if .ElemType.Flags.StoreByPtr}}
+	e.elem = &e.elemStorage
+	{{end}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
 	e.prevLen = 0
-	e.elem = {{.ElemType.Storage}}{}
+	{{if .ElemType.Flags.StoreByPtr}}*{{end}}e.elem = {{.ElemType.Storage}}{}
 }
 {{- end}}
 
@@ -619,11 +623,11 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], &lastVal.elem)
+		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
 		{{- end}}
 	}
 
