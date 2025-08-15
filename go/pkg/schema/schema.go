@@ -179,6 +179,7 @@ func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
 	out := Schema{
 		Structs:   map[string]*Struct{},
 		Multimaps: map[string]*Multimap{},
+		Enums:     map[string]*Enum{},
 	}
 	if err := d.copyPrunedStruct(rootStructName, &out); err != nil {
 		return nil, err
@@ -280,6 +281,10 @@ func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
 		if err := d.copyPrunedFieldType(&fieldType.Array.ElemType, dst); err != nil {
 			return err
 		}
+	} else if fieldType.Enum != "" {
+		if err := d.copyPrunedEnum(fieldType.Enum, dst); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -339,6 +344,29 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 	if err := d.copyPrunedFieldType(&dstMultimap.Value.Type, dst); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (d *Schema) copyPrunedEnum(enumName string, dst *Schema) error {
+	if dst.Enums[enumName] != nil {
+		// already copied
+		return nil
+	}
+
+	srcEnum := d.Enums[enumName]
+	if srcEnum == nil {
+		return fmt.Errorf("no enum named %s found", enumName)
+	}
+
+	dstEnum := &Enum{
+		Name: enumName,
+	}
+	for i := range srcEnum.Fields {
+		dstEnum.Fields = append(dstEnum.Fields, srcEnum.Fields[i])
+	}
+
+	dst.Enums[enumName] = dstEnum
 
 	return nil
 }
