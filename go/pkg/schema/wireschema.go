@@ -34,8 +34,8 @@ type WireSchema struct {
 	// New format:
 	structCounts []uint
 
-	// Iterator:
-	structCountIter int
+	//// Iterator:
+	//structCountIter int
 }
 
 // NewWireSchema creates a new WireSchema from a schema for the given root.
@@ -49,42 +49,56 @@ func NewWireSchema(schema *Schema, root string) WireSchema {
 		w.StructFieldCount[k] = uint(len(v.Fields))
 	}
 
-	struc := schema.Structs[root]
+	// Compose the struct counts tree from the schema, for the given root struct.
+	rootStruc := schema.Structs[root]
 	stack := recurseStack{asMap: map[string]bool{}}
 
 	rootType := &FieldType{
-		Struct:    struc.Name,
-		StructDef: struc,
-		DictName:  struc.DictName,
+		Struct:    rootStruc.Name,
+		StructDef: rootStruc,
+		DictName:  rootStruc.DictName,
 	}
-	structCounts := structCountTree{}
+	tree := structCountTree{}
 
-	schemaToStructCount(rootType, &structCounts, &stack)
-	w.setStructCounts(&structCounts)
+	schemaToStructCountTree(rootType, &tree, &stack)
+
+	// setStructCountsFromTree recursively linearizes the structCounts from the tree,
+	// in depth-first traversal order. This traversal order matches the order in which
+	// structs are encoded/decoded in the schema. This ordering ensures that when
+	// encoder/decoder ask for struct counts via WireSchemaIter, the counts are returned
+	// in the same order as we linearize them in structCounts field.
+	w.setStructCountsFromTree(&tree)
 
 	return w
 }
 
-func (w *WireSchema) FieldCount(structName string) (uint, bool) {
-	count, ok := w.StructFieldCount[structName]
-
-	if w.structCountIter >= len(w.structCounts) {
-		// TODO: change return type to (uint, error) to return proper error message.
-		return 0, false
+func (w *WireSchema) setStructCountsFromTree(s *structCountTree) {
+	w.structCounts = append(w.structCounts, s.fieldCount)
+	for i := range s.structFields {
+		w.setStructCountsFromTree(&s.structFields[i])
 	}
-
-	count2 := w.structCounts[w.structCountIter]
-	if count != count2 {
-		panic(
-			fmt.Sprintf(
-				"FieldCount struct name mismatch: expected %s, got %d vs %d", structName, count, count2,
-			),
-		)
-	}
-	w.structCountIter++
-
-	return count, ok
 }
+
+//func (w *WireSchema) FieldCount(structName string) (uint, bool) {
+//	count, ok := w.StructFieldCount[structName]
+//
+//	if w.structCountIter >= len(w.structCounts) {
+//		// TODO: change return type to (uint, error) to return proper error message.
+//		return 0, false
+//	}
+//
+//	count2 := w.structCounts[w.structCountIter]
+//	if count != count2 {
+//		panic(
+//			fmt.Sprintf(
+//				"FieldCount struct name mismatch: expected %s, got %d vs %d", structName, count, count2,
+//			),
+//		)
+//	}
+//	w.structCountIter++
+//
+//	return count, ok
+//}
 
 const (
 	MaxStructOrMultimapCount = 1024
@@ -227,13 +241,7 @@ func (w *WireSchema) Compatible(oldSchema *WireSchema) (Compatibility, error) {
 	return CompatibilitySuperset, nil
 }
 
-func (w *WireSchema) setStructCounts(s *structCountTree) {
-	w.structCounts = append(w.structCounts, s.fieldCount)
-	for i := range s.structFields {
-		w.setStructCounts(&s.structFields[i])
-	}
-}
-
+// WireSchemaIter is an iterator over the structs in a WireSchema.
 type WireSchemaIter struct {
 	schema    *WireSchema
 	structIdx int
@@ -256,5 +264,4 @@ func (i *WireSchemaIter) NextFieldCount() (fieldCount uint, err error) {
 	i.structIdx++
 
 	return count, nil
-
 }

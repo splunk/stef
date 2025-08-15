@@ -6,7 +6,7 @@ type structCountTree struct {
 	structFields []structCountTree
 }
 
-func schemaToStructCount(src *FieldType, dst *structCountTree, stack *recurseStack) {
+func schemaToStructCountTree(src *FieldType, dst *structCountTree, stack *recurseStack) {
 	switch {
 	case src.Primitive != nil: // nothing to do
 
@@ -24,7 +24,7 @@ func schemaToStructCount(src *FieldType, dst *structCountTree, stack *recurseSta
 
 		for _, field := range src.StructDef.Fields {
 			subDst := structCountTree{}
-			schemaToStructCount(&field.FieldType, &subDst, stack)
+			schemaToStructCountTree(&field.FieldType, &subDst, stack)
 			if subDst.fieldCount != 0 {
 				dst.structFields = append(dst.structFields, subDst)
 			}
@@ -34,7 +34,7 @@ func schemaToStructCount(src *FieldType, dst *structCountTree, stack *recurseSta
 		delete(stack.asMap, src.StructDef.Name)
 
 	case src.Array != nil:
-		schemaToStructCount(&src.Array.ElemType, dst, stack)
+		schemaToStructCountTree(&src.Array.ElemType, dst, stack)
 
 	case src.MultimapDef != nil:
 		if stack.asMap[src.MultimapDef.Name] {
@@ -44,8 +44,8 @@ func schemaToStructCount(src *FieldType, dst *structCountTree, stack *recurseSta
 		stack.asStack = append(stack.asStack, src.MultimapDef.Name)
 		stack.asMap[src.MultimapDef.Name] = true
 
-		schemaToStructCount(&src.MultimapDef.Key.Type, dst, stack)
-		schemaToStructCount(&src.MultimapDef.Value.Type, dst, stack)
+		schemaToStructCountTree(&src.MultimapDef.Key.Type, dst, stack)
+		schemaToStructCountTree(&src.MultimapDef.Value.Type, dst, stack)
 
 		stack.asStack = stack.asStack[:len(stack.asStack)-1]
 		delete(stack.asMap, src.MultimapDef.Name)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/splunk/stef/go/grpc/stef_proto"
+	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
@@ -114,7 +116,7 @@ func (s *mockDestinationServer) handleCapabilitiesExchange(server stef_proto.STE
 // processMessages handles the main message processing loop for schema mode
 func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestination_StreamServer) error {
 	ackId := uint64(1) // Simple counter for ack IDs
-	
+
 	for {
 		msg, err := server.Recv()
 		if err != nil {
@@ -134,7 +136,7 @@ func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestinatio
 			if err := server.Send(ackMsg); err != nil {
 				return fmt.Errorf("failed to send ack: %w", err)
 			}
-			
+
 			ackId++ // Increment for next ack
 		}
 	}
@@ -185,6 +187,33 @@ func TestGrpcReaderDestinationServer(t *testing.T) {
 	assert.EqualValues(t, []byte{1, 2, 3, 4, 5}, mockServer.receivedData)
 
 	grpcServer.Stop()
+}
+
+func loadSchema(inputFile string) (*schema.Schema, error) {
+	idlBytes, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, err
+	}
+
+	lexer := idl.NewLexer(bytes.NewBuffer(idlBytes))
+	parser := idl.NewParser(lexer, inputFile)
+	err = parser.Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	return parser.Schema(), nil
+}
+
+func createSchema(rootStruct string, rootFieldCount uint) (*schema.WireSchema, error) {
+	sch, err := loadSchema("testdata/schema.stef")
+	if err != nil {
+		return nil, err
+	}
+
+	sch.Structs[rootStruct].Fields = sch.Structs[rootStruct].Fields[:rootFieldCount]
+	w := sch.ToWireForRoot(rootStruct)
+	return &w, nil
 }
 
 func TestSchemaCompatibility(t *testing.T) {
@@ -246,88 +275,90 @@ func TestSchemaCompatibility(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup gRPC server
-			grpcServer, listener, serverPort := newGrpcServer()
+		t.Run(
+			tc.name, func(t *testing.T) {
+				// Setup gRPC server
+				grpcServer, listener, serverPort := newGrpcServer()
 
-			// Create schemas
-			clientSchema := &schema.WireSchema{
-				StructFieldCount: map[string]uint{
-					tc.clientStructName: tc.clientFieldCount,
-				},
-			}
-			serverSchema := &schema.WireSchema{
-				StructFieldCount: map[string]uint{
-					tc.serverStructName: tc.serverFieldCount,
-				},
-			}
+				// Create schemas
+				clientSchema, err := createSchema(tc.clientStructName, tc.clientFieldCount)
+				require.NoError(t, err)
 
-			// Setup mock server with schema capabilities
-			mockServer := &mockDestinationServer{
-				serverSchema:  serverSchema,
-				useSchemaMode: true, // Use schema mode for compatibility tests
-			}
-			stef_proto.RegisterSTEFDestinationServer(grpcServer, mockServer)
+				serverSchema, err := createSchema(tc.serverStructName, tc.serverFieldCount)
+				require.NoError(t, err)
 
-			go func() {
-				grpcServer.Serve(listener)
-			}()
-			defer grpcServer.Stop()
-
-			// Create gRPC client connection
-			conn, err := grpc.NewClient(
-				fmt.Sprintf("localhost:%d", serverPort),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-			)
-			require.NoError(t, err)
-			defer conn.Close()
-
-			grpcClient := stef_proto.NewSTEFDestinationClient(conn)
-
-			// Setup client with mock logger
-			mockLogger := &testLogger{}
-
-			settings := ClientSettings{
-				Logger:     mockLogger,
-				GrpcClient: grpcClient,
-				ClientSchema: ClientSchema{
-					RootStructName: tc.clientStructName,
-					WireSchema:     clientSchema,
-				},
-				Callbacks: ClientCallbacks{
-					OnDisconnect: func(err error) {},
-					OnAck: func(ackId uint64) error {
-						return nil
-					},
-				},
-			}
-
-			client, err := NewClient(settings)
-			require.NoError(t, err)
-
-			// Connect - handle both compatible and incompatible cases
-			writer, opts, err := client.Connect(context.Background())
-
-			if tc.expectConnectError {
-				// For incompatible schemas, connect should fail
-				require.Error(t, err, "Connect should fail for incompatible schemas")
-				assert.Contains(t, err.Error(), "incompatble", "Error should mention schema incompatibility")
-			} else {
-				// For compatible schemas, connect should succeed
-				require.NoError(t, err, "Connect should succeed for compatible schemas")
-				require.NotNil(t, writer, "Writer should not be nil")
-
-				// Assert schema compatibility behavior in connect() function
-				assert.Equal(t, tc.expectedIncludeDescriptor, opts.IncludeDescriptor,
-					"IncludeDescriptor should be %v for %s compatibility", tc.expectedIncludeDescriptor, tc.name)
-
-				if tc.expectedSchemaNotNil {
-					assert.Equal(t, clientSchema, opts.Schema, "Schema should be set to client schema for superset compatibility")
-				} else {
-					assert.Nil(t, opts.Schema, "Schema should be nil for exact match")
+				// Setup mock server with schema capabilities
+				mockServer := &mockDestinationServer{
+					serverSchema:  serverSchema,
+					useSchemaMode: true, // Use schema mode for compatibility tests
 				}
-			}
-			grpcServer.Stop()
-		})
+				stef_proto.RegisterSTEFDestinationServer(grpcServer, mockServer)
+
+				go func() {
+					grpcServer.Serve(listener)
+				}()
+				defer grpcServer.Stop()
+
+				// Create gRPC client connection
+				conn, err := grpc.NewClient(
+					fmt.Sprintf("localhost:%d", serverPort),
+					grpc.WithTransportCredentials(insecure.NewCredentials()),
+				)
+				require.NoError(t, err)
+				defer conn.Close()
+
+				grpcClient := stef_proto.NewSTEFDestinationClient(conn)
+
+				// Setup client with mock logger
+				mockLogger := &testLogger{}
+
+				settings := ClientSettings{
+					Logger:     mockLogger,
+					GrpcClient: grpcClient,
+					ClientSchema: ClientSchema{
+						RootStructName: tc.clientStructName,
+						WireSchema:     clientSchema,
+					},
+					Callbacks: ClientCallbacks{
+						OnDisconnect: func(err error) {},
+						OnAck: func(ackId uint64) error {
+							return nil
+						},
+					},
+				}
+
+				client, err := NewClient(settings)
+				require.NoError(t, err)
+
+				// Connect - handle both compatible and incompatible cases
+				writer, opts, err := client.Connect(context.Background())
+
+				if tc.expectConnectError {
+					// For incompatible schemas, connect should fail
+					require.Error(t, err, "Connect should fail for incompatible schemas")
+					assert.Contains(t, err.Error(), "incompatble", "Error should mention schema incompatibility")
+				} else {
+					// For compatible schemas, connect should succeed
+					require.NoError(t, err, "Connect should succeed for compatible schemas")
+					require.NotNil(t, writer, "Writer should not be nil")
+
+					// Assert schema compatibility behavior in connect() function
+					assert.Equal(
+						t, tc.expectedIncludeDescriptor, opts.IncludeDescriptor,
+						"IncludeDescriptor should be %v for %s compatibility", tc.expectedIncludeDescriptor, tc.name,
+					)
+
+					if tc.expectedSchemaNotNil {
+						assert.Equal(
+							t, clientSchema, opts.Schema,
+							"Schema should be set to client schema for superset compatibility",
+						)
+					} else {
+						assert.Nil(t, opts.Schema, "Schema should be nil for exact match")
+					}
+				}
+				grpcServer.Stop()
+			},
+		)
 	}
 }
