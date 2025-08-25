@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
@@ -217,9 +218,17 @@ func CmpExemplarValue(left, right *ExemplarValue) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *ExemplarValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 2
+// random parameter as a deterministic generator. Only fields that exist
+// in the schema are mutated, allowing to generate data for specified schema.
+func (s *ExemplarValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this oneof from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// the type of the oneof to the choices that are not in the schema.
+	fieldCount, err := schem.FieldCount("ExemplarValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "ExemplarValue", err))
+	}
+
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(ExemplarValueType(random.IntN(fieldCount + 1)))
@@ -262,20 +271,11 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "ExemplarValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 2
-	}
-
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.ExemplarValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
+	}
 
 	// Init encoder for Int64 field.
 	if e.fieldCount <= 0 {
@@ -302,7 +302,14 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 
 func (e *ExemplarValueEncoder) Reset() {
 	e.prevType = 0
+
+	if e.fieldCount <= 0 {
+		return // Int64 and all subsequent fields are skipped.
+	}
 	e.int64Encoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Float64 and all subsequent fields are skipped.
+	}
 	e.float64Encoder.Reset()
 }
 
@@ -381,25 +388,16 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	state.ExemplarValueDecoder = d
 	defer func() { state.ExemplarValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("ExemplarValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "ExemplarValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 2
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.ExemplarValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 	if d.fieldCount <= 0 {
 		return nil // Int64 and subsequent fields are skipped.
 	}
@@ -440,7 +438,14 @@ func (d *ExemplarValueDecoder) Continue() {
 
 func (d *ExemplarValueDecoder) Reset() {
 	d.prevType = 0
+
+	if d.fieldCount <= 0 {
+		return // Int64 and all subsequent fields are skipped.
+	}
 	d.int64Decoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Float64 and all subsequent fields are skipped.
+	}
 	d.float64Decoder.Reset()
 }
 

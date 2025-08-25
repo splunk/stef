@@ -242,20 +242,46 @@ func (s *Spans) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Spans) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
-		s.envelope.mutateRandom(random)
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Spans")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Spans", err))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.resource.mutateRandom(random)
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.scope.mutateRandom(random)
+	// Maybe mutate Envelope
+	if random.IntN(randRange) == 0 {
+		s.envelope.mutateRandom(random, schem)
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.span.mutateRandom(random)
+	if fieldCount <= 1 {
+		return // Resource and all subsequent fields are skipped.
+	}
+	// Maybe mutate Resource
+	if random.IntN(randRange) == 0 {
+		s.resource.mutateRandom(random, schem)
+	}
+	if fieldCount <= 2 {
+		return // Scope and all subsequent fields are skipped.
+	}
+	// Maybe mutate Scope
+	if random.IntN(randRange) == 0 {
+		s.scope.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // Span and all subsequent fields are skipped.
+	}
+	// Maybe mutate Span
+	if random.IntN(randRange) == 0 {
+		s.span.mutateRandom(random, schem)
 	}
 }
 
@@ -358,30 +384,19 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Spans")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Spans")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.SpansFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Spans", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Envelope field.
 	if e.fieldCount <= 0 {
-		// Envelope and all subsequent fields are skipped.
-		return nil
+		return nil // Envelope and all subsequent fields are skipped.
 	}
 	if state.EnvelopeEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -397,8 +412,7 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Resource field.
 	if e.fieldCount <= 1 {
-		// Resource and all subsequent fields are skipped.
-		return nil
+		return nil // Resource and all subsequent fields are skipped.
 	}
 	if state.ResourceEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -414,8 +428,7 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Scope field.
 	if e.fieldCount <= 2 {
-		// Scope and all subsequent fields are skipped.
-		return nil
+		return nil // Scope and all subsequent fields are skipped.
 	}
 	if state.ScopeEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -431,8 +444,7 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Span field.
 	if e.fieldCount <= 3 {
-		// Span and all subsequent fields are skipped.
-		return nil
+		return nil // Span and all subsequent fields are skipped.
 	}
 	if state.SpanEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -454,16 +466,32 @@ func (e *SpansEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 
+	if e.fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
+	}
+
 	if !e.isEnvelopeRecursive {
 		e.envelopeEncoder.Reset()
+	}
+
+	if e.fieldCount <= 1 {
+		return // Resource and all subsequent fields are skipped.
 	}
 
 	if !e.isResourceRecursive {
 		e.resourceEncoder.Reset()
 	}
 
+	if e.fieldCount <= 2 {
+		return // Scope and all subsequent fields are skipped.
+	}
+
 	if !e.isScopeRecursive {
 		e.scopeEncoder.Reset()
+	}
+
+	if e.fieldCount <= 3 {
+		return // Span and all subsequent fields are skipped.
 	}
 
 	if !e.isSpanRecursive {
@@ -598,25 +626,17 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.SpansDecoder = d
 	defer func() { state.SpansDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Spans")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Spans")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.SpansFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Spans", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.Init()
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
@@ -722,16 +742,32 @@ func (d *SpansDecoder) Continue() {
 
 func (d *SpansDecoder) Reset() {
 
+	if d.fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
+	}
+
 	if !d.isEnvelopeRecursive {
 		d.envelopeDecoder.Reset()
+	}
+
+	if d.fieldCount <= 1 {
+		return // Resource and all subsequent fields are skipped.
 	}
 
 	if !d.isResourceRecursive {
 		d.resourceDecoder.Reset()
 	}
 
+	if d.fieldCount <= 2 {
+		return // Scope and all subsequent fields are skipped.
+	}
+
 	if !d.isScopeRecursive {
 		d.scopeDecoder.Reset()
+	}
+
+	if d.fieldCount <= 3 {
+		return // Span and all subsequent fields are skipped.
 	}
 
 	if !d.isSpanRecursive {
@@ -793,7 +829,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	return nil
 }
 
-var wireSchemaSpans = []byte{0x09, 0x08, 0x41, 0x6E, 0x79, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x07, 0x08, 0x45, 0x6E, 0x76, 0x65, 0x6C, 0x6F, 0x70, 0x65, 0x01, 0x05, 0x45, 0x76, 0x65, 0x6E, 0x74, 0x04, 0x04, 0x4C, 0x69, 0x6E, 0x6B, 0x06, 0x08, 0x52, 0x65, 0x73, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x03, 0x05, 0x53, 0x63, 0x6F, 0x70, 0x65, 0x05, 0x04, 0x53, 0x70, 0x61, 0x6E, 0x0E, 0x0A, 0x53, 0x70, 0x61, 0x6E, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x02, 0x05, 0x53, 0x70, 0x61, 0x6E, 0x73, 0x04}
+var wireSchemaSpans = []byte{0x09, 0x04, 0x01, 0x03, 0x07, 0x05, 0x0E, 0x04, 0x06, 0x02}
 
 func SpansWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

@@ -55,12 +55,8 @@ class SpanDecoder {
         state.SpanDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Span");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 14;
-            }
+            fieldCount = state.getStructFieldCounts().getSpanFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Span(null, 0);
@@ -247,24 +243,81 @@ class SpanDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // TraceID and all subsequent fields are skipped.
+            return;
+        }
         traceIDDecoder.reset();
+        if (fieldCount <= 1) {
+            // SpanID and all subsequent fields are skipped.
+            return;
+        }
         spanIDDecoder.reset();
+        if (fieldCount <= 2) {
+            // TraceState and all subsequent fields are skipped.
+            return;
+        }
         traceStateDecoder.reset();
+        if (fieldCount <= 3) {
+            // ParentSpanID and all subsequent fields are skipped.
+            return;
+        }
         parentSpanIDDecoder.reset();
+        if (fieldCount <= 4) {
+            // Flags and all subsequent fields are skipped.
+            return;
+        }
         flagsDecoder.reset();
+        if (fieldCount <= 5) {
+            // Name and all subsequent fields are skipped.
+            return;
+        }
         nameDecoder.reset();
+        if (fieldCount <= 6) {
+            // Kind and all subsequent fields are skipped.
+            return;
+        }
         kindDecoder.reset();
+        if (fieldCount <= 7) {
+            // StartTimeUnixNano and all subsequent fields are skipped.
+            return;
+        }
         startTimeUnixNanoDecoder.reset();
+        if (fieldCount <= 8) {
+            // EndTimeUnixNano and all subsequent fields are skipped.
+            return;
+        }
         endTimeUnixNanoDecoder.reset();
+        if (fieldCount <= 9) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
         }
+        if (fieldCount <= 10) {
+            // DroppedAttributesCount and all subsequent fields are skipped.
+            return;
+        }
         droppedAttributesCountDecoder.reset();
+        if (fieldCount <= 11) {
+            // Events and all subsequent fields are skipped.
+            return;
+        }
         if (!isEventsRecursive) {
             eventsDecoder.reset();
         }
+        if (fieldCount <= 12) {
+            // Links and all subsequent fields are skipped.
+            return;
+        }
         if (!isLinksRecursive) {
             linksDecoder.reset();
+        }
+        if (fieldCount <= 13) {
+            // Status and all subsequent fields are skipped.
+            return;
         }
         if (!isStatusRecursive) {
             statusDecoder.reset();

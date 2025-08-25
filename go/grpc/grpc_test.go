@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/splunk/stef/go/grpc/stef_proto"
+	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
@@ -33,10 +35,11 @@ func newGrpcServer() (*grpc.Server, net.Listener, int) {
 // mockDestinationServer unified mock server that handles both basic functionality and schema capabilities
 type mockDestinationServer struct {
 	stef_proto.UnimplementedSTEFDestinationServer
-	serverSchema  *schema.WireSchema
-	receivedData  []byte
-	receivedCount atomic.Int64
-	useSchemaMode bool // determines whether to use schema capabilities mode or basic mode
+	serverSchema       *schema.WireSchema
+	expectedRootStruct string
+	receivedData       []byte
+	receivedCount      atomic.Int64
+	useSchemaMode      bool // determines whether to use schema capabilities mode or basic mode
 }
 
 // testLogger implements a simple logger for testing
@@ -86,6 +89,12 @@ func (s *mockDestinationServer) handleCapabilitiesExchange(server stef_proto.STE
 		return fmt.Errorf("expected first message, got nil")
 	}
 
+	if clientMsg.FirstMessage.RootStructName != s.expectedRootStruct {
+		return fmt.Errorf(
+			"expected root struct name '%s', got '%s'", s.expectedRootStruct, clientMsg.FirstMessage.RootStructName,
+		)
+	}
+
 	// Send capabilities response with server schema
 	serverCapabilities := &stef_proto.STEFDestinationCapabilities{}
 
@@ -114,7 +123,7 @@ func (s *mockDestinationServer) handleCapabilitiesExchange(server stef_proto.STE
 // processMessages handles the main message processing loop for schema mode
 func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestination_StreamServer) error {
 	ackId := uint64(1) // Simple counter for ack IDs
-	
+
 	for {
 		msg, err := server.Recv()
 		if err != nil {
@@ -134,7 +143,7 @@ func (s *mockDestinationServer) processMessages(server stef_proto.STEFDestinatio
 			if err := server.Send(ackMsg); err != nil {
 				return fmt.Errorf("failed to send ack: %w", err)
 			}
-			
+
 			ackId++ // Increment for next ack
 		}
 	}
@@ -187,6 +196,27 @@ func TestGrpcReaderDestinationServer(t *testing.T) {
 	grpcServer.Stop()
 }
 
+func loadSchema(inputFile string) (*schema.Schema, error) {
+	idlBytes, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return idl.Parse(idlBytes, inputFile)
+}
+
+func createSchema(rootStruct string, rootFieldCount uint) (*schema.WireSchema, error) {
+	sch, err := loadSchema("testdata/schema.stef")
+	if err != nil {
+		return nil, err
+	}
+
+	// Modify the schema to have a root struct with a specific number of fields
+	sch.Structs[rootStruct].Fields = sch.Structs[rootStruct].Fields[:rootFieldCount]
+	w := schema.NewWireSchema(sch, rootStruct)
+	return &w, nil
+}
+
 func TestSchemaCompatibility(t *testing.T) {
 	testCases := []struct {
 		name                      string
@@ -234,8 +264,8 @@ func TestSchemaCompatibility(t *testing.T) {
 		},
 		{
 			name:                      "IncompatibleSchemas",
-			clientFieldCount:          2,
-			serverFieldCount:          2,
+			clientFieldCount:          1,
+			serverFieldCount:          1,
 			clientStructName:          "ClientStruct",
 			serverStructName:          "ServerStruct",
 			expectedCompatibility:     schema.CompatibilityIncompatible,
@@ -246,88 +276,92 @@ func TestSchemaCompatibility(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup gRPC server
-			grpcServer, listener, serverPort := newGrpcServer()
+		t.Run(
+			tc.name, func(t *testing.T) {
+				// Setup gRPC server
+				grpcServer, listener, serverPort := newGrpcServer()
 
-			// Create schemas
-			clientSchema := &schema.WireSchema{
-				StructFieldCount: map[string]uint{
-					tc.clientStructName: tc.clientFieldCount,
-				},
-			}
-			serverSchema := &schema.WireSchema{
-				StructFieldCount: map[string]uint{
-					tc.serverStructName: tc.serverFieldCount,
-				},
-			}
+				// Create schemas
+				clientSchema, err := createSchema(tc.clientStructName, tc.clientFieldCount)
+				require.NoError(t, err)
 
-			// Setup mock server with schema capabilities
-			mockServer := &mockDestinationServer{
-				serverSchema:  serverSchema,
-				useSchemaMode: true, // Use schema mode for compatibility tests
-			}
-			stef_proto.RegisterSTEFDestinationServer(grpcServer, mockServer)
+				serverSchema, err := createSchema(tc.serverStructName, tc.serverFieldCount)
+				require.NoError(t, err)
 
-			go func() {
-				grpcServer.Serve(listener)
-			}()
-			defer grpcServer.Stop()
-
-			// Create gRPC client connection
-			conn, err := grpc.NewClient(
-				fmt.Sprintf("localhost:%d", serverPort),
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-			)
-			require.NoError(t, err)
-			defer conn.Close()
-
-			grpcClient := stef_proto.NewSTEFDestinationClient(conn)
-
-			// Setup client with mock logger
-			mockLogger := &testLogger{}
-
-			settings := ClientSettings{
-				Logger:     mockLogger,
-				GrpcClient: grpcClient,
-				ClientSchema: ClientSchema{
-					RootStructName: tc.clientStructName,
-					WireSchema:     clientSchema,
-				},
-				Callbacks: ClientCallbacks{
-					OnDisconnect: func(err error) {},
-					OnAck: func(ackId uint64) error {
-						return nil
-					},
-				},
-			}
-
-			client, err := NewClient(settings)
-			require.NoError(t, err)
-
-			// Connect - handle both compatible and incompatible cases
-			writer, opts, err := client.Connect(context.Background())
-
-			if tc.expectConnectError {
-				// For incompatible schemas, connect should fail
-				require.Error(t, err, "Connect should fail for incompatible schemas")
-				assert.Contains(t, err.Error(), "incompatble", "Error should mention schema incompatibility")
-			} else {
-				// For compatible schemas, connect should succeed
-				require.NoError(t, err, "Connect should succeed for compatible schemas")
-				require.NotNil(t, writer, "Writer should not be nil")
-
-				// Assert schema compatibility behavior in connect() function
-				assert.Equal(t, tc.expectedIncludeDescriptor, opts.IncludeDescriptor,
-					"IncludeDescriptor should be %v for %s compatibility", tc.expectedIncludeDescriptor, tc.name)
-
-				if tc.expectedSchemaNotNil {
-					assert.Equal(t, clientSchema, opts.Schema, "Schema should be set to client schema for superset compatibility")
-				} else {
-					assert.Nil(t, opts.Schema, "Schema should be nil for exact match")
+				// Setup mock server with schema capabilities
+				mockServer := &mockDestinationServer{
+					serverSchema:       serverSchema,
+					expectedRootStruct: tc.serverStructName,
+					useSchemaMode:      true, // Use schema mode for compatibility tests
 				}
-			}
-			grpcServer.Stop()
-		})
+				stef_proto.RegisterSTEFDestinationServer(grpcServer, mockServer)
+
+				go func() {
+					grpcServer.Serve(listener)
+				}()
+				defer grpcServer.Stop()
+
+				// Create gRPC client connection
+				conn, err := grpc.NewClient(
+					fmt.Sprintf("localhost:%d", serverPort),
+					grpc.WithTransportCredentials(insecure.NewCredentials()),
+				)
+				require.NoError(t, err)
+				defer conn.Close()
+
+				grpcClient := stef_proto.NewSTEFDestinationClient(conn)
+
+				// Setup client with mock logger
+				mockLogger := &testLogger{}
+
+				settings := ClientSettings{
+					Logger:     mockLogger,
+					GrpcClient: grpcClient,
+					ClientSchema: ClientSchema{
+						RootStructName: tc.clientStructName,
+						WireSchema:     clientSchema,
+					},
+					Callbacks: ClientCallbacks{
+						OnDisconnect: func(err error) {},
+						OnAck: func(ackId uint64) error {
+							return nil
+						},
+					},
+				}
+
+				client, err := NewClient(settings)
+				require.NoError(t, err)
+
+				// Connect - handle both compatible and incompatible cases
+				writer, opts, err := client.Connect(context.Background())
+
+				if tc.expectConnectError {
+					assert.Contains(
+						t, err.Error(), "expected root struct name 'ServerStruct', got 'ClientStruct'",
+						"Error should mention struct name mismatch for incompatible schemas",
+					)
+				} else {
+					// For compatible schemas, connect should succeed
+					require.NoError(t, err, "Connect should succeed for compatible schemas")
+					require.NotNil(t, writer, "Writer should not be nil")
+
+					// Assert schema compatibility behavior in connect() function
+					assert.Equal(
+						t, tc.expectedIncludeDescriptor, opts.IncludeDescriptor,
+						"IncludeDescriptor should be %v for %s compatibility", tc.expectedIncludeDescriptor, tc.name,
+					)
+
+					if tc.expectedSchemaNotNil {
+						assert.Equal(
+							t, clientSchema, opts.Schema,
+							"Schema should be set to client schema for superset compatibility",
+						)
+					} else {
+						assert.Nil(t, opts.Schema, "Schema should be nil for exact match")
+					}
+				}
+				grpcServer.Stop()
+			},
+		)
 	}
 }

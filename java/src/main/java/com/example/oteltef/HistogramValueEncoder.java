@@ -45,15 +45,8 @@ class HistogramValueEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 5;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Count field.
             if (this.fieldCount <= 0) {
@@ -100,10 +93,26 @@ class HistogramValueEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Count and all subsequent fields are skipped.
+        }
         countEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Sum and all subsequent fields are skipped.
+        }
         sumEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Min and all subsequent fields are skipped.
+        }
         minEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // Max and all subsequent fields are skipped.
+        }
         maxEncoder.reset();
+        if (fieldCount <= 4) {
+            return; // BucketCounts and all subsequent fields are skipped.
+        }
         
         if (!isBucketCountsRecursive) {
             bucketCountsEncoder.reset();

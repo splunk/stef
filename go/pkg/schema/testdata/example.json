@@ -6,25 +6,27 @@
       "oneof": true,
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "AnyValueString",
           "name": "String"
         },
         {
-          "primitive": 3,
+          "primitive": {"type": 3},
           "name": "Bool"
         },
         {
-          "primitive": 0,
+          "primitive": {"type": 0},
           "name": "Int64"
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Float64"
         },
         {
           "array": {
-            "struct": "AnyValue"
+            "elem": {
+              "struct": "AnyValue"
+            }
           },
           "name": "Array",
           "recursive": true
@@ -35,7 +37,7 @@
           "recursive": true
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "Bytes"
         }
       ]
@@ -53,7 +55,7 @@
       "name": "Exemplar",
       "fields": [
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Timestamp"
         },
         {
@@ -61,12 +63,12 @@
           "name": "Value"
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "dict": "Span",
           "name": "SpanID"
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "dict": "Trace",
           "name": "TraceID"
         },
@@ -81,11 +83,11 @@
       "oneof": true,
       "fields": [
         {
-          "primitive": 0,
+          "primitive": {"type": 0},
           "name": "Int64"
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Float64"
         }
       ]
@@ -94,27 +96,29 @@
       "name": "HistogramValue",
       "fields": [
         {
-          "primitive": 0,
+          "primitive": {"type": 0},
           "name": "Count"
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Sum",
           "optional": true
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Min",
           "optional": true
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Max",
           "optional": true
         },
         {
           "array": {
-            "primitive": 0
+            "elem": {
+              "primitive": {"type":  0}
+            }
           },
           "name": "BucketCounts"
         }
@@ -125,22 +129,22 @@
       "dict": "Metric",
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "MetricName",
           "name": "Name"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "MetricDescription",
           "name": "Description"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "MetricUnit",
           "name": "Unit"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Type"
         },
         {
@@ -149,16 +153,18 @@
         },
         {
           "array": {
-            "primitive": 2
+            "elem": {
+              "primitive": {"type":  2}
+            }
           },
           "name": "HistogramBounds"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "AggregationTemporality"
         },
         {
-          "primitive": 3,
+          "primitive": {"type": 3},
           "name": "Monotonic"
         }
       ]
@@ -167,11 +173,11 @@
       "name": "Point",
       "fields": [
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "StartTimestamp"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Timestamp"
         },
         {
@@ -180,7 +186,9 @@
         },
         {
           "array": {
-            "struct": "Exemplar"
+            "elem": {
+              "struct": "Exemplar"
+            }
           },
           "name": "Exemplars"
         }
@@ -191,11 +199,11 @@
       "oneof": true,
       "fields": [
         {
-          "primitive": 0,
+          "primitive": {"type": 0},
           "name": "Int64"
         },
         {
-          "primitive": 2,
+          "primitive": {"type": 2},
           "name": "Float64"
         },
         {
@@ -239,7 +247,7 @@
       "dict": "Resource",
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "SchemaURL",
           "name": "SchemaURL"
         },
@@ -254,17 +262,17 @@
       "dict": "Scope",
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "ScopeName",
           "name": "Name"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "ScopeVersion",
           "name": "Version"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "SchemaURL",
           "name": "SchemaURL"
         },
@@ -279,40 +287,40 @@
       "name": "Span",
       "fields": [
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "TraceID"
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "SpanID"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "name": "TraceState"
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "ParentSpanID"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Flags"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "SpanName",
           "name": "Name"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Kind"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "StartTimeUnixNano"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "EndTimeUnixNano"
         },
         {
@@ -321,13 +329,17 @@
         },
         {
           "array": {
-            "struct": "Event"
+            "elem": {
+              "struct": "Event"
+            }
           },
           "name": "Events"
         },
         {
           "array": {
-            "struct": "Link"
+            "elem": {
+              "struct": "Link"
+            }
           },
           "name": "Links"
         },
@@ -342,19 +354,19 @@
       "name": "Link",
       "fields": [
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "TraceID"
         },
         {
-          "primitive": 5,
+          "primitive": {"type": 5},
           "name": "SpanID"
         },
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "name": "TraceState"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Flags"
         },
         {
@@ -368,12 +380,12 @@
       "name": "Event",
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "SpanEventName",
           "name": "Name"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "TimeUnixNano"
         },
         {
@@ -387,11 +399,11 @@
       "name": "SpanStatus",
       "fields": [
         {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "name": "Message"
         },
         {
-          "primitive": 1,
+          "primitive": {"type": 1},
           "name": "Code"
         }
       ]
@@ -425,7 +437,7 @@
       "name": "Attributes",
       "key": {
         "type": {
-          "primitive": 4,
+          "primitive": {"type": 4},
           "dict": "AttributeKey"
         }
       },
@@ -439,12 +451,12 @@
       "name": "EnvelopeAttributes",
       "key": {
         "type": {
-          "primitive": 4
+          "primitive": {"type": 4}
         }
       },
       "value": {
         "type": {
-          "primitive": 5
+          "primitive": {"type": 5}
         }
       }
     },
@@ -452,7 +464,7 @@
       "name": "KeyValueList",
       "key": {
         "type": {
-          "primitive": 4
+          "primitive": {"type": 4}
         }
       },
       "value": {

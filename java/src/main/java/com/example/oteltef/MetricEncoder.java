@@ -54,15 +54,8 @@ class MetricEncoder {
             this.limiter = state.getLimiter();
             this.dict = state.Metric;
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 8;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getMetricFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Name field.
             if (this.fieldCount <= 0) {
@@ -133,21 +126,46 @@ class MetricEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Name and all subsequent fields are skipped.
+        }
         nameEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Description and all subsequent fields are skipped.
+        }
         descriptionEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Unit and all subsequent fields are skipped.
+        }
         unitEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // Type and all subsequent fields are skipped.
+        }
         type_Encoder.reset();
+        if (fieldCount <= 4) {
+            return; // Metadata and all subsequent fields are skipped.
+        }
         
         if (!isMetadataRecursive) {
             metadataEncoder.reset();
         }
         
+        if (fieldCount <= 5) {
+            return; // HistogramBounds and all subsequent fields are skipped.
+        }
         
         if (!isHistogramBoundsRecursive) {
             histogramBoundsEncoder.reset();
         }
         
+        if (fieldCount <= 6) {
+            return; // AggregationTemporality and all subsequent fields are skipped.
+        }
         aggregationTemporalityEncoder.reset();
+        if (fieldCount <= 7) {
+            return; // Monotonic and all subsequent fields are skipped.
+        }
         monotonicEncoder.reset();
     }
 

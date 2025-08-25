@@ -63,15 +63,8 @@ class SpanEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Span");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 14;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getSpanFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for TraceID field.
             if (this.fieldCount <= 0) {
@@ -190,31 +183,74 @@ class SpanEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // TraceID and all subsequent fields are skipped.
+        }
         traceIDEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // SpanID and all subsequent fields are skipped.
+        }
         spanIDEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // TraceState and all subsequent fields are skipped.
+        }
         traceStateEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // ParentSpanID and all subsequent fields are skipped.
+        }
         parentSpanIDEncoder.reset();
+        if (fieldCount <= 4) {
+            return; // Flags and all subsequent fields are skipped.
+        }
         flagsEncoder.reset();
+        if (fieldCount <= 5) {
+            return; // Name and all subsequent fields are skipped.
+        }
         nameEncoder.reset();
+        if (fieldCount <= 6) {
+            return; // Kind and all subsequent fields are skipped.
+        }
         kindEncoder.reset();
+        if (fieldCount <= 7) {
+            return; // StartTimeUnixNano and all subsequent fields are skipped.
+        }
         startTimeUnixNanoEncoder.reset();
+        if (fieldCount <= 8) {
+            return; // EndTimeUnixNano and all subsequent fields are skipped.
+        }
         endTimeUnixNanoEncoder.reset();
+        if (fieldCount <= 9) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 10) {
+            return; // DroppedAttributesCount and all subsequent fields are skipped.
+        }
         droppedAttributesCountEncoder.reset();
+        if (fieldCount <= 11) {
+            return; // Events and all subsequent fields are skipped.
+        }
         
         if (!isEventsRecursive) {
             eventsEncoder.reset();
         }
         
+        if (fieldCount <= 12) {
+            return; // Links and all subsequent fields are skipped.
+        }
         
         if (!isLinksRecursive) {
             linksEncoder.reset();
         }
         
+        if (fieldCount <= 13) {
+            return; // Status and all subsequent fields are skipped.
+        }
         
         if (!isStatusRecursive) {
             statusEncoder.reset();

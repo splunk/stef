@@ -31,12 +31,8 @@ class QuantileValueDecoder {
         state.QuantileValueDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("QuantileValue");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 2;
-            }
+            fieldCount = state.getStructFieldCounts().getQuantileValueFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new QuantileValue(null, 0);
@@ -75,7 +71,16 @@ class QuantileValueDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Quantile and all subsequent fields are skipped.
+            return;
+        }
         quantileDecoder.reset();
+        if (fieldCount <= 1) {
+            // Value and all subsequent fields are skipped.
+            return;
+        }
         valueDecoder.reset();
     }
 

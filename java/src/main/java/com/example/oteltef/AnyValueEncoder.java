@@ -44,13 +44,7 @@ class AnyValueEncoder {
             prevType = AnyValue.Type.TypeNone;
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("AnyValue");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = 7;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getAnyValueFieldCount();
             
             // Init encoder for String field.
             if (this.fieldCount <= 0) {
@@ -113,20 +107,42 @@ class AnyValueEncoder {
 
     public void reset() {
         prevType = AnyValue.Type.TypeNone;
+        
+        if (fieldCount <= 0) {
+            return; // String and all subsequent fields are skipped.
+        }
         stringEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Bool and all subsequent fields are skipped.
+        }
         boolEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Int64 and all subsequent fields are skipped.
+        }
         int64Encoder.reset();
+        if (fieldCount <= 3) {
+            return; // Float64 and all subsequent fields are skipped.
+        }
         float64Encoder.reset();
+        if (fieldCount <= 4) {
+            return; // Array and all subsequent fields are skipped.
+        }
         
         if (!isArrayRecursive) {
             arrayEncoder.reset();
         }
         
+        if (fieldCount <= 5) {
+            return; // KVList and all subsequent fields are skipped.
+        }
         
         if (!isKVListRecursive) {
             kVListEncoder.reset();
         }
         
+        if (fieldCount <= 6) {
+            return; // Bytes and all subsequent fields are skipped.
+        }
         bytesEncoder.reset();
     }
 

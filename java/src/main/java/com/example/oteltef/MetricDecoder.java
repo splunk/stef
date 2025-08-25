@@ -45,12 +45,8 @@ class MetricDecoder {
         state.MetricDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Metric");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 8;
-            }
+            fieldCount = state.getStructFieldCounts().getMetricFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Metric(null, 0);
@@ -164,17 +160,50 @@ class MetricDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Name and all subsequent fields are skipped.
+            return;
+        }
         nameDecoder.reset();
+        if (fieldCount <= 1) {
+            // Description and all subsequent fields are skipped.
+            return;
+        }
         descriptionDecoder.reset();
+        if (fieldCount <= 2) {
+            // Unit and all subsequent fields are skipped.
+            return;
+        }
         unitDecoder.reset();
+        if (fieldCount <= 3) {
+            // Type and all subsequent fields are skipped.
+            return;
+        }
         type_Decoder.reset();
+        if (fieldCount <= 4) {
+            // Metadata and all subsequent fields are skipped.
+            return;
+        }
         if (!isMetadataRecursive) {
             metadataDecoder.reset();
+        }
+        if (fieldCount <= 5) {
+            // HistogramBounds and all subsequent fields are skipped.
+            return;
         }
         if (!isHistogramBoundsRecursive) {
             histogramBoundsDecoder.reset();
         }
+        if (fieldCount <= 6) {
+            // AggregationTemporality and all subsequent fields are skipped.
+            return;
+        }
         aggregationTemporalityDecoder.reset();
+        if (fieldCount <= 7) {
+            // Monotonic and all subsequent fields are skipped.
+            return;
+        }
         monotonicDecoder.reset();
     }
 

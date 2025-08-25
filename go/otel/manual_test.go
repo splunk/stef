@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"math/rand/v2"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/go/pkg/schema"
 
 	"github.com/splunk/stef/go/otel/oteltef"
@@ -324,8 +326,16 @@ func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metri
 	return &reader.Record
 }
 
+func loadSchema(inputFile string) (*schema.Schema, error) {
+	idlBytes, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, err
+	}
+	return idl.Parse(idlBytes, inputFile)
+}
+
 func TestWriteOverrideSchema(t *testing.T) {
-	schem, err := oteltef.MetricsWireSchema()
+	wireSchema, err := oteltef.MetricsWireSchema()
 	require.NoError(t, err)
 
 	// Write/read using nil schema, which is equal to full schema
@@ -336,26 +346,27 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 4.5, readRecord.Point().Value().Float64())
 
 	// Write/read using full, unmodified schema
-	readRecord = writeReadRecord(t, &schem)
+	readRecord = writeReadRecord(t, &wireSchema)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	assert.EqualValues(t, 123, readRecord.Point().Timestamp())
 	assert.EqualValues(t, oteltef.PointValueTypeFloat64, readRecord.Point().Value().Type())
 	assert.EqualValues(t, 4.5, readRecord.Point().Value().Float64())
 
-	// Remove "Monotonic" field (field #8) from "Metric" struct in the schema.
-	schem.StructFieldCount["Metric"] = 7
+	schem, err := loadSchema("otel.stef")
+	require.NoError(t, err)
 
-	// Remove "Float64" field (field #2) from "PointValue" oneof struct in the schema.
-	schem.StructFieldCount["PointValue"] = 1
+	// Remove "Monotonic" field (field #8) from "Metric" struct.
+	schem.Structs["Metric"].Fields = schem.Structs["Metric"].Fields[:7]
 
-	// Remove HistogramValue and ExpHistogramValue structs from the schema.
-	// This verifies bug fix https://github.com/splunk/stef/issues/86
-	delete(schem.StructFieldCount, "HistogramValue")
-	delete(schem.StructFieldCount, "ExpHistogramValue")
+	// Remove "Float64" field (field #2) and all subsequent fields from
+	// "PointValue" oneof struct in the schema.
+	schem.Structs["PointValue"].Fields = schem.Structs["PointValue"].Fields[:1]
+
+	wireSchema = schema.NewWireSchema(schem, "Metrics")
 
 	// Write/read using reduced schema
-	readRecord = writeReadRecord(t, &schem)
+	readRecord = writeReadRecord(t, &wireSchema)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	assert.EqualValues(t, 123, readRecord.Point().Timestamp())
@@ -368,10 +379,11 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, 0.0, readRecord.Point().Value().Float64())
 
 	// Remove the entire "Point" field (field #6) from "Record" struct in the schema.
-	schem.StructFieldCount["Metrics"] = 5
+	schem.Structs["Metrics"].Fields = schem.Structs["Metrics"].Fields[:5]
+	wireSchema = schema.NewWireSchema(schem, "Metrics")
 
 	// Write/read using reduced schema
-	readRecord = writeReadRecord(t, &schem)
+	readRecord = writeReadRecord(t, &wireSchema)
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	// All Point fields are default values because Point field was not encoded by Writer.

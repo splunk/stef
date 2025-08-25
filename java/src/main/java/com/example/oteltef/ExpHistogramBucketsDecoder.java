@@ -31,12 +31,8 @@ class ExpHistogramBucketsDecoder {
         state.ExpHistogramBucketsDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 2;
-            }
+            fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new ExpHistogramBuckets(null, 0);
@@ -85,7 +81,16 @@ class ExpHistogramBucketsDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Offset and all subsequent fields are skipped.
+            return;
+        }
         offsetDecoder.reset();
+        if (fieldCount <= 1) {
+            // BucketCounts and all subsequent fields are skipped.
+            return;
+        }
         if (!isBucketCountsRecursive) {
             bucketCountsDecoder.reset();
         }

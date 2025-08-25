@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/klauspost/compress/zstd"
@@ -32,14 +34,7 @@ func TestSerializeSchema(t *testing.T) {
 	prunedSchema, err := schema.PrunedForRoot("Metrics")
 	require.NoError(t, err)
 
-	minifiedJson, err := json.Marshal(prunedSchema)
-	require.NoError(t, err)
-
-	compressedJson := compressZstd(minifiedJson)
-
-	fmt.Printf("JSON: %5d, zstd: %4d\n", len(minifiedJson), len(compressedJson))
-
-	wireSchema := prunedSchema.ToWire()
+	wireSchema := NewWireSchema(prunedSchema, "Metrics")
 	var wireBytes bytes.Buffer
 	err = wireSchema.Serialize(&wireBytes)
 	require.NoError(t, err)
@@ -51,7 +46,7 @@ func TestSerializeSchema(t *testing.T) {
 	err = readSchema.Deserialize(&wireBytes)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(wireSchema, readSchema)
+	diff := cmp.Diff(wireSchema, readSchema, cmp.AllowUnexported(WireSchema{}))
 	if diff != "" {
 		assert.Fail(t, diff)
 	}
@@ -73,7 +68,7 @@ func FuzzDeserialize(f *testing.F) {
 		prunedSchema, err := schema.PrunedForRoot(root)
 		require.NoError(f, err)
 
-		wireSchema := prunedSchema.ToWire()
+		wireSchema := NewWireSchema(prunedSchema, root)
 		var wireBytes bytes.Buffer
 		err = wireSchema.Serialize(&wireBytes)
 		require.NoError(f, err)
@@ -90,7 +85,7 @@ func FuzzDeserialize(f *testing.F) {
 }
 
 func TestSchemaSelfCompatible(t *testing.T) {
-	p := PrimitiveTypeString
+	p := PrimitiveType{Type: PrimitiveTypeString}
 	schemas := []*Schema{
 		{
 			PackageName: []string{"pkg"},
@@ -103,7 +98,7 @@ func TestSchemaSelfCompatible(t *testing.T) {
 			Structs: map[string]*Struct{
 				"Root": {
 					Name: "Root",
-					Fields: []StructField{
+					Fields: []*StructField{
 						{
 							FieldType: FieldType{MultiMap: "Multi"},
 							Name:      "F1",
@@ -122,7 +117,10 @@ func TestSchemaSelfCompatible(t *testing.T) {
 	}
 
 	for _, schema := range schemas {
-		wireSchema := schema.ToWire()
+		err := schema.ResolveRefs()
+		require.NoError(t, err)
+
+		wireSchema := NewWireSchema(schema, "Root")
 		compat, err := wireSchema.Compatible(&wireSchema)
 		require.NoError(t, err)
 		assert.EqualValues(t, CompatibilityExact, compat)
@@ -130,8 +128,8 @@ func TestSchemaSelfCompatible(t *testing.T) {
 }
 
 func TestSchemaSuperset(t *testing.T) {
-	primitiveTypeInt64 := PrimitiveTypeInt64
-	primitiveTypeString := PrimitiveTypeString
+	primitiveTypeInt64 := PrimitiveType{Type: PrimitiveTypeInt64}
+	primitiveTypeString := PrimitiveType{Type: PrimitiveTypeString}
 
 	tests := []struct {
 		old *Schema
@@ -143,7 +141,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -160,7 +158,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -185,7 +183,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -202,7 +200,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"A": {
 						Name: "A",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -226,7 +224,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"B": {
 						Name: "B",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -255,7 +253,7 @@ func TestSchemaSuperset(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -278,7 +276,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"A": {
 						Name: "A",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -302,7 +300,7 @@ func TestSchemaSuperset(t *testing.T) {
 					},
 					"B": {
 						Name: "B",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -327,7 +325,7 @@ func TestSchemaSuperset(t *testing.T) {
 						Name:     "D",
 						OneOf:    true,
 						DictName: "",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{Primitive: &primitiveTypeInt64},
 								Name:      "F1",
@@ -347,8 +345,13 @@ func TestSchemaSuperset(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		oldSchema := test.old.ToWire()
-		newSchema := test.new.ToWire()
+		err := test.old.ResolveRefs()
+		require.NoError(t, err)
+		err = test.new.ResolveRefs()
+		require.NoError(t, err)
+
+		oldSchema := NewWireSchema(test.old, "Root")
+		newSchema := NewWireSchema(test.new, "Root")
 
 		compat, err := newSchema.Compatible(&oldSchema)
 		require.NoError(t, err)
@@ -357,7 +360,7 @@ func TestSchemaSuperset(t *testing.T) {
 }
 
 func TestSchemaIncompatible(t *testing.T) {
-	primitiveTypeInt64 := PrimitiveTypeInt64
+	primitiveTypeInt64 := PrimitiveType{Type: PrimitiveTypeInt64}
 
 	tests := []struct {
 		old *Schema
@@ -370,7 +373,7 @@ func TestSchemaIncompatible(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -393,7 +396,7 @@ func TestSchemaIncompatible(t *testing.T) {
 				Structs: map[string]*Struct{
 					"Root": {
 						Name: "Root",
-						Fields: []StructField{
+						Fields: []*StructField{
 							{
 								FieldType: FieldType{
 									Primitive: &primitiveTypeInt64,
@@ -404,13 +407,18 @@ func TestSchemaIncompatible(t *testing.T) {
 					},
 				},
 			},
-			err: "struct Root has fewer fields in new schema (1 vs 2)",
+			err: "new schema has fewers fields than old schema (1 vs 2)",
 		},
 	}
 
 	for _, test := range tests {
-		oldSchema := test.old.ToWire()
-		newSchema := test.new.ToWire()
+		err := test.old.ResolveRefs()
+		require.NoError(t, err)
+		err = test.new.ResolveRefs()
+		require.NoError(t, err)
+
+		oldSchema := NewWireSchema(test.old, "Root")
+		newSchema := NewWireSchema(test.new, "Root")
 
 		compat, err := newSchema.Compatible(&oldSchema)
 		require.Error(t, err)
@@ -422,107 +430,73 @@ func TestSchemaIncompatible(t *testing.T) {
 func expandSchema(t *testing.T, r *rand.Rand, orig *Schema) (cpy *Schema) {
 	cpy, err := orig.PrunedForRoot("Metrics")
 	require.NoError(t, err)
+
+	var structNames []string
+	for name := range cpy.Structs {
+		structNames = append(structNames, name)
+	}
+	sort.Strings(structNames)
+
+	var multimapNames []string
+	for name := range cpy.Multimaps {
+		multimapNames = append(multimapNames, name)
+	}
+	sort.Strings(multimapNames)
+
 	for {
-		for _, str := range cpy.Structs {
-			if expandStruct(t, r, cpy, str) {
-				return cpy
-			}
+		structName := structNames[r.IntN(len(structNames))]
+		str := cpy.Structs[structName]
+		if expandStruct(t, r, cpy, str, structNames, multimapNames) {
+			err = cpy.ResolveRefs()
+			require.NoError(t, err)
+			return cpy
 		}
 	}
 }
 
-func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool {
-	if r.Intn(10) == 0 {
+func expandStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct, structNames, multimapNames []string) bool {
+	if r.IntN(10) == 0 {
 		field := StructField{
 			FieldType: FieldType{},
 			Name:      fmt.Sprintf("Field#%d", len(str.Fields)+1),
 		}
 
-		p := PrimitiveTypeString
-		switch r.Intn(4) {
+		p := PrimitiveType{Type: PrimitiveTypeString}
+		switch r.IntN(4) {
 		case 0:
 			field.FieldType.Primitive = &p
-			if r.Intn(10) == 0 {
+			if r.IntN(10) == 0 {
 				field.DictName = "Dict" + field.Name
 			}
 
 		case 1:
 			f := FieldType{Primitive: &p}
-			field.FieldType.Array = &f
+			field.FieldType.Array = &ArrayType{ElemType: f}
 		case 2:
-			multimapIdx := r.Intn(len(schema.Multimaps))
-			i := 0
-			for multimapName := range schema.Multimaps {
-				if i == multimapIdx {
-					field.FieldType.MultiMap = multimapName
-					break
-				}
-				i++
-			}
+			field.FieldType.MultiMap = multimapNames[r.IntN(len(multimapNames))]
 		case 3:
-			if r.Intn(2) == 0 {
+			if r.IntN(2) == 0 {
 				// Add new struct
 				struc := Struct{
 					Name:   fmt.Sprintf("Struct#%d", len(schema.Structs)),
-					Fields: []StructField{},
+					Fields: []*StructField{},
 				}
 				schema.Structs[struc.Name] = &struc
 				field.FieldType.Struct = struc.Name
 			} else {
-				structIdx := r.Intn(len(schema.Structs))
-				i := 0
-				for structName := range schema.Structs {
-					if i == structIdx {
-						field.FieldType.Struct = structName
-						break
-					}
-					i++
-				}
+				field.FieldType.Struct = structNames[r.IntN(len(structNames))]
 			}
 		}
 
-		str.Fields = append(str.Fields, field)
+		str.Fields = append(str.Fields, &field)
 		return true
 	}
 
 	for _, field := range str.Fields {
 		if field.Struct != "" {
-			if r.Intn(10) == 0 {
+			if r.IntN(10) == 0 {
 				childStruct := schema.Structs[field.Struct]
-				changed := expandStruct(t, r, schema, childStruct)
-				if changed {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-func shrinkSchema(t *testing.T, r *rand.Rand, orig *Schema) (cpy *Schema) {
-	cpy, err := orig.PrunedForRoot("Metrics")
-	require.NoError(t, err)
-	for {
-		for _, str := range cpy.Structs {
-			if shrinkStruct(t, r, cpy, str) {
-				return cpy
-			}
-		}
-	}
-}
-
-func shrinkStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool {
-	if r.Intn(10) == 0 && len(str.Fields) > 0 {
-		str.Fields = str.Fields[0 : len(str.Fields)-1]
-		return true
-	}
-
-	for _, field := range str.Fields {
-		if field.Struct != "" {
-			if r.Intn(3) == 0 {
-				childStruct := schema.Structs[field.Struct]
-				changed := shrinkStruct(t, r, schema, childStruct)
+				changed := expandStruct(t, r, schema, childStruct, structNames, multimapNames)
 				if changed {
 					return true
 				}
@@ -534,7 +508,7 @@ func shrinkStruct(t *testing.T, r *rand.Rand, schema *Schema, str *Struct) bool 
 }
 
 func TestSchemaExpand(t *testing.T) {
-	schemaJson, err := os.ReadFile("testdata/oteltef.wire.json")
+	schemaJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(t, err)
 
 	orig := &Schema{}
@@ -543,30 +517,38 @@ func TestSchemaExpand(t *testing.T) {
 	orig, err = orig.PrunedForRoot("Metrics")
 	require.NoError(t, err)
 
-	r := rand.New(rand.NewSource(42))
+	seed1 := uint64(time.Now().UnixNano())
+	r := rand.New(rand.NewPCG(seed1, 0))
+
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			fmt.Printf("Test failed with seed %v\n", seed1)
+		}
+	}()
 
 	// Expand one field at a time and check compatibility.
 	for i := 0; i < 200; i++ {
 		expanded := expandSchema(t, r, orig)
-		expandedWire := expanded.ToWire()
+		expandedWire := NewWireSchema(expanded, "Metrics")
 		require.NoError(t, err)
 
 		// Exact compatible with itself
 		compat, err := expandedWire.Compatible(&expandedWire)
-		require.NoError(t, err, i)
-		assert.EqualValues(t, CompatibilityExact, compat, i)
+		require.NoError(t, err)
+		require.EqualValues(t, CompatibilityExact, compat)
 
 		// Expanding is compatible / superset
-		origWire := orig.ToWire()
-		require.NoError(t, err, i)
+		origWire := NewWireSchema(orig, "Metrics")
+		require.NoError(t, err)
 		compat, err = expandedWire.Compatible(&origWire)
-		require.NoError(t, err, i)
-		assert.EqualValues(t, CompatibilitySuperset, compat, i)
+		require.NoError(t, err)
+		require.EqualValues(t, CompatibilitySuperset, compat)
 
 		// Opposite direction is incompatible
 		compat, err = origWire.Compatible(&expandedWire)
-		require.Error(t, err, i)
-		assert.EqualValues(t, CompatibilityIncompatible, compat, i)
+		require.Error(t, err)
+		require.EqualValues(t, CompatibilityIncompatible, compat)
 
 		// Also check that serialization works correctly.
 
@@ -578,24 +560,34 @@ func TestSchemaExpand(t *testing.T) {
 		// Deserialize
 		var cpy WireSchema
 		err = cpy.Deserialize(&buf)
-		require.NoError(t, err)
+		require.NoError(t, err, compat)
 
 		// Compare deserialized schema
 		require.EqualValues(t, expandedWire, cpy)
 
 		orig = expanded
 	}
+
+	succeeded = true
 }
 
 func TestSchemaShrink(t *testing.T) {
-	schemaJson, err := os.ReadFile("testdata/oteltef.wire.json")
+	schemaJson, err := os.ReadFile("testdata/example.json")
 	require.NoError(t, err)
 
 	orig := &Schema{}
 	err = json.Unmarshal(schemaJson, &orig)
 	require.NoError(t, err)
 
-	r := rand.New(rand.NewSource(42))
+	seed1 := uint64(time.Now().UnixNano())
+	r := rand.New(rand.NewPCG(seed1, 0))
+
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			fmt.Printf("Test failed with seed %v\n", seed1)
+		}
+	}()
 
 	// Expand the schema, make it much bigger, so there is room for shrinking.
 	for i := 0; i < 200; i++ {
@@ -604,20 +596,25 @@ func TestSchemaShrink(t *testing.T) {
 
 	// Now shrink one field at a time and check compatibility.
 	for i := 0; i < 100; i++ {
-		shrinked := shrinkSchema(t, r, orig)
-		shrinkedWire := shrinked.ToWire()
+		// Make a copy
+		shrinked, err := orig.PrunedForRoot("Metrics")
+		require.NoError(t, err)
+
+		// Srhink it
+		ShrinkRandomly(r, shrinked)
+		shrinkedWire := NewWireSchema(shrinked, "Metrics")
 		require.NoError(t, err)
 
 		// Shrinking is incompatible
-		origWire := orig.ToWire()
+		origWire := NewWireSchema(orig, "Metrics")
 		compat, err := shrinkedWire.Compatible(&origWire)
-		require.Error(t, err, i)
-		assert.EqualValues(t, CompatibilityIncompatible, compat, i)
+		require.Error(t, err)
+		require.EqualValues(t, CompatibilityIncompatible, compat)
 
 		// Opposite direction is compatible/superset
 		compat, err = origWire.Compatible(&shrinkedWire)
-		require.NoError(t, err, i)
-		assert.EqualValues(t, CompatibilitySuperset, compat, i)
+		require.NoError(t, err, "%d %d", i, seed1)
+		require.EqualValues(t, CompatibilitySuperset, compat)
 
 		// Also check that serialization works correctly.
 
@@ -636,4 +633,6 @@ func TestSchemaShrink(t *testing.T) {
 
 		orig = shrinked
 	}
+
+	succeeded = true
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
@@ -298,9 +299,17 @@ func CmpPointValue(left, right *PointValue) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *PointValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 5
+// random parameter as a deterministic generator. Only fields that exist
+// in the schema are mutated, allowing to generate data for specified schema.
+func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this oneof from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// the type of the oneof to the choices that are not in the schema.
+	fieldCount, err := schem.FieldCount("PointValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "PointValue", err))
+	}
+
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(PointValueType(random.IntN(fieldCount + 1)))
@@ -318,15 +327,15 @@ func (s *PointValue) mutateRandom(random *rand.Rand) {
 		}
 	case PointValueTypeHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.histogram.mutateRandom(random)
+			s.histogram.mutateRandom(random, schem)
 		}
 	case PointValueTypeExpHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.expHistogram.mutateRandom(random)
+			s.expHistogram.mutateRandom(random, schem)
 		}
 	case PointValueTypeSummary:
 		if typeChanged || random.IntN(2) == 0 {
-			s.summary.mutateRandom(random)
+			s.summary.mutateRandom(random, schem)
 		}
 	}
 }
@@ -365,20 +374,11 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("PointValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "PointValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 5
-	}
-
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.PointValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "PointValue", err)
+	}
 
 	// Init encoder for Int64 field.
 	if e.fieldCount <= 0 {
@@ -456,15 +456,33 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 
 func (e *PointValueEncoder) Reset() {
 	e.prevType = 0
+
+	if e.fieldCount <= 0 {
+		return // Int64 and all subsequent fields are skipped.
+	}
 	e.int64Encoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Float64 and all subsequent fields are skipped.
+	}
 	e.float64Encoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Histogram and all subsequent fields are skipped.
+	}
 
 	if !e.isHistogramRecursive {
 		e.histogramEncoder.Reset()
 	}
 
+	if e.fieldCount <= 3 {
+		return // ExpHistogram and all subsequent fields are skipped.
+	}
+
 	if !e.isExpHistogramRecursive {
 		e.expHistogramEncoder.Reset()
+	}
+
+	if e.fieldCount <= 4 {
+		return // Summary and all subsequent fields are skipped.
 	}
 
 	if !e.isSummaryRecursive {
@@ -593,25 +611,16 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	state.PointValueDecoder = d
 	defer func() { state.PointValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("PointValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "PointValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 5
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.PointValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "PointValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 	if d.fieldCount <= 0 {
 		return nil // Int64 and subsequent fields are skipped.
 	}
@@ -718,15 +727,33 @@ func (d *PointValueDecoder) Continue() {
 
 func (d *PointValueDecoder) Reset() {
 	d.prevType = 0
+
+	if d.fieldCount <= 0 {
+		return // Int64 and all subsequent fields are skipped.
+	}
 	d.int64Decoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Float64 and all subsequent fields are skipped.
+	}
 	d.float64Decoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Histogram and all subsequent fields are skipped.
+	}
 
 	if !d.isHistogramRecursive {
 		d.histogramDecoder.Reset()
 	}
 
+	if d.fieldCount <= 3 {
+		return // ExpHistogram and all subsequent fields are skipped.
+	}
+
 	if !d.isExpHistogramRecursive {
 		d.expHistogramDecoder.Reset()
+	}
+
+	if d.fieldCount <= 4 {
+		return // Summary and all subsequent fields are skipped.
 	}
 
 	if !d.isSummaryRecursive {

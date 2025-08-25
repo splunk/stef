@@ -41,12 +41,7 @@ class PointValueDecoder {
 
         try {
             prevType = PointValue.Type.TypeNone;
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = 5;
-            }
+            this.fieldCount = state.getStructFieldCounts().getPointValueFieldCount();
             this.column = columns.getColumn();
             this.lastVal.init(null, 0);
             this.lastValPtr = this.lastVal;
@@ -145,13 +140,28 @@ class PointValueDecoder {
     public void reset() {
         prevType = PointValue.Type.TypeNone;
         
+        if (fieldCount <= 0) {
+            return; // Int64 and all subsequent fields are skipped.
+        }
         int64Decoder.reset();
+        if (fieldCount <= 1) {
+            return; // Float64 and all subsequent fields are skipped.
+        }
         float64Decoder.reset();
+        if (fieldCount <= 2) {
+            return; // Histogram and all subsequent fields are skipped.
+        }
         if (!isHistogramRecursive) {
             histogramDecoder.reset();
         }
+        if (fieldCount <= 3) {
+            return; // ExpHistogram and all subsequent fields are skipped.
+        }
         if (!isExpHistogramRecursive) {
             expHistogramDecoder.reset();
+        }
+        if (fieldCount <= 4) {
+            return; // Summary and all subsequent fields are skipped.
         }
         if (!isSummaryRecursive) {
             summaryDecoder.reset();

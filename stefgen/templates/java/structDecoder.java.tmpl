@@ -31,12 +31,8 @@ class {{ .StructName }}Decoder {
         state.{{.StructName}}Decoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = {{len .Fields}};
-            }
+            fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
+
             column = columns.getColumn();
             {{if .IsMainStruct}}
             lastVal = new {{.StructName}}();
@@ -95,7 +91,11 @@ class {{ .StructName }}Decoder {
     }
 
     public void reset() {
-        {{- range .Fields}}
+        {{ range $i, $e := .Fields }}
+        if (fieldCount <= {{$i}}) {
+            // {{.Name}} and all subsequent fields are skipped.
+            return;
+        }
         {{if not .IsPrimitive -}}
         if (!is{{.Name}}Recursive) {
             {{.name}}Decoder.reset();

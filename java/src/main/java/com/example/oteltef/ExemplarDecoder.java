@@ -37,12 +37,8 @@ class ExemplarDecoder {
         state.ExemplarDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Exemplar");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 5;
-            }
+            fieldCount = state.getStructFieldCounts().getExemplarFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Exemplar(null, 0);
@@ -128,12 +124,33 @@ class ExemplarDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Timestamp and all subsequent fields are skipped.
+            return;
+        }
         timestampDecoder.reset();
+        if (fieldCount <= 1) {
+            // Value and all subsequent fields are skipped.
+            return;
+        }
         if (!isValueRecursive) {
             valueDecoder.reset();
         }
+        if (fieldCount <= 2) {
+            // SpanID and all subsequent fields are skipped.
+            return;
+        }
         spanIDDecoder.reset();
+        if (fieldCount <= 3) {
+            // TraceID and all subsequent fields are skipped.
+            return;
+        }
         traceIDDecoder.reset();
+        if (fieldCount <= 4) {
+            // FilteredAttributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isFilteredAttributesRecursive) {
             filteredAttributesDecoder.reset();
         }

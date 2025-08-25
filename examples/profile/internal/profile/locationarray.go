@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = (*encoders.StringEncoder)(nil)
@@ -203,8 +204,10 @@ func CmpLocationArray(left, right *LocationArray) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (a *LocationArray) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If array elements contain structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (a *LocationArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20) == 0 {
 		a.EnsureLen(a.Len() + 1)
 	}
@@ -215,7 +218,7 @@ func (a *LocationArray) mutateRandom(random *rand.Rand) {
 	for i := range a.elems {
 		_ = i
 		if random.IntN(2*len(a.elems)) == 0 {
-			a.elems[i].mutateRandom(random)
+			a.elems[i].mutateRandom(random, schem)
 		}
 	}
 }
@@ -419,18 +422,19 @@ func (s *LocationArrayDecoderLastValStack) removeFromTop() {
 }
 
 type LocationArrayDecoderLastValElem struct {
-	prevLen int
-	elem    *Location
+	prevLen     int
+	elem        *Location
+	elemStorage Location
 }
 
 func (e *LocationArrayDecoderLastValElem) init() {
+	e.elem = &e.elemStorage
+
 }
 
 func (e *LocationArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
-	e.elem = nil
-
+	*e.elem = Location{}
 }
 
 // Init is called once in the lifetime of the stream.

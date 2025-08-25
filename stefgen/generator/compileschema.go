@@ -40,92 +40,7 @@ func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 		return nil, err
 	}
 
-	for _, struc := range dst.Structs {
-		if struc.IsRoot {
-			stack := recurseStack{asMap: map[string]bool{}}
-			computeRecursiveStruct(struc, &stack)
-		}
-	}
-
 	return dst, nil
-}
-
-type recurseStack struct {
-	fields  []recursable
-	asStack []string
-	asMap   map[string]bool
-}
-
-func markRecursive(typeName string, stack *recurseStack) {
-	startIdx := findLast(stack.asStack, typeName)
-	if startIdx == -1 {
-		panic("invalid state")
-	}
-	for i := startIdx; i < len(stack.fields); i++ {
-		stack.fields[i].SetRecursive()
-	}
-}
-
-func computeRecursiveStruct(struc *genStructDef, stack *recurseStack) {
-	stack.asStack = append(stack.asStack, struc.Name)
-	stack.asMap[struc.Name] = true
-
-	for _, field := range struc.Fields {
-		stack.fields = append(stack.fields, field)
-		computeRecursiveType(field.Type, stack)
-		stack.fields = stack.fields[:len(stack.fields)-1]
-	}
-
-	stack.asStack = stack.asStack[:len(stack.asStack)-1]
-	delete(stack.asMap, struc.Name)
-}
-
-func computeRecursiveMultimap(multimap *genMapDef, stack *recurseStack) {
-	stack.asStack = append(stack.asStack, multimap.Name)
-	stack.asMap[multimap.Name] = true
-
-	stack.fields = append(stack.fields, &multimap.Key)
-	computeRecursiveType(multimap.Key.Type, stack)
-	stack.fields = stack.fields[:len(stack.fields)-1]
-
-	stack.fields = append(stack.fields, &multimap.Value)
-	computeRecursiveType(multimap.Value.Type, stack)
-	stack.fields = stack.fields[:len(stack.fields)-1]
-
-	stack.asStack = stack.asStack[:len(stack.asStack)-1]
-	delete(stack.asMap, multimap.Name)
-}
-
-func computeRecursiveType(typ genFieldTypeRef, stack *recurseStack) {
-	switch t := typ.(type) {
-	case *genPrimitiveTypeRef:
-		return
-	case *genStructTypeRef:
-		if stack.asMap[t.Name] {
-			markRecursive(t.Name, stack)
-		} else {
-			computeRecursiveStruct(t.Def, stack)
-		}
-	case *genMultimapTypeRef:
-		if stack.asMap[t.Name] {
-			markRecursive(t.Name, stack)
-		} else {
-			computeRecursiveMultimap(t.Def, stack)
-		}
-	case *genArrayTypeRef:
-		computeRecursiveType(t.ElemType, stack)
-	default:
-		panic("unknown type")
-	}
-}
-
-func findLast(stack []string, name string) int {
-	for i := len(stack) - 1; i >= 0; i-- {
-		if stack[i] == name {
-			return i
-		}
-	}
-	return -1
 }
 
 func (s *genSchema) resolveRefs() error {
@@ -203,6 +118,7 @@ func multimapFieldWireToAst(src schema.MultimapField, lang Lang) genMapFieldDef 
 
 func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 	dst := &genStructDef{
+		Def:    src,
 		Name:   src.Name,
 		OneOf:  src.OneOf,
 		IsRoot: src.IsRoot,
@@ -210,15 +126,16 @@ func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 	}
 
 	for i := range src.Fields {
-		dst.Fields = append(dst.Fields, structFieldWireToAst(&src.Fields[i], lang))
+		dst.Fields = append(dst.Fields, structFieldWireToAst(src.Fields[i], lang))
 	}
 	return dst
 }
 
 func structFieldWireToAst(src *schema.StructField, lang Lang) *genStructFieldDef {
 	dst := &genStructFieldDef{
-		Name:     src.Name,
-		Optional: src.Optional,
+		Name:      src.Name,
+		Optional:  src.Optional,
+		Recursive: src.Recursive(),
 	}
 
 	dst.Type = typeWireToGen(src.FieldType, lang)
@@ -230,7 +147,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Primitive != nil {
 		return &genPrimitiveTypeRef{
 			Lang: lang,
-			Type: *src.Primitive,
+			Type: src.Primitive.Type,
 			Dict: src.DictName,
 			Enum: src.Enum,
 		}
@@ -239,7 +156,7 @@ func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Array != nil {
 		return &genArrayTypeRef{
 			Lang:     lang,
-			ElemType: typeWireToGen(*src.Array, lang),
+			ElemType: typeWireToGen(src.Array.ElemType, lang),
 		}
 	}
 

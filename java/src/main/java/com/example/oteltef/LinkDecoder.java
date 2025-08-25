@@ -39,12 +39,8 @@ class LinkDecoder {
         state.LinkDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Link");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 6;
-            }
+            fieldCount = state.getStructFieldCounts().getLinkFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Link(null, 0);
@@ -129,12 +125,37 @@ class LinkDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // TraceID and all subsequent fields are skipped.
+            return;
+        }
         traceIDDecoder.reset();
+        if (fieldCount <= 1) {
+            // SpanID and all subsequent fields are skipped.
+            return;
+        }
         spanIDDecoder.reset();
+        if (fieldCount <= 2) {
+            // TraceState and all subsequent fields are skipped.
+            return;
+        }
         traceStateDecoder.reset();
+        if (fieldCount <= 3) {
+            // Flags and all subsequent fields are skipped.
+            return;
+        }
         flagsDecoder.reset();
+        if (fieldCount <= 4) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
+        }
+        if (fieldCount <= 5) {
+            // DroppedAttributesCount and all subsequent fields are skipped.
+            return;
         }
         droppedAttributesCountDecoder.reset();
     }

@@ -35,12 +35,7 @@ class ExemplarValueDecoder {
 
         try {
             prevType = ExemplarValue.Type.TypeNone;
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("ExemplarValue");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = 2;
-            }
+            this.fieldCount = state.getStructFieldCounts().getExemplarValueFieldCount();
             this.column = columns.getColumn();
             this.lastVal.init(null, 0);
             this.lastValPtr = this.lastVal;
@@ -82,7 +77,13 @@ class ExemplarValueDecoder {
     public void reset() {
         prevType = ExemplarValue.Type.TypeNone;
         
+        if (fieldCount <= 0) {
+            return; // Int64 and all subsequent fields are skipped.
+        }
         int64Decoder.reset();
+        if (fieldCount <= 1) {
+            return; // Float64 and all subsequent fields are skipped.
+        }
         float64Decoder.reset();
     }
 

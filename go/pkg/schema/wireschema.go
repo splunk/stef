@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/splunk/stef/go/pkg/internal"
 )
@@ -19,71 +18,75 @@ import (
 // with uses.
 //
 // The only valid way to evolve a STEF schema is by adding new fields at the end
-// of the existing structs. This means that in order to correctly read/write an
+// of the existing structs/oneofs. This means that in order to correctly read/write an
 // evolved schema the only necessary information is the number of the fields in
-// in each struct. This is precisely the information that is recorded in WireSchema.
+// in each struct/oneof. This is precisely the information that is recorded in WireSchema.
 //
 // The full schema information can be recorded in a schema.Schema, however that
 // full information is not necessary for wire compatibility checks. Instead, we
 // use the much simpler and more compact WireSchema to serve that role.
 type WireSchema struct {
-	// Number of fields in each struct (by struct name)
-	StructFieldCount map[string]uint
+	// structCounts is a linearized list of the number of fields in each struct/oneof
+	// in the schema. The order of the structs in this list is the same as the order
+	// in which the structs are encoded/decoded in the schema.
+	structCounts []uint
 }
 
-func (w *WireSchema) FieldCount(structName string) (uint, bool) {
-	count, ok := w.StructFieldCount[structName]
-	return count, ok
+// NewWireSchema creates a new WireSchema from a schema for the given root.
+// The wire schema will only include the structs that are reachable
+// from the specified root struct.
+func NewWireSchema(schema *Schema, rootStructName string) WireSchema {
+	// Compose the struct counts tree from the schema, for the given root struct.
+	rootStruc := schema.Structs[rootStructName]
+	stack := recurseStack{asMap: map[string]bool{}}
+
+	rootType := &FieldType{
+		Struct:    rootStruc.Name,
+		StructDef: rootStruc,
+		DictName:  rootStruc.DictName,
+	}
+	tree := structCountTree{}
+
+	schemaToStructCountTree(rootType, &tree, &stack)
+
+	w := WireSchema{}
+
+	// setStructCountsFromTree recursively linearizes the structCounts from the tree,
+	// in depth-first traversal order. This traversal order matches the order in which
+	// structs are encoded/decoded in the schema. This ordering ensures that when
+	// encoder/decoder ask for struct counts via WireSchemaIter, the counts are returned
+	// in the same order as we linearize them in structCounts field.
+	w.setStructCountsFromTree(&tree)
+
+	return w
+}
+
+func (w *WireSchema) setStructCountsFromTree(s *structCountTree) {
+	w.structCounts = append(w.structCounts, s.fieldCount)
+	for i := range s.structFields {
+		w.setStructCountsFromTree(&s.structFields[i])
+	}
 }
 
 const (
-	MaxStructOrMultimapCount = 1024
+	maxStructCount = 1024
 )
 
 var (
 	errStructCountLimit = errors.New("struct count limit exceeded")
 )
 
-/*
-Serialization format:
-
-WireSchema {
-	StructCount:   U64
-	*Struct:       WireStruct
-}
-WireStruct {
-	StructName:    String
-	FieldCount:    U64
-}
-String {
-	LengthInBytes: U64
-	*Bytes:        8
-}
-*/
-
 // Serialize the schema to binary format.
 func (w *WireSchema) Serialize(dst *bytes.Buffer) error {
-	if err := internal.WriteUvarint(uint64(len(w.StructFieldCount)), dst); err != nil {
+	if err := internal.WriteUvarint(uint64(len(w.structCounts)), dst); err != nil {
 		return err
 	}
-
-	// Sort for deterministic serialization.
-	var structs []string
-	for name := range w.StructFieldCount {
-		structs = append(structs, name)
-	}
-	sort.Strings(structs)
-
-	for _, structName := range structs {
-		fieldCount := w.StructFieldCount[structName]
-
-		if err := internal.WriteString(structName, dst); err != nil {
-			return err
-		}
-		if err := internal.WriteUvarint(uint64(fieldCount), dst); err != nil {
+	for _, count := range w.structCounts {
+		if err := internal.WriteUvarint(uint64(count), dst); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -94,50 +97,85 @@ func (w *WireSchema) Deserialize(src *bytes.Buffer) error {
 		return err
 	}
 
-	if count > MaxStructOrMultimapCount {
+	if count > maxStructCount {
 		return errStructCountLimit
 	}
 
-	w.StructFieldCount = make(map[string]uint, count)
+	w.structCounts = make([]uint, int(count))
+
 	for i := 0; i < int(count); i++ {
-		structName, err := internal.ReadString(src)
-		if err != nil {
-			return err
-		}
 		fieldCount, err := binary.ReadUvarint(src)
 		if err != nil {
 			return err
 		}
 
-		w.StructFieldCount[structName] = uint(fieldCount)
+		w.structCounts[i] = uint(fieldCount)
 	}
+
 	return nil
 }
 
 // Compatible checks backward compatibility of this schema with oldSchema.
 // If the schemas are incompatible returns CompatibilityIncompatible and an error.
 func (w *WireSchema) Compatible(oldSchema *WireSchema) (Compatibility, error) {
-	exactCompat := true
-	for structName, fieldCount := range oldSchema.StructFieldCount {
-		newCount, exists := w.StructFieldCount[structName]
-		if !exists {
-			return CompatibilityIncompatible,
-				fmt.Errorf("struct %s does not exist in new schema", structName)
-		}
-		if newCount < fieldCount {
-			return CompatibilityIncompatible,
-				fmt.Errorf(
-					"struct %s has fewer fields in new schema (%d vs %d)", structName,
-					newCount, fieldCount,
-				)
-		} else if newCount > fieldCount {
-			exactCompat = false
-		}
+	if len(w.structCounts) > len(oldSchema.structCounts) {
+		return CompatibilitySuperset, nil
 	}
 
-	if exactCompat {
-		return CompatibilityExact, nil
+	if len(w.structCounts) < len(oldSchema.structCounts) {
+		return CompatibilityIncompatible,
+			fmt.Errorf(
+				"new schema has fewers structs than old schema (%d vs %d)", len(w.structCounts),
+				len(oldSchema.structCounts),
+			)
 	}
 
-	return CompatibilitySuperset, nil
+	newFieldTotal := uint(0)
+	oldFieldTotal := uint(0)
+	for i := range w.structCounts {
+		newFieldTotal += w.structCounts[i]
+		oldFieldTotal += oldSchema.structCounts[i]
+	}
+
+	if newFieldTotal > oldFieldTotal {
+		return CompatibilitySuperset, nil
+	}
+
+	if newFieldTotal < oldFieldTotal {
+		return CompatibilityIncompatible,
+			fmt.Errorf(
+				"new schema has fewers fields than old schema (%d vs %d)", newFieldTotal, oldFieldTotal,
+			)
+	}
+
+	return CompatibilityExact, nil
+}
+
+// WireSchemaIter is an iterator over the structs in a WireSchema.
+type WireSchemaIter struct {
+	schema    *WireSchema
+	structIdx int
+}
+
+func NewWireSchemaIter(schema *WireSchema) WireSchemaIter {
+	return WireSchemaIter{
+		schema:    schema,
+		structIdx: 0,
+	}
+}
+
+// NextFieldCount returns the field count for the next struct in the schema.
+func (i *WireSchemaIter) NextFieldCount() (fieldCount uint, err error) {
+	if i.structIdx >= len(i.schema.structCounts) {
+		return 0, errors.New("struct count limit exceeded")
+	}
+
+	count := i.schema.structCounts[i.structIdx]
+	i.structIdx++
+
+	return count, nil
+}
+
+func (i *WireSchemaIter) Done() bool {
+	return i.structIdx >= len(i.schema.structCounts)
 }

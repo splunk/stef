@@ -228,20 +228,46 @@ func (s *Sample) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Sample) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
-		s.metadata.mutateRandom(random)
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Sample) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Sample")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Sample", err))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.locations.mutateRandom(random)
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Metadata and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.values.mutateRandom(random)
+	// Maybe mutate Metadata
+	if random.IntN(randRange) == 0 {
+		s.metadata.mutateRandom(random, schem)
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.labels.mutateRandom(random)
+	if fieldCount <= 1 {
+		return // Locations and all subsequent fields are skipped.
+	}
+	// Maybe mutate Locations
+	if random.IntN(randRange) == 0 {
+		s.locations.mutateRandom(random, schem)
+	}
+	if fieldCount <= 2 {
+		return // Values and all subsequent fields are skipped.
+	}
+	// Maybe mutate Values
+	if random.IntN(randRange) == 0 {
+		s.values.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // Labels and all subsequent fields are skipped.
+	}
+	// Maybe mutate Labels
+	if random.IntN(randRange) == 0 {
+		s.labels.mutateRandom(random, schem)
 	}
 }
 
@@ -344,30 +370,19 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Sample")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Sample")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.SampleFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Sample", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Metadata field.
 	if e.fieldCount <= 0 {
-		// Metadata and all subsequent fields are skipped.
-		return nil
+		return nil // Metadata and all subsequent fields are skipped.
 	}
 	if state.ProfileMetadataEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -383,8 +398,7 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Locations field.
 	if e.fieldCount <= 1 {
-		// Locations and all subsequent fields are skipped.
-		return nil
+		return nil // Locations and all subsequent fields are skipped.
 	}
 	if state.LocationArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -400,8 +414,7 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Values field.
 	if e.fieldCount <= 2 {
-		// Values and all subsequent fields are skipped.
-		return nil
+		return nil // Values and all subsequent fields are skipped.
 	}
 	if state.SampleValueArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -417,8 +430,7 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	// Init encoder for Labels field.
 	if e.fieldCount <= 3 {
-		// Labels and all subsequent fields are skipped.
-		return nil
+		return nil // Labels and all subsequent fields are skipped.
 	}
 	if state.LabelsEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -440,16 +452,32 @@ func (e *SampleEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 
+	if e.fieldCount <= 0 {
+		return // Metadata and all subsequent fields are skipped.
+	}
+
 	if !e.isMetadataRecursive {
 		e.metadataEncoder.Reset()
+	}
+
+	if e.fieldCount <= 1 {
+		return // Locations and all subsequent fields are skipped.
 	}
 
 	if !e.isLocationsRecursive {
 		e.locationsEncoder.Reset()
 	}
 
+	if e.fieldCount <= 2 {
+		return // Values and all subsequent fields are skipped.
+	}
+
 	if !e.isValuesRecursive {
 		e.valuesEncoder.Reset()
+	}
+
+	if e.fieldCount <= 3 {
+		return // Labels and all subsequent fields are skipped.
 	}
 
 	if !e.isLabelsRecursive {
@@ -584,25 +612,17 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	state.SampleDecoder = d
 	defer func() { state.SampleDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Sample")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Sample")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.SampleFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Sample", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.Init()
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Metadata and subsequent fields are skipped.
@@ -708,16 +728,32 @@ func (d *SampleDecoder) Continue() {
 
 func (d *SampleDecoder) Reset() {
 
+	if d.fieldCount <= 0 {
+		return // Metadata and all subsequent fields are skipped.
+	}
+
 	if !d.isMetadataRecursive {
 		d.metadataDecoder.Reset()
+	}
+
+	if d.fieldCount <= 1 {
+		return // Locations and all subsequent fields are skipped.
 	}
 
 	if !d.isLocationsRecursive {
 		d.locationsDecoder.Reset()
 	}
 
+	if d.fieldCount <= 2 {
+		return // Values and all subsequent fields are skipped.
+	}
+
 	if !d.isValuesRecursive {
 		d.valuesDecoder.Reset()
+	}
+
+	if d.fieldCount <= 3 {
+		return // Labels and all subsequent fields are skipped.
 	}
 
 	if !d.isLabelsRecursive {
@@ -769,7 +805,7 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 	return nil
 }
 
-var wireSchemaSample = []byte{0x0A, 0x08, 0x46, 0x75, 0x6E, 0x63, 0x74, 0x69, 0x6F, 0x6E, 0x04, 0x0A, 0x4C, 0x61, 0x62, 0x65, 0x6C, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x04, 0x4C, 0x69, 0x6E, 0x65, 0x03, 0x08, 0x4C, 0x6F, 0x63, 0x61, 0x74, 0x69, 0x6F, 0x6E, 0x04, 0x07, 0x4D, 0x61, 0x70, 0x70, 0x69, 0x6E, 0x67, 0x09, 0x08, 0x4E, 0x75, 0x6D, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x0F, 0x50, 0x72, 0x6F, 0x66, 0x69, 0x6C, 0x65, 0x4D, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x08, 0x06, 0x53, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x04, 0x0B, 0x53, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x0F, 0x53, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x54, 0x79, 0x70, 0x65, 0x02}
+var wireSchemaSample = []byte{0x0A, 0x04, 0x08, 0x02, 0x04, 0x09, 0x03, 0x04, 0x02, 0x02, 0x02}
 
 func SampleWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

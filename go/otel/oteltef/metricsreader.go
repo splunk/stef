@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 
@@ -51,6 +52,10 @@ func (r *MetricsReader) initSchema() error {
 	err = r.decoder.Init(&r.state, &r.base.ReadBufs.Columns)
 	if err != nil {
 		return fmt.Errorf("schema is not compatible with Reader: %w", err)
+	}
+
+	if !r.state.StructFieldCounts.AllFetched() {
+		return errors.New("override schema iterator is not done, decoded data schema is likely incompatible")
 	}
 
 	return nil

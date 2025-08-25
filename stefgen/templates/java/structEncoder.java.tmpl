@@ -42,15 +42,8 @@ class {{ .StructName }}Encoder {
             this.dict = state.{{.DictName}};
             {{- end}}
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = {{len .Fields}};
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             {{ range $i, $e := .Fields }}
             // Init encoder for {{.Name}} field.
             if (this.fieldCount <= {{$i}}) {
@@ -83,7 +76,10 @@ class {{ .StructName }}Encoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
-        {{- range .Fields}}
+        {{ range $i, $e := .Fields }}
+        if (fieldCount <= {{$i}}) {
+            return; // {{.Name}} and all subsequent fields are skipped.
+        }
         {{if not .IsPrimitive}}
         if (!is{{.Name}}Recursive) {
             {{.name}}Encoder.reset();

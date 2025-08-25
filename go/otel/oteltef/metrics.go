@@ -317,26 +317,60 @@ func (s *Metrics) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Metrics) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
-		s.envelope.mutateRandom(random)
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Metrics")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Metrics", err))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.metric.mutateRandom(random)
+
+	const randRange = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.resource.mutateRandom(random)
+	// Maybe mutate Envelope
+	if random.IntN(randRange) == 0 {
+		s.envelope.mutateRandom(random, schem)
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.scope.mutateRandom(random)
+	if fieldCount <= 1 {
+		return // Metric and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.attributes.mutateRandom(random)
+	// Maybe mutate Metric
+	if random.IntN(randRange) == 0 {
+		s.metric.mutateRandom(random, schem)
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.point.mutateRandom(random)
+	if fieldCount <= 2 {
+		return // Resource and all subsequent fields are skipped.
+	}
+	// Maybe mutate Resource
+	if random.IntN(randRange) == 0 {
+		s.resource.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // Scope and all subsequent fields are skipped.
+	}
+	// Maybe mutate Scope
+	if random.IntN(randRange) == 0 {
+		s.scope.mutateRandom(random, schem)
+	}
+	if fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
+	}
+	// Maybe mutate Attributes
+	if random.IntN(randRange) == 0 {
+		s.attributes.mutateRandom(random, schem)
+	}
+	if fieldCount <= 5 {
+		return // Point and all subsequent fields are skipped.
+	}
+	// Maybe mutate Point
+	if random.IntN(randRange) == 0 {
+		s.point.mutateRandom(random, schem)
 	}
 }
 
@@ -463,30 +497,19 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metrics")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metrics")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 6
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.MetricsFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Metrics", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Envelope field.
 	if e.fieldCount <= 0 {
-		// Envelope and all subsequent fields are skipped.
-		return nil
+		return nil // Envelope and all subsequent fields are skipped.
 	}
 	if state.EnvelopeEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -502,8 +525,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Metric field.
 	if e.fieldCount <= 1 {
-		// Metric and all subsequent fields are skipped.
-		return nil
+		return nil // Metric and all subsequent fields are skipped.
 	}
 	if state.MetricEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -519,8 +541,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Resource field.
 	if e.fieldCount <= 2 {
-		// Resource and all subsequent fields are skipped.
-		return nil
+		return nil // Resource and all subsequent fields are skipped.
 	}
 	if state.ResourceEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -536,8 +557,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Scope field.
 	if e.fieldCount <= 3 {
-		// Scope and all subsequent fields are skipped.
-		return nil
+		return nil // Scope and all subsequent fields are skipped.
 	}
 	if state.ScopeEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -553,8 +573,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Attributes field.
 	if e.fieldCount <= 4 {
-		// Attributes and all subsequent fields are skipped.
-		return nil
+		return nil // Attributes and all subsequent fields are skipped.
 	}
 	if state.AttributesEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -570,8 +589,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	// Init encoder for Point field.
 	if e.fieldCount <= 5 {
-		// Point and all subsequent fields are skipped.
-		return nil
+		return nil // Point and all subsequent fields are skipped.
 	}
 	if state.PointEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -593,24 +611,48 @@ func (e *MetricsEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 
+	if e.fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
+	}
+
 	if !e.isEnvelopeRecursive {
 		e.envelopeEncoder.Reset()
+	}
+
+	if e.fieldCount <= 1 {
+		return // Metric and all subsequent fields are skipped.
 	}
 
 	if !e.isMetricRecursive {
 		e.metricEncoder.Reset()
 	}
 
+	if e.fieldCount <= 2 {
+		return // Resource and all subsequent fields are skipped.
+	}
+
 	if !e.isResourceRecursive {
 		e.resourceEncoder.Reset()
+	}
+
+	if e.fieldCount <= 3 {
+		return // Scope and all subsequent fields are skipped.
 	}
 
 	if !e.isScopeRecursive {
 		e.scopeEncoder.Reset()
 	}
 
+	if e.fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
+	}
+
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
+	}
+
+	if e.fieldCount <= 5 {
+		return // Point and all subsequent fields are skipped.
 	}
 
 	if !e.isPointRecursive {
@@ -781,25 +823,17 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	state.MetricsDecoder = d
 	defer func() { state.MetricsDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Metrics")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Metrics")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 6
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.MetricsFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Metrics", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.Init()
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
@@ -949,24 +983,48 @@ func (d *MetricsDecoder) Continue() {
 
 func (d *MetricsDecoder) Reset() {
 
+	if d.fieldCount <= 0 {
+		return // Envelope and all subsequent fields are skipped.
+	}
+
 	if !d.isEnvelopeRecursive {
 		d.envelopeDecoder.Reset()
+	}
+
+	if d.fieldCount <= 1 {
+		return // Metric and all subsequent fields are skipped.
 	}
 
 	if !d.isMetricRecursive {
 		d.metricDecoder.Reset()
 	}
 
+	if d.fieldCount <= 2 {
+		return // Resource and all subsequent fields are skipped.
+	}
+
 	if !d.isResourceRecursive {
 		d.resourceDecoder.Reset()
+	}
+
+	if d.fieldCount <= 3 {
+		return // Scope and all subsequent fields are skipped.
 	}
 
 	if !d.isScopeRecursive {
 		d.scopeDecoder.Reset()
 	}
 
+	if d.fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
+	}
+
 	if !d.isAttributesRecursive {
 		d.attributesDecoder.Reset()
+	}
+
+	if d.fieldCount <= 5 {
+		return // Point and all subsequent fields are skipped.
 	}
 
 	if !d.isPointRecursive {
@@ -1049,7 +1107,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	return nil
 }
 
-var wireSchemaMetrics = []byte{0x0F, 0x08, 0x41, 0x6E, 0x79, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x07, 0x08, 0x45, 0x6E, 0x76, 0x65, 0x6C, 0x6F, 0x70, 0x65, 0x01, 0x08, 0x45, 0x78, 0x65, 0x6D, 0x70, 0x6C, 0x61, 0x72, 0x05, 0x0D, 0x45, 0x78, 0x65, 0x6D, 0x70, 0x6C, 0x61, 0x72, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x13, 0x45, 0x78, 0x70, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x42, 0x75, 0x63, 0x6B, 0x65, 0x74, 0x73, 0x02, 0x11, 0x45, 0x78, 0x70, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x09, 0x0E, 0x48, 0x69, 0x73, 0x74, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x06, 0x4D, 0x65, 0x74, 0x72, 0x69, 0x63, 0x08, 0x07, 0x4D, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x06, 0x05, 0x50, 0x6F, 0x69, 0x6E, 0x74, 0x04, 0x0A, 0x50, 0x6F, 0x69, 0x6E, 0x74, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x0D, 0x51, 0x75, 0x61, 0x6E, 0x74, 0x69, 0x6C, 0x65, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x02, 0x08, 0x52, 0x65, 0x73, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x03, 0x05, 0x53, 0x63, 0x6F, 0x70, 0x65, 0x05, 0x0C, 0x53, 0x75, 0x6D, 0x6D, 0x61, 0x72, 0x79, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x03}
+var wireSchemaMetrics = []byte{0x0F, 0x06, 0x01, 0x08, 0x07, 0x03, 0x05, 0x04, 0x05, 0x05, 0x09, 0x02, 0x03, 0x02, 0x05, 0x02}
 
 func MetricsWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

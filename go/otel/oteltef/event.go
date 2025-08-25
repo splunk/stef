@@ -237,19 +237,45 @@ func (s *Event) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Event) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Event) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Event")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Event", err))
+	}
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
+	// Maybe mutate Name
+	if random.IntN(randRange) == 0 {
 		s.SetName(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // TimeUnixNano and all subsequent fields are skipped.
+	}
+	// Maybe mutate TimeUnixNano
+	if random.IntN(randRange) == 0 {
 		s.SetTimeUnixNano(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.attributes.mutateRandom(random)
+	if fieldCount <= 2 {
+		return // Attributes and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
+	// Maybe mutate Attributes
+	if random.IntN(randRange) == 0 {
+		s.attributes.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
+	// Maybe mutate DroppedAttributesCount
+	if random.IntN(randRange) == 0 {
 		s.SetDroppedAttributesCount(pkg.Uint64Random(random))
 	}
 }
@@ -350,30 +376,19 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Event")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Event")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.EventFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Event", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Name field.
 	if e.fieldCount <= 0 {
-		// Name and all subsequent fields are skipped.
-		return nil
+		return nil // Name and all subsequent fields are skipped.
 	}
 	err = e.nameEncoder.Init(&state.SpanEventName, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -382,8 +397,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for TimeUnixNano field.
 	if e.fieldCount <= 1 {
-		// TimeUnixNano and all subsequent fields are skipped.
-		return nil
+		return nil // TimeUnixNano and all subsequent fields are skipped.
 	}
 	err = e.timeUnixNanoEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -392,8 +406,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Attributes field.
 	if e.fieldCount <= 2 {
-		// Attributes and all subsequent fields are skipped.
-		return nil
+		return nil // Attributes and all subsequent fields are skipped.
 	}
 	if state.AttributesEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -409,8 +422,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 3 {
-		// DroppedAttributesCount and all subsequent fields are skipped.
-		return nil
+		return nil // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -424,13 +436,26 @@ func (e *EventEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	e.nameEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // TimeUnixNano and all subsequent fields are skipped.
+	}
 	e.timeUnixNanoEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Attributes and all subsequent fields are skipped.
+	}
 
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
 
+	if e.fieldCount <= 3 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
 	e.droppedAttributesCountEncoder.Reset()
 }
 
@@ -554,25 +579,17 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.EventDecoder = d
 	defer func() { state.EventDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Event")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Event")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.EventFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Event", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -644,13 +661,26 @@ func (d *EventDecoder) Continue() {
 }
 
 func (d *EventDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Name and all subsequent fields are skipped.
+	}
 	d.nameDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // TimeUnixNano and all subsequent fields are skipped.
+	}
 	d.timeUnixNanoDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Attributes and all subsequent fields are skipped.
+	}
 
 	if !d.isAttributesRecursive {
 		d.attributesDecoder.Reset()
 	}
 
+	if d.fieldCount <= 3 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
 	d.droppedAttributesCountDecoder.Reset()
 }
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go/token"
 	"strings"
+
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 func (g *Generator) oStructs() error {
@@ -81,17 +83,15 @@ func (g *Generator) oStruct(str *genStructDef) error {
 	}
 
 	if str.IsRoot {
-		prunedSchema, err := g.schema.PrunedForRoot(str.Name)
-		if err != nil {
-			return err
-		}
-		wireSchema := prunedSchema.ToWire()
+		// Prepare wire schema bytes.
+		wireSchema := schema.NewWireSchema(g.schema, str.Name)
 
 		var wireBin bytes.Buffer
 		if err := wireSchema.Serialize(&wireBin); err != nil {
 			return err
 		}
 
+		// Encode as hex string.
 		s := ""
 		for i, b := range wireBin.Bytes() {
 			if i > 0 {

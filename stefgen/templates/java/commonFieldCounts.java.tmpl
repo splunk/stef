@@ -1,0 +1,61 @@
+package {{ .PackageName }};
+
+import net.stef.schema.WireSchema;
+import net.stef.schema.WireSchemaIter;
+
+import java.io.IOException;
+
+// StructFieldCounts is used to keep track of the number of fields in each struct
+// of an associated schema and to iterate over the fields.
+// Field counts will be fetched from the iterator if the struct is encountered
+// for the first time and then remembered for subsequent calls (for the case when
+// the same struct is used multiple times in the schema).
+class CommonFieldCounts {
+    {{range $name, $val := .Structs -}}
+    private int count{{$name}}; // Number of fields in {{$name}} struct.
+    {{end}}
+    // OverrideSchemaIter is set if codec should perform a translation from specified schema.
+    WireSchemaIter overrideSchemaIter;
+
+    public void init(WireSchema overrideSchema) {
+        if (overrideSchema != null) {
+            overrideSchemaIter = new WireSchemaIter(overrideSchema);
+        }
+
+        // Initialize all struct field counts to -1, indicating that the field count
+        // is not known.
+        {{range $name, $val := .Structs -}}
+        count{{$name}} = -1;
+        {{end}}
+    }
+
+    // Get the field count for a specific struct/oneof.
+    // It is expected that the order in which this function is called matches
+    // the order in which the WireSchemaIter iterates over the structs (see WireSchema).
+    private int getFieldCount(int fieldCount, String fieldName, WireSchemaIter overrideSchemaIter, int defaultCount) throws IOException {
+        if (fieldCount == -1) {
+            // Field count is not known, we need to determine it.
+            if (overrideSchemaIter != null) {
+                // Get the field count from the override schema.
+                fieldCount = overrideSchemaIter.nextFieldCount();
+            } else {
+                // Schema is not overridden. Use the compile-time struct field count.
+                fieldCount = defaultCount;
+            }
+        } else {
+            // Field count is already known, return it.
+        }
+        return fieldCount;
+    }
+
+    {{range $name, $val := .Structs -}}
+    public int get{{$name}}FieldCount() throws IOException {
+        count{{$name}} = getFieldCount(count{{$name}}, "{{$name}}", overrideSchemaIter, {{len $val.Fields}});
+        return count{{$name}};
+    }
+
+    {{end}}
+    public boolean allFetched() {
+        return overrideSchemaIter == null || overrideSchemaIter.done();
+    }
+}

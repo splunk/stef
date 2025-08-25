@@ -40,13 +40,7 @@ class PointValueEncoder {
             prevType = PointValue.Type.TypeNone;
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("PointValue");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = 5;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getPointValueFieldCount();
             
             // Init encoder for Int64 field.
             if (this.fieldCount <= 0) {
@@ -103,18 +97,34 @@ class PointValueEncoder {
 
     public void reset() {
         prevType = PointValue.Type.TypeNone;
+        
+        if (fieldCount <= 0) {
+            return; // Int64 and all subsequent fields are skipped.
+        }
         int64Encoder.reset();
+        if (fieldCount <= 1) {
+            return; // Float64 and all subsequent fields are skipped.
+        }
         float64Encoder.reset();
+        if (fieldCount <= 2) {
+            return; // Histogram and all subsequent fields are skipped.
+        }
         
         if (!isHistogramRecursive) {
             histogramEncoder.reset();
         }
         
+        if (fieldCount <= 3) {
+            return; // ExpHistogram and all subsequent fields are skipped.
+        }
         
         if (!isExpHistogramRecursive) {
             expHistogramEncoder.reset();
         }
         
+        if (fieldCount <= 4) {
+            return; // Summary and all subsequent fields are skipped.
+        }
         
         if (!isSummaryRecursive) {
             summaryEncoder.reset();

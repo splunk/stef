@@ -5,14 +5,11 @@ package com.example.oteltef;
 import net.stef.SizeLimiter;
 import net.stef.WriterOptions;
 import net.stef.codecs.*;
-import net.stef.schema.WireSchema;
+import net.stef.schema.WireSchemaIter;
 
 public class WriterState {
+    private final CommonFieldCounts structFieldCounts = new CommonFieldCounts();
     private SizeLimiter limiter;
-
-    // overrideSchema is set if encoding should perform a translation into the target
-    // schema. The specified schema must be compatible with endoders' schema.
-    private WireSchema overrideSchema;
 
     // Dictionaries
     final StringEncoderDict AnyValueString;
@@ -84,7 +81,7 @@ public class WriterState {
 
     public void init(WriterOptions opts) {
         limiter.init(opts);
-        overrideSchema = opts.getSchema();
+        structFieldCounts.init(opts.getSchema());
 
         // Init dictionaries
         AnyValueString.init(limiter);
@@ -122,12 +119,8 @@ public class WriterState {
     }
 
     // Getters and setters for overrideSchema
-    public WireSchema getOverrideSchema() {
-        return overrideSchema;
-    }
-
-    public void setOverrideSchema(WireSchema overrideSchema) {
-        this.overrideSchema = overrideSchema;
+    public CommonFieldCounts getStructFieldCounts() {
+        return structFieldCounts;
     }
 
     public SizeLimiter getLimiter() {

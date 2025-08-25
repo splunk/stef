@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -87,7 +88,7 @@ func (d *Schema) compatibleStruct(
 	for i := range oldStruc.Fields {
 		newField := newStruct.Fields[i]
 		oldField := oldStruc.Fields[i]
-		if err := isCompatibleField(name, i, &newField, &oldField); err != nil {
+		if err := isCompatibleField(name, i, newField, oldField); err != nil {
 			return CompatibilityIncompatible, err
 		}
 	}
@@ -151,7 +152,7 @@ func isCompatibleFieldType(
 	}
 
 	if newField.Array != nil {
-		if !isCompatibleFieldType(newField.Array, oldField.Array) {
+		if !isCompatibleFieldType(&newField.Array.ElemType, &oldField.Array.ElemType) {
 			return false
 		}
 	}
@@ -178,12 +179,95 @@ func (d *Schema) PrunedForRoot(rootStructName string) (*Schema, error) {
 	out := Schema{
 		Structs:   map[string]*Struct{},
 		Multimaps: map[string]*Multimap{},
+		Enums:     map[string]*Enum{},
 	}
 	if err := d.copyPrunedStruct(rootStructName, &out); err != nil {
 		return nil, err
 	}
 
+	err := out.ResolveRefs()
+	if err != nil {
+		return nil, err
+	}
+
 	return &out, nil
+}
+
+// ResolveRefs resolves all type references by names to structs, multimaps,
+// arrays and enums in the schema to pointers to appropriate objects in the schema.
+func (d *Schema) ResolveRefs() error {
+	for _, v := range d.Structs {
+		for i := range v.Fields {
+			field := v.Fields[i]
+			if err := d.resolveFieldType(&field.FieldType); err != nil {
+				return err
+			}
+		}
+	}
+	for _, v := range d.Multimaps {
+		if err := d.resolveFieldType(&v.Key.Type); err != nil {
+			return err
+		}
+		if err := d.resolveFieldType(&v.Value.Type); err != nil {
+			return err
+		}
+	}
+
+	return d.computeRecursive()
+}
+
+func (d *Schema) resolveFieldType(fieldType *FieldType) error {
+	var typeName string
+	if fieldType.Struct != "" {
+		typeName = fieldType.Struct
+	} else if fieldType.MultiMap != "" {
+		typeName = fieldType.MultiMap
+	} else if fieldType.Enum != "" {
+		typeName = fieldType.Enum
+	}
+
+	if typeName != "" {
+		matches := 0
+		var isStruct bool
+		fieldType.StructDef, isStruct = d.Structs[typeName]
+		if isStruct {
+			matches++
+		}
+
+		var isMultimap bool
+		fieldType.MultimapDef, isMultimap = d.Multimaps[typeName]
+		if isMultimap {
+			fieldType.MultiMap = typeName
+			fieldType.Struct = ""
+			matches++
+		}
+
+		_, isEnum := d.Enums[typeName]
+		if isEnum {
+			// All enums are uint64.
+			fieldType.Primitive = &PrimitiveType{Type: PrimitiveTypeUint64}
+			fieldType.Enum = typeName
+			fieldType.Struct = ""
+			matches++
+		}
+
+		if matches == 0 {
+			return errors.New("unknown type: " + typeName)
+		}
+		if matches > 1 {
+			return errors.New("ambiguous type: " + typeName)
+		}
+		return nil
+	}
+
+	if fieldType.Array != nil {
+		if err := d.resolveFieldType(&fieldType.Array.ElemType); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return nil
 }
 
 func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
@@ -196,7 +280,11 @@ func (d *Schema) copyPrunedFieldType(fieldType *FieldType, dst *Schema) error {
 			return err
 		}
 	} else if fieldType.Array != nil {
-		if err := d.copyPrunedFieldType(fieldType.Array, dst); err != nil {
+		if err := d.copyPrunedFieldType(&fieldType.Array.ElemType, dst); err != nil {
+			return err
+		}
+	} else if fieldType.Enum != "" {
+		if err := d.copyPrunedEnum(fieldType.Enum, dst); err != nil {
 			return err
 		}
 	}
@@ -219,12 +307,12 @@ func (d *Schema) copyPrunedStruct(strucName string, dst *Schema) error {
 		OneOf:    srcStruc.OneOf,
 		DictName: srcStruc.DictName,
 		IsRoot:   srcStruc.IsRoot,
-		Fields:   make([]StructField, len(srcStruc.Fields)),
+		Fields:   make([]*StructField, len(srcStruc.Fields)),
 	}
 	dst.Structs[strucName] = dstStruc
 
 	for i := range srcStruc.Fields {
-		dstStruc.Fields[i] = srcStruc.Fields[i]
+		dstStruc.Fields[i] = srcStruc.Fields[i].Clone()
 		if err := d.copyPrunedFieldType(&dstStruc.Fields[i].FieldType, dst); err != nil {
 			return err
 		}
@@ -246,8 +334,8 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 
 	dstMultimap := &Multimap{
 		Name:  multiMapName,
-		Key:   srcMultiMap.Key,
-		Value: srcMultiMap.Value,
+		Key:   srcMultiMap.Key.Clone(),
+		Value: srcMultiMap.Value.Clone(),
 	}
 	dst.Multimaps[multiMapName] = dstMultimap
 
@@ -262,28 +350,164 @@ func (d *Schema) copyPrunedMultiMap(multiMapName string, dst *Schema) error {
 	return nil
 }
 
-func (d *Schema) ToWire() WireSchema {
-	w := WireSchema{
-		StructFieldCount: make(map[string]uint),
+func (d *Schema) copyPrunedEnum(enumName string, dst *Schema) error {
+	if dst.Enums[enumName] != nil {
+		// already copied
+		return nil
 	}
-	for k, v := range d.Structs {
-		w.StructFieldCount[k] = uint(len(v.Fields))
+
+	srcEnum := d.Enums[enumName]
+	if srcEnum == nil {
+		return fmt.Errorf("no enum named %s found", enumName)
 	}
-	return w
+
+	dstEnum := &Enum{
+		Name: enumName,
+	}
+	for i := range srcEnum.Fields {
+		dstEnum.Fields = append(dstEnum.Fields, srcEnum.Fields[i])
+	}
+
+	dst.Enums[enumName] = dstEnum
+
+	return nil
+}
+
+// FieldCount returns the number of fields in the specified struct.
+func (d *Schema) FieldCount(structName string) (int, error) {
+	struc := d.Structs[structName]
+	if struc == nil {
+		return 0, fmt.Errorf("struct %s not found", structName)
+	}
+	return len(struc.Fields), nil
+}
+
+func (d *Schema) computeRecursive() error {
+	for _, struc := range d.Structs {
+		if !struc.IsRoot {
+			continue
+		}
+		stack := recurseStack{asMap: map[string]bool{}}
+		computeRecursiveStruct(struc, &stack)
+	}
+	return nil
+}
+
+func markRecursive(typeName string, stack *recurseStack) {
+	startIdx := findLast(stack.asStack, typeName)
+	if startIdx == -1 {
+		panic("invalid state")
+	}
+	for i := startIdx; i < len(stack.fields); i++ {
+		stack.fields[i].SetRecursive()
+	}
+}
+
+func findLast(stack []string, name string) int {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func computeRecursiveStruct(struc *Struct, stack *recurseStack) {
+	stack.asStack = append(stack.asStack, struc.Name)
+	stack.asMap[struc.Name] = true
+
+	for _, field := range struc.Fields {
+		stack.fields = append(stack.fields, field)
+		computeRecursiveType(field.FieldType, stack)
+		stack.fields = stack.fields[:len(stack.fields)-1]
+	}
+
+	stack.asStack = stack.asStack[:len(stack.asStack)-1]
+	delete(stack.asMap, struc.Name)
+}
+
+func computeRecursiveMultimap(multimap *Multimap, stack *recurseStack) {
+	stack.asStack = append(stack.asStack, multimap.Name)
+	stack.asMap[multimap.Name] = true
+
+	stack.fields = append(stack.fields, &multimap.Key)
+	computeRecursiveType(multimap.Key.Type, stack)
+	stack.fields = stack.fields[:len(stack.fields)-1]
+
+	stack.fields = append(stack.fields, &multimap.Value)
+	computeRecursiveType(multimap.Value.Type, stack)
+	stack.fields = stack.fields[:len(stack.fields)-1]
+
+	stack.asStack = stack.asStack[:len(stack.asStack)-1]
+	delete(stack.asMap, multimap.Name)
+}
+
+func computeRecursiveType(typ FieldType, stack *recurseStack) {
+	if typ.Primitive != nil {
+		// Primitive types are not recursive.
+		return
+	}
+	if typ.Struct != "" {
+		if stack.asMap[typ.Struct] {
+			markRecursive(typ.Struct, stack)
+		} else {
+			computeRecursiveStruct(typ.StructDef, stack)
+		}
+		return
+	}
+	if typ.MultiMap != "" {
+		if stack.asMap[typ.MultiMap] {
+			markRecursive(typ.MultiMap, stack)
+		} else {
+			computeRecursiveMultimap(typ.MultimapDef, stack)
+		}
+		return
+	}
+	if typ.Array != nil {
+		computeRecursiveType(typ.Array.ElemType, stack)
+		return
+	}
+
+	panic("unknown type")
 }
 
 type Struct struct {
-	Name     string        `json:"name,omitempty"`
-	OneOf    bool          `json:"oneof,omitempty"`
-	DictName string        `json:"dict,omitempty"`
-	IsRoot   bool          `json:"root,omitempty"`
-	Fields   []StructField `json:"fields"`
+	Name     string         `json:"name,omitempty"`
+	OneOf    bool           `json:"oneof,omitempty"`
+	DictName string         `json:"dict,omitempty"`
+	IsRoot   bool           `json:"root,omitempty"`
+	Fields   []*StructField `json:"fields"`
+
+	// recursive is true if this struct type definition is self-recursive
+	// or mutually recursive.
+	recursive bool
+}
+
+func (s Struct) Recursive() bool {
+	return s.recursive
 }
 
 type StructField struct {
 	FieldType
 	Name     string `json:"name,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
+}
+
+func (s *StructField) Clone() *StructField {
+	clone := &StructField{
+		FieldType: s.FieldType.Clone(),
+		Name:      s.Name,
+		Optional:  s.Optional,
+	}
+	return clone
+}
+
+func (s *StructField) SetRecursive() {
+	s.FieldType.SetRecursive()
+}
+
+func (s *StructField) Recursive() bool {
+	return s.FieldType.Recursive()
 }
 
 type PrimitiveFieldType int
@@ -297,23 +521,104 @@ const (
 	PrimitiveTypeBytes
 )
 
-type FieldType struct {
-	Primitive *PrimitiveFieldType `json:"primitive,omitempty"`
-	Array     *FieldType          `json:"array,omitempty"`
-	Struct    string              `json:"struct,omitempty"`
-	MultiMap  string              `json:"multimap,omitempty"`
-	Enum      string
-	DictName  string `json:"dict,omitempty"`
+type PrimitiveType struct {
+	Type PrimitiveFieldType
 }
 
+type ArrayType struct {
+	ElemType FieldType `json:"elem,omitempty"`
+
+	// recursive is true if this array type definition is self-recursive
+	// or mutually recursive.
+	recursive bool
+}
+
+// FieldType describes a field type of in a struct, multimap key or value or array element.
+type FieldType struct {
+	// Only one of the following 5 fields should be set.
+	Primitive *PrimitiveType `json:"primitive,omitempty"`
+	Array     *ArrayType     `json:"array,omitempty"`
+	Struct    string         `json:"struct,omitempty"`
+	MultiMap  string         `json:"multimap,omitempty"`
+	Enum      string
+
+	// DictName is the name of the dictionary if the field dictionary-encoded.
+	DictName string `json:"dict,omitempty"`
+
+	// StructDef and MultimapDef are pointers to the struct or multimap definitions
+	// that are named in Struct or MultiMap fields.
+	StructDef   *Struct
+	MultimapDef *Multimap
+}
+
+func (t *FieldType) Clone() FieldType {
+	clone := FieldType{
+		Primitive: t.Primitive,
+		Array:     t.Array,
+		Struct:    t.Struct,
+		MultiMap:  t.MultiMap,
+		Enum:      t.Enum,
+		DictName:  t.DictName,
+	}
+	if t.Array != nil {
+		clone.Array = &ArrayType{ElemType: t.Array.ElemType.Clone()}
+	}
+	return clone
+}
+
+func (t *FieldType) SetRecursive() {
+	switch {
+	case t.Primitive != nil:
+		panic("cannot set recursive on Primitive")
+	case t.Array != nil:
+		t.Array.recursive = true
+	case t.StructDef != nil:
+		t.StructDef.recursive = true
+	case t.MultimapDef != nil:
+		t.MultimapDef.recursive = true
+	default:
+		panic("invalid FieldType")
+	}
+}
+
+func (t *FieldType) Recursive() bool {
+	switch {
+	case t.Primitive != nil:
+		return false
+	case t.Array != nil:
+		return t.Array.recursive
+	case t.StructDef != nil:
+		return t.StructDef.recursive
+	case t.MultimapDef != nil:
+		return t.MultimapDef.recursive
+	default:
+		panic("invalid FieldType")
+	}
+}
+
+// MultimapField is either a key or a value field in a multimap.
 type MultimapField struct {
 	Type FieldType `json:"type"`
+}
+
+func (m *MultimapField) SetRecursive() {
+	m.Type.SetRecursive()
+}
+
+func (m *MultimapField) Clone() MultimapField {
+	return MultimapField{
+		Type: m.Type.Clone(),
+	}
 }
 
 type Multimap struct {
 	Name  string        `json:"name,omitempty"`
 	Key   MultimapField `json:"key"`
 	Value MultimapField `json:"value"`
+
+	// recursive is true if this multimap type definition is self-recursive
+	// or mutually recursive.
+	recursive bool
 }
 
 type Enum struct {

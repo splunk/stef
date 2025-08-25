@@ -43,15 +43,8 @@ class PointEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Point");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 4;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getPointFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for StartTimestamp field.
             if (this.fieldCount <= 0) {
@@ -98,13 +91,26 @@ class PointEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // StartTimestamp and all subsequent fields are skipped.
+        }
         startTimestampEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Timestamp and all subsequent fields are skipped.
+        }
         timestampEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Value and all subsequent fields are skipped.
+        }
         
         if (!isValueRecursive) {
             valueEncoder.reset();
         }
         
+        if (fieldCount <= 3) {
+            return; // Exemplars and all subsequent fields are skipped.
+        }
         
         if (!isExemplarsRecursive) {
             exemplarsEncoder.reset();

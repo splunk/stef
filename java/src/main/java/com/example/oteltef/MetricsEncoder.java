@@ -47,15 +47,8 @@ class MetricsEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Metrics");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 6;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getMetricsFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Envelope field.
             if (this.fieldCount <= 0) {
@@ -139,30 +132,49 @@ class MetricsEncoder {
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
         
+        if (fieldCount <= 0) {
+            return; // Envelope and all subsequent fields are skipped.
+        }
+        
         if (!isEnvelopeRecursive) {
             envelopeEncoder.reset();
         }
         
+        if (fieldCount <= 1) {
+            return; // Metric and all subsequent fields are skipped.
+        }
         
         if (!isMetricRecursive) {
             metricEncoder.reset();
         }
         
+        if (fieldCount <= 2) {
+            return; // Resource and all subsequent fields are skipped.
+        }
         
         if (!isResourceRecursive) {
             resourceEncoder.reset();
         }
         
+        if (fieldCount <= 3) {
+            return; // Scope and all subsequent fields are skipped.
+        }
         
         if (!isScopeRecursive) {
             scopeEncoder.reset();
         }
         
+        if (fieldCount <= 4) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 5) {
+            return; // Point and all subsequent fields are skipped.
+        }
         
         if (!isPointRecursive) {
             pointEncoder.reset();

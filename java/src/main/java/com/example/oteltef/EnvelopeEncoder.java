@@ -37,15 +37,8 @@ class EnvelopeEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 1;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Attributes field.
             if (this.fieldCount <= 0) {
@@ -68,6 +61,10 @@ class EnvelopeEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();

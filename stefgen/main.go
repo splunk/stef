@@ -51,6 +51,7 @@ func main() {
 	fmt.Printf("Generating %s code to %s\n", *lang, *outDir)
 
 	g := generator.Generator{
+		SchemaContent: schemaContent,
 		OutputDir:     *outDir,
 		TestOutputDir: *testOutDir,
 		Lang:          generator.Lang(*lang),

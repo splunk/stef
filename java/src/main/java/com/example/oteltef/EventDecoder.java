@@ -35,12 +35,8 @@ class EventDecoder {
         state.EventDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Event");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 4;
-            }
+            fieldCount = state.getStructFieldCounts().getEventFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Event(null, 0);
@@ -107,10 +103,27 @@ class EventDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Name and all subsequent fields are skipped.
+            return;
+        }
         nameDecoder.reset();
+        if (fieldCount <= 1) {
+            // TimeUnixNano and all subsequent fields are skipped.
+            return;
+        }
         timeUnixNanoDecoder.reset();
+        if (fieldCount <= 2) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
+        }
+        if (fieldCount <= 3) {
+            // DroppedAttributesCount and all subsequent fields are skipped.
+            return;
         }
         droppedAttributesCountDecoder.reset();
     }

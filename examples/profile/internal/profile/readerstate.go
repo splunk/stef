@@ -9,9 +9,7 @@ import (
 var _ = (*encoders.StringEncoder)(nil)
 
 type ReaderState struct {
-	// OverrideSchema is set if decoding should perform a translation from specified
-	// schema. OverrideSchema must be compatible with decoders' schema.
-	OverrideSchema *schema.WireSchema
+	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
 	BuildID         encoders.StringDecoderDict
@@ -46,7 +44,8 @@ type ReaderState struct {
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
-	d.OverrideSchema = overrideSchema
+	d.StructFieldCounts.Init(overrideSchema)
+
 	d.BuildID.Init()
 	d.Comment.Init()
 	d.Filename.Init()

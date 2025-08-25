@@ -52,20 +52,11 @@ func (s *genSchema) SchemaStr() string {
 	return str
 }
 
-type recursable interface {
-	SetRecursive()
-}
-
 type genStructFieldDef struct {
 	Name      string
 	Type      genFieldTypeRef
 	Optional  bool
 	Recursive bool
-}
-
-func (a *genStructFieldDef) SetRecursive() {
-	a.Recursive = true
-	a.Type.SetRecursive()
 }
 
 type TypeFlags struct {
@@ -121,9 +112,6 @@ type genFieldTypeRef interface {
 	SchemaStr() string
 
 	Flags() TypeFlags
-
-	// SetRecursive marks the type as recursive.
-	SetRecursive()
 }
 
 type genPrimitiveTypeRef struct {
@@ -446,25 +434,18 @@ func (r *genPrimitiveTypeRef) SchemaStr() string {
 	return str
 }
 
-func (r *genPrimitiveTypeRef) SetRecursive() {
-	panic("primitive types cannot be recursive")
-}
-
 type genStructDef struct {
+	Def    *schema.Struct
 	Name   string
 	Dict   string
 	Fields []*genStructFieldDef
 	OneOf  bool
 	IsRoot bool
-
-	// isRecursive is true if this struct type is recursive, i.e. it contains a field
-	// that directly or via other types refers to this struct.
-	isRecursive bool
 }
 
 func (r *genStructDef) Flags() TypeFlags {
 	storeByPtr := r.Dict != "" || // dictionary-encoded structs are stored by pointer to dictionary element
-		r.isRecursive // recursive structs are stored by pointer to break the recursion
+		r.Def.Recursive() // recursive structs are stored by pointer to break the recursion
 
 	return TypeFlags{
 		PassByPtr:  true,
@@ -472,17 +453,13 @@ func (r *genStructDef) Flags() TypeFlags {
 		TakePtr:    !storeByPtr,
 		// Recursive structs are already stored by pointer, no need to take pointer of that.
 		// See implementations of Decode() methods.
-		DecodeByPtr: !r.isRecursive,
+		DecodeByPtr: !r.Def.Recursive(),
 	}
 }
 
 type genMapFieldDef struct {
 	Type      genFieldTypeRef
 	Recursive bool
-}
-
-func (a *genMapFieldDef) SetRecursive() {
-	a.Recursive = true
 }
 
 type genMapDef struct {
@@ -577,11 +554,6 @@ func (r *genStructTypeRef) Flags() TypeFlags {
 	return r.Def.Flags()
 }
 
-func (r *genStructTypeRef) SetRecursive() {
-	// Mark struct definition as recursive.
-	r.Def.isRecursive = true
-}
-
 type genArrayTypeRef struct {
 	ElemType genFieldTypeRef
 	// Lang is the language for which code is being generated.
@@ -666,12 +638,6 @@ func (r *genArrayTypeRef) MustClone() bool {
 
 func (r *genArrayTypeRef) IDLMangledName() string {
 	return r.ElemType.IDLMangledName() + "Array"
-}
-
-func (r *genArrayTypeRef) SetRecursive() {
-	// Arrays don't need a special marker for being recursive since the elements are
-	// stored by pointer anyway and don't require additional pointer indirection
-	// to break declaration recursion.
 }
 
 type genMultimapTypeRef struct {
@@ -759,12 +725,6 @@ func (r *genMultimapTypeRef) Flags() TypeFlags {
 		TakePtr:     true,
 		DecodeByPtr: true,
 	}
-}
-
-func (r *genMultimapTypeRef) SetRecursive() {
-	// Multimaps don't need a special marker for being recursive since the elements are
-	// stored by pointer anyway and don't require additional pointer indirection
-	// to break declaration recursion.
 }
 
 type genEnumDef struct {

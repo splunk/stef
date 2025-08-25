@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
@@ -128,8 +129,8 @@ func (s *JsonValue) SetBool(v bool) {
 	}
 }
 
-func (s *JsonValue) Clone() JsonValue {
-	return JsonValue{
+func (s *JsonValue) Clone() *JsonValue {
+	return &JsonValue{
 		object: s.object.Clone(),
 		array:  s.array.Clone(),
 		string: s.string,
@@ -302,9 +303,17 @@ func CmpJsonValue(left, right *JsonValue) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *JsonValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = 5
+// random parameter as a deterministic generator. Only fields that exist
+// in the schema are mutated, allowing to generate data for specified schema.
+func (s *JsonValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this oneof from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// the type of the oneof to the choices that are not in the schema.
+	fieldCount, err := schem.FieldCount("JsonValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "JsonValue", err))
+	}
+
 	typeChanged := false
 	if random.IntN(10) == 0 {
 		s.SetType(JsonValueType(random.IntN(fieldCount + 1)))
@@ -314,11 +323,11 @@ func (s *JsonValue) mutateRandom(random *rand.Rand) {
 	switch s.typ {
 	case JsonValueTypeObject:
 		if typeChanged || random.IntN(2) == 0 {
-			s.object.mutateRandom(random)
+			s.object.mutateRandom(random, schem)
 		}
 	case JsonValueTypeArray:
 		if typeChanged || random.IntN(2) == 0 {
-			s.array.mutateRandom(random)
+			s.array.mutateRandom(random, schem)
 		}
 	case JsonValueTypeString:
 		if typeChanged || random.IntN(2) == 0 {
@@ -367,20 +376,11 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("JsonValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "JsonValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 5
-	}
-
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.JsonValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
+	}
 
 	// Init encoder for Object field.
 	if e.fieldCount <= 0 {
@@ -452,16 +452,33 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 func (e *JsonValueEncoder) Reset() {
 	e.prevType = 0
 
+	if e.fieldCount <= 0 {
+		return // Object and all subsequent fields are skipped.
+	}
+
 	if !e.isObjectRecursive {
 		e.objectEncoder.Reset()
+	}
+
+	if e.fieldCount <= 1 {
+		return // Array and all subsequent fields are skipped.
 	}
 
 	if !e.isArrayRecursive {
 		e.arrayEncoder.Reset()
 	}
 
+	if e.fieldCount <= 2 {
+		return // String and all subsequent fields are skipped.
+	}
 	e.stringEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // Number and all subsequent fields are skipped.
+	}
 	e.numberEncoder.Reset()
+	if e.fieldCount <= 4 {
+		return // Bool and all subsequent fields are skipped.
+	}
 	e.boolEncoder.Reset()
 }
 
@@ -583,25 +600,16 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	state.JsonValueDecoder = d
 	defer func() { state.JsonValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("JsonValue")
-		if !ok {
-			return fmt.Errorf("cannot find oneof in override schema: %s", "JsonValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 5
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.JsonValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 	if d.fieldCount <= 0 {
 		return nil // Object and subsequent fields are skipped.
 	}
@@ -699,16 +707,33 @@ func (d *JsonValueDecoder) Continue() {
 func (d *JsonValueDecoder) Reset() {
 	d.prevType = 0
 
+	if d.fieldCount <= 0 {
+		return // Object and all subsequent fields are skipped.
+	}
+
 	if !d.isObjectRecursive {
 		d.objectDecoder.Reset()
+	}
+
+	if d.fieldCount <= 1 {
+		return // Array and all subsequent fields are skipped.
 	}
 
 	if !d.isArrayRecursive {
 		d.arrayDecoder.Reset()
 	}
 
+	if d.fieldCount <= 2 {
+		return // String and all subsequent fields are skipped.
+	}
 	d.stringDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // Number and all subsequent fields are skipped.
+	}
 	d.numberDecoder.Reset()
+	if d.fieldCount <= 4 {
+		return // Bool and all subsequent fields are skipped.
+	}
 	d.boolDecoder.Reset()
 }
 

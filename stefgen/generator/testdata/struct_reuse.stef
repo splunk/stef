@@ -1,0 +1,10 @@
+package com.example.gentest.struct_reuse
+
+struct Record root {
+  F1 Struct
+  F2 Struct // The same struct again.
+}
+
+struct Struct {
+  F1 float64
+}

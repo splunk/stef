@@ -47,15 +47,8 @@ class LinkEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Link");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 6;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getLinkFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for TraceID field.
             if (this.fieldCount <= 0) {
@@ -108,15 +101,34 @@ class LinkEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // TraceID and all subsequent fields are skipped.
+        }
         traceIDEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // SpanID and all subsequent fields are skipped.
+        }
         spanIDEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // TraceState and all subsequent fields are skipped.
+        }
         traceStateEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // Flags and all subsequent fields are skipped.
+        }
         flagsEncoder.reset();
+        if (fieldCount <= 4) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 5) {
+            return; // DroppedAttributesCount and all subsequent fields are skipped.
+        }
         droppedAttributesCountEncoder.reset();
     }
 

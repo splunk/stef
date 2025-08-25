@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/idl"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var generateFlag = flag.Bool("generate", false, "stef -generate -root=structname -out=filename [-seed=seed]")
@@ -103,7 +105,7 @@ func diffData(rootStruct, fname1, fname2 string) error {
 	}
 
 	switch rootStruct {
-{{ range $i, $StructName := .Structs }}
+{{ range $i, $StructName := .RootStructs }}
 	case "{{$StructName}}":
 		reader1, err := New{{$StructName}}Reader(file1)
 		if err != nil {
@@ -179,7 +181,7 @@ func copyData(rootStruct, sourceFname, destFname string) (retErr error) {
 	dst := pkg.NewWrapChunkWriter(destFile)
 
 	switch rootStruct {
-{{ range $i, $StructName := .Structs }}
+{{ range $i, $StructName := .RootStructs }}
 	case "{{$StructName}}":
 		reader, err := New{{$StructName}}Reader(sourceFile)
 		if err != nil {
@@ -240,11 +242,11 @@ func generateData(rootStruct, outFileName string, randSeed uint64, recordCount u
 	dst := pkg.NewWrapChunkWriter(outFile)
 
 	switch rootStruct {
-{{ range $i, $StructName := .Structs }}
+{{ range $i, $StructName := .RootStructs }}
 	case "{{$StructName}}":
-		writer, err := New{{$StructName}}Writer(dst, pkg.WriterOptions{})
+		schem, err := idl.Parse([]byte(allSchemaContent), "")
 		if err != nil {
-			return err
+			return fmt.Errorf("Error loading schema: %v", err)
 		}
 
 		if randSeed == 0 {
@@ -253,8 +255,29 @@ func generateData(rootStruct, outFileName string, randSeed uint64, recordCount u
 		}
 		random := rand.New(rand.NewPCG(randSeed, 0))
 
+		opts := pkg.WriterOptions{}
+		if random.IntN(2) == 0 { // Approx half of the times specify the schema in the writer.
+			if random.IntN(2) == 0 { // Randomly shrink the schema.
+				// This is to test that the writer/reader can handle schema changes.
+				schema.ShrinkRandomly(random, schem)
+			}
+
+			wireSchema := schema.NewWireSchema(schem, "{{$StructName}}")
+			opts.Schema = &wireSchema
+		}
+
+		if random.IntN(2) == 0 { // Approx half of the times use compression and frame restarts.
+			opts.FrameRestartFlags = pkg.RestartDictionaries | pkg.RestartCodecs | pkg.RestartCompression
+			opts.Compression = pkg.CompressionZstd
+		}
+
+		writer, err := New{{$StructName}}Writer(dst, opts)
+		if err != nil {
+			return err
+		}
+
 		for i := uint64(0); i < recordCount; i++ {
-			writer.Record.mutateRandom(random)
+			writer.Record.mutateRandom(random, schem)
 			err = writer.Write()
 			if err != nil {
 				return fmt.Errorf("Error writing record %d: %v", i, err)

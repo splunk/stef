@@ -32,16 +32,17 @@ func TestGenerate(t *testing.T) {
 				err = parser.Parse()
 				require.NoError(t, err)
 
-				wireSchema := parser.Schema()
+				parsedSchema := parser.Schema()
 
 				// Generate the Go code
 				genGo := Generator{
-					OutputDir: path.Join("testdata", "out", path.Base(file)),
-					Lang:      LangGo,
-					genTools:  true, // Generate testing tools
+					SchemaContent: schemaContent,
+					OutputDir:     path.Join("testdata", "out", path.Base(file)),
+					Lang:          LangGo,
+					genTools:      true, // Generate testing tools
 				}
 
-				err = genGo.GenFile(wireSchema)
+				err = genGo.GenFile(parsedSchema)
 				require.NoError(t, err)
 
 				fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
@@ -57,13 +58,14 @@ func TestGenerate(t *testing.T) {
 				// Generate the Java code
 				javaDir := path.Join("../../java/src/test/java")
 				genJava := Generator{
+					SchemaContent: schemaContent,
 					OutputDir:     javaDir,
 					TestOutputDir: javaDir,
 					Lang:          LangJava,
 					genTools:      true, // Generate testing tools
 				}
 
-				err = genJava.GenFile(wireSchema)
+				err = genJava.GenFile(parsedSchema)
 				require.NoError(t, err)
 			},
 		)

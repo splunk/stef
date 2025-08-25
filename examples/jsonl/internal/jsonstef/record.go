@@ -19,7 +19,7 @@ var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
 type Record struct {
-	value JsonValue
+	value *JsonValue
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -47,11 +47,12 @@ func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
+	s.value = &JsonValue{}
 	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
 }
 
 func (s *Record) Value() *JsonValue {
-	return &s.value
+	return s.value
 }
 
 func (s *Record) markValueModified() {
@@ -86,7 +87,7 @@ func (s *Record) markUnmodifiedRecursively() {
 // markDiffModified marks fields in this struct modified if they differ from
 // the corresponding fields in v.
 func (s *Record) markDiffModified(v *Record) (modified bool) {
-	if s.value.markDiffModified(&v.value) {
+	if s.value.markDiffModified(v.value) {
 		s.modifiedFields.markModified(fieldModifiedRecordValue)
 		modified = true
 	}
@@ -108,7 +109,13 @@ func (s *Record) byteSize() uint {
 }
 
 func copyRecord(dst *Record, src *Record) {
-	copyJsonValue(&dst.value, &src.value)
+	if src.value != nil {
+		if dst.value == nil {
+			dst.value = &JsonValue{}
+			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		}
+		copyJsonValue(dst.value, src.value)
+	}
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -126,18 +133,32 @@ func (s *Record) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Record) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(1, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
-		s.value.mutateRandom(random)
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Record) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Record")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Record", err))
+	}
+
+	const randRange = max(1, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Value and all subsequent fields are skipped.
+	}
+	// Maybe mutate Value
+	if random.IntN(randRange) == 0 {
+		s.value.mutateRandom(random, schem)
 	}
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Record) IsEqual(right *Record) bool {
 	// Compare Value field.
-	if !s.value.IsEqual(&right.value) {
+	if !s.value.IsEqual(right.value) {
 		return false
 	}
 
@@ -162,7 +183,7 @@ func CmpRecord(left, right *Record) int {
 	}
 
 	// Compare Value field.
-	if c := CmpJsonValue(&left.value, &right.value); c != 0 {
+	if c := CmpJsonValue(left.value, right.value); c != 0 {
 		return c
 	}
 
@@ -197,30 +218,19 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Record")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Record")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 1
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.RecordFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Record", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Value field.
 	if e.fieldCount <= 0 {
-		// Value and all subsequent fields are skipped.
-		return nil
+		return nil // Value and all subsequent fields are skipped.
 	}
 	if state.JsonValueEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -241,6 +251,10 @@ func (e *RecordEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Value and all subsequent fields are skipped.
+	}
 
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
@@ -273,7 +287,7 @@ func (e *RecordEncoder) Encode(val *Record) {
 
 	if fieldMask&fieldModifiedRecordValue != 0 {
 		// Encode Value
-		e.valueEncoder.Encode(&val.value)
+		e.valueEncoder.Encode(val.value)
 	}
 
 	// Account written bits in the limiter.
@@ -320,25 +334,17 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	state.RecordDecoder = d
 	defer func() { state.RecordDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Record")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Record")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 1
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.RecordFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Record", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.Init()
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Value and subsequent fields are skipped.
@@ -378,6 +384,10 @@ func (d *RecordDecoder) Continue() {
 
 func (d *RecordDecoder) Reset() {
 
+	if d.fieldCount <= 0 {
+		return // Value and all subsequent fields are skipped.
+	}
+
 	if !d.isValueRecursive {
 		d.valueDecoder.Reset()
 	}
@@ -394,7 +404,12 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 
 	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 {
 		// Field is changed and is present, decode it.
-		err = d.valueDecoder.Decode(&val.value)
+		if val.value == nil {
+			val.value = &JsonValue{}
+			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
+		}
+
+		err = d.valueDecoder.Decode(val.value)
 		if err != nil {
 			return err
 		}
@@ -403,7 +418,7 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	return nil
 }
 
-var wireSchemaRecord = []byte{0x02, 0x09, 0x4A, 0x73, 0x6F, 0x6E, 0x56, 0x61, 0x6C, 0x75, 0x65, 0x05, 0x06, 0x52, 0x65, 0x63, 0x6F, 0x72, 0x64, 0x01}
+var wireSchemaRecord = []byte{0x02, 0x01, 0x05}
 
 func RecordWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema

@@ -346,23 +346,53 @@ func (s *HistogramValue) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *HistogramValue) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(5, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *HistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("HistogramValue")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "HistogramValue", err))
+	}
+
+	const randRange = max(5, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Count and all subsequent fields are skipped.
+	}
+	// Maybe mutate Count
+	if random.IntN(randRange) == 0 {
 		s.SetCount(pkg.Int64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // Sum and all subsequent fields are skipped.
+	}
+	// Maybe mutate Sum
+	if random.IntN(randRange) == 0 {
 		s.SetSum(pkg.Float64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 2 {
+		return // Min and all subsequent fields are skipped.
+	}
+	// Maybe mutate Min
+	if random.IntN(randRange) == 0 {
 		s.SetMin(pkg.Float64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 3 {
+		return // Max and all subsequent fields are skipped.
+	}
+	// Maybe mutate Max
+	if random.IntN(randRange) == 0 {
 		s.SetMax(pkg.Float64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.bucketCounts.mutateRandom(random)
+	if fieldCount <= 4 {
+		return // BucketCounts and all subsequent fields are skipped.
+	}
+	// Maybe mutate BucketCounts
+	if random.IntN(randRange) == 0 {
+		s.bucketCounts.mutateRandom(random, schem)
 	}
 }
 
@@ -521,30 +551,19 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("HistogramValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "HistogramValue")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 5
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.HistogramValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "HistogramValue", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Count field.
 	if e.fieldCount <= 0 {
-		// Count and all subsequent fields are skipped.
-		return nil
+		return nil // Count and all subsequent fields are skipped.
 	}
 	err = e.countEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -553,8 +572,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 
 	// Init encoder for Sum field.
 	if e.fieldCount <= 1 {
-		// Sum and all subsequent fields are skipped.
-		return nil
+		return nil // Sum and all subsequent fields are skipped.
 	}
 	err = e.sumEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -563,8 +581,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 
 	// Init encoder for Min field.
 	if e.fieldCount <= 2 {
-		// Min and all subsequent fields are skipped.
-		return nil
+		return nil // Min and all subsequent fields are skipped.
 	}
 	err = e.minEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -573,8 +590,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 
 	// Init encoder for Max field.
 	if e.fieldCount <= 3 {
-		// Max and all subsequent fields are skipped.
-		return nil
+		return nil // Max and all subsequent fields are skipped.
 	}
 	err = e.maxEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -583,8 +599,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 
 	// Init encoder for BucketCounts field.
 	if e.fieldCount <= 4 {
-		// BucketCounts and all subsequent fields are skipped.
-		return nil
+		return nil // BucketCounts and all subsequent fields are skipped.
 	}
 	if state.Int64ArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -605,10 +620,26 @@ func (e *HistogramValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // Count and all subsequent fields are skipped.
+	}
 	e.countEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Sum and all subsequent fields are skipped.
+	}
 	e.sumEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Min and all subsequent fields are skipped.
+	}
 	e.minEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // Max and all subsequent fields are skipped.
+	}
 	e.maxEncoder.Reset()
+	if e.fieldCount <= 4 {
+		return // BucketCounts and all subsequent fields are skipped.
+	}
 
 	if !e.isBucketCountsRecursive {
 		e.bucketCountsEncoder.Reset()
@@ -759,25 +790,17 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	state.HistogramValueDecoder = d
 	defer func() { state.HistogramValueDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("HistogramValue")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "HistogramValue")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 5
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.HistogramValueFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "HistogramValue", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
@@ -860,10 +883,26 @@ func (d *HistogramValueDecoder) Continue() {
 }
 
 func (d *HistogramValueDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // Count and all subsequent fields are skipped.
+	}
 	d.countDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Sum and all subsequent fields are skipped.
+	}
 	d.sumDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Min and all subsequent fields are skipped.
+	}
 	d.minDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // Max and all subsequent fields are skipped.
+	}
 	d.maxDecoder.Reset()
+	if d.fieldCount <= 4 {
+		return // BucketCounts and all subsequent fields are skipped.
+	}
 
 	if !d.isBucketCountsRecursive {
 		d.bucketCountsDecoder.Reset()

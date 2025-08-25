@@ -35,12 +35,7 @@ class {{ .StructName }}Decoder {
 
         try {
             prevType = {{.StructName}}.Type.TypeNone;
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("{{ .StructName }}");
-                this.fieldCount = fieldCount;
-            } else {
-                this.fieldCount = {{len .Fields}};
-            }
+            this.fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
             this.column = columns.getColumn();
             this.lastVal.init(null, 0);
             this.lastValPtr = this.lastVal;
@@ -98,7 +93,10 @@ class {{ .StructName }}Decoder {
 
     public void reset() {
         prevType = {{.StructName}}.Type.TypeNone;
-        {{range .Fields}}
+        {{ range $i, $e := .Fields }}
+        if (fieldCount <= {{$i}}) {
+            return; // {{.Name}} and all subsequent fields are skipped.
+        }
         {{if not .IsPrimitive -}}
         if (!is{{.Name}}Recursive) {
             {{.name}}Decoder.reset();

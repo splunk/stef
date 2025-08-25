@@ -39,15 +39,8 @@ class ExpHistogramBucketsEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramBuckets");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 2;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Offset field.
             if (this.fieldCount <= 0) {
@@ -76,7 +69,14 @@ class ExpHistogramBucketsEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Offset and all subsequent fields are skipped.
+        }
         offsetEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // BucketCounts and all subsequent fields are skipped.
+        }
         
         if (!isBucketCountsRecursive) {
             bucketCountsEncoder.reset();

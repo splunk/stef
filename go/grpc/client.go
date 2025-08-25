@@ -193,7 +193,7 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	// The server must send capabilities message.
 	message, err := stream.Recv()
 	if err != nil {
-		return nil, opts, fmt.Errorf("failed to receive from server: %w", err)
+		return nil, opts, fmt.Errorf("error received from server: %w", err)
 	}
 
 	capabilities, ok := message.Message.(*stef_proto.STEFServerMessage_Capabilities)

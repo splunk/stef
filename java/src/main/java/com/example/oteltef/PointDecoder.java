@@ -35,12 +35,8 @@ class PointDecoder {
         state.PointDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Point");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 4;
-            }
+            fieldCount = state.getStructFieldCounts().getPointFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Point(null, 0);
@@ -117,10 +113,27 @@ class PointDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // StartTimestamp and all subsequent fields are skipped.
+            return;
+        }
         startTimestampDecoder.reset();
+        if (fieldCount <= 1) {
+            // Timestamp and all subsequent fields are skipped.
+            return;
+        }
         timestampDecoder.reset();
+        if (fieldCount <= 2) {
+            // Value and all subsequent fields are skipped.
+            return;
+        }
         if (!isValueRecursive) {
             valueDecoder.reset();
+        }
+        if (fieldCount <= 3) {
+            // Exemplars and all subsequent fields are skipped.
+            return;
         }
         if (!isExemplarsRecursive) {
             exemplarsDecoder.reset();

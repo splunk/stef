@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 // KeyValueList is a multimap, (aka an associative array or a list) of key value
@@ -62,12 +63,10 @@ func (m *KeyValueList) EnsureLen(newLen int) {
 	oldLen := len(m.elems)
 	if newLen != oldLen {
 		m.elems = pkg.EnsureLen(m.elems, newLen)
-
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
 			m.elems[i].value.init(m.parentModifiedFields, m.parentModifiedBit)
 		}
-
 		if m.initedCount < newLen {
 			m.initedCount = newLen
 		}
@@ -242,8 +241,10 @@ func CmpKeyValueList(left, right *KeyValueList) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (m *KeyValueList) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If key or value contains structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (m *KeyValueList) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20) == 0 {
 		m.EnsureLen(m.Len() + 1)
 	}
@@ -257,7 +258,7 @@ func (m *KeyValueList) mutateRandom(random *rand.Rand) {
 			m.SetKey(i, pkg.StringRandom(random))
 		}
 		if random.IntN(4*len(m.elems)) == 0 {
-			m.elems[i].value.mutateRandom(random)
+			m.elems[i].value.mutateRandom(random, schem)
 		}
 	}
 }
