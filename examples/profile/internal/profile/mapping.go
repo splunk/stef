@@ -417,6 +417,18 @@ func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetHasInlineFrames(src.hasInlineFrames)
 }
 
+func copyFullMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
+	dst.memoryStart = src.memoryStart
+	dst.memoryLimit = src.memoryLimit
+	dst.fileOffset = src.fileOffset
+	dst.filename = src.filename
+	dst.buildId = src.buildId
+	dst.hasFunctions = src.hasFunctions
+	dst.hasFilenames = src.hasFilenames
+	dst.hasLineNumbers = src.hasLineNumbers
+	dst.hasInlineFrames = src.hasInlineFrames
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Mapping) CopyFrom(src *Mapping) {
 	copyMapping(s, src)

@@ -379,6 +379,29 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 	}
 }
 
+func copyFullProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) {
+	dst.dropFrames = src.dropFrames
+	dst.keepFrames = src.keepFrames
+	dst.timeNanos = src.timeNanos
+	dst.durationNanos = src.durationNanos
+	if src.periodType != nil {
+		if dst.periodType == nil {
+			dst.periodType = &SampleValueType{}
+			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		}
+		copyFullSampleValueType(dst.periodType, src.periodType, allocators)
+	}
+	dst.period = src.period
+	copyFullStringArray(&dst.comments, &src.comments, allocators)
+	if src.defaultSampleType != nil {
+		if dst.defaultSampleType == nil {
+			dst.defaultSampleType = &SampleValueType{}
+			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		}
+		copyFullSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
+	}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
 	copyProfileMetadata(s, src)

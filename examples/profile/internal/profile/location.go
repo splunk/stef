@@ -231,6 +231,19 @@ func copyLocation(dst *Location, src *Location) {
 	dst.SetIsFolded(src.isFolded)
 }
 
+func copyFullLocation(dst *Location, src *Location, allocators *Allocators) {
+	if src.mapping != nil {
+		if dst.mapping == nil {
+			dst.mapping = &Mapping{}
+			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+		}
+		copyFullMapping(dst.mapping, src.mapping, allocators)
+	}
+	dst.address = src.address
+	copyFullLineArray(&dst.lines, &src.lines, allocators)
+	dst.isFolded = src.isFolded
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Location) CopyFrom(src *Location) {
 	copyLocation(s, src)

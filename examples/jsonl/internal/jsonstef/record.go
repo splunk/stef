@@ -121,6 +121,16 @@ func copyRecord(dst *Record, src *Record) {
 	}
 }
 
+func copyFullRecord(dst *Record, src *Record, allocators *Allocators) {
+	if src.value != nil {
+		if dst.value == nil {
+			dst.value = &JsonValue{}
+			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		}
+		copyFullJsonValue(dst.value, src.value, allocators)
+	}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Record) CopyFrom(src *Record) {
 	copyRecord(s, src)

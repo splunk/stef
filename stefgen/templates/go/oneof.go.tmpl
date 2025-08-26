@@ -137,6 +137,24 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     }
 }
 
+func copyFull{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+	switch src.typ {
+    {{- range .Fields}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.MustClone}}
+        dst.SetType(src.typ)
+        copyFull{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+        {{- else}}
+        dst.{{.name}} = src.{{.name}}
+        {{- end}}
+    {{- end}}
+    case {{ $.StructName }}TypeNone: dst.SetType(src.typ)
+    default: panic("copy{{.StructName}}: unexpected type: " + fmt.Sprint(src.typ))
+    }
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
     copy{{.StructName}}(s, src)

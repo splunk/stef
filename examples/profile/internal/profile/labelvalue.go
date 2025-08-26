@@ -114,6 +114,20 @@ func copyLabelValue(dst *LabelValue, src *LabelValue) {
 	}
 }
 
+func copyFullLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
+	switch src.typ {
+	case LabelValueTypeStr:
+		dst.str = src.str
+	case LabelValueTypeNum:
+		dst.SetType(src.typ)
+		copyFullNumValue(&dst.num, &src.num, allocators)
+	case LabelValueTypeNone:
+		dst.SetType(src.typ)
+	default:
+		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *LabelValue) CopyFrom(src *LabelValue) {
 	copyLabelValue(s, src)

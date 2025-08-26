@@ -195,6 +195,18 @@ func copyLine(dst *Line, src *Line) {
 	dst.SetColumn(src.column)
 }
 
+func copyFullLine(dst *Line, src *Line, allocators *Allocators) {
+	if src.function != nil {
+		if dst.function == nil {
+			dst.function = &Function{}
+			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		}
+		copyFullFunction(dst.function, src.function, allocators)
+	}
+	dst.line = src.line
+	dst.column = src.column
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Line) CopyFrom(src *Line) {
 	copyLine(s, src)

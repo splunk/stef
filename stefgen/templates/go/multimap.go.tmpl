@@ -43,7 +43,7 @@ func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentMod
 // Clone() creates a deep copy of {{.MultimapName}}
 func (m *{{.MultimapName}}) Clone(allocators *Allocators) {{.MultimapName}} {
 	clone := {{.MultimapName}}{}
-	copy{{.MultimapName}}(&clone, m)
+	copyFull{{.MultimapName}}(&clone, m, allocators)
 	return clone
 }
 
@@ -269,6 +269,30 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 	if (modified) {
 		dst.markModified()
 	}
+}
+
+func copyFull{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, allocators *Allocators) {
+	if len(dst.elems)!=len(src.elems) {
+		dst.EnsureLen(len(src.elems))
+	}
+
+	{{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
+	copy(dst.elems, src.elems)
+	{{else}}
+	for i:=0; i < len(src.elems); i++ {
+		{{- if .Key.Type.IsPrimitive}}
+		dst.elems[i].key = src.elems[i].key
+		{{else}}
+		copyFull{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
+		{{end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		dst.elems[i].value = src.elems[i].value
+		{{else}}
+		copyFull{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
+		{{- end}}
+	}
+	{{end}}
 }
 
 func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}) {

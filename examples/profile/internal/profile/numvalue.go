@@ -155,6 +155,11 @@ func copyNumValue(dst *NumValue, src *NumValue) {
 	dst.SetUnit(src.unit)
 }
 
+func copyFullNumValue(dst *NumValue, src *NumValue, allocators *Allocators) {
+	dst.val = src.val
+	dst.unit = src.unit
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *NumValue) CopyFrom(src *NumValue) {
 	copyNumValue(s, src)

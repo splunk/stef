@@ -213,6 +213,13 @@ func copySample(dst *Sample, src *Sample) {
 	copyLabels(&dst.labels, &src.labels)
 }
 
+func copyFullSample(dst *Sample, src *Sample, allocators *Allocators) {
+	copyFullProfileMetadata(&dst.metadata, &src.metadata, allocators)
+	copyFullLocationArray(&dst.locations, &src.locations, allocators)
+	copyFullSampleValueArray(&dst.values, &src.values, allocators)
+	copyFullLabels(&dst.labels, &src.labels, allocators)
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Sample) CopyFrom(src *Sample) {
 	copySample(s, src)

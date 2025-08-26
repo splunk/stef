@@ -31,7 +31,7 @@ func (e *JsonValueArray) init(parentModifiedFields *modifiedFields, parentModifi
 // Clone() creates a deep copy of JsonValueArray
 func (e *JsonValueArray) Clone(allocators *Allocators) JsonValueArray {
 	var clone JsonValueArray
-	copyJsonValueArray(&clone, e)
+	copyFullJsonValueArray(&clone, e, allocators)
 	return clone
 }
 
@@ -138,6 +138,33 @@ func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 	}
 	if isModified {
 		dst.markModified()
+	}
+}
+
+func copyFullJsonValueArray(dst *JsonValueArray, src *JsonValueArray, allocators *Allocators) {
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyFullJsonValue(dst.elems[i], src.elems[i], allocators)
+	}
+	if minLen < len(dst.elems) {
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]JsonValue, len(dst.elems)-minLen)
+		for j := range elems {
+			// Init the element.
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
+			// Copy the element.
+			copyFullJsonValue(dst.elems[i+j], src.elems[i+j], allocators)
+		}
 	}
 }
 
@@ -375,6 +402,8 @@ type JsonValueArrayDecoder struct {
 	isRecursive bool
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack JsonValueArrayDecoderLastValStack
+
+	allocators *Allocators
 }
 type JsonValueArrayDecoderLastValStack []*JsonValueArrayDecoderLastValElem
 
@@ -458,6 +487,8 @@ func (d *JsonValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	}
 	d.lastValStack.init()
 
+	d.allocators = &state.Allocators
+
 	return nil
 }
 
@@ -497,7 +528,7 @@ func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 		if err != nil {
 			return err
 		}
-		copyJsonValue(dst.elems[i], lastVal.elem)
+		copyFullJsonValue(dst.elems[i], lastVal.elem, d.allocators)
 	}
 
 	return nil

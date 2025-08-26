@@ -232,6 +232,13 @@ func copyFunction(dst *Function, src *Function) {
 	dst.SetStartLine(src.startLine)
 }
 
+func copyFullFunction(dst *Function, src *Function, allocators *Allocators) {
+	dst.name = src.name
+	dst.systemName = src.systemName
+	dst.filename = src.filename
+	dst.startLine = src.startLine
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *Function) CopyFrom(src *Function) {
 	copyFunction(s, src)

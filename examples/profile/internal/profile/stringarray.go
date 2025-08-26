@@ -33,7 +33,7 @@ func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedB
 // Clone() creates a deep copy of StringArray
 func (e *StringArray) Clone(allocators *Allocators) StringArray {
 	var clone StringArray
-	copyStringArray(&clone, e)
+	copyFullStringArray(&clone, e, allocators)
 	return clone
 }
 
@@ -132,6 +132,23 @@ func copyStringArray(dst *StringArray, src *StringArray) {
 	}
 	if isModified {
 		dst.markModified()
+	}
+}
+
+func copyFullStringArray(dst *StringArray, src *StringArray, allocators *Allocators) {
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		dst.elems[i] = src.elems[i]
+	}
+	for ; i < len(dst.elems); i++ {
+		dst.elems[i] = src.elems[i]
 	}
 }
 
@@ -278,6 +295,8 @@ type StringArrayDecoder struct {
 	elemDecoder *encoders.StringDecoder
 	isRecursive bool
 	prevLen     int
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -288,6 +307,8 @@ func (d *StringArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	if err != nil {
 		return err
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }

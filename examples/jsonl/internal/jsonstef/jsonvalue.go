@@ -167,6 +167,27 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	}
 }
 
+func copyFullJsonValue(dst *JsonValue, src *JsonValue, allocators *Allocators) {
+	switch src.typ {
+	case JsonValueTypeObject:
+		dst.SetType(src.typ)
+		copyFullJsonObject(&dst.object, &src.object, allocators)
+	case JsonValueTypeArray:
+		dst.SetType(src.typ)
+		copyFullJsonValueArray(&dst.array, &src.array, allocators)
+	case JsonValueTypeString:
+		dst.string = src.string
+	case JsonValueTypeNumber:
+		dst.number = src.number
+	case JsonValueTypeBool:
+		dst.bool = src.bool
+	case JsonValueTypeNone:
+		dst.SetType(src.typ)
+	default:
+		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *JsonValue) CopyFrom(src *JsonValue) {
 	copyJsonValue(s, src)

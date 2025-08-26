@@ -158,6 +158,11 @@ func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 	dst.SetUnit(src.unit)
 }
 
+func copyFullSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
+	dst.type_ = src.type_
+	dst.unit = src.unit
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *SampleValueType) CopyFrom(src *SampleValueType) {
 	copySampleValueType(s, src)

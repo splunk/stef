@@ -158,6 +158,17 @@ func copySampleValue(dst *SampleValue, src *SampleValue) {
 	}
 }
 
+func copyFullSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) {
+	dst.val = src.val
+	if src.type_ != nil {
+		if dst.type_ == nil {
+			dst.type_ = &SampleValueType{}
+			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+		}
+		copyFullSampleValueType(dst.type_, src.type_, allocators)
+	}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s *SampleValue) CopyFrom(src *SampleValue) {
 	copySampleValue(s, src)

@@ -32,7 +32,7 @@ func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifi
 // Clone() creates a deep copy of {{ .ArrayName }}
 func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
     var clone {{ .ArrayName }}
-    copy{{.ArrayName}}(&clone, e)
+    copyFull{{.ArrayName}}(&clone, e, allocators)
     return clone
 }
 
@@ -183,6 +183,46 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	if isModified {
 		dst.markModified()
 	}
+}
+
+func copyFull{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) {
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		{{- if .ElemType.MustClone}}
+		copyFull{{.ElemType.TypeName}}(dst.elems[i], src.elems[i], allocators)
+		{{- else}}
+		dst.elems[i] = src.elems[i]
+		{{- end}}
+	}
+
+	{{- if .ElemType.MustClone}}
+	if minLen < len(dst.elems) {
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]{{.ElemType.Storage}}, len(dst.elems) - minLen)
+		for j := range elems {
+			{{if not .ElemType.IsPrimitive -}}
+			// Init the element.
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			{{- end}}
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
+			// Copy the element.
+			copyFull{{.ElemType.TypeName}}(dst.elems[i+j], src.elems[i+j], allocators)
+		}
+	}
+	{{- else}}
+	for ; i < len(dst.elems); i++ {
+		dst.elems[i] = src.elems[i]
+	}
+	{{- end}}
 }
 
 // Len returns the number of elements in the array.
@@ -472,6 +512,8 @@ type {{ .ArrayName }}Decoder struct {
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack {{ .ArrayName }}DecoderLastValStack
 	{{- end}}
+
+	allocators *Allocators
 }
 
 {{- if not .ElemType.IsPrimitive}}
@@ -574,6 +616,8 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 	d.lastValStack.init()
 {{- end}}
 
+    d.allocators = &state.Allocators
+
 	return nil
 }
 
@@ -630,7 +674,7 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
+		copyFull{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem, d.allocators)
 		{{- end}}
 	}
 

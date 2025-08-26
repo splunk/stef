@@ -43,7 +43,7 @@ func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 // Clone() creates a deep copy of Labels
 func (m *Labels) Clone(allocators *Allocators) Labels {
 	clone := Labels{}
-	copyLabels(&clone, m)
+	copyFullLabels(&clone, m, allocators)
 	return clone
 }
 
@@ -189,6 +189,18 @@ func copyLabels(dst *Labels, src *Labels) {
 	if modified {
 		dst.markModified()
 	}
+}
+
+func copyFullLabels(dst *Labels, src *Labels, allocators *Allocators) {
+	if len(dst.elems) != len(src.elems) {
+		dst.EnsureLen(len(src.elems))
+	}
+	for i := 0; i < len(src.elems); i++ {
+		dst.elems[i].key = src.elems[i].key
+
+		copyFullLabelValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+	}
+
 }
 
 func (m *Labels) CopyFrom(src *Labels) {

@@ -31,7 +31,7 @@ func (e *LineArray) init(parentModifiedFields *modifiedFields, parentModifiedBit
 // Clone() creates a deep copy of LineArray
 func (e *LineArray) Clone(allocators *Allocators) LineArray {
 	var clone LineArray
-	copyLineArray(&clone, e)
+	copyFullLineArray(&clone, e, allocators)
 	return clone
 }
 
@@ -138,6 +138,33 @@ func copyLineArray(dst *LineArray, src *LineArray) {
 	}
 	if isModified {
 		dst.markModified()
+	}
+}
+
+func copyFullLineArray(dst *LineArray, src *LineArray, allocators *Allocators) {
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyFullLine(dst.elems[i], src.elems[i], allocators)
+	}
+	if minLen < len(dst.elems) {
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]Line, len(dst.elems)-minLen)
+		for j := range elems {
+			// Init the element.
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
+			// Copy the element.
+			copyFullLine(dst.elems[i+j], src.elems[i+j], allocators)
+		}
 	}
 }
 
@@ -375,6 +402,8 @@ type LineArrayDecoder struct {
 	isRecursive bool
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack LineArrayDecoderLastValStack
+
+	allocators *Allocators
 }
 type LineArrayDecoderLastValStack []*LineArrayDecoderLastValElem
 
@@ -455,6 +484,8 @@ func (d *LineArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	}
 	d.lastValStack.init()
 
+	d.allocators = &state.Allocators
+
 	return nil
 }
 
@@ -494,7 +525,7 @@ func (d *LineArrayDecoder) Decode(dst *LineArray) error {
 		if err != nil {
 			return err
 		}
-		copyLine(dst.elems[i], &lastVal.elem)
+		copyFullLine(dst.elems[i], &lastVal.elem, d.allocators)
 	}
 
 	return nil

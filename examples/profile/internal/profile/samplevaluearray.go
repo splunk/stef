@@ -31,7 +31,7 @@ func (e *SampleValueArray) init(parentModifiedFields *modifiedFields, parentModi
 // Clone() creates a deep copy of SampleValueArray
 func (e *SampleValueArray) Clone(allocators *Allocators) SampleValueArray {
 	var clone SampleValueArray
-	copySampleValueArray(&clone, e)
+	copyFullSampleValueArray(&clone, e, allocators)
 	return clone
 }
 
@@ -138,6 +138,33 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
 	}
 	if isModified {
 		dst.markModified()
+	}
+}
+
+func copyFullSampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) {
+	minLen := min(len(dst.elems), len(src.elems))
+	if len(dst.elems) != len(src.elems) {
+		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	}
+
+	i := 0
+
+	// Copy elements in the part of the array that already had the necessary room.
+	for ; i < minLen; i++ {
+		copyFullSampleValue(dst.elems[i], src.elems[i], allocators)
+	}
+	if minLen < len(dst.elems) {
+		// Need to allocate new elements for the part of the array that has grown.
+		// Allocate all new elements at once.
+		elems := make([]SampleValue, len(dst.elems)-minLen)
+		for j := range elems {
+			// Init the element.
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			// Point to the allocated element.
+			dst.elems[i+j] = &elems[j]
+			// Copy the element.
+			copyFullSampleValue(dst.elems[i+j], src.elems[i+j], allocators)
+		}
 	}
 }
 
@@ -375,6 +402,8 @@ type SampleValueArrayDecoder struct {
 	isRecursive bool
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack SampleValueArrayDecoderLastValStack
+
+	allocators *Allocators
 }
 type SampleValueArrayDecoderLastValStack []*SampleValueArrayDecoderLastValElem
 
@@ -455,6 +484,8 @@ func (d *SampleValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColu
 	}
 	d.lastValStack.init()
 
+	d.allocators = &state.Allocators
+
 	return nil
 }
 
@@ -494,7 +525,7 @@ func (d *SampleValueArrayDecoder) Decode(dst *SampleValueArray) error {
 		if err != nil {
 			return err
 		}
-		copySampleValue(dst.elems[i], &lastVal.elem)
+		copyFullSampleValue(dst.elems[i], &lastVal.elem, d.allocators)
 	}
 
 	return nil

@@ -240,6 +240,44 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- end}}
 }
 
+func copyFull{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+    {{- range .Fields -}}
+    {{- if .Type.MustClone}}
+    {{- if .Optional}}
+    if src.Has{{.Name}}() != dst.Has{{.Name}}() {
+        dst.mark{{.Name}}Modified()
+    }
+    {{- end}}
+    {{- if .Type.Flags.StoreByPtr}}
+    if src.{{.name}} != nil {
+        if dst.{{.name}} == nil {
+            dst.{{.name}} = &{{ .Type.Storage }}{}
+            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        }
+    {{- end}}
+        copyFull{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+    {{- if .Type.Flags.StoreByPtr}}
+    }
+    {{- end}}
+    {{- else}}
+	{{- if .Optional}}
+	if src.Has{{.Name}}() {
+		dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+	} else {
+		dst.Unset{{.Name}}()
+	}
+	{{else}}
+    dst.{{.name}} = src.{{.name}}
+    {{- end}}
+    {{- end}}
+    {{- end}}
+    {{- if .OptionalFieldCount}}
+    dst.optionalFieldsPresent = src.optionalFieldsPresent
+    {{- end}}
+}
+
 // CopyFrom() performs a deep copy from src.
 func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
     copy{{.StructName}}(s, src)
