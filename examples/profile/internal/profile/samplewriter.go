@@ -4,6 +4,7 @@ package profile
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/splunk/stef/go/pkg"
@@ -53,6 +54,10 @@ func NewSampleWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*SampleWriter
 	writer.Record.Init()
 	writer.state.Init(&writer.opts)
 	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
+
+	if !writer.state.StructFieldCounts.AllFetched() {
+		return nil, errors.New("override schema iterator is not done, likely supplied schema override does not match the generated code")
+	}
 
 	if err := writer.frameEncoder.Init(dst, writer.opts.Compression); err != nil {
 		return nil, err

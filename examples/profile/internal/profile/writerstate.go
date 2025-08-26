@@ -4,7 +4,6 @@ package profile
 import (
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
-	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = (*encoders.StringEncoder)(nil)
@@ -12,9 +11,7 @@ var _ = (*encoders.StringEncoder)(nil)
 type WriterState struct {
 	limiter pkg.SizeLimiter
 
-	// OverrideSchema is set if encoding should perform a translation into the target
-	// schema. The specified schema must be compatible with encoders' schema.
-	OverrideSchema *schema.WireSchema
+	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
 	BuildID         encoders.StringEncoderDict
@@ -50,7 +47,8 @@ type WriterState struct {
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {
 	d.limiter.Init(opts)
-	d.OverrideSchema = opts.Schema
+
+	d.StructFieldCounts.Init(opts.Schema)
 
 	// Init dictionaries
 	d.BuildID.Init(&d.limiter)

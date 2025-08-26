@@ -1,6 +1,6 @@
 package generator
 
-func (g *Generator) oDicts() error {
+func (g *Generator) oReaderWriterState() error {
 	data := map[string]any{
 		"Dicts":    g.getDicts(),
 		"Encoders": g.getEncoders(),
@@ -12,7 +12,6 @@ func (g *Generator) oDicts() error {
 		return err
 	}
 	return g.lastErr
-
 }
 
 func (g *Generator) getDicts() (ret map[string]genFieldTypeRef) {

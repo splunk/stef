@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 // EnvelopeAttributes is a multimap, (aka an associative array or a list) of key value
@@ -62,11 +63,9 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 	oldLen := len(m.elems)
 	if newLen != oldLen {
 		m.elems = pkg.EnsureLen(m.elems, newLen)
-
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
 		}
-
 		if m.initedCount < newLen {
 			m.initedCount = newLen
 		}
@@ -241,8 +240,10 @@ func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (m *EnvelopeAttributes) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If key or value contains structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (m *EnvelopeAttributes) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20) == 0 {
 		m.EnsureLen(m.Len() + 1)
 	}

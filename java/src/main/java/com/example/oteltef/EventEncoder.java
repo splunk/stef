@@ -43,15 +43,8 @@ class EventEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Event");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 4;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getEventFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Name field.
             if (this.fieldCount <= 0) {
@@ -92,13 +85,26 @@ class EventEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Name and all subsequent fields are skipped.
+        }
         nameEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // TimeUnixNano and all subsequent fields are skipped.
+        }
         timeUnixNanoEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 3) {
+            return; // DroppedAttributesCount and all subsequent fields are skipped.
+        }
         droppedAttributesCountEncoder.reset();
     }
 

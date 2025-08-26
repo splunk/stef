@@ -11,6 +11,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = (*encoders.StringEncoder)(nil)
@@ -192,8 +193,10 @@ func CmpStringArray(left, right *StringArray) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (a *StringArray) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If array elements contain structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (a *StringArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20) == 0 {
 		a.EnsureLen(a.Len() + 1)
 	}

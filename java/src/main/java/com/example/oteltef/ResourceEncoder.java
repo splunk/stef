@@ -44,15 +44,8 @@ class ResourceEncoder {
             this.limiter = state.getLimiter();
             this.dict = state.Resource;
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Resource");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 3;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getResourceFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for SchemaURL field.
             if (this.fieldCount <= 0) {
@@ -87,12 +80,22 @@ class ResourceEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // SchemaURL and all subsequent fields are skipped.
+        }
         schemaURLEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 2) {
+            return; // DroppedAttributesCount and all subsequent fields are skipped.
+        }
         droppedAttributesCountEncoder.reset();
     }
 

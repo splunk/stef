@@ -9,6 +9,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = (*encoders.StringEncoder)(nil)
@@ -203,8 +204,10 @@ func CmpAnyValueArray(left, right *AnyValueArray) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (a *AnyValueArray) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If array elements contain structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (a *AnyValueArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20) == 0 {
 		a.EnsureLen(a.Len() + 1)
 	}
@@ -215,7 +218,7 @@ func (a *AnyValueArray) mutateRandom(random *rand.Rand) {
 	for i := range a.elems {
 		_ = i
 		if random.IntN(2*len(a.elems)) == 0 {
-			a.elems[i].mutateRandom(random)
+			a.elems[i].mutateRandom(random, schem)
 		}
 	}
 }
@@ -419,18 +422,19 @@ func (s *AnyValueArrayDecoderLastValStack) removeFromTop() {
 }
 
 type AnyValueArrayDecoderLastValElem struct {
-	prevLen int
-	elem    AnyValue
+	prevLen     int
+	elem        *AnyValue
+	elemStorage AnyValue
 }
 
 func (e *AnyValueArrayDecoderLastValElem) init() {
+	e.elem = &e.elemStorage
+
 }
 
 func (e *AnyValueArrayDecoderLastValElem) reset() {
 	e.prevLen = 0
-
-	e.elem = AnyValue{}
-
+	*e.elem = AnyValue{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -489,11 +493,11 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(lastVal.elem)
 		if err != nil {
 			return err
 		}
-		copyAnyValue(dst.elems[i], &lastVal.elem)
+		copyAnyValue(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

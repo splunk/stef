@@ -243,19 +243,45 @@ func (s *Location) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Location) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
-		s.mapping.mutateRandom(random)
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Location) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Location")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Location", err))
 	}
-	if random.IntN(fieldCount) == 0 {
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // Mapping and all subsequent fields are skipped.
+	}
+	// Maybe mutate Mapping
+	if random.IntN(randRange) == 0 {
+		s.mapping.mutateRandom(random, schem)
+	}
+	if fieldCount <= 1 {
+		return // Address and all subsequent fields are skipped.
+	}
+	// Maybe mutate Address
+	if random.IntN(randRange) == 0 {
 		s.SetAddress(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.lines.mutateRandom(random)
+	if fieldCount <= 2 {
+		return // Lines and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
+	// Maybe mutate Lines
+	if random.IntN(randRange) == 0 {
+		s.lines.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // IsFolded and all subsequent fields are skipped.
+	}
+	// Maybe mutate IsFolded
+	if random.IntN(randRange) == 0 {
 		s.SetIsFolded(pkg.BoolRandom(random))
 	}
 }
@@ -382,30 +408,19 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	e.limiter = &state.limiter
 	e.dict = &state.Location
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Location")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Location")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.LocationFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for Mapping field.
 	if e.fieldCount <= 0 {
-		// Mapping and all subsequent fields are skipped.
-		return nil
+		return nil // Mapping and all subsequent fields are skipped.
 	}
 	if state.MappingEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -421,8 +436,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for Address field.
 	if e.fieldCount <= 1 {
-		// Address and all subsequent fields are skipped.
-		return nil
+		return nil // Address and all subsequent fields are skipped.
 	}
 	err = e.addressEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -431,8 +445,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for Lines field.
 	if e.fieldCount <= 2 {
-		// Lines and all subsequent fields are skipped.
-		return nil
+		return nil // Lines and all subsequent fields are skipped.
 	}
 	if state.LineArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -448,8 +461,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	// Init encoder for IsFolded field.
 	if e.fieldCount <= 3 {
-		// IsFolded and all subsequent fields are skipped.
-		return nil
+		return nil // IsFolded and all subsequent fields are skipped.
 	}
 	err = e.isFoldedEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -464,16 +476,29 @@ func (e *LocationEncoder) Reset() {
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
 
+	if e.fieldCount <= 0 {
+		return // Mapping and all subsequent fields are skipped.
+	}
+
 	if !e.isMappingRecursive {
 		e.mappingEncoder.Reset()
 	}
 
+	if e.fieldCount <= 1 {
+		return // Address and all subsequent fields are skipped.
+	}
 	e.addressEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Lines and all subsequent fields are skipped.
+	}
 
 	if !e.isLinesRecursive {
 		e.linesEncoder.Reset()
 	}
 
+	if e.fieldCount <= 3 {
+		return // IsFolded and all subsequent fields are skipped.
+	}
 	e.isFoldedEncoder.Reset()
 }
 
@@ -629,17 +654,11 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	state.LocationDecoder = d
 	defer func() { state.LocationDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Location")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Location")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.LocationFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
 	}
 
 	d.column = columns.Column()
@@ -647,8 +666,6 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	d.dict = &state.Location
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // Mapping and subsequent fields are skipped.
@@ -732,16 +749,29 @@ func (d *LocationDecoder) Continue() {
 
 func (d *LocationDecoder) Reset() {
 
+	if d.fieldCount <= 0 {
+		return // Mapping and all subsequent fields are skipped.
+	}
+
 	if !d.isMappingRecursive {
 		d.mappingDecoder.Reset()
 	}
 
+	if d.fieldCount <= 1 {
+		return // Address and all subsequent fields are skipped.
+	}
 	d.addressDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Lines and all subsequent fields are skipped.
+	}
 
 	if !d.isLinesRecursive {
 		d.linesDecoder.Reset()
 	}
 
+	if d.fieldCount <= 3 {
+		return // IsFolded and all subsequent fields are skipped.
+	}
 	d.isFoldedDecoder.Reset()
 }
 

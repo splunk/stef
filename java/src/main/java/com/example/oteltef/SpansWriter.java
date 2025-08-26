@@ -50,6 +50,10 @@ public class SpansWriter {
         state.init(opts);
         encoder.init(state, writeBufs.columns);
 
+        if (!state.getStructFieldCounts().allFetched()) {
+            throw new IOException("override schema iterator is not done, likely supplied schema override does not match the generated code");
+        }
+
         frameEncoder.init(dst, opts.getCompression());
         writeFixedHeader();
         writeVarHeader();

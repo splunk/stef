@@ -37,12 +37,8 @@ class HistogramValueDecoder {
         state.HistogramValueDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("HistogramValue");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 5;
-            }
+            fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new HistogramValue(null, 0);
@@ -118,10 +114,31 @@ class HistogramValueDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Count and all subsequent fields are skipped.
+            return;
+        }
         countDecoder.reset();
+        if (fieldCount <= 1) {
+            // Sum and all subsequent fields are skipped.
+            return;
+        }
         sumDecoder.reset();
+        if (fieldCount <= 2) {
+            // Min and all subsequent fields are skipped.
+            return;
+        }
         minDecoder.reset();
+        if (fieldCount <= 3) {
+            // Max and all subsequent fields are skipped.
+            return;
+        }
         maxDecoder.reset();
+        if (fieldCount <= 4) {
+            // BucketCounts and all subsequent fields are skipped.
+            return;
+        }
         if (!isBucketCountsRecursive) {
             bucketCountsDecoder.reset();
         }

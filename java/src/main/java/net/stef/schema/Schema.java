@@ -117,14 +117,4 @@ public class Schema {
         copyPrunedFieldType(srcMultiMap.key.type, dst);
         copyPrunedFieldType(srcMultiMap.value.type, dst);
     }
-
-    public WireSchema toWire() {
-        WireSchema wireSchema = new WireSchema();
-        for (Map.Entry<String, Struct> entry : structs.entrySet()) {
-            String structName = entry.getKey();
-            Struct struct = entry.getValue();
-            wireSchema.setFieldCount(structName, struct.fields.size());
-        }
-        return wireSchema;
-    }
 }

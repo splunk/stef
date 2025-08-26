@@ -39,12 +39,8 @@ class ScopeDecoder {
         state.ScopeDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 5;
-            }
+            fieldCount = state.getStructFieldCounts().getScopeFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Scope(null, 0);
@@ -121,11 +117,32 @@ class ScopeDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Name and all subsequent fields are skipped.
+            return;
+        }
         nameDecoder.reset();
+        if (fieldCount <= 1) {
+            // Version and all subsequent fields are skipped.
+            return;
+        }
         versionDecoder.reset();
+        if (fieldCount <= 2) {
+            // SchemaURL and all subsequent fields are skipped.
+            return;
+        }
         schemaURLDecoder.reset();
+        if (fieldCount <= 3) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
+        }
+        if (fieldCount <= 4) {
+            // DroppedAttributesCount and all subsequent fields are skipped.
+            return;
         }
         droppedAttributesCountDecoder.reset();
     }

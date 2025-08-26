@@ -53,15 +53,8 @@ class ExpHistogramValueEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("ExpHistogramValue");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 9;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getExpHistogramValueFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Count field.
             if (this.fieldCount <= 0) {
@@ -138,22 +131,50 @@ class ExpHistogramValueEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Count and all subsequent fields are skipped.
+        }
         countEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Sum and all subsequent fields are skipped.
+        }
         sumEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // Min and all subsequent fields are skipped.
+        }
         minEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // Max and all subsequent fields are skipped.
+        }
         maxEncoder.reset();
+        if (fieldCount <= 4) {
+            return; // Scale and all subsequent fields are skipped.
+        }
         scaleEncoder.reset();
+        if (fieldCount <= 5) {
+            return; // ZeroCount and all subsequent fields are skipped.
+        }
         zeroCountEncoder.reset();
+        if (fieldCount <= 6) {
+            return; // PositiveBuckets and all subsequent fields are skipped.
+        }
         
         if (!isPositiveBucketsRecursive) {
             positiveBucketsEncoder.reset();
         }
         
+        if (fieldCount <= 7) {
+            return; // NegativeBuckets and all subsequent fields are skipped.
+        }
         
         if (!isNegativeBucketsRecursive) {
             negativeBucketsEncoder.reset();
         }
         
+        if (fieldCount <= 8) {
+            return; // ZeroThreshold and all subsequent fields are skipped.
+        }
         zeroThresholdEncoder.reset();
     }
 

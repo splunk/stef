@@ -41,15 +41,8 @@ class SummaryValueEncoder {
         try {
             this.limiter = state.getLimiter();
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("SummaryValue");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 3;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getSummaryValueFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Count field.
             if (this.fieldCount <= 0) {
@@ -84,8 +77,18 @@ class SummaryValueEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Count and all subsequent fields are skipped.
+        }
         countEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Sum and all subsequent fields are skipped.
+        }
         sumEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // QuantileValues and all subsequent fields are skipped.
+        }
         
         if (!isQuantileValuesRecursive) {
             quantileValuesEncoder.reset();

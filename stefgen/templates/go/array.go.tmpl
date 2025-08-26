@@ -10,6 +10,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = (*encoders.StringEncoder)(nil)
@@ -255,8 +256,10 @@ func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
+// random parameter as a deterministic generator. If array elements contain structs/oneofs
+// only fields that exist in the schema are mutated, allowing to generate data for
+// specified schema.
+func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	if random.IntN(20)==0 {
 		a.EnsureLen(a.Len()+1)
 	}
@@ -268,7 +271,7 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand) {
 		_ = i
 		if random.IntN(2*len(a.elems))==0 {
 		{{- if not .ElemType.IsPrimitive }}
-			a.elems[i].mutateRandom(random)
+			a.elems[i].mutateRandom(random, schem)
 		{{- else}}
 			v := {{ .ElemType.RandomFunc }}
 			if a.elems[i] != v {
@@ -520,18 +523,18 @@ func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
 type {{ .ArrayName }}DecoderLastValElem struct {
 	prevLen int
 	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
+	{{if .ElemType.Flags.StoreByPtr}}elemStorage {{.ElemType.Storage}}{{end}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) init() {
+	{{- if .ElemType.Flags.StoreByPtr}}
+	e.elem = &e.elemStorage
+	{{end}}
 }
 
 func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
 	e.prevLen = 0
-	{{if .ElemType.Flags.StoreByPtr}}
-	e.elem = nil
-	{{else}}
-	e.elem = {{.ElemType.Storage}}{}
-	{{end}}
+	{{if .ElemType.Flags.StoreByPtr}}*{{end}}e.elem = {{.ElemType.Storage}}{}
 }
 {{- end}}
 
@@ -618,12 +621,12 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
-		err := d.elemDecoder.Decode(&dst.elems[i])
+		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}dst.elems[i])
 		if err != nil {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}lastVal.elem)
 		if err != nil {
 			return err
 		}

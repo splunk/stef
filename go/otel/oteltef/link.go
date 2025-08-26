@@ -311,25 +311,59 @@ func (s *Link) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Link) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Link) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Link")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Link", err))
+	}
+
+	const randRange = max(6, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // TraceID and all subsequent fields are skipped.
+	}
+	// Maybe mutate TraceID
+	if random.IntN(randRange) == 0 {
 		s.SetTraceID(pkg.BytesRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // SpanID and all subsequent fields are skipped.
+	}
+	// Maybe mutate SpanID
+	if random.IntN(randRange) == 0 {
 		s.SetSpanID(pkg.BytesRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 2 {
+		return // TraceState and all subsequent fields are skipped.
+	}
+	// Maybe mutate TraceState
+	if random.IntN(randRange) == 0 {
 		s.SetTraceState(pkg.StringRandom(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 3 {
+		return // Flags and all subsequent fields are skipped.
+	}
+	// Maybe mutate Flags
+	if random.IntN(randRange) == 0 {
 		s.SetFlags(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.attributes.mutateRandom(random)
+	if fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
+	// Maybe mutate Attributes
+	if random.IntN(randRange) == 0 {
+		s.attributes.mutateRandom(random, schem)
+	}
+	if fieldCount <= 5 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
+	// Maybe mutate DroppedAttributesCount
+	if random.IntN(randRange) == 0 {
 		s.SetDroppedAttributesCount(pkg.Uint64Random(random))
 	}
 }
@@ -452,30 +486,19 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Link")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Link")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 6
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.LinkFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Link", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for TraceID field.
 	if e.fieldCount <= 0 {
-		// TraceID and all subsequent fields are skipped.
-		return nil
+		return nil // TraceID and all subsequent fields are skipped.
 	}
 	err = e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -484,8 +507,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	// Init encoder for SpanID field.
 	if e.fieldCount <= 1 {
-		// SpanID and all subsequent fields are skipped.
-		return nil
+		return nil // SpanID and all subsequent fields are skipped.
 	}
 	err = e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -494,8 +516,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	// Init encoder for TraceState field.
 	if e.fieldCount <= 2 {
-		// TraceState and all subsequent fields are skipped.
-		return nil
+		return nil // TraceState and all subsequent fields are skipped.
 	}
 	err = e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -504,8 +525,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	// Init encoder for Flags field.
 	if e.fieldCount <= 3 {
-		// Flags and all subsequent fields are skipped.
-		return nil
+		return nil // Flags and all subsequent fields are skipped.
 	}
 	err = e.flagsEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -514,8 +534,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	// Init encoder for Attributes field.
 	if e.fieldCount <= 4 {
-		// Attributes and all subsequent fields are skipped.
-		return nil
+		return nil // Attributes and all subsequent fields are skipped.
 	}
 	if state.AttributesEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -531,8 +550,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 
 	// Init encoder for DroppedAttributesCount field.
 	if e.fieldCount <= 5 {
-		// DroppedAttributesCount and all subsequent fields are skipped.
-		return nil
+		return nil // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	err = e.droppedAttributesCountEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -546,15 +564,34 @@ func (e *LinkEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // TraceID and all subsequent fields are skipped.
+	}
 	e.traceIDEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // SpanID and all subsequent fields are skipped.
+	}
 	e.spanIDEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // TraceState and all subsequent fields are skipped.
+	}
 	e.traceStateEncoder.Reset()
+	if e.fieldCount <= 3 {
+		return // Flags and all subsequent fields are skipped.
+	}
 	e.flagsEncoder.Reset()
+	if e.fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
+	}
 
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
 
+	if e.fieldCount <= 5 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
 	e.droppedAttributesCountEncoder.Reset()
 }
 
@@ -710,25 +747,17 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	state.LinkDecoder = d
 	defer func() { state.LinkDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Link")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Link")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 6
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.LinkFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Link", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.
@@ -822,15 +851,34 @@ func (d *LinkDecoder) Continue() {
 }
 
 func (d *LinkDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // TraceID and all subsequent fields are skipped.
+	}
 	d.traceIDDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // SpanID and all subsequent fields are skipped.
+	}
 	d.spanIDDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // TraceState and all subsequent fields are skipped.
+	}
 	d.traceStateDecoder.Reset()
+	if d.fieldCount <= 3 {
+		return // Flags and all subsequent fields are skipped.
+	}
 	d.flagsDecoder.Reset()
+	if d.fieldCount <= 4 {
+		return // Attributes and all subsequent fields are skipped.
+	}
 
 	if !d.isAttributesRecursive {
 		d.attributesDecoder.Reset()
 	}
 
+	if d.fieldCount <= 5 {
+		return // DroppedAttributesCount and all subsequent fields are skipped.
+	}
 	d.droppedAttributesCountDecoder.Reset()
 }
 

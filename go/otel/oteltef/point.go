@@ -234,20 +234,46 @@ func (s *Point) markUnmodified() {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *Point) mutateRandom(random *rand.Rand) {
-	const fieldCount = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
-	if random.IntN(fieldCount) == 0 {
+// random parameter as a deterministic generator. Only fields that exist
+// in the schem are mutated, allowing to generate data for specified schema.
+func (s *Point) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+	// Get the field count for this struct from the schema. If the schema specifies
+	// fewer field count than the one we have in this code then we will not mutate
+	// fields that are not in the schema.
+	fieldCount, err := schem.FieldCount("Point")
+	if err != nil {
+		panic(fmt.Sprintf("cannot get field count for %s: %v", "Point", err))
+	}
+
+	const randRange = max(4, 2) // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
+
+	if fieldCount <= 0 {
+		return // StartTimestamp and all subsequent fields are skipped.
+	}
+	// Maybe mutate StartTimestamp
+	if random.IntN(randRange) == 0 {
 		s.SetStartTimestamp(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
+	if fieldCount <= 1 {
+		return // Timestamp and all subsequent fields are skipped.
+	}
+	// Maybe mutate Timestamp
+	if random.IntN(randRange) == 0 {
 		s.SetTimestamp(pkg.Uint64Random(random))
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.value.mutateRandom(random)
+	if fieldCount <= 2 {
+		return // Value and all subsequent fields are skipped.
 	}
-	if random.IntN(fieldCount) == 0 {
-		s.exemplars.mutateRandom(random)
+	// Maybe mutate Value
+	if random.IntN(randRange) == 0 {
+		s.value.mutateRandom(random, schem)
+	}
+	if fieldCount <= 3 {
+		return // Exemplars and all subsequent fields are skipped.
+	}
+	// Maybe mutate Exemplars
+	if random.IntN(randRange) == 0 {
+		s.exemplars.mutateRandom(random, schem)
 	}
 }
 
@@ -348,30 +374,19 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Point")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Point")
-		}
-
-		// Number of fields in the target schema.
-		e.fieldCount = fieldCount
-
-		// Set that many 1 bits in the keepFieldMask. All fields with higher number
-		// will be skipped when encoding.
-		e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
-	} else {
-		// Keep all fields when encoding.
-		e.fieldCount = 4
-		e.keepFieldMask = ^uint64(0)
-	}
-
+	// Number of fields in the output data schema.
 	var err error
+	e.fieldCount, err = state.StructFieldCounts.PointFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Point", err)
+	}
+	// Set that many 1 bits in the keepFieldMask. All fields with higher number
+	// will be skipped when encoding.
+	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
 
 	// Init encoder for StartTimestamp field.
 	if e.fieldCount <= 0 {
-		// StartTimestamp and all subsequent fields are skipped.
-		return nil
+		return nil // StartTimestamp and all subsequent fields are skipped.
 	}
 	err = e.startTimestampEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -380,8 +395,7 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Timestamp field.
 	if e.fieldCount <= 1 {
-		// Timestamp and all subsequent fields are skipped.
-		return nil
+		return nil // Timestamp and all subsequent fields are skipped.
 	}
 	err = e.timestampEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
@@ -390,8 +404,7 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Value field.
 	if e.fieldCount <= 2 {
-		// Value and all subsequent fields are skipped.
-		return nil
+		return nil // Value and all subsequent fields are skipped.
 	}
 	if state.PointValueEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -407,8 +420,7 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	// Init encoder for Exemplars field.
 	if e.fieldCount <= 3 {
-		// Exemplars and all subsequent fields are skipped.
-		return nil
+		return nil // Exemplars and all subsequent fields are skipped.
 	}
 	if state.ExemplarArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -429,11 +441,25 @@ func (e *PointEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
 	e.forceModifiedFields = true
+
+	if e.fieldCount <= 0 {
+		return // StartTimestamp and all subsequent fields are skipped.
+	}
 	e.startTimestampEncoder.Reset()
+	if e.fieldCount <= 1 {
+		return // Timestamp and all subsequent fields are skipped.
+	}
 	e.timestampEncoder.Reset()
+	if e.fieldCount <= 2 {
+		return // Value and all subsequent fields are skipped.
+	}
 
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
+	}
+
+	if e.fieldCount <= 3 {
+		return // Exemplars and all subsequent fields are skipped.
 	}
 
 	if !e.isExemplarsRecursive {
@@ -564,25 +590,17 @@ func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	state.PointDecoder = d
 	defer func() { state.PointDecoder = nil }()
 
-	if state.OverrideSchema != nil {
-		fieldCount, ok := state.OverrideSchema.FieldCount("Point")
-		if !ok {
-			return fmt.Errorf("cannot find struct in override schema: %s", "Point")
-		}
-
-		// Number of fields in the target schema.
-		d.fieldCount = fieldCount
-	} else {
-		// Keep all fields when encoding.
-		d.fieldCount = 4
+	// Number of fields in the input data schema.
+	var err error
+	d.fieldCount, err = state.StructFieldCounts.PointFieldCount()
+	if err != nil {
+		return fmt.Errorf("cannot find struct %s in override schema: %v", "Point", err)
 	}
 
 	d.column = columns.Column()
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
-
-	var err error
 
 	if d.fieldCount <= 0 {
 		return nil // StartTimestamp and subsequent fields are skipped.
@@ -665,11 +683,25 @@ func (d *PointDecoder) Continue() {
 }
 
 func (d *PointDecoder) Reset() {
+
+	if d.fieldCount <= 0 {
+		return // StartTimestamp and all subsequent fields are skipped.
+	}
 	d.startTimestampDecoder.Reset()
+	if d.fieldCount <= 1 {
+		return // Timestamp and all subsequent fields are skipped.
+	}
 	d.timestampDecoder.Reset()
+	if d.fieldCount <= 2 {
+		return // Value and all subsequent fields are skipped.
+	}
 
 	if !d.isValueRecursive {
 		d.valueDecoder.Reset()
+	}
+
+	if d.fieldCount <= 3 {
+		return // Exemplars and all subsequent fields are skipped.
 	}
 
 	if !d.isExemplarsRecursive {

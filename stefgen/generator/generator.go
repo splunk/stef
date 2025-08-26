@@ -34,6 +34,9 @@ type Generator struct {
 	// If unspecified, it defaults to OutputDir.
 	TestOutputDir string
 
+	// TODO: refactor Generator to avoid needing both SchemaContent and parsed schema as input.
+	SchemaContent []byte
+
 	// Buffer to accumulated generated file.
 	outBuf  *bytes.Buffer
 	lastErr error
@@ -79,7 +82,7 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 		return err
 	}
 
-	if err := g.oDicts(); err != nil {
+	if err := g.oReaderWriterState(); err != nil {
 		return err
 	}
 
@@ -96,6 +99,10 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 	}
 
 	if err := g.oTools(); err != nil {
+		return err
+	}
+
+	if err := g.oCommon(); err != nil {
 		return err
 	}
 

@@ -48,15 +48,8 @@ class ScopeEncoder {
             this.limiter = state.getLimiter();
             this.dict = state.Scope;
 
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Scope");
-                this.fieldCount = fieldCount;
-                this.keepFieldMask = ~((~0L) << this.fieldCount);
-            } else {
-                this.fieldCount = 5;
-                this.keepFieldMask = ~0L;
-            }
-
+            this.fieldCount = state.getStructFieldCounts().getScopeFieldCount();
+            this.keepFieldMask = ~((~0L) << this.fieldCount);
             
             // Init encoder for Name field.
             if (this.fieldCount <= 0) {
@@ -103,14 +96,30 @@ class ScopeEncoder {
         // Since we are resetting the state of encoder make sure the next encode()
         // call forcefully writes all fields and does not attempt to skip.
         this.forceModifiedFields = true;
+        
+        if (fieldCount <= 0) {
+            return; // Name and all subsequent fields are skipped.
+        }
         nameEncoder.reset();
+        if (fieldCount <= 1) {
+            return; // Version and all subsequent fields are skipped.
+        }
         versionEncoder.reset();
+        if (fieldCount <= 2) {
+            return; // SchemaURL and all subsequent fields are skipped.
+        }
         schemaURLEncoder.reset();
+        if (fieldCount <= 3) {
+            return; // Attributes and all subsequent fields are skipped.
+        }
         
         if (!isAttributesRecursive) {
             attributesEncoder.reset();
         }
         
+        if (fieldCount <= 4) {
+            return; // DroppedAttributesCount and all subsequent fields are skipped.
+        }
         droppedAttributesCountEncoder.reset();
     }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
+    "github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
@@ -256,10 +257,18 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
-// random parameter as a deterministic generator.
-func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
-    const fieldCount = {{len .Fields}}
-    typeChanged := false
+// random parameter as a deterministic generator. Only fields that exist
+// in the schema are mutated, allowing to generate data for specified schema.
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+    // Get the field count for this oneof from the schema. If the schema specifies
+    // fewer field count than the one we have in this code then we will not mutate
+    // the type of the oneof to the choices that are not in the schema.
+    fieldCount, err := schem.FieldCount({{printf "%q" .StructName}})
+    if err != nil {
+        panic(fmt.Sprintf("cannot get field count for %s: %v", {{printf "%q" .StructName}}, err))
+    }
+
+typeChanged := false
     if random.IntN(10)==0 {
         s.SetType({{$.StructName }}Type(random.IntN(fieldCount+1)))
         typeChanged = true
@@ -270,7 +279,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand) {
     case {{ $.StructName }}Type{{.Name}}:
         if typeChanged || random.IntN(2)==0 {
         {{- if not .Type.IsPrimitive }}
-            s.{{.name}}.mutateRandom(random)
+            s.{{.name}}.mutateRandom(random, schem)
         {{- else }}
             s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc)}})
         {{- end}}
@@ -333,20 +342,12 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 	e.dict = &state.{{.DictName}}
     {{end}}
 
-    if state.OverrideSchema != nil {
-        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
-        if !ok {
-            return fmt.Errorf("cannot find oneof in override schema: %s", {{printf "%q" .StructName}})
-        }
-
-        // Number of fields in the target schema.
-        e.fieldCount = fieldCount
-    } else {
-        // Keep all fields when encoding.
-        e.fieldCount = {{len .Fields}}
+    var err error
+    e.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
+    if err != nil {
+        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
     }
 
-    var err error
     {{ range $i, $e := .Fields }}
     // Init encoder for {{.Name}} field.
     if e.fieldCount <= {{$i}} {
@@ -378,7 +379,10 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 
 func (e *{{ .StructName }}Encoder) Reset() {
     e.prevType = 0
-    {{- range .Fields}}
+    {{ range $i, $e := .Fields }}
+    if e.fieldCount <= {{$i}} {
+        return // {{.Name}} and all subsequent fields are skipped.
+    }
     {{if not .IsPrimitive}}
     if !e.is{{.Name}}Recursive {
         e.{{.name}}Encoder.Reset()
@@ -464,17 +468,10 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     state.{{.StructName}}Decoder = d
     defer func() { state.{{.StructName}}Decoder = nil }()
 
-    if state.OverrideSchema != nil {
-        fieldCount, ok := state.OverrideSchema.FieldCount({{printf "%q" .StructName}})
-        if !ok {
-            return fmt.Errorf("cannot find oneof in override schema: %s", {{printf "%q" .StructName}})
-        }
-
-        // Number of fields in the target schema.
-        d.fieldCount = fieldCount
-    } else {
-        // Keep all fields when encoding.
-        d.fieldCount = {{len .Fields}}
+    var err error
+    d.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
+    if err != nil {
+        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
     }
 
     d.column = columns.Column()
@@ -486,7 +483,6 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     {{- end}}
     d.lastValPtr = &d.lastVal
 
-    var err error
     {{- range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
         return nil // {{.Name}} and subsequent fields are skipped.
@@ -543,7 +539,10 @@ func (d *{{ .StructName }}Decoder) Continue() {
 
 func (d *{{ .StructName }}Decoder) Reset() {
     d.prevType = 0
-    {{- range .Fields}}
+    {{ range $i, $e := .Fields }}
+    if d.fieldCount <= {{$i}} {
+        return // {{.Name}} and all subsequent fields are skipped.
+    }
     {{if not .IsPrimitive}}
     if !d.is{{.Name}}Recursive {
         d.{{.name}}Decoder.Reset()

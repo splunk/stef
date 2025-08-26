@@ -29,12 +29,8 @@ class EnvelopeDecoder {
         state.EnvelopeDecoder = this;
 
         try {
-            if (state.getOverrideSchema() != null) {
-                int fieldCount = state.getOverrideSchema().getFieldCount("Envelope");
-                fieldCount = fieldCount;
-            } else {
-                fieldCount = 1;
-            }
+            fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
+
             column = columns.getColumn();
             
             lastVal = new Envelope(null, 0);
@@ -74,6 +70,11 @@ class EnvelopeDecoder {
     }
 
     public void reset() {
+        
+        if (fieldCount <= 0) {
+            // Attributes and all subsequent fields are skipped.
+            return;
+        }
         if (!isAttributesRecursive) {
             attributesDecoder.reset();
         }
