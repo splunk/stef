@@ -154,7 +154,6 @@ func (s *{{ .StructName }}) byteSize() uint {
        {{- end }}0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
 	switch src.typ {
     {{- range .Fields}}
