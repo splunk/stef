@@ -40,6 +40,12 @@ func (s *ExemplarValue) init(parentModifiedFields *modifiedFields, parentModifie
 
 }
 
+func (s *ExemplarValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExemplarValue) reset() {
@@ -108,7 +114,7 @@ func (s *ExemplarValue) SetFloat64(v float64) {
 	}
 }
 
-func (s *ExemplarValue) Clone() ExemplarValue {
+func (s *ExemplarValue) Clone(allocators *Allocators) ExemplarValue {
 	return ExemplarValue{
 		int64:   s.int64,
 		float64: s.float64,
@@ -122,6 +128,7 @@ func (s *ExemplarValue) byteSize() uint {
 		0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 	switch src.typ {
 	case ExemplarValueTypeInt64:
@@ -130,6 +137,20 @@ func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 		dst.SetFloat64(src.float64)
 	case ExemplarValueTypeNone:
 		dst.SetType(src.typ)
+	default:
+		panic("copyExemplarValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewExemplarValue(dst *ExemplarValue, src *ExemplarValue, allocators *Allocators) {
+	dst.typ = src.typ
+	switch src.typ {
+	case ExemplarValueTypeInt64:
+		dst.int64 = src.int64
+	case ExemplarValueTypeFloat64:
+		dst.float64 = src.float64
+	case ExemplarValueTypeNone:
 	default:
 		panic("copyExemplarValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -364,6 +385,8 @@ type ExemplarValueDecoder struct {
 	int64Decoder encoders.Int64Decoder
 
 	float64Decoder encoders.Float64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -374,6 +397,8 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	}
 	state.ExemplarValueDecoder = d
 	defer func() { state.ExemplarValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.ExemplarValueFieldCount()
@@ -466,4 +491,35 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 		}
 	}
 	return nil
+}
+
+// ExemplarValueAllocator implements a custom allocator for ExemplarValue.
+// It maintains a pool of pre-allocated ExemplarValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type ExemplarValueAllocator struct {
+	pool []ExemplarValue
+	ofs  int
+}
+
+// Alloc returns the next available ExemplarValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *ExemplarValueAllocator) Alloc() *ExemplarValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available ExemplarValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ExemplarValueAllocator) prealloc() *ExemplarValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]ExemplarValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -96,7 +96,12 @@ func BenchmarkDeserialization(b *testing.B) {
 		b.Run(
 			"file="+file.Name()+"/format=pprof", func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					pprof.ParseUncompressed(pprofData)
+					p, err := pprof.ParseUncompressed(pprofData)
+					if err != nil {
+						b.Fatalf("failed to parse pprof data: %v", err)
+					}
+					recCount := len(p.Sample)
+					b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
 				}
 			},
 		)
@@ -111,11 +116,14 @@ func BenchmarkDeserialization(b *testing.B) {
 					if err != nil {
 						b.Fatalf("failed to create STEF reader: %v", err)
 					}
+					recCount := 0
 					for {
 						if err := reader.Read(pkg.ReadOptions{}); err != nil {
 							break
 						}
+						recCount++
 					}
+					b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
 				}
 			},
 		)

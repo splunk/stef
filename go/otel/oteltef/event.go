@@ -56,6 +56,13 @@ func (s *Event) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.attributes.init(&s.modifiedFields, fieldModifiedEventAttributes)
 }
 
+func (s *Event) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedEventAttributes, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Event) reset() {
@@ -189,13 +196,16 @@ func (s *Event) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Event) Clone() Event {
-	return Event{
+func (s *Event) Clone(allocators *Allocators) Event {
+
+	c := Event{
+
 		name:                   s.name,
 		timeUnixNano:           s.timeUnixNano,
-		attributes:             s.attributes.Clone(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -205,11 +215,20 @@ func (s *Event) byteSize() uint {
 		s.attributes.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyEvent(dst *Event, src *Event) {
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewEvent(dst *Event, src *Event, allocators *Allocators) {
+	dst.name = src.name
+	dst.timeUnixNano = src.timeUnixNano
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -347,6 +366,8 @@ type EventEncoder struct {
 
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -360,6 +381,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.EventEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -551,6 +573,8 @@ type EventDecoder struct {
 	isAttributesRecursive bool
 
 	droppedAttributesCountDecoder encoders.Uint64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -561,6 +585,8 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 	state.EventDecoder = d
 	defer func() { state.EventDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -705,4 +731,35 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 	}
 
 	return nil
+}
+
+// EventAllocator implements a custom allocator for Event.
+// It maintains a pool of pre-allocated Event and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type EventAllocator struct {
+	pool []Event
+	ofs  int
+}
+
+// Alloc returns the next available Event from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *EventAllocator) Alloc() *Event {
+	if a.ofs < len(a.pool) {
+		// Get the next available Event from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *EventAllocator) prealloc() *Event {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Event, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

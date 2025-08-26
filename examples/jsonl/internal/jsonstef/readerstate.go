@@ -18,6 +18,8 @@ type ReaderState struct {
 	JsonValueDecoder      *JsonValueDecoder
 	JsonValueArrayDecoder *JsonValueArrayDecoder
 	RecordDecoder         *RecordDecoder
+
+	Allocators Allocators
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {

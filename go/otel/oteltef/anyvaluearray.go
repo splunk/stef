@@ -28,6 +28,10 @@ func (e *AnyValueArray) init(parentModifiedFields *modifiedFields, parentModifie
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *AnyValueArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *AnyValueArray) reset() {
@@ -42,9 +46,9 @@ func (e *AnyValueArray) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of AnyValueArray
-func (e *AnyValueArray) Clone() AnyValueArray {
+func (e *AnyValueArray) Clone(allocators *Allocators) AnyValueArray {
 	var clone AnyValueArray
-	copyAnyValueArray(&clone, e)
+	copyToNewAnyValueArray(&clone, e, allocators)
 	return clone
 }
 
@@ -87,6 +91,7 @@ func (e *AnyValueArray) markUnmodifiedRecursively() {
 
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 	isModified := false
 
@@ -122,6 +127,23 @@ func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	// Need to allocate new elements for the part of the array that has grown.
+	for j := 0; j < len(dst.elems); j++ {
+		// Alloc and init the element.
+		dst.elems[j] = allocators.AnyValue.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewAnyValue(dst.elems[j], src.elems[j], allocators)
+	}
+}
+
 // Len returns the number of elements in the array.
 func (e *AnyValueArray) Len() int {
 	return len(e.elems)
@@ -144,6 +166,26 @@ func (e *AnyValueArray) EnsureLen(newLen int) {
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(AnyValue)
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *AnyValueArray) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]*AnyValue, newLen-oldLen)...)
+		e.markModified()
+		// Initialize newly added elements.
+		for ; oldLen < newLen; oldLen++ {
+			e.elems[oldLen] = allocators.AnyValue.Alloc()
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -272,6 +314,7 @@ type AnyValueArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *AnyValueDecoder
 	isRecursive bool
+	allocators  *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -293,6 +336,8 @@ func (d *AnyValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 			return err
 		}
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }
@@ -318,7 +363,7 @@ func (d *AnyValueArrayDecoder) Reset() {
 func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(dst.elems[i])

@@ -67,6 +67,12 @@ func (s *Mapping) init(parentModifiedFields *modifiedFields, parentModifiedBit u
 
 }
 
+func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Mapping) reset() {
@@ -342,8 +348,11 @@ func (s *Mapping) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Mapping) Clone() *Mapping {
-	return &Mapping{
+func (s *Mapping) Clone(allocators *Allocators) *Mapping {
+
+	c := allocators.Mapping.Alloc()
+	*c = Mapping{
+
 		memoryStart:     s.memoryStart,
 		memoryLimit:     s.memoryLimit,
 		fileOffset:      s.fileOffset,
@@ -354,6 +363,7 @@ func (s *Mapping) Clone() *Mapping {
 		hasLineNumbers:  s.hasLineNumbers,
 		hasInlineFrames: s.hasInlineFrames,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -363,6 +373,7 @@ func (s *Mapping) byteSize() uint {
 		0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetMemoryStart(src.memoryStart)
 	dst.SetMemoryLimit(src.memoryLimit)
@@ -373,6 +384,19 @@ func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetHasFilenames(src.hasFilenames)
 	dst.SetHasLineNumbers(src.hasLineNumbers)
 	dst.SetHasInlineFrames(src.hasInlineFrames)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
+	dst.memoryStart = src.memoryStart
+	dst.memoryLimit = src.memoryLimit
+	dst.fileOffset = src.fileOffset
+	dst.filename = src.filename
+	dst.buildId = src.buildId
+	dst.hasFunctions = src.hasFunctions
+	dst.hasFilenames = src.hasFilenames
+	dst.hasLineNumbers = src.hasLineNumbers
+	dst.hasInlineFrames = src.hasInlineFrames
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -599,7 +623,8 @@ type MappingEncoder struct {
 
 	hasInlineFramesEncoder encoders.BoolEncoder
 
-	dict *MappingEncoderDict
+	dict       *MappingEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -637,6 +662,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	e.limiter = &state.limiter
 	e.dict = &state.Mapping
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -798,7 +824,7 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	}
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = MappingEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -990,6 +1016,8 @@ type MappingDecoder struct {
 	hasInlineFramesDecoder encoders.BoolDecoder
 
 	dict *MappingDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1000,6 +1028,8 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 	state.MappingDecoder = d
 	defer func() { state.MappingDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1178,7 +1208,7 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -1277,4 +1307,35 @@ func (d *MappingDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *MappingDecoderDict) Reset() {
 	d.Init()
+}
+
+// MappingAllocator implements a custom allocator for Mapping.
+// It maintains a pool of pre-allocated Mapping and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type MappingAllocator struct {
+	pool []Mapping
+	ofs  int
+}
+
+// Alloc returns the next available Mapping from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *MappingAllocator) Alloc() *Mapping {
+	if a.ofs < len(a.pool) {
+		// Get the next available Mapping from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *MappingAllocator) prealloc() *Mapping {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Mapping, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

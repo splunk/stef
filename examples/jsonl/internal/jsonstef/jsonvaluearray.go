@@ -28,6 +28,10 @@ func (e *JsonValueArray) init(parentModifiedFields *modifiedFields, parentModifi
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *JsonValueArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *JsonValueArray) reset() {
@@ -42,9 +46,9 @@ func (e *JsonValueArray) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of JsonValueArray
-func (e *JsonValueArray) Clone() JsonValueArray {
+func (e *JsonValueArray) Clone(allocators *Allocators) JsonValueArray {
 	var clone JsonValueArray
-	copyJsonValueArray(&clone, e)
+	copyToNewJsonValueArray(&clone, e, allocators)
 	return clone
 }
 
@@ -87,6 +91,7 @@ func (e *JsonValueArray) markUnmodifiedRecursively() {
 
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 	isModified := false
 
@@ -122,6 +127,23 @@ func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewJsonValueArray(dst *JsonValueArray, src *JsonValueArray, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	// Need to allocate new elements for the part of the array that has grown.
+	for j := 0; j < len(dst.elems); j++ {
+		// Alloc and init the element.
+		dst.elems[j] = allocators.JsonValue.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewJsonValue(dst.elems[j], src.elems[j], allocators)
+	}
+}
+
 // Len returns the number of elements in the array.
 func (e *JsonValueArray) Len() int {
 	return len(e.elems)
@@ -144,6 +166,26 @@ func (e *JsonValueArray) EnsureLen(newLen int) {
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(JsonValue)
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *JsonValueArray) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]*JsonValue, newLen-oldLen)...)
+		e.markModified()
+		// Initialize newly added elements.
+		for ; oldLen < newLen; oldLen++ {
+			e.elems[oldLen] = allocators.JsonValue.Alloc()
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -272,6 +314,7 @@ type JsonValueArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *JsonValueDecoder
 	isRecursive bool
+	allocators  *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -293,6 +336,8 @@ func (d *JsonValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 			return err
 		}
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }
@@ -318,7 +363,7 @@ func (d *JsonValueArrayDecoder) Reset() {
 func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(dst.elems[i])

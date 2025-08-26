@@ -30,6 +30,10 @@ func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedB
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *StringArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *StringArray) reset() {
@@ -44,9 +48,9 @@ func (e *StringArray) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of StringArray
-func (e *StringArray) Clone() StringArray {
+func (e *StringArray) Clone(allocators *Allocators) StringArray {
 	var clone StringArray
-	copyStringArray(&clone, e)
+	copyToNewStringArray(&clone, e, allocators)
 	return clone
 }
 
@@ -91,6 +95,7 @@ func (e *StringArray) markUnmodifiedRecursively() {
 
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyStringArray(dst *StringArray, src *StringArray) {
 	isModified := false
 
@@ -120,6 +125,18 @@ func copyStringArray(dst *StringArray, src *StringArray) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	for i := 0; i < len(dst.elems); i++ {
+		dst.elems[i] = src.elems[i]
+	}
+}
+
 // Len returns the number of elements in the array.
 func (e *StringArray) Len() int {
 	return len(e.elems)
@@ -133,6 +150,21 @@ func (m *StringArray) At(i int) string {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *StringArray) EnsureLen(newLen int) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
+		e.markModified()
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *StringArray) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Grow the array
@@ -256,6 +288,7 @@ type StringArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *encoders.StringDecoder
 	isRecursive bool
+	allocators  *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -266,6 +299,8 @@ func (d *StringArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	if err != nil {
 		return err
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }
@@ -291,7 +326,7 @@ func (d *StringArrayDecoder) Reset() {
 func (d *StringArrayDecoder) Decode(dst *StringArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])

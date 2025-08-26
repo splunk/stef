@@ -28,6 +28,10 @@ func (e *LocationArray) init(parentModifiedFields *modifiedFields, parentModifie
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *LocationArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *LocationArray) reset() {
@@ -42,9 +46,9 @@ func (e *LocationArray) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of LocationArray
-func (e *LocationArray) Clone() LocationArray {
+func (e *LocationArray) Clone(allocators *Allocators) LocationArray {
 	var clone LocationArray
-	copyLocationArray(&clone, e)
+	copyToNewLocationArray(&clone, e, allocators)
 	return clone
 }
 
@@ -87,6 +91,7 @@ func (e *LocationArray) markUnmodifiedRecursively() {
 
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLocationArray(dst *LocationArray, src *LocationArray) {
 	isModified := false
 
@@ -122,6 +127,23 @@ func copyLocationArray(dst *LocationArray, src *LocationArray) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	// Need to allocate new elements for the part of the array that has grown.
+	for j := 0; j < len(dst.elems); j++ {
+		// Alloc and init the element.
+		dst.elems[j] = allocators.Location.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewLocation(dst.elems[j], src.elems[j], allocators)
+	}
+}
+
 // Len returns the number of elements in the array.
 func (e *LocationArray) Len() int {
 	return len(e.elems)
@@ -144,6 +166,26 @@ func (e *LocationArray) EnsureLen(newLen int) {
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(Location)
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *LocationArray) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]*Location, newLen-oldLen)...)
+		e.markModified()
+		// Initialize newly added elements.
+		for ; oldLen < newLen; oldLen++ {
+			e.elems[oldLen] = allocators.Location.Alloc()
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -272,6 +314,7 @@ type LocationArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *LocationDecoder
 	isRecursive bool
+	allocators  *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -293,6 +336,8 @@ func (d *LocationArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 			return err
 		}
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }
@@ -318,7 +363,7 @@ func (d *LocationArrayDecoder) Reset() {
 func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])

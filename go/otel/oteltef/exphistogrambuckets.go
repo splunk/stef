@@ -52,6 +52,13 @@ func (s *ExpHistogramBuckets) init(parentModifiedFields *modifiedFields, parentM
 	s.bucketCounts.init(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts)
 }
 
+func (s *ExpHistogramBuckets) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.bucketCounts.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramBuckets) reset() {
@@ -129,11 +136,14 @@ func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *ExpHistogramBuckets) Clone() ExpHistogramBuckets {
-	return ExpHistogramBuckets{
+func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
+
+	c := ExpHistogramBuckets{
+
 		offset:       s.offset,
-		bucketCounts: s.bucketCounts.Clone(),
+		bucketCounts: s.bucketCounts.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -143,9 +153,16 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 		s.bucketCounts.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets, allocators *Allocators) {
+	dst.offset = src.offset
+	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -247,6 +264,8 @@ type ExpHistogramBucketsEncoder struct {
 	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -260,6 +279,7 @@ func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.Write
 	defer func() { state.ExpHistogramBucketsEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -393,6 +413,8 @@ type ExpHistogramBucketsDecoder struct {
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -403,6 +425,8 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	}
 	state.ExpHistogramBucketsDecoder = d
 	defer func() { state.ExpHistogramBucketsDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -501,4 +525,35 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 	}
 
 	return nil
+}
+
+// ExpHistogramBucketsAllocator implements a custom allocator for ExpHistogramBuckets.
+// It maintains a pool of pre-allocated ExpHistogramBuckets and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type ExpHistogramBucketsAllocator struct {
+	pool []ExpHistogramBuckets
+	ofs  int
+}
+
+// Alloc returns the next available ExpHistogramBuckets from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *ExpHistogramBucketsAllocator) Alloc() *ExpHistogramBuckets {
+	if a.ofs < len(a.pool) {
+		// Get the next available ExpHistogramBuckets from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ExpHistogramBucketsAllocator) prealloc() *ExpHistogramBuckets {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]ExpHistogramBuckets, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

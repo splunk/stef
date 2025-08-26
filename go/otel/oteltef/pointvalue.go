@@ -46,6 +46,15 @@ func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.summary.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (s *PointValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.histogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.expHistogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.summary.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *PointValue) reset() {
@@ -142,13 +151,13 @@ func (s *PointValue) Summary() *SummaryValue {
 	return &s.summary
 }
 
-func (s *PointValue) Clone() PointValue {
+func (s *PointValue) Clone(allocators *Allocators) PointValue {
 	return PointValue{
 		int64:        s.int64,
 		float64:      s.float64,
-		histogram:    s.histogram.Clone(),
-		expHistogram: s.expHistogram.Clone(),
-		summary:      s.summary.Clone(),
+		histogram:    s.histogram.Clone(allocators),
+		expHistogram: s.expHistogram.Clone(allocators),
+		summary:      s.summary.Clone(allocators),
 	}
 }
 
@@ -159,6 +168,7 @@ func (s *PointValue) byteSize() uint {
 		s.histogram.byteSize() + s.expHistogram.byteSize() + s.summary.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyPointValue(dst *PointValue, src *PointValue) {
 	switch src.typ {
 	case PointValueTypeInt64:
@@ -176,6 +186,26 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 		copySummaryValue(&dst.summary, &src.summary)
 	case PointValueTypeNone:
 		dst.SetType(src.typ)
+	default:
+		panic("copyPointValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewPointValue(dst *PointValue, src *PointValue, allocators *Allocators) {
+	dst.typ = src.typ
+	switch src.typ {
+	case PointValueTypeInt64:
+		dst.int64 = src.int64
+	case PointValueTypeFloat64:
+		dst.float64 = src.float64
+	case PointValueTypeHistogram:
+		copyToNewHistogramValue(&dst.histogram, &src.histogram, allocators)
+	case PointValueTypeExpHistogram:
+		copyToNewExpHistogramValue(&dst.expHistogram, &src.expHistogram, allocators)
+	case PointValueTypeSummary:
+		copyToNewSummaryValue(&dst.summary, &src.summary, allocators)
+	case PointValueTypeNone:
 	default:
 		panic("copyPointValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -576,6 +606,8 @@ type PointValueDecoder struct {
 
 	summaryDecoder     *SummaryValueDecoder
 	isSummaryRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -586,6 +618,8 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	}
 	state.PointValueDecoder = d
 	defer func() { state.PointValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.PointValueFieldCount()
@@ -786,4 +820,35 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 		}
 	}
 	return nil
+}
+
+// PointValueAllocator implements a custom allocator for PointValue.
+// It maintains a pool of pre-allocated PointValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type PointValueAllocator struct {
+	pool []PointValue
+	ofs  int
+}
+
+// Alloc returns the next available PointValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *PointValueAllocator) Alloc() *PointValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available PointValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *PointValueAllocator) prealloc() *PointValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]PointValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

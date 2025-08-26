@@ -60,6 +60,13 @@ func (s *Link) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.attributes.init(&s.modifiedFields, fieldModifiedLinkAttributes)
 }
 
+func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedLinkAttributes, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Link) reset() {
@@ -249,15 +256,18 @@ func (s *Link) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Link) Clone() Link {
-	return Link{
+func (s *Link) Clone(allocators *Allocators) Link {
+
+	c := Link{
+
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
 		flags:                  s.flags,
-		attributes:             s.attributes.Clone(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -267,6 +277,7 @@ func (s *Link) byteSize() uint {
 		s.attributes.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLink(dst *Link, src *Link) {
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -274,6 +285,16 @@ func copyLink(dst *Link, src *Link) {
 	dst.SetFlags(src.flags)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLink(dst *Link, src *Link, allocators *Allocators) {
+	dst.traceID = src.traceID
+	dst.spanID = src.spanID
+	dst.traceState = src.traceState
+	dst.flags = src.flags
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -447,6 +468,8 @@ type LinkEncoder struct {
 
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -460,6 +483,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.LinkEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -709,6 +733,8 @@ type LinkDecoder struct {
 	isAttributesRecursive bool
 
 	droppedAttributesCountDecoder encoders.Uint64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -719,6 +745,8 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 	state.LinkDecoder = d
 	defer func() { state.LinkDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -909,4 +937,35 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 	}
 
 	return nil
+}
+
+// LinkAllocator implements a custom allocator for Link.
+// It maintains a pool of pre-allocated Link and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type LinkAllocator struct {
+	pool []Link
+	ofs  int
+}
+
+// Alloc returns the next available Link from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *LinkAllocator) Alloc() *Link {
+	if a.ofs < len(a.pool) {
+		// Get the next available Link from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LinkAllocator) prealloc() *Link {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Link, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

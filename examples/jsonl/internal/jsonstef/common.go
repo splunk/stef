@@ -72,3 +72,8 @@ func (s *StructFieldCounts) RecordFieldCount() (uint, error) {
 func (s *StructFieldCounts) AllFetched() bool {
 	return s.overrideSchema == false || s.overrideSchemaIter.Done()
 }
+
+type Allocators struct {
+	JsonValue JsonValueAllocator
+	Record    RecordAllocator
+}

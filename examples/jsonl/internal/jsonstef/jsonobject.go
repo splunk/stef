@@ -37,6 +37,10 @@ func (m *JsonObject) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *JsonObject) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *JsonObject) reset() {
@@ -51,9 +55,9 @@ func (m *JsonObject) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of JsonObject
-func (m *JsonObject) Clone() JsonObject {
+func (m *JsonObject) Clone(allocators *Allocators) JsonObject {
 	clone := JsonObject{}
-	copyJsonObject(&clone, m)
+	copyToNewJsonObject(&clone, m, allocators)
 	return clone
 }
 
@@ -126,6 +130,7 @@ func (m *JsonObject) byteSize() uint {
 	return uint(unsafe.Sizeof(JsonObjectElem{}))*uint(len(m.elems)) + uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyJsonObject(dst *JsonObject, src *JsonObject) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -142,6 +147,21 @@ func copyJsonObject(dst *JsonObject, src *JsonObject) {
 			dst.modifiedElems.markValModified(i)
 		}
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewJsonObject(dst *JsonObject, src *JsonObject, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.EnsureLen(len(src.elems))
+	for i := 0; i < len(src.elems); i++ {
+		dst.elems[i].key = src.elems[i].key
+
+		copyToNewJsonValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+	}
+
 }
 
 func (m *JsonObject) CopyFrom(src *JsonObject) {

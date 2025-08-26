@@ -51,6 +51,14 @@ func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
 }
 
+func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.value = allocators.JsonValue.Alloc()
+	s.value.initAlloc(&s.modifiedFields, fieldModifiedRecordValue, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Record) reset() {
@@ -100,10 +108,13 @@ func (s *Record) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Record) Clone() Record {
-	return Record{
-		value: s.value.Clone(),
+func (s *Record) Clone(allocators *Allocators) Record {
+
+	c := Record{
+
+		value: s.value.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -113,6 +124,7 @@ func (s *Record) byteSize() uint {
 		s.value.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyRecord(dst *Record, src *Record) {
 	if src.value != nil {
 		if dst.value == nil {
@@ -120,6 +132,15 @@ func copyRecord(dst *Record, src *Record) {
 			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
 		}
 		copyJsonValue(dst.value, src.value)
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewRecord(dst *Record, src *Record, allocators *Allocators) {
+	if src.value != nil {
+		dst.value = allocators.JsonValue.Alloc()
+		dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		copyToNewJsonValue(dst.value, src.value, allocators)
 	}
 }
 
@@ -204,6 +225,8 @@ type RecordEncoder struct {
 	valueEncoder     *JsonValueEncoder
 	isValueRecursive bool // Indicates Value field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -217,6 +240,7 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.RecordEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -321,6 +345,8 @@ type RecordDecoder struct {
 
 	valueDecoder     *JsonValueDecoder
 	isValueRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -331,6 +357,8 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 	state.RecordDecoder = d
 	defer func() { state.RecordDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -400,7 +428,7 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 {
 		// Field is changed and is present, decode it.
 		if val.value == nil {
-			val.value = &JsonValue{}
+			val.value = d.allocators.JsonValue.Alloc()
 			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
 		}
 
@@ -411,6 +439,37 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	}
 
 	return nil
+}
+
+// RecordAllocator implements a custom allocator for Record.
+// It maintains a pool of pre-allocated Record and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type RecordAllocator struct {
+	pool []Record
+	ofs  int
+}
+
+// Alloc returns the next available Record from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *RecordAllocator) Alloc() *Record {
+	if a.ofs < len(a.pool) {
+		// Get the next available Record from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *RecordAllocator) prealloc() *Record {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Record, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
 
 var wireSchemaRecord = []byte{0x02, 0x01, 0x05}
