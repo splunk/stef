@@ -43,7 +43,9 @@ public class Envelope {
 
     void reset() {
         
-        attributes.reset();
+        if (attributes != null) {
+            attributes.reset();
+        }
     }
 
     

@@ -35,24 +35,16 @@ public class PointValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
-        
-        
+        int64 = 0;
+        float64 = 0.0;
     }
 
+    // reset the struct to its initial state, as if init() was just called.
+    // Will not reset internal fields such as parentModifiedFields.
     void reset() {
         typ = Type.TypeNone;
-        
-        
-        
-        if (histogram != null) {
-            histogram.reset();
-        }
-        if (expHistogram != null) {
-            expHistogram.reset();
-        }
-        if (summary != null) {
-            summary.reset();
-        }
+        // We don't need to reset the state of the field since that will be done
+        // when the type is changed, see SetType().
     }
 
     // Type enum for oneof
@@ -81,10 +73,34 @@ public class PointValue {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in blank state.
+    void resetContained() {
+        switch (typ) {
+        case TypeHistogram:
+            if (histogram != null) {
+                histogram.reset();
+            }
+            break;
+        case TypeExpHistogram:
+            if (expHistogram != null) {
+                expHistogram.reset();
+            }
+            break;
+        case TypeSummary:
+            if (summary != null) {
+                summary.reset();
+            }
+            break;
+        }
+    }
+
     // setType sets the type of the value currently contained in PointValue.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             case TypeHistogram:
                 if (histogram == null) {

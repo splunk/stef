@@ -40,14 +40,14 @@ public class QuantileValue {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
+        quantile = 0.0;
+        value = 0.0;
     }
 
     void reset() {
         
-        
-        
+        quantile = 0.0;
+        value = 0.0;
     }
 
     

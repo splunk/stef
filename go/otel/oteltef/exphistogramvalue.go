@@ -90,8 +90,15 @@ func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, pare
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramValue) reset() {
 
+	s.count = 0
+	s.sum = 0.0
+	s.min = 0.0
+	s.max = 0.0
+	s.scale = 0
+	s.zeroCount = 0
 	s.positiveBuckets.reset()
 	s.negativeBuckets.reset()
+	s.zeroThreshold = 0.0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

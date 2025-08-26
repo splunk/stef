@@ -180,20 +180,35 @@ func (r *genPrimitiveTypeRef) Storage() string {
 // Return empty string if there is no need to assign an initial value
 // since the default initial value is good enough.
 func (r *genPrimitiveTypeRef) InitVal() string {
-	switch r.Lang {
-	case LangGo:
-		return "" // Go does not need initial values for primitive types.
-	case LangJava:
-		switch r.Type {
-		case schema.PrimitiveTypeString:
+	switch r.Type {
+	case schema.PrimitiveTypeInt64:
+		return "0"
+	case schema.PrimitiveTypeUint64:
+		return "0"
+	case schema.PrimitiveTypeFloat64:
+		return "0.0"
+	case schema.PrimitiveTypeBool:
+		return "false"
+	case schema.PrimitiveTypeString:
+		switch r.Lang {
+		case LangGo:
+			return `""`
+		case LangJava:
 			return "StringValue.empty"
-		case schema.PrimitiveTypeBytes:
+		default:
+			panic("unknown language")
+		}
+	case schema.PrimitiveTypeBytes:
+		switch r.Lang {
+		case LangGo:
+			return "pkg.EmptyBytes"
+		case LangJava:
 			return "Types.emptyBytes"
 		default:
-			return ""
+			panic("unknown language")
 		}
 	default:
-		panic(fmt.Sprintf("unknown language %v", r.Lang))
+		panic("unknown type")
 	}
 }
 

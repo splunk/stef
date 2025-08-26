@@ -67,7 +67,9 @@ public class {{ .StructName }} {
         {{- if .Type.IsPrimitive }}
         {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
         {{- else}}
-        {{.name}}.reset();
+        if ({{.name}} != null) {
+            {{.name}}.reset();
+        }
         {{- end }}
         {{- end }}
     }

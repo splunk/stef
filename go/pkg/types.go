@@ -9,6 +9,8 @@ import (
 // Bytes is a sequence of immutable bytes.
 type Bytes string
 
+const EmptyBytes = Bytes("")
+
 func Uint64Compare(left, right uint64) int {
 	if left > right {
 		return 1

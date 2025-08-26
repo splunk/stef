@@ -88,9 +88,15 @@ func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModified
 func (s *Metrics) reset() {
 
 	s.envelope.reset()
-	s.metric.reset()
-	s.resource.reset()
-	s.scope.reset()
+	if s.metric != nil {
+		s.metric.reset()
+	}
+	if s.resource != nil {
+		s.resource.reset()
+	}
+	if s.scope != nil {
+		s.scope.reset()
+	}
 	s.attributes.reset()
 	s.point.reset()
 }

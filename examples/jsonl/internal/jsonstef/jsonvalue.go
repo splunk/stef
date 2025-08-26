@@ -57,9 +57,8 @@ func (s *JsonValue) initAlloc(parentModifiedFields *modifiedFields, parentModifi
 // Will not reset internal fields such as parentModifiedFields.
 func (s *JsonValue) reset() {
 	s.typ = JsonValueTypeNone
-
-	s.object.reset()
-	s.array.reset()
+	// We don't need to reset the state of the field since that will be done
+	// when the type is changed, see SetType().
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -89,10 +88,23 @@ func (s *JsonValue) Type() JsonValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in blank state.
+func (s *JsonValue) resetContained() {
+	switch s.typ {
+	case JsonValueTypeObject:
+		s.object.reset()
+	case JsonValueTypeArray:
+		s.array.reset()
+	}
+}
+
 // SetType sets the type of the value currently contained in JsonValue.
 func (s *JsonValue) SetType(typ JsonValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -756,7 +768,10 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = JsonValueType(typ)
+	if dst.typ != JsonValueType(typ) {
+		dst.typ = JsonValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = JsonValueType(dst.typ)
 
 	// Decode selected field

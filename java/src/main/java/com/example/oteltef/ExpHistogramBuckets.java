@@ -40,14 +40,16 @@ public class ExpHistogramBuckets {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
+        offset = 0;
         bucketCounts = new Uint64Array(modifiedFields, fieldModifiedBucketCounts);
     }
 
     void reset() {
         
-        
-        bucketCounts.reset();
+        offset = 0;
+        if (bucketCounts != null) {
+            bucketCounts.reset();
+        }
     }
 
     

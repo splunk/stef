@@ -63,7 +63,9 @@ func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Record) reset() {
 
-	s.value.reset()
+	if s.value != nil {
+		s.value.reset()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

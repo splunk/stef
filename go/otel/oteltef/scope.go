@@ -71,7 +71,11 @@ func (s *Scope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Scope) reset() {
 
+	s.name = ""
+	s.version = ""
+	s.schemaURL = ""
 	s.attributes.reset()
+	s.droppedAttributesCount = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

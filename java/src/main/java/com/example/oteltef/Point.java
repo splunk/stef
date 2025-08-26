@@ -44,18 +44,22 @@ public class Point {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
+        startTimestamp = 0;
+        timestamp = 0;
         value = new PointValue(modifiedFields, fieldModifiedValue);
         exemplars = new ExemplarArray(modifiedFields, fieldModifiedExemplars);
     }
 
     void reset() {
         
-        
-        
-        value.reset();
-        exemplars.reset();
+        startTimestamp = 0;
+        timestamp = 0;
+        if (value != null) {
+            value.reset();
+        }
+        if (exemplars != null) {
+            exemplars.reset();
+        }
     }
 
     
