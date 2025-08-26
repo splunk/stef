@@ -95,10 +95,13 @@ func (s *Record) markDiffModified(v *Record) (modified bool) {
 	return modified
 }
 
-func (s *Record) Clone() Record {
-	return Record{
-		value: s.value.Clone(),
+func (s *Record) Clone(allocators *Allocators) Record {
+
+	c := Record{
+
+		value: s.value.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -204,6 +207,8 @@ type RecordEncoder struct {
 	valueEncoder     *JsonValueEncoder
 	isValueRecursive bool // Indicates Value field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -217,6 +222,7 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.RecordEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -323,6 +329,8 @@ type RecordDecoder struct {
 
 	valueDecoder     *JsonValueDecoder
 	isValueRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -333,6 +341,8 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 	state.RecordDecoder = d
 	defer func() { state.RecordDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -416,6 +426,37 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	}
 
 	return nil
+}
+
+// RecordAllocator implements a custom allocator for Record structs.
+// It maintains a pool of pre-allocated Record structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type RecordAllocator struct {
+	pool []Record
+	ofs  int
+}
+
+// Alloc returns the next available Record from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *RecordAllocator) Alloc() *Record {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *RecordAllocator) prealloc() *Record {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]Record, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
 
 var wireSchemaRecord = []byte{0x02, 0x01, 0x05}

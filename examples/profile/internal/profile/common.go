@@ -120,3 +120,16 @@ func (s *StructFieldCounts) SampleValueTypeFieldCount() (uint, error) {
 func (s *StructFieldCounts) AllFetched() bool {
 	return s.overrideSchema == false || s.overrideSchemaIter.Done()
 }
+
+type Allocators struct {
+	Function        FunctionAllocator
+	LabelValue      LabelValueAllocator
+	Line            LineAllocator
+	Location        LocationAllocator
+	Mapping         MappingAllocator
+	NumValue        NumValueAllocator
+	ProfileMetadata ProfileMetadataAllocator
+	Sample          SampleAllocator
+	SampleValue     SampleValueAllocator
+	SampleValueType SampleValueTypeAllocator
+}

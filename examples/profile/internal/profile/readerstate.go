@@ -41,6 +41,8 @@ type ReaderState struct {
 	SampleValueArrayDecoder *SampleValueArrayDecoder
 	SampleValueTypeDecoder  *SampleValueTypeDecoder
 	StringArrayDecoder      *StringArrayDecoder
+
+	Allocators Allocators
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {

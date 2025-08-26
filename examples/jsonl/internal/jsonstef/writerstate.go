@@ -20,6 +20,8 @@ type WriterState struct {
 	JsonValueEncoder      *JsonValueEncoder
 	JsonValueArrayEncoder *JsonValueArrayEncoder
 	RecordEncoder         *RecordEncoder
+
+	Allocators Allocators
 }
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {

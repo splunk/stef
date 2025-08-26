@@ -198,13 +198,17 @@ func (s *Location) markDiffModified(v *Location) (modified bool) {
 	return modified
 }
 
-func (s *Location) Clone() *Location {
-	return &Location{
-		mapping:  s.mapping.Clone(),
+func (s *Location) Clone(allocators *Allocators) *Location {
+
+	c := allocators.Location.Alloc()
+	*c = Location{
+
+		mapping:  s.mapping.Clone(allocators),
 		address:  s.address,
-		lines:    s.lines.Clone(),
+		lines:    s.lines.Clone(allocators),
 		isFolded: s.isFolded,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -369,7 +373,8 @@ type LocationEncoder struct {
 
 	isFoldedEncoder encoders.BoolEncoder
 
-	dict *LocationEncoderDict
+	dict       *LocationEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -407,6 +412,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Location
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -525,7 +531,7 @@ func (e *LocationEncoder) Encode(val *Location) {
 	}
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = LocationEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -643,6 +649,8 @@ type LocationDecoder struct {
 	isFoldedDecoder encoders.BoolDecoder
 
 	dict *LocationDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -653,6 +661,8 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.LocationDecoder = d
 	defer func() { state.LocationDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -790,7 +800,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
+	val := d.lastValPtr.Clone(d.allocators)
 	d.lastValPtr = val
 	*dstPtr = val
 
@@ -855,4 +865,35 @@ func (d *LocationDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *LocationDecoderDict) Reset() {
 	d.Init()
+}
+
+// LocationAllocator implements a custom allocator for Location structs.
+// It maintains a pool of pre-allocated Location structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type LocationAllocator struct {
+	pool []Location
+	ofs  int
+}
+
+// Alloc returns the next available Location from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *LocationAllocator) Alloc() *Location {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LocationAllocator) prealloc() *Location {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]Location, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

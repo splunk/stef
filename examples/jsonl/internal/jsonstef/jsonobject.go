@@ -41,7 +41,7 @@ func (m *JsonObject) init(parentModifiedFields *modifiedFields, parentModifiedBi
 }
 
 // Clone() creates a deep copy of JsonObject
-func (m *JsonObject) Clone() JsonObject {
+func (m *JsonObject) Clone(allocators *Allocators) JsonObject {
 	clone := JsonObject{}
 	copyJsonObject(&clone, m)
 	return clone

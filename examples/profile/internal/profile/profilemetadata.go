@@ -333,17 +333,20 @@ func (s *ProfileMetadata) markDiffModified(v *ProfileMetadata) (modified bool) {
 	return modified
 }
 
-func (s *ProfileMetadata) Clone() ProfileMetadata {
-	return ProfileMetadata{
+func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
+
+	c := ProfileMetadata{
+
 		dropFrames:        s.dropFrames,
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.Clone(),
+		periodType:        s.periodType.Clone(allocators),
 		period:            s.period,
-		comments:          s.comments.Clone(),
-		defaultSampleType: s.defaultSampleType.Clone(),
+		comments:          s.comments.Clone(allocators),
+		defaultSampleType: s.defaultSampleType.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -592,6 +595,8 @@ type ProfileMetadataEncoder struct {
 	defaultSampleTypeEncoder     *SampleValueTypeEncoder
 	isDefaultSampleTypeRecursive bool // Indicates DefaultSampleType field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -605,6 +610,7 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	defer func() { state.ProfileMetadataEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -940,6 +946,8 @@ type ProfileMetadataDecoder struct {
 
 	defaultSampleTypeDecoder     *SampleValueTypeDecoder
 	isDefaultSampleTypeRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -950,6 +958,8 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 	state.ProfileMetadataDecoder = d
 	defer func() { state.ProfileMetadataDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1229,4 +1239,35 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	}
 
 	return nil
+}
+
+// ProfileMetadataAllocator implements a custom allocator for ProfileMetadata structs.
+// It maintains a pool of pre-allocated ProfileMetadata structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type ProfileMetadataAllocator struct {
+	pool []ProfileMetadata
+	ofs  int
+}
+
+// Alloc returns the next available ProfileMetadata from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *ProfileMetadataAllocator) Alloc() *ProfileMetadata {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ProfileMetadataAllocator) prealloc() *ProfileMetadata {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]ProfileMetadata, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

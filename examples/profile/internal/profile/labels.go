@@ -41,7 +41,7 @@ func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 }
 
 // Clone() creates a deep copy of Labels
-func (m *Labels) Clone() Labels {
+func (m *Labels) Clone(allocators *Allocators) Labels {
 	clone := Labels{}
 	copyLabels(&clone, m)
 	return clone

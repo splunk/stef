@@ -31,7 +31,7 @@ func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedB
 }
 
 // Clone() creates a deep copy of StringArray
-func (e *StringArray) Clone() StringArray {
+func (e *StringArray) Clone(allocators *Allocators) StringArray {
 	var clone StringArray
 	copyStringArray(&clone, e)
 	return clone

@@ -129,10 +129,10 @@ func (s *JsonValue) SetBool(v bool) {
 	}
 }
 
-func (s *JsonValue) Clone() *JsonValue {
+func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
 	return &JsonValue{
-		object: s.object.Clone(),
-		array:  s.array.Clone(),
+		object: s.object.Clone(allocators),
+		array:  s.array.Clone(allocators),
 		string: s.string,
 		number: s.number,
 		bool:   s.bool,
@@ -785,4 +785,35 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 		}
 	}
 	return nil
+}
+
+// JsonValueAllocator implements a custom allocator for JsonValue structs.
+// It maintains a pool of pre-allocated JsonValue structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type JsonValueAllocator struct {
+	pool []JsonValue
+	ofs  int
+}
+
+// Alloc returns the next available JsonValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *JsonValueAllocator) Alloc() *JsonValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *JsonValueAllocator) prealloc() *JsonValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]JsonValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

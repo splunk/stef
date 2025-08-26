@@ -130,11 +130,14 @@ func (s *SampleValue) markDiffModified(v *SampleValue) (modified bool) {
 	return modified
 }
 
-func (s *SampleValue) Clone() SampleValue {
-	return SampleValue{
+func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
+
+	c := SampleValue{
+
 		val:   s.val,
-		type_: s.type_.Clone(),
+		type_: s.type_.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -259,6 +262,8 @@ type SampleValueEncoder struct {
 	type_Encoder    *SampleValueTypeEncoder
 	isTypeRecursive bool // Indicates Type field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -272,6 +277,7 @@ func (e *SampleValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	defer func() { state.SampleValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -407,6 +413,8 @@ type SampleValueDecoder struct {
 
 	type_Decoder    *SampleValueTypeDecoder
 	isTypeRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -417,6 +425,8 @@ func (d *SampleValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	}
 	state.SampleValueDecoder = d
 	defer func() { state.SampleValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -523,4 +533,35 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	}
 
 	return nil
+}
+
+// SampleValueAllocator implements a custom allocator for SampleValue structs.
+// It maintains a pool of pre-allocated SampleValue structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type SampleValueAllocator struct {
+	pool []SampleValue
+	ofs  int
+}
+
+// Alloc returns the next available SampleValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *SampleValueAllocator) Alloc() *SampleValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SampleValueAllocator) prealloc() *SampleValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]SampleValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -30,7 +30,7 @@ func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifi
 }
 
 // Clone() creates a deep copy of {{ .ArrayName }}
-func (e *{{.ArrayName}}) Clone() {{ .ArrayName }} {
+func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
     var clone {{ .ArrayName }}
     copy{{.ArrayName}}(&clone, e)
     return clone

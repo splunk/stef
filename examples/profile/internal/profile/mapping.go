@@ -380,8 +380,11 @@ func (s *Mapping) markDiffModified(v *Mapping) (modified bool) {
 	return modified
 }
 
-func (s *Mapping) Clone() *Mapping {
-	return &Mapping{
+func (s *Mapping) Clone(allocators *Allocators) *Mapping {
+
+	c := allocators.Mapping.Alloc()
+	*c = Mapping{
+
 		memoryStart:     s.memoryStart,
 		memoryLimit:     s.memoryLimit,
 		fileOffset:      s.fileOffset,
@@ -392,6 +395,7 @@ func (s *Mapping) Clone() *Mapping {
 		hasLineNumbers:  s.hasLineNumbers,
 		hasInlineFrames: s.hasInlineFrames,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -641,7 +645,8 @@ type MappingEncoder struct {
 
 	hasInlineFramesEncoder encoders.BoolEncoder
 
-	dict *MappingEncoderDict
+	dict       *MappingEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -679,6 +684,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	e.limiter = &state.limiter
 	e.dict = &state.Mapping
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -840,7 +846,7 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	}
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = MappingEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -1034,6 +1040,8 @@ type MappingDecoder struct {
 	hasInlineFramesDecoder encoders.BoolDecoder
 
 	dict *MappingDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1044,6 +1052,8 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 	state.MappingDecoder = d
 	defer func() { state.MappingDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1226,7 +1236,7 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
+	val := d.lastValPtr.Clone(d.allocators)
 	d.lastValPtr = val
 	*dstPtr = val
 
@@ -1326,4 +1336,35 @@ func (d *MappingDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *MappingDecoderDict) Reset() {
 	d.Init()
+}
+
+// MappingAllocator implements a custom allocator for Mapping structs.
+// It maintains a pool of pre-allocated Mapping structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type MappingAllocator struct {
+	pool []Mapping
+	ofs  int
+}
+
+// Alloc returns the next available Mapping from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *MappingAllocator) Alloc() *Mapping {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *MappingAllocator) prealloc() *Mapping {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]Mapping, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -187,13 +187,16 @@ func (s *Sample) markDiffModified(v *Sample) (modified bool) {
 	return modified
 }
 
-func (s *Sample) Clone() Sample {
-	return Sample{
-		metadata:  s.metadata.Clone(),
-		locations: s.locations.Clone(),
-		values:    s.values.Clone(),
-		labels:    s.labels.Clone(),
+func (s *Sample) Clone(allocators *Allocators) Sample {
+
+	c := Sample{
+
+		metadata:  s.metadata.Clone(allocators),
+		locations: s.locations.Clone(allocators),
+		values:    s.values.Clone(allocators),
+		labels:    s.labels.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -356,6 +359,8 @@ type SampleEncoder struct {
 	labelsEncoder     *LabelsEncoder
 	isLabelsRecursive bool // Indicates Labels field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -369,6 +374,7 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.SampleEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -601,6 +607,8 @@ type SampleDecoder struct {
 
 	labelsDecoder     *LabelsDecoder
 	isLabelsRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -611,6 +619,8 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 	state.SampleDecoder = d
 	defer func() { state.SampleDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -803,6 +813,37 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 	}
 
 	return nil
+}
+
+// SampleAllocator implements a custom allocator for Sample structs.
+// It maintains a pool of pre-allocated Sample structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type SampleAllocator struct {
+	pool []Sample
+	ofs  int
+}
+
+// Alloc returns the next available Sample from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *SampleAllocator) Alloc() *Sample {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SampleAllocator) prealloc() *Sample {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]Sample, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
 
 var wireSchemaSample = []byte{0x0A, 0x04, 0x08, 0x02, 0x04, 0x09, 0x03, 0x04, 0x02, 0x02, 0x02}

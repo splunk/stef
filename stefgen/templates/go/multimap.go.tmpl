@@ -41,7 +41,7 @@ func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentMod
 }
 
 // Clone() creates a deep copy of {{.MultimapName}}
-func (m *{{.MultimapName}}) Clone() {{.MultimapName}} {
+func (m *{{.MultimapName}}) Clone(allocators *Allocators) {{.MultimapName}} {
 	clone := {{.MultimapName}}{}
 	copy{{.MultimapName}}(&clone, m)
 	return clone

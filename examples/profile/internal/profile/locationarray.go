@@ -29,7 +29,7 @@ func (e *LocationArray) init(parentModifiedFields *modifiedFields, parentModifie
 }
 
 // Clone() creates a deep copy of LocationArray
-func (e *LocationArray) Clone() LocationArray {
+func (e *LocationArray) Clone(allocators *Allocators) LocationArray {
 	var clone LocationArray
 	copyLocationArray(&clone, e)
 	return clone

@@ -29,7 +29,7 @@ func (e *JsonValueArray) init(parentModifiedFields *modifiedFields, parentModifi
 }
 
 // Clone() creates a deep copy of JsonValueArray
-func (e *JsonValueArray) Clone() JsonValueArray {
+func (e *JsonValueArray) Clone(allocators *Allocators) JsonValueArray {
 	var clone JsonValueArray
 	copyJsonValueArray(&clone, e)
 	return clone

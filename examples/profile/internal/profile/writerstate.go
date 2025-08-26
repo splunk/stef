@@ -43,6 +43,8 @@ type WriterState struct {
 	SampleValueArrayEncoder *SampleValueArrayEncoder
 	SampleValueTypeEncoder  *SampleValueTypeEncoder
 	StringArrayEncoder      *StringArrayEncoder
+
+	Allocators Allocators
 }
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {

@@ -29,7 +29,7 @@ func (e *LineArray) init(parentModifiedFields *modifiedFields, parentModifiedBit
 }
 
 // Clone() creates a deep copy of LineArray
-func (e *LineArray) Clone() LineArray {
+func (e *LineArray) Clone(allocators *Allocators) LineArray {
 	var clone LineArray
 	copyLineArray(&clone, e)
 	return clone

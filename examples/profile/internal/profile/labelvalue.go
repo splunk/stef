@@ -86,10 +86,10 @@ func (s *LabelValue) Num() *NumValue {
 	return &s.num
 }
 
-func (s *LabelValue) Clone() LabelValue {
+func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 	return LabelValue{
 		str: s.str,
-		num: s.num.Clone(),
+		num: s.num.Clone(allocators),
 	}
 }
 
@@ -504,4 +504,35 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 		}
 	}
 	return nil
+}
+
+// LabelValueAllocator implements a custom allocator for LabelValue structs.
+// It maintains a pool of pre-allocated LabelValue structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type LabelValueAllocator struct {
+	pool []LabelValue
+	ofs  int
+}
+
+// Alloc returns the next available LabelValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *LabelValueAllocator) Alloc() *LabelValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LabelValueAllocator) prealloc() *LabelValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]LabelValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

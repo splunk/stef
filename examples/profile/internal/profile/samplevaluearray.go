@@ -29,7 +29,7 @@ func (e *SampleValueArray) init(parentModifiedFields *modifiedFields, parentModi
 }
 
 // Clone() creates a deep copy of SampleValueArray
-func (e *SampleValueArray) Clone() SampleValueArray {
+func (e *SampleValueArray) Clone(allocators *Allocators) SampleValueArray {
 	var clone SampleValueArray
 	copySampleValueArray(&clone, e)
 	return clone

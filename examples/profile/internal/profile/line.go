@@ -165,12 +165,15 @@ func (s *Line) markDiffModified(v *Line) (modified bool) {
 	return modified
 }
 
-func (s *Line) Clone() Line {
-	return Line{
-		function: s.function.Clone(),
+func (s *Line) Clone(allocators *Allocators) Line {
+
+	c := Line{
+
+		function: s.function.Clone(allocators),
 		line:     s.line,
 		column:   s.column,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -314,6 +317,8 @@ type LineEncoder struct {
 
 	columnEncoder encoders.Uint64Encoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -327,6 +332,7 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.LineEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -491,6 +497,8 @@ type LineDecoder struct {
 	lineDecoder encoders.Uint64Decoder
 
 	columnDecoder encoders.Uint64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -501,6 +509,8 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 	state.LineDecoder = d
 	defer func() { state.LineDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -630,4 +640,35 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	}
 
 	return nil
+}
+
+// LineAllocator implements a custom allocator for Line structs.
+// It maintains a pool of pre-allocated Line structs and grows the pool
+// dynamically as needed, up to a maximum size of 32 elements.
+type LineAllocator struct {
+	pool []Line
+	ofs  int
+}
+
+// Alloc returns the next available Line from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 32 elements.
+func (a *LineAllocator) Alloc() *Line {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LineAllocator) prealloc() *Line {
+	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 32)
+	a.pool = make([]Line, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
