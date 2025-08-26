@@ -116,14 +116,10 @@ docs-install-deps:
 		exit 1; \
 	fi
 	@if [ ! -f package.json ]; then \
-		echo "Creating package.json..."; \
-		npm init -y; \
+		echo "❌ package.json not found. Cannot install dependencies."; \
+		exit 1; \
 	fi
-	@echo "Installing HTML validation tools..."
-	@npm install html-validate
-	@echo "Installing CSS validation tools..."
-	@npm install stylelint stylelint-config-standard
-	@echo "Installing link checking tools..."
-	@npm install markdown-link-check
+	@echo "Installing all dependencies from package.json..."
+	@npm install
 	@echo "✅ All docs dependencies installed successfully!"
 	@echo "Tools installed in ./node_modules/.bin/"
