@@ -433,7 +433,7 @@ type AnyValueEncoder struct {
 
 	// Field encoders.
 
-	stringEncoder encoders.StringEncoder
+	stringEncoder encoders.StringDictEncoder
 
 	boolEncoder encoders.BoolEncoder
 
@@ -545,7 +545,7 @@ func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 		// Bytes and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.bytesEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.bytesEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -712,7 +712,7 @@ type AnyValueDecoder struct {
 
 	// Field decoders.
 
-	stringDecoder encoders.StringDecoder
+	stringDecoder encoders.StringDictDecoder
 
 	boolDecoder encoders.BoolDecoder
 
@@ -811,7 +811,7 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if d.fieldCount <= 6 {
 		return nil // Bytes and subsequent fields are skipped.
 	}
-	err = d.bytesDecoder.Init(nil, columns.AddSubColumn())
+	err = d.bytesDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

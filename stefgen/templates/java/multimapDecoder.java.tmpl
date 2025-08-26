@@ -29,7 +29,7 @@ class {{ .MultimapName }}Decoder {
         try {
             {{- if .Key.Type.IsPrimitive}}
             keyDecoder = new {{.Key.Type.EncoderType}}Decoder();
-            keyDecoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, columns.addSubColumn());
+            keyDecoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}, {{end}}columns.addSubColumn());
             {{- else}}
             if (state.{{.Key.Type.EncoderType}}Decoder != null) {
                 // Recursion detected, use the existing encoder.
@@ -42,7 +42,7 @@ class {{ .MultimapName }}Decoder {
             {{- end}}
             {{- if .Value.Type.IsPrimitive}}
             valueDecoder = new {{.Value.Type.EncoderType}}Decoder();
-            valueDecoder.init({{if .Value.Type.DictName}}state.{{.Value.Type.DictName}}{{else}}null{{end}}, columns.addSubColumn());
+            valueDecoder.init({{if .Value.Type.DictName}}state.{{.Value.Type.DictName}}, {{end}}columns.addSubColumn());
             {{- else}}
             if (state.{{.Value.Type.EncoderType}}Decoder != null) {
                 // Recursion detected, use the existing encoder.

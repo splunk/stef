@@ -265,7 +265,7 @@ func (e *KeyValueListEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 
 	var err error
 	e.keyEncoder = new(encoders.StringEncoder)
-	err = e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.keyEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
@@ -383,7 +383,7 @@ func (d *KeyValueListDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 
 	var err error
 	d.keyDecoder = new(encoders.StringDecoder)
-	err = d.keyDecoder.Init(nil, columns.AddSubColumn())
+	err = d.keyDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}

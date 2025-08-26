@@ -584,9 +584,9 @@ type ProfileMetadataEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	dropFramesEncoder encoders.StringEncoder
+	dropFramesEncoder encoders.StringDictEncoder
 
-	keepFramesEncoder encoders.StringEncoder
+	keepFramesEncoder encoders.StringDictEncoder
 
 	timeNanosEncoder encoders.Int64Encoder
 
@@ -934,9 +934,9 @@ type ProfileMetadataDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	dropFramesDecoder encoders.StringDecoder
+	dropFramesDecoder encoders.StringDictDecoder
 
-	keepFramesDecoder encoders.StringDecoder
+	keepFramesDecoder encoders.StringDictDecoder
 
 	timeNanosDecoder encoders.Int64Decoder
 

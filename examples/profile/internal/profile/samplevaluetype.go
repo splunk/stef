@@ -324,7 +324,7 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	if e.fieldCount <= 0 {
 		return nil // Type and all subsequent fields are skipped.
 	}
-	err = e.type_Encoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.type_Encoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	if e.fieldCount <= 1 {
 		return nil // Unit and all subsequent fields are skipped.
 	}
-	err = e.unitEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.unitEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -487,14 +487,14 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	if d.fieldCount <= 0 {
 		return nil // Type and subsequent fields are skipped.
 	}
-	err = d.type_Decoder.Init(nil, columns.AddSubColumn())
+	err = d.type_Decoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // Unit and subsequent fields are skipped.
 	}
-	err = d.unitDecoder.Init(nil, columns.AddSubColumn())
+	err = d.unitDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

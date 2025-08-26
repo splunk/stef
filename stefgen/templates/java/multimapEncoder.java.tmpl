@@ -30,7 +30,7 @@ class {{ .MultimapName }}Encoder {
 
             {{- if .Key.Type.IsPrimitive}}
             keyEncoder = new {{.Key.Type.EncoderType}}Encoder();
-            keyEncoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
+            keyEncoder.init({{if .Key.Type.DictName}}state.{{.Key.Type.DictName}}, {{end}}limiter, columns.addSubColumn());
             {{- else}}
             if (state.{{.Key.Type.EncoderType}}Encoder != null) {
                 // Recursion detected, use the existing encoder.
@@ -43,7 +43,7 @@ class {{ .MultimapName }}Encoder {
             {{- end}}
             {{- if .Value.Type.IsPrimitive}}
             valueEncoder = new {{.Value.Type.EncoderType}}Encoder();
-            valueEncoder.init({{if .Value.Type.DictName}}state.{{.Value.Type.DictName}}{{else}}null{{end}}, limiter, columns.addSubColumn());
+            valueEncoder.init({{if .Value.Type.DictName}}state.{{.Value.Type.DictName}}, {{end}}limiter, columns.addSubColumn());
             {{- else}}
             if (state.{{.Value.Type.EncoderType}}Encoder != null) {
                 // Recursion detected, use the existing encoder.

@@ -15,11 +15,11 @@ class ScopeDecoder {
     private int fieldCount;
 
     
-    private StringDecoder nameDecoder;
+    private StringDictDecoder nameDecoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private StringDecoder versionDecoder;
+    private StringDictDecoder versionDecoder;
     private boolean isVersionRecursive = false; // Indicates Version field's type is recursive.
-    private StringDecoder schemaURLDecoder;
+    private StringDictDecoder schemaURLDecoder;
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesDecoder attributesDecoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
@@ -46,17 +46,17 @@ class ScopeDecoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameDecoder = new StringDecoder();
+            nameDecoder = new StringDictDecoder();
             nameDecoder.init(state.ScopeName, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Version and subsequent fields are skipped.
             }
-            versionDecoder = new StringDecoder();
+            versionDecoder = new StringDictDecoder();
             versionDecoder.init(state.ScopeVersion, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
-            schemaURLDecoder = new StringDecoder();
+            schemaURLDecoder = new StringDictDecoder();
             schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Attributes and subsequent fields are skipped.

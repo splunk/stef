@@ -365,11 +365,11 @@ type FunctionEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder encoders.StringEncoder
+	nameEncoder encoders.StringDictEncoder
 
-	systemNameEncoder encoders.StringEncoder
+	systemNameEncoder encoders.StringDictEncoder
 
-	filenameEncoder encoders.StringEncoder
+	filenameEncoder encoders.StringDictEncoder
 
 	startLineEncoder encoders.Uint64Encoder
 
@@ -612,11 +612,11 @@ type FunctionDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDecoder
+	nameDecoder encoders.StringDictDecoder
 
-	systemNameDecoder encoders.StringDecoder
+	systemNameDecoder encoders.StringDictDecoder
 
-	filenameDecoder encoders.StringDecoder
+	filenameDecoder encoders.StringDictDecoder
 
 	startLineDecoder encoders.Uint64Decoder
 

@@ -22,8 +22,6 @@ class {{ .ArrayName }}Decoder {
         elemDecoder = new {{.ElemType.EncoderType}}Decoder();
         {{- if .ElemType.DictName}}
         elemDecoder.init(state.{{.ElemType.DictName}}, columns.addSubColumn());
-        {{- else if .ElemType.IsDictPossible}}
-        elemDecoder.init(nil, columns.addSubColumn());
         {{- else}}
         elemDecoder.init(columns.addSubColumn());
         {{- end}}

@@ -15,7 +15,7 @@ class ResourceDecoder {
     private int fieldCount;
 
     
-    private StringDecoder schemaURLDecoder;
+    private StringDictDecoder schemaURLDecoder;
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesDecoder attributesDecoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
@@ -42,7 +42,7 @@ class ResourceDecoder {
             if (this.fieldCount <= 0) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
-            schemaURLDecoder = new StringDecoder();
+            schemaURLDecoder = new StringDictDecoder();
             schemaURLDecoder.init(state.SchemaURL, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Attributes and subsequent fields are skipped.

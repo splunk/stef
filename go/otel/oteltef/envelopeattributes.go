@@ -270,12 +270,12 @@ func (e *EnvelopeAttributesEncoder) Init(state *WriterState, columns *pkg.WriteC
 
 	var err error
 	e.keyEncoder = new(encoders.StringEncoder)
-	err = e.keyEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.keyEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
 	e.valueEncoder = new(encoders.BytesEncoder)
-	err = e.valueEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.valueEncoder.Init(e.limiter, columns.AddSubColumn())
 
 	return err
 }
@@ -382,12 +382,12 @@ func (d *EnvelopeAttributesDecoder) Init(state *ReaderState, columns *pkg.ReadCo
 
 	var err error
 	d.keyDecoder = new(encoders.StringDecoder)
-	err = d.keyDecoder.Init(nil, columns.AddSubColumn())
+	err = d.keyDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
 	d.valueDecoder = new(encoders.BytesDecoder)
-	err = d.valueDecoder.Init(nil, columns.AddSubColumn())
+	err = d.valueDecoder.Init(columns.AddSubColumn())
 
 	return err
 }

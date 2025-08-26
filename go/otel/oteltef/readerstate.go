@@ -12,19 +12,19 @@ type ReaderState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	AnyValueString    encoders.StringDecoderDict
-	AttributeKey      encoders.StringDecoderDict
+	AnyValueString    encoders.StringDictDecoderDict
+	AttributeKey      encoders.StringDictDecoderDict
 	Metric            MetricDecoderDict
-	MetricDescription encoders.StringDecoderDict
-	MetricName        encoders.StringDecoderDict
-	MetricUnit        encoders.StringDecoderDict
+	MetricDescription encoders.StringDictDecoderDict
+	MetricName        encoders.StringDictDecoderDict
+	MetricUnit        encoders.StringDictDecoderDict
 	Resource          ResourceDecoderDict
-	SchemaURL         encoders.StringDecoderDict
+	SchemaURL         encoders.StringDictDecoderDict
 	Scope             ScopeDecoderDict
-	ScopeName         encoders.StringDecoderDict
-	ScopeVersion      encoders.StringDecoderDict
-	SpanEventName     encoders.StringDecoderDict
-	SpanName          encoders.StringDecoderDict
+	ScopeName         encoders.StringDictDecoderDict
+	ScopeVersion      encoders.StringDictDecoderDict
+	SpanEventName     encoders.StringDictDecoderDict
+	SpanName          encoders.StringDictDecoderDict
 
 	// Decoders that are being Init-ed, to detect recursion.
 	AnyValueDecoder            *AnyValueDecoder

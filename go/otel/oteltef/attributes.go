@@ -247,7 +247,7 @@ type AttributesEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder       *encoders.StringEncoder
+	keyEncoder       *encoders.StringDictEncoder
 	isKeyRecursive   bool
 	valueEncoder     *AnyValueEncoder
 	isValueRecursive bool
@@ -264,7 +264,7 @@ func (e *AttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	e.limiter = &state.limiter
 
 	var err error
-	e.keyEncoder = new(encoders.StringEncoder)
+	e.keyEncoder = new(encoders.StringDictEncoder)
 	err = e.keyEncoder.Init(&state.AttributeKey, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
@@ -364,7 +364,7 @@ type AttributesDecoder struct {
 	buf    pkg.BytesReader
 	column *pkg.ReadableColumn
 
-	keyDecoder       *encoders.StringDecoder
+	keyDecoder       *encoders.StringDictDecoder
 	isKeyRecursive   bool
 	valueDecoder     *AnyValueDecoder
 	isValueRecursive bool
@@ -382,7 +382,7 @@ func (d *AttributesDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	d.column = columns.Column()
 
 	var err error
-	d.keyDecoder = new(encoders.StringDecoder)
+	d.keyDecoder = new(encoders.StringDictDecoder)
 	err = d.keyDecoder.Init(&state.AttributeKey, columns.AddSubColumn())
 	if err != nil {
 		return nil

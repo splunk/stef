@@ -51,11 +51,7 @@ class {{ .StructName }}Encoder {
             }
             {{- if .IsPrimitive}}
             {{.name}}Encoder = new {{.Type.EncoderType}}Encoder();
-            {{- if .Type.DictName}}
-            this.{{.name}}Encoder.init(state.{{.Type.DictName}}, this.limiter, columns.addSubColumn());
-            {{- else}}
-            this.{{.name}}Encoder.init({{if .Type.IsDictPossible}}null, {{end}}this.limiter, columns.addSubColumn());
-            {{- end}}
+            {{.name}}Encoder.init({{if .Type.DictName}}state.{{.Type.DictName}}, {{end}}limiter, columns.addSubColumn());
             {{- else}}
             if (state.{{.Type.EncoderType}}Encoder != null) {
                 // Recursion detected, use the existing encoder.

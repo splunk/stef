@@ -53,7 +53,7 @@ class ExemplarEncoder {
                 return; // Timestamp and subsequent fields are skipped.
             }
             timestampEncoder = new Uint64Encoder();
-            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            timestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
             if (this.fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.
@@ -71,13 +71,13 @@ class ExemplarEncoder {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDEncoder = new BytesEncoder();
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            spanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for TraceID field.
             if (this.fieldCount <= 3) {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDEncoder = new BytesEncoder();
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            traceIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for FilteredAttributes field.
             if (this.fieldCount <= 4) {
                 return; // FilteredAttributes and subsequent fields are skipped.

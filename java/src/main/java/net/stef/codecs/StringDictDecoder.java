@@ -5,11 +5,11 @@ import net.stef.StringValue;
 
 import java.io.IOException;
 
-public class StringDecoder {
-    private BytesDecoder decoder = new BytesDecoder();
+public class StringDictDecoder {
+    private BytesDictDecoder decoder = new BytesDictDecoder();
 
-    public void init(ReadColumnSet columns) {
-        decoder.init(columns);
+    public void init(BytesDictDecoderDict dict, ReadColumnSet columns) {
+        decoder.init(dict,  columns);
     }
 
     public void continueDecoding() {

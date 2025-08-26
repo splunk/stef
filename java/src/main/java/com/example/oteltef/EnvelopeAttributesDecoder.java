@@ -29,9 +29,9 @@ class EnvelopeAttributesDecoder {
         state.EnvelopeAttributesDecoder = this;
         try {
             keyDecoder = new StringDecoder();
-            keyDecoder.init(null, columns.addSubColumn());
+            keyDecoder.init(columns.addSubColumn());
             valueDecoder = new BytesDecoder();
-            valueDecoder.init(null, columns.addSubColumn());
+            valueDecoder.init(columns.addSubColumn());
         } finally {
             state.EnvelopeAttributesDecoder = null;
         }

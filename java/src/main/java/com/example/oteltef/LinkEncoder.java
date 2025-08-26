@@ -55,25 +55,25 @@ class LinkEncoder {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDEncoder = new BytesEncoder();
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            traceIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for SpanID field.
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDEncoder = new BytesEncoder();
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            spanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for TraceState field.
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
             traceStateEncoder = new StringEncoder();
-            this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+            traceStateEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Flags field.
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }
             flagsEncoder = new Uint64Encoder();
-            this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+            flagsEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
@@ -91,7 +91,7 @@ class LinkEncoder {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+            droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.LinkEncoder = null;
         }

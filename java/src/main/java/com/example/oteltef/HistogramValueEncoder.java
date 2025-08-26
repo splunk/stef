@@ -53,25 +53,25 @@ class HistogramValueEncoder {
                 return; // Count and subsequent fields are skipped.
             }
             countEncoder = new Int64Encoder();
-            this.countEncoder.init(this.limiter, columns.addSubColumn());
+            countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
             sumEncoder = new Float64Encoder();
-            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            sumEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Min field.
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
             minEncoder = new Float64Encoder();
-            this.minEncoder.init(this.limiter, columns.addSubColumn());
+            minEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Max field.
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
             maxEncoder = new Float64Encoder();
-            this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            maxEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for BucketCounts field.
             if (this.fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.

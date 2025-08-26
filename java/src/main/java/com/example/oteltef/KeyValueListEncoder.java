@@ -29,7 +29,7 @@ class KeyValueListEncoder {
         try {
             this.limiter = state.getLimiter();
             keyEncoder = new StringEncoder();
-            keyEncoder.init(null, limiter, columns.addSubColumn());
+            keyEncoder.init(limiter, columns.addSubColumn());
             if (state.AnyValueEncoder != null) {
                 // Recursion detected, use the existing encoder.
                 valueEncoder = state.AnyValueEncoder;

@@ -8,19 +8,19 @@ public class ReaderState {
     private final CommonFieldCounts structFieldCounts = new CommonFieldCounts();
 
     // Dictionaries
-    final StringDecoderDict AnyValueString = new StringDecoderDict();
-    final StringDecoderDict AttributeKey = new StringDecoderDict();
+    final StringDictDecoderDict AnyValueString = new StringDictDecoderDict();
+    final StringDictDecoderDict AttributeKey = new StringDictDecoderDict();
     final MetricDecoderDict Metric = new MetricDecoderDict();
-    final StringDecoderDict MetricDescription = new StringDecoderDict();
-    final StringDecoderDict MetricName = new StringDecoderDict();
-    final StringDecoderDict MetricUnit = new StringDecoderDict();
+    final StringDictDecoderDict MetricDescription = new StringDictDecoderDict();
+    final StringDictDecoderDict MetricName = new StringDictDecoderDict();
+    final StringDictDecoderDict MetricUnit = new StringDictDecoderDict();
     final ResourceDecoderDict Resource = new ResourceDecoderDict();
-    final StringDecoderDict SchemaURL = new StringDecoderDict();
+    final StringDictDecoderDict SchemaURL = new StringDictDecoderDict();
     final ScopeDecoderDict Scope = new ScopeDecoderDict();
-    final StringDecoderDict ScopeName = new StringDecoderDict();
-    final StringDecoderDict ScopeVersion = new StringDecoderDict();
-    final StringDecoderDict SpanEventName = new StringDecoderDict();
-    final StringDecoderDict SpanName = new StringDecoderDict();
+    final StringDictDecoderDict ScopeName = new StringDictDecoderDict();
+    final StringDictDecoderDict ScopeVersion = new StringDictDecoderDict();
+    final StringDictDecoderDict SpanEventName = new StringDictDecoderDict();
+    final StringDictDecoderDict SpanName = new StringDictDecoderDict();
     
     // Decoders
     AnyValueDecoder AnyValueDecoder;

@@ -61,37 +61,37 @@ class ExpHistogramValueEncoder {
                 return; // Count and subsequent fields are skipped.
             }
             countEncoder = new Uint64Encoder();
-            this.countEncoder.init(this.limiter, columns.addSubColumn());
+            countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
             sumEncoder = new Float64Encoder();
-            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            sumEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Min field.
             if (this.fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
             minEncoder = new Float64Encoder();
-            this.minEncoder.init(this.limiter, columns.addSubColumn());
+            minEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Max field.
             if (this.fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
             maxEncoder = new Float64Encoder();
-            this.maxEncoder.init(this.limiter, columns.addSubColumn());
+            maxEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Scale field.
             if (this.fieldCount <= 4) {
                 return; // Scale and subsequent fields are skipped.
             }
             scaleEncoder = new Int64Encoder();
-            this.scaleEncoder.init(this.limiter, columns.addSubColumn());
+            scaleEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for ZeroCount field.
             if (this.fieldCount <= 5) {
                 return; // ZeroCount and subsequent fields are skipped.
             }
             zeroCountEncoder = new Uint64Encoder();
-            this.zeroCountEncoder.init(this.limiter, columns.addSubColumn());
+            zeroCountEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for PositiveBuckets field.
             if (this.fieldCount <= 6) {
                 return; // PositiveBuckets and subsequent fields are skipped.
@@ -121,7 +121,7 @@ class ExpHistogramValueEncoder {
                 return; // ZeroThreshold and subsequent fields are skipped.
             }
             zeroThresholdEncoder = new Float64Encoder();
-            this.zeroThresholdEncoder.init(this.limiter, columns.addSubColumn());
+            zeroThresholdEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.ExpHistogramValueEncoder = null;
         }

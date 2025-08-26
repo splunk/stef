@@ -506,7 +506,7 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
         {{- if .Type.DictName}}
         err = e.{{.name}}Encoder.Init(&state.{{.Type.DictName}}, e.limiter, columns.AddSubColumn())
         {{- else}}
-        err = e.{{.name}}Encoder.Init({{if .Type.IsDictPossible}}nil, {{end}}e.limiter, columns.AddSubColumn())
+        err = e.{{.name}}Encoder.Init(e.limiter, columns.AddSubColumn())
         {{- end}}
     {{- else}}
     if state.{{.Type.EncoderType}}Encoder != nil {
@@ -689,8 +689,6 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     {{- if .Type.IsPrimitive}}
         {{- if .Type.DictName}}
             err = d.{{.name}}Decoder.Init(&state.{{.Type.DictName}}, columns.AddSubColumn())
-        {{- else if .Type.IsDictPossible}}
-            err = d.{{.name}}Decoder.Init(nil, columns.AddSubColumn())
         {{- else}}
             err = d.{{.name}}Decoder.Init(columns.AddSubColumn())
         {{- end}}

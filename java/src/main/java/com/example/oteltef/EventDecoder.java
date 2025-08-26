@@ -15,7 +15,7 @@ class EventDecoder {
     private int fieldCount;
 
     
-    private StringDecoder nameDecoder;
+    private StringDictDecoder nameDecoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
     private Uint64Decoder timeUnixNanoDecoder;
     private boolean isTimeUnixNanoRecursive = false; // Indicates TimeUnixNano field's type is recursive.
@@ -41,7 +41,7 @@ class EventDecoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameDecoder = new StringDecoder();
+            nameDecoder = new StringDictDecoder();
             nameDecoder.init(state.SpanEventName, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // TimeUnixNano and subsequent fields are skipped.

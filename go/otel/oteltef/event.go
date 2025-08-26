@@ -360,7 +360,7 @@ type EventEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder encoders.StringEncoder
+	nameEncoder encoders.StringDictEncoder
 
 	timeUnixNanoEncoder encoders.Uint64Encoder
 
@@ -568,7 +568,7 @@ type EventDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDecoder
+	nameDecoder encoders.StringDictDecoder
 
 	timeUnixNanoDecoder encoders.Uint64Decoder
 

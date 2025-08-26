@@ -561,11 +561,11 @@ type MetricEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder encoders.StringEncoder
+	nameEncoder encoders.StringDictEncoder
 
-	descriptionEncoder encoders.StringEncoder
+	descriptionEncoder encoders.StringDictEncoder
 
-	unitEncoder encoders.StringEncoder
+	unitEncoder encoders.StringDictEncoder
 
 	type_Encoder encoders.Uint64Encoder
 
@@ -950,11 +950,11 @@ type MetricDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDecoder
+	nameDecoder encoders.StringDictDecoder
 
-	descriptionDecoder encoders.StringDecoder
+	descriptionDecoder encoders.StringDictDecoder
 
-	unitDecoder encoders.StringDecoder
+	unitDecoder encoders.StringDictDecoder
 
 	type_Decoder encoders.Uint64Decoder
 

@@ -12,18 +12,18 @@ type ReaderState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	BuildID         encoders.StringDecoderDict
-	Comment         encoders.StringDecoderDict
-	Filename        encoders.StringDecoderDict
+	BuildID         encoders.StringDictDecoderDict
+	Comment         encoders.StringDictDecoderDict
+	Filename        encoders.StringDictDecoderDict
 	Function        FunctionDecoderDict
-	FunctionName    encoders.StringDecoderDict
-	LabelKey        encoders.StringDecoderDict
-	LabelValue      encoders.StringDecoderDict
+	FunctionName    encoders.StringDictDecoderDict
+	LabelKey        encoders.StringDictDecoderDict
+	LabelValue      encoders.StringDictDecoderDict
 	Location        LocationDecoderDict
 	Mapping         MappingDecoderDict
-	NumValueUnit    encoders.StringDecoderDict
+	NumValueUnit    encoders.StringDictDecoderDict
 	SampleValueType SampleValueTypeDecoderDict
-	SystemName      encoders.StringDecoderDict
+	SystemName      encoders.StringDictDecoderDict
 
 	// Decoders that are being Init-ed, to detect recursion.
 	FunctionDecoder         *FunctionDecoder

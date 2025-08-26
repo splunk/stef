@@ -128,6 +128,15 @@ func (c *ReadableColumn) Data() []byte {
 	return c.data
 }
 
+// BorrowData returns the data and sets the internal data to nil.
+// This allows to avoid copying the data if the caller wants to take
+// exclusive ownership.
+func (c *ReadableColumn) BorrowData() []byte {
+	d := c.data
+	c.data = nil
+	return d
+}
+
 type ReadColumnSet struct {
 	column     ReadableColumn
 	subColumns []*ReadColumnSet

@@ -60,12 +60,12 @@ class ExemplarDecoder {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDDecoder = new BytesDecoder();
-            spanIDDecoder.init(null, columns.addSubColumn());
+            spanIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDDecoder = new BytesDecoder();
-            traceIDDecoder.init(null, columns.addSubColumn());
+            traceIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // FilteredAttributes and subsequent fields are skipped.
             }

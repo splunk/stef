@@ -108,7 +108,6 @@ type genFieldTypeRef interface {
 	// decoder dictionaries.
 	DictTypeNamePrefix() string
 
-	IsDictPossible() bool
 	SchemaStr() string
 
 	Flags() TypeFlags
@@ -145,15 +144,6 @@ func (r *genPrimitiveTypeRef) Flags() TypeFlags {
 		TakePtr:     false,
 		DecodeByPtr: true,
 		IsEnum:      isEnum,
-	}
-}
-
-func (r *genPrimitiveTypeRef) IsDictPossible() bool {
-	switch r.Type {
-	case schema.PrimitiveTypeString, schema.PrimitiveTypeBytes:
-		return true
-	default:
-		return false
 	}
 }
 
@@ -313,7 +303,11 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 	}
 
 	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
-		return prefix + s // e.g. encoders.Uint64
+		name := prefix + s // e.g. encoders.Uint64
+		if r.Dict != "" {
+			name += "Dict"
+		}
+		return name
 	}
 
 	panic(fmt.Sprintf("unknown type %v", r.Type))
@@ -341,9 +335,9 @@ func (r *genPrimitiveTypeRef) DictTypeNamePrefix() string {
 
 	switch r.Type {
 	case schema.PrimitiveTypeString:
-		return prefix + "String"
+		return prefix + "StringDict"
 	case schema.PrimitiveTypeBytes:
-		return prefix + "Bytes"
+		return prefix + "BytesDict"
 	default:
 		panic(fmt.Sprintf("type %v does not support dictionaries", r.Type))
 	}
@@ -495,10 +489,6 @@ func (r *genStructTypeRef) IsPrimitive() bool {
 	return false
 }
 
-func (r *genStructTypeRef) IsDictPossible() bool {
-	return true
-}
-
 func (r *genStructTypeRef) DictName() string {
 	return r.Def.Dict
 }
@@ -585,10 +575,6 @@ func (r *genArrayTypeRef) Flags() TypeFlags {
 	}
 }
 
-func (r *genArrayTypeRef) IsDictPossible() bool {
-	return false
-}
-
 func (r *genArrayTypeRef) SchemaStr() string {
 	return "[]" + r.ElemType.SchemaStr()
 }
@@ -662,10 +648,6 @@ type genMultimapTypeRef struct {
 	// Lang is the language for which code is being generated.
 	// Lang is used to correctly generate language-specific code.
 	Lang Lang
-}
-
-func (r *genMultimapTypeRef) IsDictPossible() bool {
-	return false
 }
 
 func (r *genMultimapTypeRef) IsPrimitive() bool {

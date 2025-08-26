@@ -8,12 +8,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class BytesDecoder {
-    private BytesReader buf = new BytesReader();
-    private BytesDecoderDict dict;
-    private ReadableColumn column;
+    protected BytesReader buf = new BytesReader();
+    protected ReadableColumn column;
 
-    public void init(BytesDecoderDict dict, ReadColumnSet columns) {
-        this.dict = dict;
+    public void init(ReadColumnSet columns) {
         this.column = columns.getColumn();
     }
 
@@ -28,19 +26,9 @@ public class BytesDecoder {
         if (varint >= 0) {
             int strLen = (int) varint;
             byte[] value = buf.readBytes(strLen);
-            if (strLen > 1 && dict != null) {
-                dict.add(value);
-            }
             return value;
         } else {
-            if (dict == null) {
-                throw new IOException("Invalid RefNum, out of dictionary range");
-            }
-            long refNum = -varint - 1;
-            if (refNum >= dict.size()) {
-                throw new IOException("Invalid RefNum, out of dictionary range");
-            }
-            return dict.get((int) refNum);
+            throw new IOException("Invalid RefNum, out of dictionary range");
         }
     }
 }

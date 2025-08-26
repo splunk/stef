@@ -47,7 +47,7 @@ class ExpHistogramBucketsEncoder {
                 return; // Offset and subsequent fields are skipped.
             }
             offsetEncoder = new Int64Encoder();
-            this.offsetEncoder.init(this.limiter, columns.addSubColumn());
+            offsetEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for BucketCounts field.
             if (this.fieldCount <= 1) {
                 return; // BucketCounts and subsequent fields are skipped.

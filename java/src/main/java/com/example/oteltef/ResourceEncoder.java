@@ -20,7 +20,7 @@ class ResourceEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder schemaURLEncoder;
+    private StringDictEncoder schemaURLEncoder;
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesEncoder attributesEncoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
@@ -51,8 +51,8 @@ class ResourceEncoder {
             if (this.fieldCount <= 0) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
-            schemaURLEncoder = new StringEncoder();
-            this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
+            schemaURLEncoder = new StringDictEncoder();
+            schemaURLEncoder.init(state.SchemaURL, limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 1) {
                 return; // Attributes and subsequent fields are skipped.
@@ -70,7 +70,7 @@ class ResourceEncoder {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+            droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.ResourceEncoder = null;
         }

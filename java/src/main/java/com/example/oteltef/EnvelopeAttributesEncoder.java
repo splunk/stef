@@ -29,9 +29,9 @@ class EnvelopeAttributesEncoder {
         try {
             this.limiter = state.getLimiter();
             keyEncoder = new StringEncoder();
-            keyEncoder.init(null, limiter, columns.addSubColumn());
+            keyEncoder.init(limiter, columns.addSubColumn());
             valueEncoder = new BytesEncoder();
-            valueEncoder.init(null, limiter, columns.addSubColumn());
+            valueEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.EnvelopeAttributesEncoder = null;
         }

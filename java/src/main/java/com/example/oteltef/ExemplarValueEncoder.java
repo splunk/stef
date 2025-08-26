@@ -41,13 +41,13 @@ class ExemplarValueEncoder {
                 return; // Int64 and subsequent fields are skipped.
             }
             int64Encoder = new Int64Encoder();
-            int64Encoder.init(limiter, columns.addSubColumn());
+            int64Encoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Float64 field.
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
             float64Encoder = new Float64Encoder();
-            float64Encoder.init(limiter, columns.addSubColumn());
+            float64Encoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.ExemplarValueEncoder = null;
         }

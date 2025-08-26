@@ -3,10 +3,14 @@ package net.stef.codecs;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BytesDecoderDict {
+/**
+ * A dictionary for decoding byte arrays using dictionary encoding.
+ * This class maintains a list of byte arrays that represent the dictionary entries.
+ */
+public class BytesDictDecoderDict {
     private List<byte[]> dict;
 
-    public BytesDecoderDict() {
+    public BytesDictDecoderDict() {
         this.dict = new ArrayList<>();
     }
 

@@ -15,7 +15,7 @@ class AttributesEncoder {
     private WriteColumnSet columns;
     private SizeLimiter limiter;
 
-    private StringEncoder keyEncoder;
+    private StringDictEncoder keyEncoder;
     private AnyValueEncoder valueEncoder;
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
@@ -28,7 +28,7 @@ class AttributesEncoder {
         state.AttributesEncoder = this;
         try {
             this.limiter = state.getLimiter();
-            keyEncoder = new StringEncoder();
+            keyEncoder = new StringDictEncoder();
             keyEncoder.init(state.AttributeKey, limiter, columns.addSubColumn());
             if (state.AnyValueEncoder != null) {
                 // Recursion detected, use the existing encoder.

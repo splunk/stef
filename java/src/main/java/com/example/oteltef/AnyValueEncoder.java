@@ -17,7 +17,7 @@ class AnyValueEncoder {
 
     // Field encoders.
     
-    private StringEncoder stringEncoder;
+    private StringDictEncoder stringEncoder;
     private boolean isStringRecursive = false; // Indicates String field's type is recursive.
     private BoolEncoder boolEncoder;
     private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
@@ -50,26 +50,26 @@ class AnyValueEncoder {
             if (this.fieldCount <= 0) {
                 return; // String and subsequent fields are skipped.
             }
-            stringEncoder = new StringEncoder();
-            stringEncoder.init(state.AnyValueString, limiter, columns.addSubColumn());
+            stringEncoder = new StringDictEncoder();
+            stringEncoder.init(state.AnyValueString, this.limiter, columns.addSubColumn());
             // Init encoder for Bool field.
             if (this.fieldCount <= 1) {
                 return; // Bool and subsequent fields are skipped.
             }
             boolEncoder = new BoolEncoder();
-            boolEncoder.init(limiter, columns.addSubColumn());
+            boolEncoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Int64 field.
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
             int64Encoder = new Int64Encoder();
-            int64Encoder.init(limiter, columns.addSubColumn());
+            int64Encoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Float64 field.
             if (this.fieldCount <= 3) {
                 return; // Float64 and subsequent fields are skipped.
             }
             float64Encoder = new Float64Encoder();
-            float64Encoder.init(limiter, columns.addSubColumn());
+            float64Encoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Array field.
             if (this.fieldCount <= 4) {
                 return; // Array and subsequent fields are skipped.
@@ -99,7 +99,7 @@ class AnyValueEncoder {
                 return; // Bytes and subsequent fields are skipped.
             }
             bytesEncoder = new BytesEncoder();
-            bytesEncoder.init(null, limiter, columns.addSubColumn());
+            bytesEncoder.init(this.limiter, columns.addSubColumn());
         } finally {
             state.AnyValueEncoder = null;
         }

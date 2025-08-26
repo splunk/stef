@@ -45,12 +45,12 @@ class ExemplarValueDecoder {
                 return; // Int64 and subsequent fields are skipped.
             }
             int64Decoder = new Int64Decoder();
-            this.int64Decoder.init(columns.addSubColumn());
+            int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.
             }
             float64Decoder = new Float64Decoder();
-            this.float64Decoder.init(columns.addSubColumn());
+            float64Decoder.init(columns.addSubColumn());
         } finally {
             state.ExemplarValueDecoder = null;
         }

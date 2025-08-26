@@ -14,19 +14,19 @@ type WriterState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	AnyValueString    encoders.StringEncoderDict
-	AttributeKey      encoders.StringEncoderDict
+	AnyValueString    encoders.StringDictEncoderDict
+	AttributeKey      encoders.StringDictEncoderDict
 	Metric            MetricEncoderDict
-	MetricDescription encoders.StringEncoderDict
-	MetricName        encoders.StringEncoderDict
-	MetricUnit        encoders.StringEncoderDict
+	MetricDescription encoders.StringDictEncoderDict
+	MetricName        encoders.StringDictEncoderDict
+	MetricUnit        encoders.StringDictEncoderDict
 	Resource          ResourceEncoderDict
-	SchemaURL         encoders.StringEncoderDict
+	SchemaURL         encoders.StringDictEncoderDict
 	Scope             ScopeEncoderDict
-	ScopeName         encoders.StringEncoderDict
-	ScopeVersion      encoders.StringEncoderDict
-	SpanEventName     encoders.StringEncoderDict
-	SpanName          encoders.StringEncoderDict
+	ScopeName         encoders.StringDictEncoderDict
+	ScopeVersion      encoders.StringDictEncoderDict
+	SpanEventName     encoders.StringDictEncoderDict
+	SpanName          encoders.StringDictEncoderDict
 
 	// Encoders that are being Init-ed, to detect recursion.
 	AnyValueEncoder            *AnyValueEncoder

@@ -13,7 +13,7 @@ import java.io.IOException;
 class AttributesDecoder {
     private final BytesReader buf = new BytesReader();
     private ReadableColumn column;
-    private StringDecoder keyDecoder;
+    private StringDictDecoder keyDecoder;
     private AnyValueDecoder valueDecoder;
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
@@ -28,7 +28,7 @@ class AttributesDecoder {
         }
         state.AttributesDecoder = this;
         try {
-            keyDecoder = new StringDecoder();
+            keyDecoder = new StringDictDecoder();
             keyDecoder.init(state.AttributeKey, columns.addSubColumn());
             if (state.AnyValueDecoder != null) {
                 // Recursion detected, use the existing encoder.

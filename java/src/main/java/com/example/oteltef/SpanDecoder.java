@@ -25,7 +25,7 @@ class SpanDecoder {
     private boolean isParentSpanIDRecursive = false; // Indicates ParentSpanID field's type is recursive.
     private Uint64Decoder flagsDecoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
-    private StringDecoder nameDecoder;
+    private StringDictDecoder nameDecoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
     private Uint64Decoder kindDecoder;
     private boolean isKindRecursive = false; // Indicates Kind field's type is recursive.
@@ -62,22 +62,22 @@ class SpanDecoder {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDDecoder = new BytesDecoder();
-            traceIDDecoder.init(null, columns.addSubColumn());
+            traceIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDDecoder = new BytesDecoder();
-            spanIDDecoder.init(null, columns.addSubColumn());
+            spanIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
             traceStateDecoder = new StringDecoder();
-            traceStateDecoder.init(null, columns.addSubColumn());
+            traceStateDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // ParentSpanID and subsequent fields are skipped.
             }
             parentSpanIDDecoder = new BytesDecoder();
-            parentSpanIDDecoder.init(null, columns.addSubColumn());
+            parentSpanIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
@@ -86,7 +86,7 @@ class SpanDecoder {
             if (this.fieldCount <= 5) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameDecoder = new StringDecoder();
+            nameDecoder = new StringDictDecoder();
             nameDecoder.init(state.SpanName, columns.addSubColumn());
             if (this.fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
