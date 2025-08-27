@@ -51,6 +51,14 @@ func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
 }
 
+func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.value = allocators.JsonValue.Alloc()
+	s.value.initAlloc(&s.modifiedFields, fieldModifiedRecordValue, allocators)
+}
+
 func (s *Record) Value() *JsonValue {
 	return s.value
 }
@@ -124,8 +132,8 @@ func copyRecord(dst *Record, src *Record) {
 func copyFullRecord(dst *Record, src *Record, allocators *Allocators) {
 	if src.value != nil {
 		if dst.value == nil {
-			dst.value = &JsonValue{}
-			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+			dst.value = allocators.JsonValue.Alloc()
+			dst.value.initAlloc(&dst.modifiedFields, fieldModifiedRecordValue, allocators)
 		}
 		copyFullJsonValue(dst.value, src.value, allocators)
 	}
@@ -463,7 +471,7 @@ func (a *RecordAllocator) Alloc() *Record {
 func (a *RecordAllocator) prealloc() *Record {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]Record, newLen)
 	a.ofs = 1
 	return &a.pool[0]

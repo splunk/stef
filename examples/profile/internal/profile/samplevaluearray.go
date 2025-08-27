@@ -159,7 +159,7 @@ func copyFullSampleValueArray(dst *SampleValueArray, src *SampleValueArray, allo
 		elems := make([]SampleValue, len(dst.elems)-minLen)
 		for j := range elems {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Point to the allocated element.
 			dst.elems[i+j] = &elems[j]
 			// Copy the element.
@@ -190,6 +190,26 @@ func (e *SampleValueArray) EnsureLen(newLen int) {
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(SampleValue)
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *SampleValueArray) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]*SampleValue, newLen-oldLen)...)
+		e.markModified()
+		// Initialize newlly added elements.
+		for ; oldLen < newLen; oldLen++ {
+			e.elems[oldLen] = allocators.SampleValue.Alloc()
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -518,14 +538,17 @@ func (d *SampleValueArrayDecoder) Decode(dst *SampleValueArray) error {
 	newLen := lastVal.prevLen + int(lenDelta)
 	lastVal.prevLen = newLen
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		dst.elems[i] = &lastVal.elem
+		//err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyFullSampleValue(dst.elems[i], &lastVal.elem, d.allocators)
+		lastVal.elem = *dst.elems[i]
+		//copyFullSampleValue(dst.elems[i], &lastVal.elem, d.allocators)
 	}
 
 	return nil

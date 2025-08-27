@@ -53,6 +53,14 @@ func (s *SampleValue) init(parentModifiedFields *modifiedFields, parentModifiedB
 	s.type_.init(&s.modifiedFields, fieldModifiedSampleValueType)
 }
 
+func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.type_ = allocators.SampleValueType.Alloc()
+	s.type_.initAlloc(&s.modifiedFields, fieldModifiedSampleValueType, allocators)
+}
+
 func (s *SampleValue) Val() int64 {
 	return s.val
 }
@@ -162,8 +170,8 @@ func copyFullSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocat
 	dst.val = src.val
 	if src.type_ != nil {
 		if dst.type_ == nil {
-			dst.type_ = &SampleValueType{}
-			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+			dst.type_ = allocators.SampleValueType.Alloc()
+			dst.type_.initAlloc(&dst.modifiedFields, fieldModifiedSampleValueType, allocators)
 		}
 		copyFullSampleValueType(dst.type_, src.type_, allocators)
 	}
@@ -571,7 +579,7 @@ func (a *SampleValueAllocator) Alloc() *SampleValue {
 func (a *SampleValueAllocator) prealloc() *SampleValue {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]SampleValue, newLen)
 	a.ofs = 1
 	return &a.pool[0]

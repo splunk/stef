@@ -68,6 +68,17 @@ func (s *ProfileMetadata) init(parentModifiedFields *modifiedFields, parentModif
 	s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 }
 
+func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.periodType = allocators.SampleValueType.Alloc()
+	s.periodType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
+	s.comments.init(&s.modifiedFields, fieldModifiedProfileMetadataComments)
+	s.defaultSampleType = allocators.SampleValueType.Alloc()
+	s.defaultSampleType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
+}
+
 func (s *ProfileMetadata) DropFrames() string {
 	return s.dropFrames
 }
@@ -386,8 +397,8 @@ func copyFullProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocat
 	dst.durationNanos = src.durationNanos
 	if src.periodType != nil {
 		if dst.periodType == nil {
-			dst.periodType = &SampleValueType{}
-			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+			dst.periodType = allocators.SampleValueType.Alloc()
+			dst.periodType.initAlloc(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
 		}
 		copyFullSampleValueType(dst.periodType, src.periodType, allocators)
 	}
@@ -395,8 +406,8 @@ func copyFullProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocat
 	copyFullStringArray(&dst.comments, &src.comments, allocators)
 	if src.defaultSampleType != nil {
 		if dst.defaultSampleType == nil {
-			dst.defaultSampleType = &SampleValueType{}
-			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+			dst.defaultSampleType = allocators.SampleValueType.Alloc()
+			dst.defaultSampleType.initAlloc(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
 		}
 		copyFullSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 	}
@@ -1289,7 +1300,7 @@ func (a *ProfileMetadataAllocator) Alloc() *ProfileMetadata {
 func (a *ProfileMetadataAllocator) prealloc() *ProfileMetadata {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]ProfileMetadata, newLen)
 	a.ofs = 1
 	return &a.pool[0]

@@ -177,6 +177,21 @@ func (e *StringArray) EnsureLen(newLen int) {
 	}
 }
 
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *StringArray) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
+		e.markModified()
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
 // IsEqual performs deep comparison and returns true if array is equal to val.
 func (e *StringArray) IsEqual(val *StringArray) bool {
 	if len(e.elems) != len(val.elems) {
@@ -339,7 +354,7 @@ func (d *StringArrayDecoder) Decode(dst *StringArray) error {
 	newLen := d.prevLen + int(lenDelta)
 	d.prevLen = newLen
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])

@@ -55,6 +55,14 @@ func (s *Line) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
 }
 
+func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.function = allocators.Function.Alloc()
+	s.function.initAlloc(&s.modifiedFields, fieldModifiedLineFunction, allocators)
+}
+
 func (s *Line) Function() *Function {
 	return s.function
 }
@@ -198,8 +206,8 @@ func copyLine(dst *Line, src *Line) {
 func copyFullLine(dst *Line, src *Line, allocators *Allocators) {
 	if src.function != nil {
 		if dst.function == nil {
-			dst.function = &Function{}
-			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+			dst.function = allocators.Function.Alloc()
+			dst.function.initAlloc(&dst.modifiedFields, fieldModifiedLineFunction, allocators)
 		}
 		copyFullFunction(dst.function, src.function, allocators)
 	}
@@ -679,7 +687,7 @@ func (a *LineAllocator) Alloc() *Line {
 func (a *LineAllocator) prealloc() *Line {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]Line, newLen)
 	a.ofs = 1
 	return &a.pool[0]

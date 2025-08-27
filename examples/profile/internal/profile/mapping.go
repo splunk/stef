@@ -67,6 +67,12 @@ func (s *Mapping) init(parentModifiedFields *modifiedFields, parentModifiedBit u
 
 }
 
+func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 func (s *Mapping) MemoryStart() uint64 {
 	return s.memoryStart
 }
@@ -1248,8 +1254,9 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone(d.allocators)
-	d.lastValPtr = val
+	//val := d.lastValPtr.Clone(d.allocators)
+	cpy := *d.lastValPtr
+	val := &cpy
 	*dstPtr = val
 
 	var err error
@@ -1263,6 +1270,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.memoryStart = d.lastValPtr.memoryStart
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 {
@@ -1271,6 +1280,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.memoryLimit = d.lastValPtr.memoryLimit
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 {
@@ -1279,6 +1290,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.fileOffset = d.lastValPtr.fileOffset
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 {
@@ -1287,6 +1300,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.filename = d.lastValPtr.filename
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 {
@@ -1295,6 +1310,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.buildId = d.lastValPtr.buildId
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 {
@@ -1303,6 +1320,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.hasFunctions = d.lastValPtr.hasFunctions
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 {
@@ -1311,6 +1330,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.hasFilenames = d.lastValPtr.hasFilenames
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 {
@@ -1319,6 +1340,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.hasLineNumbers = d.lastValPtr.hasLineNumbers
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 {
@@ -1327,8 +1350,11 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.hasInlineFrames = d.lastValPtr.hasInlineFrames
 	}
 
+	d.lastValPtr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil
@@ -1375,7 +1401,7 @@ func (a *MappingAllocator) Alloc() *Mapping {
 func (a *MappingAllocator) prealloc() *Mapping {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]Mapping, newLen)
 	a.ofs = 1
 	return &a.pool[0]

@@ -59,6 +59,16 @@ func (s *Sample) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.labels.init(&s.modifiedFields, fieldModifiedSampleLabels)
 }
 
+func (s *Sample) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.metadata.init(&s.modifiedFields, fieldModifiedSampleMetadata)
+	s.locations.init(&s.modifiedFields, fieldModifiedSampleLocations)
+	s.values.init(&s.modifiedFields, fieldModifiedSampleValues)
+	s.labels.init(&s.modifiedFields, fieldModifiedSampleLabels)
+}
+
 func (s *Sample) Metadata() *ProfileMetadata {
 	return &s.metadata
 }
@@ -847,7 +857,7 @@ func (a *SampleAllocator) Alloc() *Sample {
 func (a *SampleAllocator) prealloc() *Sample {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]Sample, newLen)
 	a.ofs = 1
 	return &a.pool[0]

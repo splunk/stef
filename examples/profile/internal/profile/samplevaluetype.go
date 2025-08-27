@@ -53,6 +53,12 @@ func (s *SampleValueType) init(parentModifiedFields *modifiedFields, parentModif
 
 }
 
+func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 func (s *SampleValueType) Type() string {
 	return s.type_
 }
@@ -548,8 +554,9 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone(d.allocators)
-	d.lastValPtr = val
+	//val := d.lastValPtr.Clone(d.allocators)
+	cpy := *d.lastValPtr
+	val := &cpy
 	*dstPtr = val
 
 	var err error
@@ -563,6 +570,8 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.type_ = d.lastValPtr.type_
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 {
@@ -571,8 +580,11 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.unit = d.lastValPtr.unit
 	}
 
+	d.lastValPtr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil
@@ -619,7 +631,7 @@ func (a *SampleValueTypeAllocator) Alloc() *SampleValueType {
 func (a *SampleValueTypeAllocator) prealloc() *SampleValueType {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]SampleValueType, newLen)
 	a.ofs = 1
 	return &a.pool[0]

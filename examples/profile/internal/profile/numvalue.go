@@ -51,6 +51,12 @@ func (s *NumValue) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 
 }
 
+func (s *NumValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 func (s *NumValue) Val() int64 {
 	return s.val
 }
@@ -527,7 +533,7 @@ func (a *NumValueAllocator) Alloc() *NumValue {
 func (a *NumValueAllocator) prealloc() *NumValue {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]NumValue, newLen)
 	a.ofs = 1
 	return &a.pool[0]

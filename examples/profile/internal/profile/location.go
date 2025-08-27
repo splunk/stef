@@ -60,6 +60,15 @@ func (s *Location) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.lines.init(&s.modifiedFields, fieldModifiedLocationLines)
 }
 
+func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.mapping = allocators.Mapping.Alloc()
+	s.mapping.initAlloc(&s.modifiedFields, fieldModifiedLocationMapping, allocators)
+	s.lines.init(&s.modifiedFields, fieldModifiedLocationLines)
+}
+
 func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
@@ -234,8 +243,8 @@ func copyLocation(dst *Location, src *Location) {
 func copyFullLocation(dst *Location, src *Location, allocators *Allocators) {
 	if src.mapping != nil {
 		if dst.mapping == nil {
-			dst.mapping = &Mapping{}
-			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+			dst.mapping = allocators.Mapping.Alloc()
+			dst.mapping.initAlloc(&dst.modifiedFields, fieldModifiedLocationMapping, allocators)
 		}
 		copyFullMapping(dst.mapping, src.mapping, allocators)
 	}
@@ -813,8 +822,9 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone(d.allocators)
-	d.lastValPtr = val
+	//val := d.lastValPtr.Clone(d.allocators)
+	cpy := *d.lastValPtr
+	val := &cpy
 	*dstPtr = val
 
 	var err error
@@ -833,6 +843,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.mapping = d.lastValPtr.mapping
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 {
@@ -841,6 +853,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.address = d.lastValPtr.address
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 {
@@ -849,6 +863,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.lines = d.lastValPtr.lines
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 {
@@ -857,8 +873,11 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		val.isFolded = d.lastValPtr.isFolded
 	}
 
+	d.lastValPtr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil
@@ -905,7 +924,7 @@ func (a *LocationAllocator) Alloc() *Location {
 func (a *LocationAllocator) prealloc() *Location {
 	// prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
 	// If the pool is empty, it starts with 1 element.
-	newLen := min(max(len(a.pool)*2, 1), 32)
+	newLen := min(max(len(a.pool)*2, 16), 64)
 	a.pool = make([]Location, newLen)
 	a.ofs = 1
 	return &a.pool[0]

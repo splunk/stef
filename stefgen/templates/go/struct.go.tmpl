@@ -84,6 +84,24 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     {{- end -}}
 }
 
+func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+    s.modifiedFields.parent = parentModifiedFields
+    s.modifiedFields.parentBit = parentModifiedBit
+
+    {{ range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    {{- if .Type.Flags.StoreByPtr}}
+    {{- if not .Optional}}
+    s.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+    s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
+    {{- end}}
+    {{- else }}
+    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end }}
+    {{- end -}}
+    {{- end -}}
+}
+
 {{ range .Fields }}
 func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
 {{- if .Type.IsPrimitive}}
@@ -251,8 +269,8 @@ func copyFull{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocat
     {{- if .Type.Flags.StoreByPtr}}
     if src.{{.name}} != nil {
         if dst.{{.name}} == nil {
-            dst.{{.name}} = &{{ .Type.Storage }}{}
-            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+            dst.{{.name}}.initAlloc(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
         }
     {{- end}}
         copyFull{{.Type.TypeName}}(
@@ -749,8 +767,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone(d.allocators)
-    d.lastValPtr = val
+	//val := d.lastValPtr.Clone(d.allocators)
+	cpy := *d.lastValPtr
+	val := &cpy
     *dstPtr = val
 	{{- else}}
     val := dstPtr
@@ -783,10 +802,13 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if err != nil {
             return err
         }
-    }
+    } {{if $.DictName}} else {
+        val.{{.name}} = d.lastValPtr.{{.name}}
+    } {{end}}
     {{ end }}
 
     {{if .DictName}}
+    d.lastValPtr = val
     d.dict.dict = append(d.dict.dict, val)
     {{end}}
 
@@ -836,7 +858,7 @@ func (a *{{.StructName}}Allocator) Alloc() *{{.StructName}} {
 func (a *{{.StructName}}Allocator) prealloc() *{{.StructName}} {
     // prealloc expands the pool by doubling its size, up to a maximum of 32 elements.
     // If the pool is empty, it starts with 1 element.
-    newLen := min(max(len(a.pool)*2, 1), 32)
+    newLen := min(max(len(a.pool)*2, 16), 64)
     a.pool = make([]{{.StructName}}, newLen)
     a.ofs = 1
     return &a.pool[0]
