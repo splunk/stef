@@ -853,6 +853,29 @@ func (a *SampleAllocator) prealloc() *Sample {
 	return &a.pool[0]
 }
 
+func (a *SampleAllocator) AllocIntoSlice(elems []*Sample) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]Sample, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}
+
 var wireSchemaSample = []byte{0x0A, 0x04, 0x08, 0x02, 0x04, 0x09, 0x03, 0x04, 0x02, 0x02, 0x02}
 
 func SampleWireSchema() (schema.WireSchema, error) {

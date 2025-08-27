@@ -910,3 +910,26 @@ func (a *LocationAllocator) prealloc() *Location {
 	a.ofs = 1
 	return &a.pool[0]
 }
+
+func (a *LocationAllocator) AllocIntoSlice(elems []*Location) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]Location, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}

@@ -624,3 +624,26 @@ func (a *SampleValueTypeAllocator) prealloc() *SampleValueType {
 	a.ofs = 1
 	return &a.pool[0]
 }
+
+func (a *SampleValueTypeAllocator) AllocIntoSlice(elems []*SampleValueType) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]SampleValueType, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}

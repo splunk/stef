@@ -156,14 +156,16 @@ func copyFullLineArray(dst *LineArray, src *LineArray, allocators *Allocators) {
 	if minLen < len(dst.elems) {
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]Line, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]Line, len(dst.elems) - minLen)
+		allocators.Line.AllocIntoSlice(dst.elems[minLen:])
+
+		for j := minLen; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyFullLine(dst.elems[i+j], src.elems[i+j], allocators)
+			copyFullLine(dst.elems[j], src.elems[j], allocators)
 		}
 	}
 }

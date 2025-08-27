@@ -156,14 +156,16 @@ func copyFullJsonValueArray(dst *JsonValueArray, src *JsonValueArray, allocators
 	if minLen < len(dst.elems) {
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]JsonValue, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]JsonValue, len(dst.elems) - minLen)
+		allocators.JsonValue.AllocIntoSlice(dst.elems[minLen:])
+
+		for j := minLen; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyFullJsonValue(dst.elems[i+j], src.elems[i+j], allocators)
+			copyFullJsonValue(dst.elems[j], src.elems[j], allocators)
 		}
 	}
 }

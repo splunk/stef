@@ -156,14 +156,16 @@ func copyFullLocationArray(dst *LocationArray, src *LocationArray, allocators *A
 	if minLen < len(dst.elems) {
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]Location, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]Location, len(dst.elems) - minLen)
+		allocators.Location.AllocIntoSlice(dst.elems[minLen:])
+
+		for j := minLen; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyFullLocation(dst.elems[i+j], src.elems[i+j], allocators)
+			copyFullLocation(dst.elems[j], src.elems[j], allocators)
 		}
 	}
 }

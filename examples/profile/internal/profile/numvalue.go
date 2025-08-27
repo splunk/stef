@@ -532,3 +532,26 @@ func (a *NumValueAllocator) prealloc() *NumValue {
 	a.ofs = 1
 	return &a.pool[0]
 }
+
+func (a *NumValueAllocator) AllocIntoSlice(elems []*NumValue) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]NumValue, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}

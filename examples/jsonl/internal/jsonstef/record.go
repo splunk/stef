@@ -469,6 +469,29 @@ func (a *RecordAllocator) prealloc() *Record {
 	return &a.pool[0]
 }
 
+func (a *RecordAllocator) AllocIntoSlice(elems []*Record) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]Record, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}
+
 var wireSchemaRecord = []byte{0x02, 0x01, 0x05}
 
 func RecordWireSchema() (schema.WireSchema, error) {

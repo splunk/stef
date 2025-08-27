@@ -840,3 +840,26 @@ func (a *FunctionAllocator) prealloc() *Function {
 	a.ofs = 1
 	return &a.pool[0]
 }
+
+func (a *FunctionAllocator) AllocIntoSlice(elems []*Function) {
+	totalCnt := len(elems)
+	i := 0
+
+	cnt := min(totalCnt, len(a.pool)-a.ofs)
+	for ; i < cnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+	if i >= totalCnt {
+		return
+	}
+
+	newLen := max(totalCnt-i, 32)
+	a.pool = make([]Function, newLen)
+	a.ofs = 0
+
+	for ; i < totalCnt; i++ {
+		elems[i] = &a.pool[a.ofs]
+		a.ofs++
+	}
+}
