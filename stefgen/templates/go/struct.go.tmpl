@@ -578,8 +578,8 @@ func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 type {{ .StructName }}Decoder struct {
     buf pkg.BitsReader
     column *pkg.ReadableColumn
-    lastValPtr *{{.StructName}}
-    lastVal {{.StructName}}
+{{/*    lastValPtr *{{.StructName}}*/}}
+{{/*    lastVal {{.StructName}}*/}}
     fieldCount uint
 
     {{ range .Fields }}
@@ -590,7 +590,69 @@ type {{ .StructName }}Decoder struct {
     {{if .DictName}}
     dict *{{ .StructName }}DecoderDict
     {{end}}
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack {{ .StructName }}DecoderLastValStack
 }
+
+{{- if not .ElemType.IsPrimitive}}
+type {{ .StructName }}DecoderLastValStack []*{{ .StructName }}DecoderLastValElem
+
+func (s* {{ .StructName }}DecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s* {{ .StructName }}DecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i:=0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s* {{ .StructName }}DecoderLastValStack) top() *{{ .StructName }}DecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s* {{ .StructName }}DecoderLastValStack) addOnTopSlow() {
+	elem := &{{ .StructName }}DecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i:=len(*s); i< len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &{{ .StructName }}DecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s* {{ .StructName }}DecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s* {{ .StructName }}DecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type {{ .StructName }}DecoderLastValElem struct {
+	ptr *{{.StructName}}
+	//{{if .ElemType.Flags.StoreByPtr}}elemStorage {{.ElemType.Storage}}{{end}}
+}
+
+func (e *{{ .StructName }}DecoderLastValElem) init() {
+}
+
+func (e *{{ .StructName }}DecoderLastValElem) reset() {
+    e.ptr = nil
+}
+{{- end}}
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
@@ -610,16 +672,18 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
 
     d.column = columns.Column()
 
-    {{if .IsMainStruct}}
-    d.lastVal.Init()
-	{{- else}}
-    d.lastVal.init(nil,0)
-    {{- end}}
-    d.lastValPtr = &d.lastVal
+{{/*    {{if .IsMainStruct}}*/}}
+{{/*    d.lastVal.Init()*/}}
+{{/*	{{- else}}*/}}
+{{/*    d.lastVal.init(nil,0)*/}}
+{{/*    {{- end}}*/}}
+{{/*    d.lastValPtr = &d.lastVal*/}}
 
     {{- if .DictName}}
     d.dict = &state.{{.DictName}}
     {{- end}}
+
+    d.lastValStack.init()
 
     {{ range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
@@ -682,9 +746,14 @@ func (d *{{ .StructName }}Decoder) Reset() {
     }
     {{else}}d.{{.name}}Decoder.Reset(){{end}}
     {{- end}}
+    d.lastValStack.reset()
 }
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
+
     {{- if .DictName}}
 	// Check if the {{ .StructName }} exists in the dictionary.
     dictFlag := d.buf.ReadBit()
@@ -693,15 +762,16 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if refNum >= uint64(len(d.dict.dict)) {
             return pkg.ErrInvalidRefNum
         }
-        d.lastValPtr = d.dict.dict[refNum]
-        *dstPtr = d.lastValPtr
+        lastVal.ptr = d.dict.dict[refNum]
+        *dstPtr = lastVal.ptr
         return nil
     }
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-    d.lastValPtr = val
+	cpy := *lastVal.ptr
+	val := &cpy
+    //d.lastValPtr = val
     *dstPtr = val
 	{{- else}}
     val := dstPtr
@@ -734,10 +804,13 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if err != nil {
             return err
         }
+    } else if (lastVal.ptr != nil) {
+        val.{{.name}} = lastVal.ptr.{{.name}}
     }
     {{ end }}
 
     {{if .DictName}}
+    lastVal.ptr = val
     d.dict.dict = append(d.dict.dict, val)
     {{end}}
 
