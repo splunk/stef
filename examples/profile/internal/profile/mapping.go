@@ -1009,10 +1009,9 @@ func (e *MappingEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // MappingDecoder implements decoding of Mapping
 type MappingDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Mapping
-	lastVal    Mapping
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	memoryStartDecoder encoders.Uint64Decoder
@@ -1034,6 +1033,65 @@ type MappingDecoder struct {
 	hasInlineFramesDecoder encoders.BoolDecoder
 
 	dict *MappingDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack MappingDecoderLastValStack
+}
+type MappingDecoderLastValStack []*MappingDecoderLastValElem
+
+func (s *MappingDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *MappingDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *MappingDecoderLastValStack) top() *MappingDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *MappingDecoderLastValStack) addOnTopSlow() {
+	elem := &MappingDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &MappingDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *MappingDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *MappingDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type MappingDecoderLastValElem struct {
+	ptr *Mapping
+	//
+}
+
+func (e *MappingDecoderLastValElem) init() {
+}
+
+func (e *MappingDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1054,9 +1112,9 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Mapping
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // MemoryStart and subsequent fields are skipped.
@@ -1209,9 +1267,13 @@ func (d *MappingDecoder) Reset() {
 		return // HasInlineFrames and all subsequent fields are skipped.
 	}
 	d.hasInlineFramesDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the Mapping exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -1219,15 +1281,19 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy Mapping
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -1241,6 +1307,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.memoryStart = lastVal.ptr.memoryStart
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 {
@@ -1249,6 +1317,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.memoryLimit = lastVal.ptr.memoryLimit
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 {
@@ -1257,6 +1327,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.fileOffset = lastVal.ptr.fileOffset
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 {
@@ -1265,6 +1337,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.filename = lastVal.ptr.filename
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 {
@@ -1273,6 +1347,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.buildId = lastVal.ptr.buildId
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 {
@@ -1281,6 +1357,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.hasFunctions = lastVal.ptr.hasFunctions
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 {
@@ -1289,6 +1367,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.hasFilenames = lastVal.ptr.hasFilenames
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 {
@@ -1297,6 +1377,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.hasLineNumbers = lastVal.ptr.hasLineNumbers
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 {
@@ -1305,8 +1387,11 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.hasInlineFrames = lastVal.ptr.hasInlineFrames
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

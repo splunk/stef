@@ -1101,10 +1101,9 @@ func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 
 // ExpHistogramValueDecoder implements decoding of ExpHistogramValue
 type ExpHistogramValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *ExpHistogramValue
-	lastVal    ExpHistogramValue
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	countDecoder encoders.Uint64Decoder
@@ -1126,6 +1125,65 @@ type ExpHistogramValueDecoder struct {
 	isNegativeBucketsRecursive bool
 
 	zeroThresholdDecoder encoders.Float64Decoder
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack ExpHistogramValueDecoderLastValStack
+}
+type ExpHistogramValueDecoderLastValStack []*ExpHistogramValueDecoderLastValElem
+
+func (s *ExpHistogramValueDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *ExpHistogramValueDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *ExpHistogramValueDecoderLastValStack) top() *ExpHistogramValueDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *ExpHistogramValueDecoderLastValStack) addOnTopSlow() {
+	elem := &ExpHistogramValueDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &ExpHistogramValueDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *ExpHistogramValueDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *ExpHistogramValueDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type ExpHistogramValueDecoderLastValElem struct {
+	ptr *ExpHistogramValue
+	//
+}
+
+func (e *ExpHistogramValueDecoderLastValElem) init() {
+}
+
+func (e *ExpHistogramValueDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1146,8 +1204,7 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
@@ -1330,9 +1387,13 @@ func (d *ExpHistogramValueDecoder) Reset() {
 		return // ZeroThreshold and all subsequent fields are skipped.
 	}
 	d.zeroThresholdDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1349,6 +1410,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.count = lastVal.ptr.count
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueSum != 0 &&
@@ -1358,6 +1421,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.sum = lastVal.ptr.sum
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMin != 0 &&
@@ -1367,6 +1432,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.min = lastVal.ptr.min
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMax != 0 &&
@@ -1376,6 +1443,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.max = lastVal.ptr.max
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueScale != 0 {
@@ -1384,6 +1453,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.scale = lastVal.ptr.scale
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroCount != 0 {
@@ -1392,6 +1463,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.zeroCount = lastVal.ptr.zeroCount
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValuePositiveBuckets != 0 {
@@ -1400,6 +1473,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.positiveBuckets = lastVal.ptr.positiveBuckets
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueNegativeBuckets != 0 {
@@ -1408,6 +1483,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.negativeBuckets = lastVal.ptr.negativeBuckets
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0 {
@@ -1416,6 +1493,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.zeroThreshold = lastVal.ptr.zeroThreshold
 	}
 
 	return nil

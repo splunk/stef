@@ -691,10 +691,9 @@ func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ScopeDecoder implements decoding of Scope
 type ScopeDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Scope
-	lastVal    Scope
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -709,6 +708,65 @@ type ScopeDecoder struct {
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ScopeDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack ScopeDecoderLastValStack
+}
+type ScopeDecoderLastValStack []*ScopeDecoderLastValElem
+
+func (s *ScopeDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *ScopeDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *ScopeDecoderLastValStack) top() *ScopeDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *ScopeDecoderLastValStack) addOnTopSlow() {
+	elem := &ScopeDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &ScopeDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *ScopeDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *ScopeDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type ScopeDecoderLastValElem struct {
+	ptr *Scope
+	//
+}
+
+func (e *ScopeDecoderLastValElem) init() {
+}
+
+func (e *ScopeDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -729,9 +787,9 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Scope
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -839,9 +897,13 @@ func (d *ScopeDecoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	d.droppedAttributesCountDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the Scope exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -849,15 +911,19 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy Scope
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -871,6 +937,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeVersion != 0 {
@@ -879,6 +947,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.version = lastVal.ptr.version
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeSchemaURL != 0 {
@@ -887,6 +957,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.schemaURL = lastVal.ptr.schemaURL
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 {
@@ -895,6 +967,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 {
@@ -903,8 +977,11 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

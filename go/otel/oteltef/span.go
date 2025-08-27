@@ -1404,10 +1404,9 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpanDecoder implements decoding of Span
 type SpanDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Span
-	lastVal    Span
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	traceIDDecoder encoders.BytesDecoder
@@ -1441,6 +1440,65 @@ type SpanDecoder struct {
 
 	statusDecoder     *SpanStatusDecoder
 	isStatusRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack SpanDecoderLastValStack
+}
+type SpanDecoderLastValStack []*SpanDecoderLastValElem
+
+func (s *SpanDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *SpanDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *SpanDecoderLastValStack) top() *SpanDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *SpanDecoderLastValStack) addOnTopSlow() {
+	elem := &SpanDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &SpanDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *SpanDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *SpanDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type SpanDecoderLastValElem struct {
+	ptr *Span
+	//
+}
+
+func (e *SpanDecoderLastValElem) init() {
+}
+
+func (e *SpanDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1461,8 +1519,7 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.
@@ -1750,9 +1807,13 @@ func (d *SpanDecoder) Reset() {
 		d.statusDecoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *SpanDecoder) Decode(dstPtr *Span) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1766,6 +1827,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.traceID = lastVal.ptr.traceID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanSpanID != 0 {
@@ -1774,6 +1837,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.spanID = lastVal.ptr.spanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanTraceState != 0 {
@@ -1782,6 +1847,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.traceState = lastVal.ptr.traceState
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanParentSpanID != 0 {
@@ -1790,6 +1857,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.parentSpanID = lastVal.ptr.parentSpanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanFlags != 0 {
@@ -1798,6 +1867,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.flags = lastVal.ptr.flags
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanName != 0 {
@@ -1806,6 +1877,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanKind != 0 {
@@ -1814,6 +1887,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.kind = lastVal.ptr.kind
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStartTimeUnixNano != 0 {
@@ -1822,6 +1897,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.startTimeUnixNano = lastVal.ptr.startTimeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEndTimeUnixNano != 0 {
@@ -1830,6 +1907,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.endTimeUnixNano = lastVal.ptr.endTimeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 {
@@ -1838,6 +1917,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 {
@@ -1846,6 +1927,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEvents != 0 {
@@ -1854,6 +1937,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.events = lastVal.ptr.events
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanLinks != 0 {
@@ -1862,6 +1947,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.links = lastVal.ptr.links
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatus != 0 {
@@ -1870,6 +1957,8 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.status = lastVal.ptr.status
 	}
 
 	return nil

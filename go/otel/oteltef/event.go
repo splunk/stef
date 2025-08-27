@@ -554,10 +554,9 @@ func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // EventDecoder implements decoding of Event
 type EventDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Event
-	lastVal    Event
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -568,6 +567,65 @@ type EventDecoder struct {
 	isAttributesRecursive bool
 
 	droppedAttributesCountDecoder encoders.Uint64Decoder
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack EventDecoderLastValStack
+}
+type EventDecoderLastValStack []*EventDecoderLastValElem
+
+func (s *EventDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *EventDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *EventDecoderLastValStack) top() *EventDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *EventDecoderLastValStack) addOnTopSlow() {
+	elem := &EventDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &EventDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *EventDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *EventDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type EventDecoderLastValElem struct {
+	ptr *Event
+	//
+}
+
+func (e *EventDecoderLastValElem) init() {
+}
+
+func (e *EventDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -588,8 +646,7 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -682,9 +739,13 @@ func (d *EventDecoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	d.droppedAttributesCountDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *EventDecoder) Decode(dstPtr *Event) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -698,6 +759,8 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventTimeUnixNano != 0 {
@@ -706,6 +769,8 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.timeUnixNano = lastVal.ptr.timeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 {
@@ -714,6 +779,8 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 {
@@ -722,6 +789,8 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
 	return nil

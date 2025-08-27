@@ -598,10 +598,9 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpansDecoder implements decoding of Spans
 type SpansDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Spans
-	lastVal    Spans
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -615,6 +614,65 @@ type SpansDecoder struct {
 
 	spanDecoder     *SpanDecoder
 	isSpanRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack SpansDecoderLastValStack
+}
+type SpansDecoderLastValStack []*SpansDecoderLastValElem
+
+func (s *SpansDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *SpansDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *SpansDecoderLastValStack) top() *SpansDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *SpansDecoderLastValStack) addOnTopSlow() {
+	elem := &SpansDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &SpansDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *SpansDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *SpansDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type SpansDecoderLastValElem struct {
+	ptr *Spans
+	//
+}
+
+func (e *SpansDecoderLastValElem) init() {
+}
+
+func (e *SpansDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -635,8 +693,7 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 
 	d.column = columns.Column()
 
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
@@ -774,9 +831,13 @@ func (d *SpansDecoder) Reset() {
 		d.spanDecoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -790,6 +851,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.envelope = lastVal.ptr.envelope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 {
@@ -803,6 +866,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.resource = lastVal.ptr.resource
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 {
@@ -816,6 +881,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.scope = lastVal.ptr.scope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansSpan != 0 {
@@ -824,6 +891,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.span = lastVal.ptr.span
 	}
 
 	return nil

@@ -493,11 +493,12 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(lastVal.elem)
+		//err := d.elemDecoder.Decode(lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyAnyValue(dst.elems[i], lastVal.elem)
+		//copyAnyValue(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

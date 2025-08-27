@@ -646,10 +646,9 @@ func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ExemplarDecoder implements decoding of Exemplar
 type ExemplarDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Exemplar
-	lastVal    Exemplar
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	timestampDecoder encoders.Uint64Decoder
@@ -663,6 +662,65 @@ type ExemplarDecoder struct {
 
 	filteredAttributesDecoder     *AttributesDecoder
 	isFilteredAttributesRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack ExemplarDecoderLastValStack
+}
+type ExemplarDecoderLastValStack []*ExemplarDecoderLastValElem
+
+func (s *ExemplarDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *ExemplarDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *ExemplarDecoderLastValStack) top() *ExemplarDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *ExemplarDecoderLastValStack) addOnTopSlow() {
+	elem := &ExemplarDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &ExemplarDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *ExemplarDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *ExemplarDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type ExemplarDecoderLastValElem struct {
+	ptr *Exemplar
+	//
+}
+
+func (e *ExemplarDecoderLastValElem) init() {
+}
+
+func (e *ExemplarDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -683,8 +741,7 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Timestamp and subsequent fields are skipped.
@@ -807,9 +864,13 @@ func (d *ExemplarDecoder) Reset() {
 		d.filteredAttributesDecoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -823,6 +884,8 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.timestamp = lastVal.ptr.timestamp
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarValue != 0 {
@@ -831,6 +894,8 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.value = lastVal.ptr.value
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarSpanID != 0 {
@@ -839,6 +904,8 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.spanID = lastVal.ptr.spanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarTraceID != 0 {
@@ -847,6 +914,8 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.traceID = lastVal.ptr.traceID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0 {
@@ -855,6 +924,8 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.filteredAttributes = lastVal.ptr.filteredAttributes
 	}
 
 	return nil

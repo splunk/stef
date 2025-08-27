@@ -380,15 +380,73 @@ func (e *NumValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // NumValueDecoder implements decoding of NumValue
 type NumValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *NumValue
-	lastVal    NumValue
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	valDecoder encoders.Int64Decoder
 
 	unitDecoder encoders.StringDecoder
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack NumValueDecoderLastValStack
+}
+type NumValueDecoderLastValStack []*NumValueDecoderLastValElem
+
+func (s *NumValueDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *NumValueDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *NumValueDecoderLastValStack) top() *NumValueDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *NumValueDecoderLastValStack) addOnTopSlow() {
+	elem := &NumValueDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &NumValueDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *NumValueDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *NumValueDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type NumValueDecoderLastValElem struct {
+	ptr *NumValue
+	//
+}
+
+func (e *NumValueDecoderLastValElem) init() {
+}
+
+func (e *NumValueDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -409,8 +467,7 @@ func (d *NumValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Val and subsequent fields are skipped.
@@ -458,9 +515,13 @@ func (d *NumValueDecoder) Reset() {
 		return // Unit and all subsequent fields are skipped.
 	}
 	d.unitDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -474,6 +535,8 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.val = lastVal.ptr.val
 	}
 
 	if val.modifiedFields.mask&fieldModifiedNumValueUnit != 0 {
@@ -482,6 +545,8 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.unit = lastVal.ptr.unit
 	}
 
 	return nil

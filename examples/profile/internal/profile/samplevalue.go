@@ -397,16 +397,74 @@ func (e *SampleValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SampleValueDecoder implements decoding of SampleValue
 type SampleValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *SampleValue
-	lastVal    SampleValue
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	valDecoder encoders.Int64Decoder
 
 	type_Decoder    *SampleValueTypeDecoder
 	isTypeRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack SampleValueDecoderLastValStack
+}
+type SampleValueDecoderLastValStack []*SampleValueDecoderLastValElem
+
+func (s *SampleValueDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *SampleValueDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *SampleValueDecoderLastValStack) top() *SampleValueDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *SampleValueDecoderLastValStack) addOnTopSlow() {
+	elem := &SampleValueDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &SampleValueDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *SampleValueDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *SampleValueDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type SampleValueDecoderLastValElem struct {
+	ptr *SampleValue
+	//
+}
+
+func (e *SampleValueDecoderLastValElem) init() {
+}
+
+func (e *SampleValueDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -427,8 +485,7 @@ func (d *SampleValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Val and subsequent fields are skipped.
@@ -491,9 +548,13 @@ func (d *SampleValueDecoder) Reset() {
 		d.type_Decoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -507,6 +568,8 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.val = lastVal.ptr.val
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 {
@@ -520,6 +583,8 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.type_ = lastVal.ptr.type_
 	}
 
 	return nil

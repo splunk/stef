@@ -435,10 +435,9 @@ func (e *SampleValueTypeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SampleValueTypeDecoder implements decoding of SampleValueType
 type SampleValueTypeDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *SampleValueType
-	lastVal    SampleValueType
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	type_Decoder encoders.StringDecoder
@@ -446,6 +445,65 @@ type SampleValueTypeDecoder struct {
 	unitDecoder encoders.StringDecoder
 
 	dict *SampleValueTypeDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack SampleValueTypeDecoderLastValStack
+}
+type SampleValueTypeDecoderLastValStack []*SampleValueTypeDecoderLastValElem
+
+func (s *SampleValueTypeDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *SampleValueTypeDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *SampleValueTypeDecoderLastValStack) top() *SampleValueTypeDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *SampleValueTypeDecoderLastValStack) addOnTopSlow() {
+	elem := &SampleValueTypeDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &SampleValueTypeDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *SampleValueTypeDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *SampleValueTypeDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type SampleValueTypeDecoderLastValElem struct {
+	ptr *SampleValueType
+	//
+}
+
+func (e *SampleValueTypeDecoderLastValElem) init() {
+}
+
+func (e *SampleValueTypeDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -466,9 +524,9 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.SampleValueType
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Type and subsequent fields are skipped.
@@ -516,9 +574,13 @@ func (d *SampleValueTypeDecoder) Reset() {
 		return // Unit and all subsequent fields are skipped.
 	}
 	d.unitDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the SampleValueType exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -526,15 +588,19 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy SampleValueType
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -548,6 +614,8 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.type_ = lastVal.ptr.type_
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 {
@@ -556,8 +624,11 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.unit = lastVal.ptr.unit
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

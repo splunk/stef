@@ -789,10 +789,9 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // MetricsDecoder implements decoding of Metrics
 type MetricsDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Metrics
-	lastVal    Metrics
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -812,6 +811,65 @@ type MetricsDecoder struct {
 
 	pointDecoder     *PointDecoder
 	isPointRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack MetricsDecoderLastValStack
+}
+type MetricsDecoderLastValStack []*MetricsDecoderLastValElem
+
+func (s *MetricsDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *MetricsDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *MetricsDecoderLastValStack) top() *MetricsDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *MetricsDecoderLastValStack) addOnTopSlow() {
+	elem := &MetricsDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &MetricsDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *MetricsDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *MetricsDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type MetricsDecoderLastValElem struct {
+	ptr *Metrics
+	//
+}
+
+func (e *MetricsDecoderLastValElem) init() {
+}
+
+func (e *MetricsDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -832,8 +890,7 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 
 	d.column = columns.Column()
 
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.
@@ -1031,9 +1088,13 @@ func (d *MetricsDecoder) Reset() {
 		d.pointDecoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1047,6 +1108,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.envelope = lastVal.ptr.envelope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 {
@@ -1060,6 +1123,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.metric = lastVal.ptr.metric
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 {
@@ -1073,6 +1138,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.resource = lastVal.ptr.resource
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 {
@@ -1086,6 +1153,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.scope = lastVal.ptr.scope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsAttributes != 0 {
@@ -1094,6 +1163,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsPoint != 0 {
@@ -1102,6 +1173,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.point = lastVal.ptr.point
 	}
 
 	return nil

@@ -626,11 +626,12 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}lastVal.elem)
+		//err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}lastVal.elem)
+		err := d.elemDecoder.Decode({{if .ElemType.DictName}}&{{end}}dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
+		//copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
 		{{- end}}
 	}
 

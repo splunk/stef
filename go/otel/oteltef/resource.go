@@ -527,10 +527,9 @@ func (e *ResourceEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ResourceDecoder implements decoding of Resource
 type ResourceDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Resource
-	lastVal    Resource
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	schemaURLDecoder encoders.StringDecoder
@@ -541,6 +540,65 @@ type ResourceDecoder struct {
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ResourceDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack ResourceDecoderLastValStack
+}
+type ResourceDecoderLastValStack []*ResourceDecoderLastValElem
+
+func (s *ResourceDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *ResourceDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *ResourceDecoderLastValStack) top() *ResourceDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *ResourceDecoderLastValStack) addOnTopSlow() {
+	elem := &ResourceDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &ResourceDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *ResourceDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *ResourceDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type ResourceDecoderLastValElem struct {
+	ptr *Resource
+	//
+}
+
+func (e *ResourceDecoderLastValElem) init() {
+}
+
+func (e *ResourceDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -561,9 +619,9 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Resource
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // SchemaURL and subsequent fields are skipped.
@@ -641,9 +699,13 @@ func (d *ResourceDecoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	d.droppedAttributesCountDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the Resource exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -651,15 +713,19 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy Resource
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -673,6 +739,8 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.schemaURL = lastVal.ptr.schemaURL
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 {
@@ -681,6 +749,8 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 {
@@ -689,8 +759,11 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

@@ -380,15 +380,73 @@ func (e *SpanStatusEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpanStatusDecoder implements decoding of SpanStatus
 type SpanStatusDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *SpanStatus
-	lastVal    SpanStatus
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	messageDecoder encoders.StringDecoder
 
 	codeDecoder encoders.Uint64Decoder
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack SpanStatusDecoderLastValStack
+}
+type SpanStatusDecoderLastValStack []*SpanStatusDecoderLastValElem
+
+func (s *SpanStatusDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *SpanStatusDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *SpanStatusDecoderLastValStack) top() *SpanStatusDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *SpanStatusDecoderLastValStack) addOnTopSlow() {
+	elem := &SpanStatusDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &SpanStatusDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *SpanStatusDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *SpanStatusDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type SpanStatusDecoderLastValElem struct {
+	ptr *SpanStatus
+	//
+}
+
+func (e *SpanStatusDecoderLastValElem) init() {
+}
+
+func (e *SpanStatusDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -409,8 +467,7 @@ func (d *SpanStatusDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Message and subsequent fields are skipped.
@@ -458,9 +515,13 @@ func (d *SpanStatusDecoder) Reset() {
 		return // Code and all subsequent fields are skipped.
 	}
 	d.codeDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -474,6 +535,8 @@ func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.message = lastVal.ptr.message
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatusCode != 0 {
@@ -482,6 +545,8 @@ func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.code = lastVal.ptr.code
 	}
 
 	return nil

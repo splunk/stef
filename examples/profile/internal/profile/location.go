@@ -626,10 +626,9 @@ func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // LocationDecoder implements decoding of Location
 type LocationDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Location
-	lastVal    Location
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	mappingDecoder     *MappingDecoder
@@ -643,6 +642,65 @@ type LocationDecoder struct {
 	isFoldedDecoder encoders.BoolDecoder
 
 	dict *LocationDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack LocationDecoderLastValStack
+}
+type LocationDecoderLastValStack []*LocationDecoderLastValElem
+
+func (s *LocationDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *LocationDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *LocationDecoderLastValStack) top() *LocationDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *LocationDecoderLastValStack) addOnTopSlow() {
+	elem := &LocationDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &LocationDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *LocationDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *LocationDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type LocationDecoderLastValElem struct {
+	ptr *Location
+	//
+}
+
+func (e *LocationDecoderLastValElem) init() {
+}
+
+func (e *LocationDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -663,9 +721,9 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Location
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Mapping and subsequent fields are skipped.
@@ -773,9 +831,13 @@ func (d *LocationDecoder) Reset() {
 		return // IsFolded and all subsequent fields are skipped.
 	}
 	d.isFoldedDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *LocationDecoder) Decode(dstPtr **Location) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the Location exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -783,15 +845,19 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy Location
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -810,6 +876,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.mapping = lastVal.ptr.mapping
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 {
@@ -818,6 +886,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.address = lastVal.ptr.address
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 {
@@ -826,6 +896,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.lines = lastVal.ptr.lines
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 {
@@ -834,8 +906,11 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.isFolded = lastVal.ptr.isFolded
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

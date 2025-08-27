@@ -490,11 +490,12 @@ func (d *LineArrayDecoder) Decode(dst *LineArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		//err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyLine(dst.elems[i], &lastVal.elem)
+		//copyLine(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

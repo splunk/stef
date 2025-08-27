@@ -599,10 +599,9 @@ func (e *FunctionEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // FunctionDecoder implements decoding of Function
 type FunctionDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Function
-	lastVal    Function
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -614,6 +613,65 @@ type FunctionDecoder struct {
 	startLineDecoder encoders.Uint64Decoder
 
 	dict *FunctionDecoderDict
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack FunctionDecoderLastValStack
+}
+type FunctionDecoderLastValStack []*FunctionDecoderLastValElem
+
+func (s *FunctionDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *FunctionDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *FunctionDecoderLastValStack) top() *FunctionDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *FunctionDecoderLastValStack) addOnTopSlow() {
+	elem := &FunctionDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &FunctionDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *FunctionDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *FunctionDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type FunctionDecoderLastValElem struct {
+	ptr *Function
+	//
+}
+
+func (e *FunctionDecoderLastValElem) init() {
+}
+
+func (e *FunctionDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -634,9 +692,9 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Function
+
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -714,9 +772,13 @@ func (d *FunctionDecoder) Reset() {
 		return // StartLine and all subsequent fields are skipped.
 	}
 	d.startLineDecoder.Reset()
+	d.lastValStack.reset()
 }
 
 func (d *FunctionDecoder) Decode(dstPtr **Function) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	// Check if the Function exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -724,15 +786,19 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = lastVal.ptr
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	var cpy Function
+	if lastVal.ptr != nil {
+		cpy = *lastVal.ptr
+	}
+	val := &cpy
+	//d.lastValPtr = val
 	*dstPtr = val
 
 	var err error
@@ -746,6 +812,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionSystemName != 0 {
@@ -754,6 +822,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.systemName = lastVal.ptr.systemName
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionFilename != 0 {
@@ -762,6 +832,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.filename = lastVal.ptr.filename
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionStartLine != 0 {
@@ -770,8 +842,11 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.startLine = lastVal.ptr.startLine
 	}
 
+	lastVal.ptr = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil
