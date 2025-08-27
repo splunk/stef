@@ -1,0 +1,21 @@
+package com.example.gentest.array_of_struct
+
+struct Root1 root {
+  Struct1 []Struct1
+}
+
+struct Struct1 {
+  F1 int64
+  F2 string
+  F3 Struct2
+  F4 Multimap
+}
+
+struct Struct2 {
+  F1 int64
+}
+
+multimap Multimap {
+  key string
+  value string
+}
