@@ -600,65 +600,6 @@ type SampleDecoder struct {
 
 	labelsDecoder     *LabelsDecoder
 	isLabelsRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack SampleDecoderLastValStack
-}
-type SampleDecoderLastValStack []*SampleDecoderLastValElem
-
-func (s *SampleDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *SampleDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *SampleDecoderLastValStack) top() *SampleDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *SampleDecoderLastValStack) addOnTopSlow() {
-	elem := &SampleDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &SampleDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *SampleDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *SampleDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type SampleDecoderLastValElem struct {
-	ptr *Sample
-	//
-}
-
-func (e *SampleDecoderLastValElem) init() {
-}
-
-func (e *SampleDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -678,8 +619,6 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Metadata and subsequent fields are skipped.
@@ -817,7 +756,6 @@ func (d *SampleDecoder) Reset() {
 		d.labelsDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *SampleDecoder) Decode(dstPtr *Sample) error {

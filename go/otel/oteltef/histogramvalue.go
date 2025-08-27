@@ -778,65 +778,6 @@ type HistogramValueDecoder struct {
 
 	bucketCountsDecoder     *Int64ArrayDecoder
 	isBucketCountsRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack HistogramValueDecoderLastValStack
-}
-type HistogramValueDecoderLastValStack []*HistogramValueDecoderLastValElem
-
-func (s *HistogramValueDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *HistogramValueDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *HistogramValueDecoderLastValStack) top() *HistogramValueDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *HistogramValueDecoderLastValStack) addOnTopSlow() {
-	elem := &HistogramValueDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &HistogramValueDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *HistogramValueDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *HistogramValueDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type HistogramValueDecoderLastValElem struct {
-	ptr *HistogramValue
-	//
-}
-
-func (e *HistogramValueDecoderLastValElem) init() {
-}
-
-func (e *HistogramValueDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -856,8 +797,6 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
@@ -965,7 +904,6 @@ func (d *HistogramValueDecoder) Reset() {
 		d.bucketCountsDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {

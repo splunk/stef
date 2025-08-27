@@ -589,13 +589,14 @@ type {{ .StructName }}Decoder struct {
     {{- end }}
     {{if .DictName}}
     dict *{{ .StructName }}DecoderDict
-    {{end}}
-
+    {{if not .ElemType.IsPrimitive}}
 	// lastValStack are last decoded values stacked by the level of recursion.
 	lastValStack {{ .StructName }}DecoderLastValStack
+	{{end}}
+    {{end}}
 }
 
-{{- if not .ElemType.IsPrimitive}}
+{{- if and .DictName (not .ElemType.IsPrimitive)}}
 type {{ .StructName }}DecoderLastValStack []*{{ .StructName }}DecoderLastValElem
 
 func (s* {{ .StructName }}DecoderLastValStack) init() {
@@ -643,7 +644,6 @@ func (s* {{ .StructName }}DecoderLastValStack) removeFromTop() {
 
 type {{ .StructName }}DecoderLastValElem struct {
 	ptr *{{.StructName}}
-	//{{if .ElemType.Flags.StoreByPtr}}elemStorage {{.ElemType.Storage}}{{end}}
 }
 
 func (e *{{ .StructName }}DecoderLastValElem) init() {
@@ -672,18 +672,11 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
 
     d.column = columns.Column()
 
-{{/*    {{if .IsMainStruct}}*/}}
-{{/*    d.lastVal.Init()*/}}
-{{/*	{{- else}}*/}}
-{{/*    d.lastVal.init(nil,0)*/}}
-{{/*    {{- end}}*/}}
-{{/*    d.lastValPtr = &d.lastVal*/}}
-
     {{- if .DictName}}
     d.dict = &state.{{.DictName}}
     {{- end}}
 
-    d.lastValStack.init()
+    {{if .DictName}}d.lastValStack.init(){{end}}
 
     {{ range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
@@ -746,7 +739,7 @@ func (d *{{ .StructName }}Decoder) Reset() {
     }
     {{else}}d.{{.name}}Decoder.Reset(){{end}}
     {{- end}}
-    d.lastValStack.reset()
+    {{if .DictName}}d.lastValStack.reset(){{end}}
 }
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {

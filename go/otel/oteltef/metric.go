@@ -1022,7 +1022,6 @@ func (s *MetricDecoderLastValStack) removeFromTop() {
 
 type MetricDecoderLastValElem struct {
 	ptr *Metric
-	//
 }
 
 func (e *MetricDecoderLastValElem) init() {
@@ -1049,7 +1048,6 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Metric
 
 	d.lastValStack.init()

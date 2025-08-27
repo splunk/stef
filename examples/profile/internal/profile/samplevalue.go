@@ -406,65 +406,6 @@ type SampleValueDecoder struct {
 
 	type_Decoder    *SampleValueTypeDecoder
 	isTypeRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack SampleValueDecoderLastValStack
-}
-type SampleValueDecoderLastValStack []*SampleValueDecoderLastValElem
-
-func (s *SampleValueDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *SampleValueDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *SampleValueDecoderLastValStack) top() *SampleValueDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *SampleValueDecoderLastValStack) addOnTopSlow() {
-	elem := &SampleValueDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &SampleValueDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *SampleValueDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *SampleValueDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type SampleValueDecoderLastValElem struct {
-	ptr *SampleValue
-	//
-}
-
-func (e *SampleValueDecoderLastValElem) init() {
-}
-
-func (e *SampleValueDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -484,8 +425,6 @@ func (d *SampleValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Val and subsequent fields are skipped.
@@ -548,7 +487,6 @@ func (d *SampleValueDecoder) Reset() {
 		d.type_Decoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {

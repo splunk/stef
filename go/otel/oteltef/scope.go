@@ -759,7 +759,6 @@ func (s *ScopeDecoderLastValStack) removeFromTop() {
 
 type ScopeDecoderLastValElem struct {
 	ptr *Scope
-	//
 }
 
 func (e *ScopeDecoderLastValElem) init() {
@@ -786,7 +785,6 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Scope
 
 	d.lastValStack.init()

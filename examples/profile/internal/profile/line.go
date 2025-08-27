@@ -490,65 +490,6 @@ type LineDecoder struct {
 	lineDecoder encoders.Uint64Decoder
 
 	columnDecoder encoders.Uint64Decoder
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack LineDecoderLastValStack
-}
-type LineDecoderLastValStack []*LineDecoderLastValElem
-
-func (s *LineDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LineDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LineDecoderLastValStack) top() *LineDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LineDecoderLastValStack) addOnTopSlow() {
-	elem := &LineDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LineDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LineDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LineDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LineDecoderLastValElem struct {
-	ptr *Line
-	//
-}
-
-func (e *LineDecoderLastValElem) init() {
-}
-
-func (e *LineDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -568,8 +509,6 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Function and subsequent fields are skipped.
@@ -647,7 +586,7 @@ func (d *LineDecoder) Reset() {
 		return // Column and all subsequent fields are skipped.
 	}
 	d.columnDecoder.Reset()
-	d.lastValStack.reset()
+
 }
 
 func (d *LineDecoder) Decode(dstPtr *Line) error {

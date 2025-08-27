@@ -591,7 +591,6 @@ func (s *ResourceDecoderLastValStack) removeFromTop() {
 
 type ResourceDecoderLastValElem struct {
 	ptr *Resource
-	//
 }
 
 func (e *ResourceDecoderLastValElem) init() {
@@ -618,7 +617,6 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Resource
 
 	d.lastValStack.init()

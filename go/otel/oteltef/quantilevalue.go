@@ -388,65 +388,6 @@ type QuantileValueDecoder struct {
 	quantileDecoder encoders.Float64Decoder
 
 	valueDecoder encoders.Float64Decoder
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack QuantileValueDecoderLastValStack
-}
-type QuantileValueDecoderLastValStack []*QuantileValueDecoderLastValElem
-
-func (s *QuantileValueDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *QuantileValueDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *QuantileValueDecoderLastValStack) top() *QuantileValueDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *QuantileValueDecoderLastValStack) addOnTopSlow() {
-	elem := &QuantileValueDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &QuantileValueDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *QuantileValueDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *QuantileValueDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type QuantileValueDecoderLastValElem struct {
-	ptr *QuantileValue
-	//
-}
-
-func (e *QuantileValueDecoderLastValElem) init() {
-}
-
-func (e *QuantileValueDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -466,8 +407,6 @@ func (d *QuantileValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Quantile and subsequent fields are skipped.
@@ -515,7 +454,7 @@ func (d *QuantileValueDecoder) Reset() {
 		return // Value and all subsequent fields are skipped.
 	}
 	d.valueDecoder.Reset()
-	d.lastValStack.reset()
+
 }
 
 func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {

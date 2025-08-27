@@ -496,7 +496,6 @@ func (s *SampleValueTypeDecoderLastValStack) removeFromTop() {
 
 type SampleValueTypeDecoderLastValElem struct {
 	ptr *SampleValueType
-	//
 }
 
 func (e *SampleValueTypeDecoderLastValElem) init() {
@@ -523,7 +522,6 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.SampleValueType
 
 	d.lastValStack.init()

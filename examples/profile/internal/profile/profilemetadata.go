@@ -939,65 +939,6 @@ type ProfileMetadataDecoder struct {
 
 	defaultSampleTypeDecoder     *SampleValueTypeDecoder
 	isDefaultSampleTypeRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ProfileMetadataDecoderLastValStack
-}
-type ProfileMetadataDecoderLastValStack []*ProfileMetadataDecoderLastValElem
-
-func (s *ProfileMetadataDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *ProfileMetadataDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *ProfileMetadataDecoderLastValStack) top() *ProfileMetadataDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *ProfileMetadataDecoderLastValStack) addOnTopSlow() {
-	elem := &ProfileMetadataDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &ProfileMetadataDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *ProfileMetadataDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *ProfileMetadataDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type ProfileMetadataDecoderLastValElem struct {
-	ptr *ProfileMetadata
-	//
-}
-
-func (e *ProfileMetadataDecoderLastValElem) init() {
-}
-
-func (e *ProfileMetadataDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1017,8 +958,6 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // DropFrames and subsequent fields are skipped.
@@ -1201,7 +1140,6 @@ func (d *ProfileMetadataDecoder) Reset() {
 		d.defaultSampleTypeDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {

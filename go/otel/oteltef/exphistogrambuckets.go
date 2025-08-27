@@ -399,65 +399,6 @@ type ExpHistogramBucketsDecoder struct {
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ExpHistogramBucketsDecoderLastValStack
-}
-type ExpHistogramBucketsDecoderLastValStack []*ExpHistogramBucketsDecoderLastValElem
-
-func (s *ExpHistogramBucketsDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *ExpHistogramBucketsDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *ExpHistogramBucketsDecoderLastValStack) top() *ExpHistogramBucketsDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *ExpHistogramBucketsDecoderLastValStack) addOnTopSlow() {
-	elem := &ExpHistogramBucketsDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &ExpHistogramBucketsDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *ExpHistogramBucketsDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *ExpHistogramBucketsDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type ExpHistogramBucketsDecoderLastValElem struct {
-	ptr *ExpHistogramBuckets
-	//
-}
-
-func (e *ExpHistogramBucketsDecoderLastValElem) init() {
-}
-
-func (e *ExpHistogramBucketsDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -477,8 +418,6 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Offset and subsequent fields are skipped.
@@ -541,7 +480,6 @@ func (d *ExpHistogramBucketsDecoder) Reset() {
 		d.bucketCountsDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {

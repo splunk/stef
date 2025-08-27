@@ -1084,7 +1084,6 @@ func (s *MappingDecoderLastValStack) removeFromTop() {
 
 type MappingDecoderLastValElem struct {
 	ptr *Mapping
-	//
 }
 
 func (e *MappingDecoderLastValElem) init() {
@@ -1111,7 +1110,6 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Mapping
 
 	d.lastValStack.init()

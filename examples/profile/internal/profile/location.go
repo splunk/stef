@@ -693,7 +693,6 @@ func (s *LocationDecoderLastValStack) removeFromTop() {
 
 type LocationDecoderLastValElem struct {
 	ptr *Location
-	//
 }
 
 func (e *LocationDecoderLastValElem) init() {
@@ -720,7 +719,6 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Location
 
 	d.lastValStack.init()

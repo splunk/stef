@@ -662,65 +662,6 @@ type ExemplarDecoder struct {
 
 	filteredAttributesDecoder     *AttributesDecoder
 	isFilteredAttributesRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ExemplarDecoderLastValStack
-}
-type ExemplarDecoderLastValStack []*ExemplarDecoderLastValElem
-
-func (s *ExemplarDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *ExemplarDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *ExemplarDecoderLastValStack) top() *ExemplarDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *ExemplarDecoderLastValStack) addOnTopSlow() {
-	elem := &ExemplarDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &ExemplarDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *ExemplarDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *ExemplarDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type ExemplarDecoderLastValElem struct {
-	ptr *Exemplar
-	//
-}
-
-func (e *ExemplarDecoderLastValElem) init() {
-}
-
-func (e *ExemplarDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -740,8 +681,6 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Timestamp and subsequent fields are skipped.
@@ -864,7 +803,6 @@ func (d *ExemplarDecoder) Reset() {
 		d.filteredAttributesDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {

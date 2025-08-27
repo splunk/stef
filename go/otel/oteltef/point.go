@@ -578,65 +578,6 @@ type PointDecoder struct {
 
 	exemplarsDecoder     *ExemplarArrayDecoder
 	isExemplarsRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack PointDecoderLastValStack
-}
-type PointDecoderLastValStack []*PointDecoderLastValElem
-
-func (s *PointDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *PointDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *PointDecoderLastValStack) top() *PointDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *PointDecoderLastValStack) addOnTopSlow() {
-	elem := &PointDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &PointDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *PointDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *PointDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type PointDecoderLastValElem struct {
-	ptr *Point
-	//
-}
-
-func (e *PointDecoderLastValElem) init() {
-}
-
-func (e *PointDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -656,8 +597,6 @@ func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // StartTimestamp and subsequent fields are skipped.
@@ -765,7 +704,6 @@ func (d *PointDecoder) Reset() {
 		d.exemplarsDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *PointDecoder) Decode(dstPtr *Point) error {

@@ -664,7 +664,6 @@ func (s *FunctionDecoderLastValStack) removeFromTop() {
 
 type FunctionDecoderLastValElem struct {
 	ptr *Function
-	//
 }
 
 func (e *FunctionDecoderLastValElem) init() {
@@ -691,7 +690,6 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
 	d.dict = &state.Function
 
 	d.lastValStack.init()

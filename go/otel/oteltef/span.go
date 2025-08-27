@@ -1440,65 +1440,6 @@ type SpanDecoder struct {
 
 	statusDecoder     *SpanStatusDecoder
 	isStatusRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack SpanDecoderLastValStack
-}
-type SpanDecoderLastValStack []*SpanDecoderLastValElem
-
-func (s *SpanDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *SpanDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *SpanDecoderLastValStack) top() *SpanDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *SpanDecoderLastValStack) addOnTopSlow() {
-	elem := &SpanDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &SpanDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *SpanDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *SpanDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type SpanDecoderLastValElem struct {
-	ptr *Span
-	//
-}
-
-func (e *SpanDecoderLastValElem) init() {
-}
-
-func (e *SpanDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1518,8 +1459,6 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.
@@ -1807,7 +1746,6 @@ func (d *SpanDecoder) Reset() {
 		d.statusDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *SpanDecoder) Decode(dstPtr *Span) error {

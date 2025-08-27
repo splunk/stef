@@ -483,65 +483,6 @@ type SummaryValueDecoder struct {
 
 	quantileValuesDecoder     *QuantileValueArrayDecoder
 	isQuantileValuesRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack SummaryValueDecoderLastValStack
-}
-type SummaryValueDecoderLastValStack []*SummaryValueDecoderLastValElem
-
-func (s *SummaryValueDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *SummaryValueDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *SummaryValueDecoderLastValStack) top() *SummaryValueDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *SummaryValueDecoderLastValStack) addOnTopSlow() {
-	elem := &SummaryValueDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &SummaryValueDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *SummaryValueDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *SummaryValueDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type SummaryValueDecoderLastValElem struct {
-	ptr *SummaryValue
-	//
-}
-
-func (e *SummaryValueDecoderLastValElem) init() {
-}
-
-func (e *SummaryValueDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -561,8 +502,6 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
@@ -640,7 +579,6 @@ func (d *SummaryValueDecoder) Reset() {
 		d.quantileValuesDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {

@@ -1125,65 +1125,6 @@ type ExpHistogramValueDecoder struct {
 	isNegativeBucketsRecursive bool
 
 	zeroThresholdDecoder encoders.Float64Decoder
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ExpHistogramValueDecoderLastValStack
-}
-type ExpHistogramValueDecoderLastValStack []*ExpHistogramValueDecoderLastValElem
-
-func (s *ExpHistogramValueDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *ExpHistogramValueDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *ExpHistogramValueDecoderLastValStack) top() *ExpHistogramValueDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *ExpHistogramValueDecoderLastValStack) addOnTopSlow() {
-	elem := &ExpHistogramValueDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &ExpHistogramValueDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *ExpHistogramValueDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *ExpHistogramValueDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type ExpHistogramValueDecoderLastValElem struct {
-	ptr *ExpHistogramValue
-	//
-}
-
-func (e *ExpHistogramValueDecoderLastValElem) init() {
-}
-
-func (e *ExpHistogramValueDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1203,8 +1144,6 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
@@ -1387,7 +1326,7 @@ func (d *ExpHistogramValueDecoder) Reset() {
 		return // ZeroThreshold and all subsequent fields are skipped.
 	}
 	d.zeroThresholdDecoder.Reset()
-	d.lastValStack.reset()
+
 }
 
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {

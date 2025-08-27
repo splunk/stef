@@ -315,65 +315,6 @@ type EnvelopeDecoder struct {
 
 	attributesDecoder     *EnvelopeAttributesDecoder
 	isAttributesRecursive bool
-
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack EnvelopeDecoderLastValStack
-}
-type EnvelopeDecoderLastValStack []*EnvelopeDecoderLastValElem
-
-func (s *EnvelopeDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *EnvelopeDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *EnvelopeDecoderLastValStack) top() *EnvelopeDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *EnvelopeDecoderLastValStack) addOnTopSlow() {
-	elem := &EnvelopeDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &EnvelopeDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *EnvelopeDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *EnvelopeDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type EnvelopeDecoderLastValElem struct {
-	ptr *Envelope
-	//
-}
-
-func (e *EnvelopeDecoderLastValElem) init() {
-}
-
-func (e *EnvelopeDecoderLastValElem) reset() {
-	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -393,8 +334,6 @@ func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Attributes and subsequent fields are skipped.
@@ -442,7 +381,6 @@ func (d *EnvelopeDecoder) Reset() {
 		d.attributesDecoder.Reset()
 	}
 
-	d.lastValStack.reset()
 }
 
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
