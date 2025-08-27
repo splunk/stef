@@ -343,17 +343,17 @@ func (e *AnyValueArrayEncoder) Encode(arr *AnyValueArray) {
 		for i := 0; i < newLen; i++ {
 			if i == 0 {
 				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
+				//arr.elems[i].markDiffModified(&lastVal.elem)
 			} else {
 				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
+				//arr.elems[i].markDiffModified(arr.elems[i-1])
 			}
 
 			// Encode the element.
 			e.elemEncoder.Encode(arr.elems[i])
 		}
 		// Remember last encoded element.
-		copyAnyValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
+		//copyAnyValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.

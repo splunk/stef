@@ -594,6 +594,7 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := &SampleValueType{}
+	val.Init()
 	*dstPtr = val
 
 	var err error

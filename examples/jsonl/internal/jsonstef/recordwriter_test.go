@@ -64,7 +64,6 @@ func TestRecordWriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
-	seed1 = 1756305061256072000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
 	// Load the schema from the allSchemaContent variable.
