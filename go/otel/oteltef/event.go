@@ -743,9 +743,6 @@ func (d *EventDecoder) Reset() {
 }
 
 func (d *EventDecoder) Decode(dstPtr *Event) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -759,8 +756,6 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventTimeUnixNano != 0 {
@@ -769,8 +764,6 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.timeUnixNano = lastVal.ptr.timeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 {
@@ -779,8 +772,6 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 {
@@ -789,8 +780,6 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
 	return nil

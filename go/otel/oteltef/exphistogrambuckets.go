@@ -545,9 +545,6 @@ func (d *ExpHistogramBucketsDecoder) Reset() {
 }
 
 func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -561,8 +558,6 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.offset = lastVal.ptr.offset
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0 {
@@ -571,8 +566,6 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.bucketCounts = lastVal.ptr.bucketCounts
 	}
 
 	return nil

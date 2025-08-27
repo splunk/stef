@@ -750,11 +750,10 @@ func (d *{{ .StructName }}Decoder) Reset() {
 }
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
+    {{- if .DictName}}
 	lastVal := d.lastValStack.top()
 	d.lastValStack.addOnTop()
 	defer func() { d.lastValStack.removeFromTop() }()
-
-    {{- if .DictName}}
 	// Check if the {{ .StructName }} exists in the dictionary.
     dictFlag := d.buf.ReadBit()
     if dictFlag == 0 {
@@ -802,9 +801,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if err != nil {
             return err
         }
-    } else if (lastVal.ptr != nil) {
+    }{{if $.DictName}}else if (lastVal.ptr != nil) {
         val.{{.name}} = lastVal.ptr.{{.name}}
-    }
+    }{{end}}
     {{ end }}
 
     {{if .DictName}}

@@ -1092,9 +1092,6 @@ func (d *MetricsDecoder) Reset() {
 }
 
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1108,8 +1105,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.envelope = lastVal.ptr.envelope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 {
@@ -1123,8 +1118,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.metric = lastVal.ptr.metric
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 {
@@ -1138,8 +1131,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.resource = lastVal.ptr.resource
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 {
@@ -1153,8 +1144,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.scope = lastVal.ptr.scope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsAttributes != 0 {
@@ -1163,8 +1152,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsPoint != 0 {
@@ -1173,8 +1160,6 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.point = lastVal.ptr.point
 	}
 
 	return nil

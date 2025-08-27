@@ -969,9 +969,6 @@ func (d *HistogramValueDecoder) Reset() {
 }
 
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -988,8 +985,6 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.count = lastVal.ptr.count
 	}
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueSum != 0 &&
@@ -999,8 +994,6 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.sum = lastVal.ptr.sum
 	}
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueMin != 0 &&
@@ -1010,8 +1003,6 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.min = lastVal.ptr.min
 	}
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueMax != 0 &&
@@ -1021,8 +1012,6 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.max = lastVal.ptr.max
 	}
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueBucketCounts != 0 {
@@ -1031,8 +1020,6 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.bucketCounts = lastVal.ptr.bucketCounts
 	}
 
 	return nil

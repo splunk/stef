@@ -1811,9 +1811,6 @@ func (d *SpanDecoder) Reset() {
 }
 
 func (d *SpanDecoder) Decode(dstPtr *Span) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1827,8 +1824,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.traceID = lastVal.ptr.traceID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanSpanID != 0 {
@@ -1837,8 +1832,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.spanID = lastVal.ptr.spanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanTraceState != 0 {
@@ -1847,8 +1840,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.traceState = lastVal.ptr.traceState
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanParentSpanID != 0 {
@@ -1857,8 +1848,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.parentSpanID = lastVal.ptr.parentSpanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanFlags != 0 {
@@ -1867,8 +1856,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.flags = lastVal.ptr.flags
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanName != 0 {
@@ -1877,8 +1864,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.name = lastVal.ptr.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanKind != 0 {
@@ -1887,8 +1872,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.kind = lastVal.ptr.kind
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStartTimeUnixNano != 0 {
@@ -1897,8 +1880,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.startTimeUnixNano = lastVal.ptr.startTimeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEndTimeUnixNano != 0 {
@@ -1907,8 +1888,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.endTimeUnixNano = lastVal.ptr.endTimeUnixNano
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 {
@@ -1917,8 +1896,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 {
@@ -1927,8 +1904,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEvents != 0 {
@@ -1937,8 +1912,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.events = lastVal.ptr.events
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanLinks != 0 {
@@ -1947,8 +1920,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.links = lastVal.ptr.links
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatus != 0 {
@@ -1957,8 +1928,6 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.status = lastVal.ptr.status
 	}
 
 	return nil

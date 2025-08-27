@@ -552,9 +552,6 @@ func (d *SampleValueDecoder) Reset() {
 }
 
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -568,8 +565,6 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.val = lastVal.ptr.val
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 {
@@ -583,8 +578,6 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.type_ = lastVal.ptr.type_
 	}
 
 	return nil

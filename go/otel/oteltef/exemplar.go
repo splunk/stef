@@ -868,9 +868,6 @@ func (d *ExemplarDecoder) Reset() {
 }
 
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -884,8 +881,6 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.timestamp = lastVal.ptr.timestamp
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarValue != 0 {
@@ -894,8 +889,6 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.value = lastVal.ptr.value
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarSpanID != 0 {
@@ -904,8 +897,6 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.spanID = lastVal.ptr.spanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarTraceID != 0 {
@@ -914,8 +905,6 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.traceID = lastVal.ptr.traceID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0 {
@@ -924,8 +913,6 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.filteredAttributes = lastVal.ptr.filteredAttributes
 	}
 
 	return nil

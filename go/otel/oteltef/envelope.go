@@ -446,9 +446,6 @@ func (d *EnvelopeDecoder) Reset() {
 }
 
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -462,8 +459,6 @@ func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
 	}
 
 	return nil

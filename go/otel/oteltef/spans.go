@@ -835,9 +835,6 @@ func (d *SpansDecoder) Reset() {
 }
 
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -851,8 +848,6 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.envelope = lastVal.ptr.envelope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 {
@@ -866,8 +861,6 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.resource = lastVal.ptr.resource
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 {
@@ -881,8 +874,6 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.scope = lastVal.ptr.scope
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansSpan != 0 {
@@ -891,8 +882,6 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.span = lastVal.ptr.span
 	}
 
 	return nil

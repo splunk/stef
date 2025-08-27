@@ -1391,9 +1391,6 @@ func (d *ExpHistogramValueDecoder) Reset() {
 }
 
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1410,8 +1407,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.count = lastVal.ptr.count
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueSum != 0 &&
@@ -1421,8 +1416,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.sum = lastVal.ptr.sum
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMin != 0 &&
@@ -1432,8 +1425,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.min = lastVal.ptr.min
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMax != 0 &&
@@ -1443,8 +1434,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.max = lastVal.ptr.max
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueScale != 0 {
@@ -1453,8 +1442,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.scale = lastVal.ptr.scale
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroCount != 0 {
@@ -1463,8 +1450,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.zeroCount = lastVal.ptr.zeroCount
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValuePositiveBuckets != 0 {
@@ -1473,8 +1458,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.positiveBuckets = lastVal.ptr.positiveBuckets
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueNegativeBuckets != 0 {
@@ -1483,8 +1466,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.negativeBuckets = lastVal.ptr.negativeBuckets
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0 {
@@ -1493,8 +1474,6 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.zeroThreshold = lastVal.ptr.zeroThreshold
 	}
 
 	return nil

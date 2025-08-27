@@ -519,9 +519,6 @@ func (d *QuantileValueDecoder) Reset() {
 }
 
 func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -535,8 +532,6 @@ func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.quantile = lastVal.ptr.quantile
 	}
 
 	if val.modifiedFields.mask&fieldModifiedQuantileValueValue != 0 {
@@ -545,8 +540,6 @@ func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.value = lastVal.ptr.value
 	}
 
 	return nil

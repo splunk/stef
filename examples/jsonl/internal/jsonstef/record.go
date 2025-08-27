@@ -453,9 +453,6 @@ func (d *RecordDecoder) Reset() {
 }
 
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -474,8 +471,6 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.value = lastVal.ptr.value
 	}
 
 	return nil

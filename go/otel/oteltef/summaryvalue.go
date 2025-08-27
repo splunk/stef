@@ -644,9 +644,6 @@ func (d *SummaryValueDecoder) Reset() {
 }
 
 func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -660,8 +657,6 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.count = lastVal.ptr.count
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueSum != 0 {
@@ -670,8 +665,6 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.sum = lastVal.ptr.sum
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueQuantileValues != 0 {
@@ -680,8 +673,6 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.quantileValues = lastVal.ptr.quantileValues
 	}
 
 	return nil

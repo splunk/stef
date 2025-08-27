@@ -651,9 +651,6 @@ func (d *LineDecoder) Reset() {
 }
 
 func (d *LineDecoder) Decode(dstPtr *Line) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -672,8 +669,6 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.function = lastVal.ptr.function
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLineLine != 0 {
@@ -682,8 +677,6 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.line = lastVal.ptr.line
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLineColumn != 0 {
@@ -692,8 +685,6 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.column = lastVal.ptr.column
 	}
 
 	return nil

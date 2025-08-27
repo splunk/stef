@@ -1205,9 +1205,6 @@ func (d *ProfileMetadataDecoder) Reset() {
 }
 
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -1221,8 +1218,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.dropFrames = lastVal.ptr.dropFrames
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataKeepFrames != 0 {
@@ -1231,8 +1226,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.keepFrames = lastVal.ptr.keepFrames
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataTimeNanos != 0 {
@@ -1241,8 +1234,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.timeNanos = lastVal.ptr.timeNanos
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDurationNanos != 0 {
@@ -1251,8 +1242,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.durationNanos = lastVal.ptr.durationNanos
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 {
@@ -1266,8 +1255,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.periodType = lastVal.ptr.periodType
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriod != 0 {
@@ -1276,8 +1263,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.period = lastVal.ptr.period
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataComments != 0 {
@@ -1286,8 +1271,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.comments = lastVal.ptr.comments
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 {
@@ -1301,8 +1284,6 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.defaultSampleType = lastVal.ptr.defaultSampleType
 	}
 
 	return nil

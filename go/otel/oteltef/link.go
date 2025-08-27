@@ -941,9 +941,6 @@ func (d *LinkDecoder) Reset() {
 }
 
 func (d *LinkDecoder) Decode(dstPtr *Link) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -957,8 +954,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.traceID = lastVal.ptr.traceID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkSpanID != 0 {
@@ -967,8 +962,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.spanID = lastVal.ptr.spanID
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkTraceState != 0 {
@@ -977,8 +970,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.traceState = lastVal.ptr.traceState
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkFlags != 0 {
@@ -987,8 +978,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.flags = lastVal.ptr.flags
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkAttributes != 0 {
@@ -997,8 +986,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0 {
@@ -1007,8 +994,6 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
 	}
 
 	return nil

@@ -821,9 +821,6 @@ func (d *SampleDecoder) Reset() {
 }
 
 func (d *SampleDecoder) Decode(dstPtr *Sample) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -837,8 +834,6 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.metadata = lastVal.ptr.metadata
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleLocations != 0 {
@@ -847,8 +842,6 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.locations = lastVal.ptr.locations
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValues != 0 {
@@ -857,8 +850,6 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.values = lastVal.ptr.values
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleLabels != 0 {
@@ -867,8 +858,6 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.labels = lastVal.ptr.labels
 	}
 
 	return nil

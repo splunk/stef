@@ -519,9 +519,6 @@ func (d *SpanStatusDecoder) Reset() {
 }
 
 func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -535,8 +532,6 @@ func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.message = lastVal.ptr.message
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatusCode != 0 {
@@ -545,8 +540,6 @@ func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.code = lastVal.ptr.code
 	}
 
 	return nil

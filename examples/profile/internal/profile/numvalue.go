@@ -519,9 +519,6 @@ func (d *NumValueDecoder) Reset() {
 }
 
 func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -535,8 +532,6 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.val = lastVal.ptr.val
 	}
 
 	if val.modifiedFields.mask&fieldModifiedNumValueUnit != 0 {
@@ -545,8 +540,6 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.unit = lastVal.ptr.unit
 	}
 
 	return nil

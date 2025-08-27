@@ -769,9 +769,6 @@ func (d *PointDecoder) Reset() {
 }
 
 func (d *PointDecoder) Decode(dstPtr *Point) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -785,8 +782,6 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.startTimestamp = lastVal.ptr.startTimestamp
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointTimestamp != 0 {
@@ -795,8 +790,6 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.timestamp = lastVal.ptr.timestamp
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointValue != 0 {
@@ -805,8 +798,6 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.value = lastVal.ptr.value
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointExemplars != 0 {
@@ -815,8 +806,6 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.exemplars = lastVal.ptr.exemplars
 	}
 
 	return nil
