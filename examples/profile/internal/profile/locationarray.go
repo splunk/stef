@@ -493,12 +493,10 @@ func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		//err := d.elemDecoder.Decode(&lastVal.elem)
 		err := d.elemDecoder.Decode(&dst.elems[i])
 		if err != nil {
 			return err
 		}
-		//copyLocation(dst.elems[i], lastVal.elem)
 	}
 
 	return nil
