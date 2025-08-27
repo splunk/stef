@@ -720,12 +720,7 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	var cpy Resource
-	if lastVal.ptr != nil {
-		cpy = *lastVal.ptr
-	}
-	val := &cpy
-	//d.lastValPtr = val
+	val := &Resource{}
 	*dstPtr = val
 
 	var err error

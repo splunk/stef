@@ -493,11 +493,12 @@ func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(lastVal.elem)
+		//err := d.elemDecoder.Decode(lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyJsonValue(dst.elems[i], lastVal.elem)
+		//copyJsonValue(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

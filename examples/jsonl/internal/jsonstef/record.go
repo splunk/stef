@@ -315,14 +315,72 @@ func (e *RecordEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // RecordDecoder implements decoding of Record
 type RecordDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *Record
-	lastVal    Record
+	buf    pkg.BitsReader
+	column *pkg.ReadableColumn
+
 	fieldCount uint
 
 	valueDecoder     *JsonValueDecoder
 	isValueRecursive bool
+
+	// lastValStack are last decoded values stacked by the level of recursion.
+	lastValStack RecordDecoderLastValStack
+}
+type RecordDecoderLastValStack []*RecordDecoderLastValElem
+
+func (s *RecordDecoderLastValStack) init() {
+	// We need one top-level element in the stack to store the last value initially.
+	s.addOnTop()
+}
+
+func (s *RecordDecoderLastValStack) reset() {
+	// Reset all elements in the stack.
+	t := (*s)[:cap(*s)]
+	for i := 0; i < len(t); i++ {
+		t[i].reset()
+	}
+	// Reset the stack to have one element for top-level.
+	*s = (*s)[:1]
+}
+
+func (s *RecordDecoderLastValStack) top() *RecordDecoderLastValElem {
+	return (*s)[len(*s)-1]
+}
+
+func (s *RecordDecoderLastValStack) addOnTopSlow() {
+	elem := &RecordDecoderLastValElem{}
+	elem.init()
+	*s = append(*s, elem)
+	t := (*s)[0:cap(*s)]
+	for i := len(*s); i < len(t); i++ {
+		// Ensure that all elements in the stack are initialized.
+		t[i] = &RecordDecoderLastValElem{}
+		t[i].init()
+	}
+}
+
+func (s *RecordDecoderLastValStack) addOnTop() {
+	if len(*s) < cap(*s) {
+		*s = (*s)[:len(*s)+1]
+		return
+	}
+	s.addOnTopSlow()
+}
+
+func (s *RecordDecoderLastValStack) removeFromTop() {
+	*s = (*s)[:len(*s)-1]
+}
+
+type RecordDecoderLastValElem struct {
+	ptr *Record
+	//
+}
+
+func (e *RecordDecoderLastValElem) init() {
+}
+
+func (e *RecordDecoderLastValElem) reset() {
+	e.ptr = nil
 }
 
 // Init is called once in the lifetime of the stream.
@@ -343,8 +401,7 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 
 	d.column = columns.Column()
 
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
+	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Value and subsequent fields are skipped.
@@ -392,9 +449,13 @@ func (d *RecordDecoder) Reset() {
 		d.valueDecoder.Reset()
 	}
 
+	d.lastValStack.reset()
 }
 
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
+	lastVal := d.lastValStack.top()
+	d.lastValStack.addOnTop()
+	defer func() { d.lastValStack.removeFromTop() }()
 	val := dstPtr
 
 	var err error
@@ -413,6 +474,8 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 		if err != nil {
 			return err
 		}
+	} else if lastVal.ptr != nil {
+		val.value = lastVal.ptr.value
 	}
 
 	return nil

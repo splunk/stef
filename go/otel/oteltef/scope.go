@@ -918,12 +918,7 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	var cpy Scope
-	if lastVal.ptr != nil {
-		cpy = *lastVal.ptr
-	}
-	val := &cpy
-	//d.lastValPtr = val
+	val := &Scope{}
 	*dstPtr = val
 
 	var err error
