@@ -300,6 +300,9 @@ func CmpLine(left, right *Line) int {
 type LineEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal Line
+	//lastValPtr *Line
+	//lastEncodedValPtr *Line
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -327,6 +330,9 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.LineEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -396,11 +402,20 @@ func (e *LineEncoder) Reset() {
 		return // Column and all subsequent fields are skipped.
 	}
 	e.columnEncoder.Reset()
+
+	//e.lastVal = Line{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *LineEncoder) Encode(val *Line) {
+func (e *LineEncoder) Encode(val, prevVal *Line) {
 	var bitCount uint
+
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -425,17 +440,20 @@ func (e *LineEncoder) Encode(val *Line) {
 
 	if fieldMask&fieldModifiedLineFunction != 0 {
 		// Encode Function
-		e.functionEncoder.Encode(val.function)
+		e.functionEncoder.Encode(val.function, prevVal.function)
+
 	}
 
 	if fieldMask&fieldModifiedLineLine != 0 {
 		// Encode Line
 		e.lineEncoder.Encode(val.line)
+
 	}
 
 	if fieldMask&fieldModifiedLineColumn != 0 {
 		// Encode Column
 		e.columnEncoder.Encode(val.column)
+
 	}
 
 	// Account written bits in the limiter.
@@ -444,6 +462,7 @@ func (e *LineEncoder) Encode(val *Line) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -482,6 +501,7 @@ type LineDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Line
 	fieldCount uint
 
 	functionDecoder     *FunctionDecoder
@@ -587,6 +607,7 @@ func (d *LineDecoder) Reset() {
 	}
 	d.columnDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *LineDecoder) Decode(dstPtr *Line) error {

@@ -351,6 +351,9 @@ func CmpFunction(left, right *Function) int {
 type FunctionEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal Function
+	//lastValPtr *Function
+	//lastEncodedValPtr *Function
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -404,6 +407,9 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Function
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -475,10 +481,14 @@ func (e *FunctionEncoder) Reset() {
 		return // StartLine and all subsequent fields are skipped.
 	}
 	e.startLineEncoder.Reset()
+
+	//e.lastVal = Function{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *FunctionEncoder) Encode(val *Function) {
+func (e *FunctionEncoder) Encode(val, prevVal *Function) {
 	var bitCount uint
 
 	// Check if the Function exists in the dictionary.
@@ -496,6 +506,8 @@ func (e *FunctionEncoder) Encode(val *Function) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		//e.lastValPtr = entry.val
 		return
 	}
 
@@ -509,6 +521,11 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -534,21 +551,25 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	if fieldMask&fieldModifiedFunctionName != 0 {
 		// Encode Name
 		e.nameEncoder.Encode(val.name)
+
 	}
 
 	if fieldMask&fieldModifiedFunctionSystemName != 0 {
 		// Encode SystemName
 		e.systemNameEncoder.Encode(val.systemName)
+
 	}
 
 	if fieldMask&fieldModifiedFunctionFilename != 0 {
 		// Encode Filename
 		e.filenameEncoder.Encode(val.filename)
+
 	}
 
 	if fieldMask&fieldModifiedFunctionStartLine != 0 {
 		// Encode StartLine
 		e.startLineEncoder.Encode(val.startLine)
+
 	}
 
 	// Account written bits in the limiter.
@@ -557,6 +578,7 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -602,6 +624,7 @@ type FunctionDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Function
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -615,7 +638,8 @@ type FunctionDecoder struct {
 	dict *FunctionDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack FunctionDecoderLastValStack
+	//lastValStack FunctionDecoderLastValStack
+
 }
 type FunctionDecoderLastValStack []*FunctionDecoderLastValElem
 
@@ -691,8 +715,6 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 	d.dict = &state.Function
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -770,13 +792,12 @@ func (d *FunctionDecoder) Reset() {
 		return // StartLine and all subsequent fields are skipped.
 	}
 	d.startLineDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *FunctionDecoder) Decode(dstPtr **Function) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Function exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -784,16 +805,23 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Function{}
-	val.Init()
+	var val *Function
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Function{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -806,8 +834,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.name = lastVal.ptr.name
+	} else if lastVal != nil {
+		val.name = lastVal.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionSystemName != 0 {
@@ -816,8 +844,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.systemName = lastVal.ptr.systemName
+	} else if lastVal != nil {
+		val.systemName = lastVal.systemName
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionFilename != 0 {
@@ -826,8 +854,8 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.filename = lastVal.ptr.filename
+	} else if lastVal != nil {
+		val.filename = lastVal.filename
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionStartLine != 0 {
@@ -836,11 +864,11 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.startLine = lastVal.ptr.startLine
+	} else if lastVal != nil {
+		val.startLine = lastVal.startLine
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

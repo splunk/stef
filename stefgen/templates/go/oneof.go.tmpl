@@ -392,7 +392,7 @@ func (e *{{ .StructName }}Encoder) Reset() {
 }
 
 // Encode encodes val into buf
-func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
+func (e *{{ .StructName }}Encoder) Encode(val, prev *{{ .StructName }}) {
     typ := val.typ
     if uint(typ) > e.fieldCount {
         // The current field type is not supported in target schema. Encode the type as None.
@@ -412,7 +412,7 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         // Encode {{.Name}}
-        e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+        e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}}{{if not .Type.IsPrimitive}}, {{- if .Type.Flags.TakePtr}}&{{end}}prev.{{.name}}{{end}})
     {{- end }}
     }
 }

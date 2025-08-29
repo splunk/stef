@@ -616,6 +616,9 @@ func CmpMapping(left, right *Mapping) int {
 type MappingEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal Mapping
+	//lastValPtr *Mapping
+	//lastEncodedValPtr *Mapping
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -679,6 +682,9 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 
 	e.limiter = &state.limiter
 	e.dict = &state.Mapping
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -815,10 +821,14 @@ func (e *MappingEncoder) Reset() {
 		return // HasInlineFrames and all subsequent fields are skipped.
 	}
 	e.hasInlineFramesEncoder.Reset()
+
+	//e.lastVal = Mapping{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *MappingEncoder) Encode(val *Mapping) {
+func (e *MappingEncoder) Encode(val, prevVal *Mapping) {
 	var bitCount uint
 
 	// Check if the Mapping exists in the dictionary.
@@ -836,6 +846,8 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		//e.lastValPtr = entry.val
 		return
 	}
 
@@ -849,6 +861,11 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -879,46 +896,55 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	if fieldMask&fieldModifiedMappingMemoryStart != 0 {
 		// Encode MemoryStart
 		e.memoryStartEncoder.Encode(val.memoryStart)
+
 	}
 
 	if fieldMask&fieldModifiedMappingMemoryLimit != 0 {
 		// Encode MemoryLimit
 		e.memoryLimitEncoder.Encode(val.memoryLimit)
+
 	}
 
 	if fieldMask&fieldModifiedMappingFileOffset != 0 {
 		// Encode FileOffset
 		e.fileOffsetEncoder.Encode(val.fileOffset)
+
 	}
 
 	if fieldMask&fieldModifiedMappingFilename != 0 {
 		// Encode Filename
 		e.filenameEncoder.Encode(val.filename)
+
 	}
 
 	if fieldMask&fieldModifiedMappingBuildId != 0 {
 		// Encode BuildId
 		e.buildIdEncoder.Encode(val.buildId)
+
 	}
 
 	if fieldMask&fieldModifiedMappingHasFunctions != 0 {
 		// Encode HasFunctions
 		e.hasFunctionsEncoder.Encode(val.hasFunctions)
+
 	}
 
 	if fieldMask&fieldModifiedMappingHasFilenames != 0 {
 		// Encode HasFilenames
 		e.hasFilenamesEncoder.Encode(val.hasFilenames)
+
 	}
 
 	if fieldMask&fieldModifiedMappingHasLineNumbers != 0 {
 		// Encode HasLineNumbers
 		e.hasLineNumbersEncoder.Encode(val.hasLineNumbers)
+
 	}
 
 	if fieldMask&fieldModifiedMappingHasInlineFrames != 0 {
 		// Encode HasInlineFrames
 		e.hasInlineFramesEncoder.Encode(val.hasInlineFrames)
+
 	}
 
 	// Account written bits in the limiter.
@@ -927,6 +953,7 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -1012,6 +1039,7 @@ type MappingDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Mapping
 	fieldCount uint
 
 	memoryStartDecoder encoders.Uint64Decoder
@@ -1035,7 +1063,8 @@ type MappingDecoder struct {
 	dict *MappingDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack MappingDecoderLastValStack
+	//lastValStack MappingDecoderLastValStack
+
 }
 type MappingDecoderLastValStack []*MappingDecoderLastValElem
 
@@ -1111,8 +1140,6 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 
 	d.column = columns.Column()
 	d.dict = &state.Mapping
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // MemoryStart and subsequent fields are skipped.
@@ -1265,13 +1292,12 @@ func (d *MappingDecoder) Reset() {
 		return // HasInlineFrames and all subsequent fields are skipped.
 	}
 	d.hasInlineFramesDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Mapping exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -1279,16 +1305,23 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Mapping{}
-	val.Init()
+	var val *Mapping
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Mapping{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -1301,8 +1334,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.memoryStart = lastVal.ptr.memoryStart
+	} else if lastVal != nil {
+		val.memoryStart = lastVal.memoryStart
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 {
@@ -1311,8 +1344,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.memoryLimit = lastVal.ptr.memoryLimit
+	} else if lastVal != nil {
+		val.memoryLimit = lastVal.memoryLimit
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 {
@@ -1321,8 +1354,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.fileOffset = lastVal.ptr.fileOffset
+	} else if lastVal != nil {
+		val.fileOffset = lastVal.fileOffset
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 {
@@ -1331,8 +1364,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.filename = lastVal.ptr.filename
+	} else if lastVal != nil {
+		val.filename = lastVal.filename
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 {
@@ -1341,8 +1374,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.buildId = lastVal.ptr.buildId
+	} else if lastVal != nil {
+		val.buildId = lastVal.buildId
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 {
@@ -1351,8 +1384,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.hasFunctions = lastVal.ptr.hasFunctions
+	} else if lastVal != nil {
+		val.hasFunctions = lastVal.hasFunctions
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 {
@@ -1361,8 +1394,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.hasFilenames = lastVal.ptr.hasFilenames
+	} else if lastVal != nil {
+		val.hasFilenames = lastVal.hasFilenames
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 {
@@ -1371,8 +1404,8 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.hasLineNumbers = lastVal.ptr.hasLineNumbers
+	} else if lastVal != nil {
+		val.hasLineNumbers = lastVal.hasLineNumbers
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 {
@@ -1381,11 +1414,11 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.hasInlineFrames = lastVal.ptr.hasInlineFrames
+	} else if lastVal != nil {
+		val.hasInlineFrames = lastVal.hasInlineFrames
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

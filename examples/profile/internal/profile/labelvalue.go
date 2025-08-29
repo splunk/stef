@@ -323,7 +323,7 @@ func (e *LabelValueEncoder) Reset() {
 }
 
 // Encode encodes val into buf
-func (e *LabelValueEncoder) Encode(val *LabelValue) {
+func (e *LabelValueEncoder) Encode(val, prev *LabelValue) {
 	typ := val.typ
 	if uint(typ) > e.fieldCount {
 		// The current field type is not supported in target schema. Encode the type as None.
@@ -345,7 +345,7 @@ func (e *LabelValueEncoder) Encode(val *LabelValue) {
 		e.strEncoder.Encode(val.str)
 	case LabelValueTypeNum:
 		// Encode Num
-		e.numEncoder.Encode(&val.num)
+		e.numEncoder.Encode(&val.num, &prev.num)
 	}
 }
 

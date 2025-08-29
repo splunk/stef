@@ -245,6 +245,9 @@ func CmpSampleValueType(left, right *SampleValueType) int {
 type SampleValueTypeEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal SampleValueType
+	//lastValPtr *SampleValueType
+	//lastEncodedValPtr *SampleValueType
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -295,6 +298,9 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	e.limiter = &state.limiter
 	e.dict = &state.SampleValueType
 
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
+
 	// Number of fields in the output data schema.
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.SampleValueTypeFieldCount()
@@ -339,10 +345,14 @@ func (e *SampleValueTypeEncoder) Reset() {
 		return // Unit and all subsequent fields are skipped.
 	}
 	e.unitEncoder.Reset()
+
+	//e.lastVal = SampleValueType{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
+func (e *SampleValueTypeEncoder) Encode(val, prevVal *SampleValueType) {
 	var bitCount uint
 
 	// Check if the SampleValueType exists in the dictionary.
@@ -360,6 +370,8 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		//e.lastValPtr = entry.val
 		return
 	}
 
@@ -373,6 +385,11 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -396,11 +413,13 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	if fieldMask&fieldModifiedSampleValueTypeType != 0 {
 		// Encode Type
 		e.type_Encoder.Encode(val.type_)
+
 	}
 
 	if fieldMask&fieldModifiedSampleValueTypeUnit != 0 {
 		// Encode Unit
 		e.unitEncoder.Encode(val.unit)
+
 	}
 
 	// Account written bits in the limiter.
@@ -409,6 +428,7 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -438,6 +458,7 @@ type SampleValueTypeDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *SampleValueType
 	fieldCount uint
 
 	type_Decoder encoders.StringDecoder
@@ -447,7 +468,8 @@ type SampleValueTypeDecoder struct {
 	dict *SampleValueTypeDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack SampleValueTypeDecoderLastValStack
+	//lastValStack SampleValueTypeDecoderLastValStack
+
 }
 type SampleValueTypeDecoderLastValStack []*SampleValueTypeDecoderLastValElem
 
@@ -524,8 +546,6 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	d.column = columns.Column()
 	d.dict = &state.SampleValueType
 
-	d.lastValStack.init()
-
 	if d.fieldCount <= 0 {
 		return nil // Type and subsequent fields are skipped.
 	}
@@ -572,13 +592,12 @@ func (d *SampleValueTypeDecoder) Reset() {
 		return // Unit and all subsequent fields are skipped.
 	}
 	d.unitDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the SampleValueType exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -586,16 +605,23 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &SampleValueType{}
-	val.Init()
+	var val *SampleValueType
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &SampleValueType{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -608,8 +634,8 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.type_ = lastVal.ptr.type_
+	} else if lastVal != nil {
+		val.type_ = lastVal.type_
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 {
@@ -618,11 +644,11 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.unit = lastVal.ptr.unit
+	} else if lastVal != nil {
+		val.unit = lastVal.unit
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

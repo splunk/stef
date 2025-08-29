@@ -456,8 +456,11 @@ func CmpMetrics(left, right *Metrics) int {
 
 // MetricsEncoder implements encoding of Metrics
 type MetricsEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Metrics
+	lastValPtr        *Metrics
+	lastEncodedValPtr *Metrics
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -496,6 +499,9 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 	defer func() { state.MetricsEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -659,11 +665,19 @@ func (e *MetricsEncoder) Reset() {
 		e.pointEncoder.Reset()
 	}
 
+	e.lastVal = Metrics{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *MetricsEncoder) Encode(val *Metrics) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -692,31 +706,49 @@ func (e *MetricsEncoder) Encode(val *Metrics) {
 	if fieldMask&fieldModifiedMetricsEnvelope != 0 {
 		// Encode Envelope
 		e.envelopeEncoder.Encode(&val.envelope)
+
+		copyEnvelope(&e.lastVal.envelope, &val.envelope)
+
 	}
 
 	if fieldMask&fieldModifiedMetricsMetric != 0 {
 		// Encode Metric
 		e.metricEncoder.Encode(val.metric)
+
+		copyMetric(e.lastVal.metric, val.metric)
+
 	}
 
 	if fieldMask&fieldModifiedMetricsResource != 0 {
 		// Encode Resource
 		e.resourceEncoder.Encode(val.resource)
+
+		copyResource(e.lastVal.resource, val.resource)
+
 	}
 
 	if fieldMask&fieldModifiedMetricsScope != 0 {
 		// Encode Scope
 		e.scopeEncoder.Encode(val.scope)
+
+		copyScope(e.lastVal.scope, val.scope)
+
 	}
 
 	if fieldMask&fieldModifiedMetricsAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
+		copyAttributes(&e.lastVal.attributes, &val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedMetricsPoint != 0 {
 		// Encode Point
 		e.pointEncoder.Encode(&val.point)
+
+		copyPoint(&e.lastVal.point, &val.point)
+
 	}
 
 	// Account written bits in the limiter.
@@ -725,6 +757,7 @@ func (e *MetricsEncoder) Encode(val *Metrics) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -792,6 +825,7 @@ type MetricsDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Metrics
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -1027,6 +1061,7 @@ func (d *MetricsDecoder) Reset() {
 		d.pointDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {

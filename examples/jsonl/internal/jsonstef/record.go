@@ -192,8 +192,10 @@ func CmpRecord(left, right *Record) int {
 
 // RecordEncoder implements encoding of Record
 type RecordEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf        pkg.BitsWriter
+	limiter    *pkg.SizeLimiter
+	lastVal    Record
+	lastValPtr *Record
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -217,6 +219,9 @@ func (e *RecordEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.RecordEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -260,11 +265,18 @@ func (e *RecordEncoder) Reset() {
 		e.valueEncoder.Reset()
 	}
 
+	e.lastVal = Record{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *RecordEncoder) Encode(val *Record) {
 	var bitCount uint
+
+	if val != e.lastValPtr {
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -288,6 +300,9 @@ func (e *RecordEncoder) Encode(val *Record) {
 	if fieldMask&fieldModifiedRecordValue != 0 {
 		// Encode Value
 		e.valueEncoder.Encode(val.value)
+
+		copyJsonValue(e.lastVal.value, val.value)
+
 	}
 
 	// Account written bits in the limiter.
@@ -296,6 +311,7 @@ func (e *RecordEncoder) Encode(val *Record) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -318,6 +334,7 @@ type RecordDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Record
 	fieldCount uint
 
 	valueDecoder     *JsonValueDecoder
@@ -388,6 +405,7 @@ func (d *RecordDecoder) Reset() {
 		d.valueDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *RecordDecoder) Decode(dstPtr *Record) error {

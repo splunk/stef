@@ -503,7 +503,7 @@ func (e *{{ .MultimapName }}Encoder) Reset() {
 	{{- end}}
 }
 
-func (e *{{ .MultimapName }}Encoder) Encode(list *{{ .MultimapName }}) (changed bool) {
+func (e *{{ .MultimapName }}Encoder) Encode(list, prev *{{ .MultimapName }}) (changed bool) {
 	oldLen := len(e.buf.Bytes())
 
 	{{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
@@ -570,7 +570,7 @@ func (e *{{ .MultimapName }}Encoder) encodeValuesOnly(lastVal *{{ .MultimapName 
 	bitToRead := uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value)
+			e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value, &lastVal.elems[i].value)
 		}
 		bitToRead >>= 1
 		if bitToRead == 0 {
@@ -604,7 +604,7 @@ func (e *{{ .MultimapName }}Encoder) encodeFull(lastVal *{{ .MultimapName }}, li
 	// Encode values first.
 	for i := range list.elems {
 		e.keyEncoder.Encode({{if not .Key.Type.IsPrimitive}}&{{end}}list.elems[i].key)
-		e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value)
+		e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value, &lastVal.elems[i].value)
 	}
 
 	// Store changed values in lastVal.

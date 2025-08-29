@@ -81,7 +81,7 @@ func TestSampleWriteRead(t *testing.T) {
 	}
 	wireSchema := schema.NewWireSchema(schem, "Sample")
 
-	for _, opt := range opts {
+	for j, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
 				succeeded := false
@@ -102,6 +102,9 @@ func TestSampleWriteRead(t *testing.T) {
 				records := genSampleRecords(random, schem)
 				// Write the records
 				for i := 0; i < len(records); i++ {
+					if j == 3 && i == 983 {
+						_ = i
+					}
 					writer.Record.CopyFrom(&records[i])
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
@@ -114,6 +117,9 @@ func TestSampleWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
+					if j == 3 && i == 983 {
+						_ = i
+					}
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)

@@ -364,6 +364,9 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
 type {{ .StructName }}Encoder struct {
     buf pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal {{.StructName}}
+	//lastValPtr *{{.StructName}}
+	//lastEncodedValPtr *{{.StructName}}
 
     // forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -420,6 +423,9 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 	e.dict = &state.{{.DictName}}
     {{- end}}
 
+    //e.lastVal.Init()
+    //e.lastValPtr = &e.lastVal
+
     // Number of fields in the output data schema.
     var err error
     e.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
@@ -473,10 +479,14 @@ func (e *{{ .StructName }}Encoder) Reset() {
     }
     {{else}}e.{{.name}}Encoder.Reset(){{end}}
     {{- end}}
+
+    //e.lastVal = {{.StructName}}{}
+    //e.lastVal.Init()
+    //e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
+func (e *{{ .StructName }}Encoder) Encode(val, prevVal *{{ .StructName }}) {
     var bitCount uint
 
     {{if .DictName}}// Check if the {{ .StructName }} exists in the dictionary.
@@ -494,6 +504,8 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
         val.markUnmodifiedRecursively()
+
+        //e.lastValPtr = entry.val
 		return
 	}
 
@@ -508,6 +520,11 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
     bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
 	{{end -}}
+
+    if val != prevVal {
+        //e.lastEncodedValPtr = val
+        val.markDiffModified(prevVal)
+    }
 
     // Mask that describes what fields are encoded. Start with all modified fields.
     fieldMask := val.modifiedFields.mask
@@ -541,7 +558,14 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 		val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
 		{{- end}} {
 		// Encode {{.Name}}
-		e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+		e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}}{{if not .Type.IsPrimitive}}, {{- if .Type.Flags.TakePtr}}&{{end}}prevVal.{{.name}}{{end}})
+{{/*        {{if not $.DictName}}*/}}
+{{/*		{{if .Type.IsPrimitive}}*/}}
+{{/*		e.lastVal.{{.name}} = val.{{.name}}*/}}
+{{/*		{{else}}*/}}
+{{/*        copy{{.Type.TypeName}}({{- if .Type.Flags.TakePtr}}&{{end}}e.lastVal.{{.name}}, {{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})*/}}
+{{/*        {{end}}*/}}
+{{/*        {{end}}*/}}
 	}
 	{{ end }}
 
@@ -551,6 +575,10 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
     // Mark all fields non-modified so that next Encode() correctly
     // encodes only fields that change after this.
     val.modifiedFields.mask = 0
+
+{{/*    {{if .DictName}}*/}}
+{{/*    e.lastValPtr = valInDict*/}}
+{{/*    {{end}}*/}}
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -579,7 +607,7 @@ type {{ .StructName }}Decoder struct {
     buf pkg.BitsReader
     column *pkg.ReadableColumn
 {{/*    lastValPtr *{{.StructName}}*/}}
-{{/*    lastVal {{.StructName}}*/}}
+    lastVal *{{.StructName}}
     fieldCount uint
 
     {{ range .Fields }}
@@ -591,7 +619,7 @@ type {{ .StructName }}Decoder struct {
     dict *{{ .StructName }}DecoderDict
     {{if not .ElemType.IsPrimitive}}
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack {{ .StructName }}DecoderLastValStack
+	//lastValStack {{ .StructName }}DecoderLastValStack
 	{{end}}
     {{end}}
 }
@@ -676,7 +704,7 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     d.dict = &state.{{.DictName}}
     {{- end}}
 
-    {{if .DictName}}d.lastValStack.init(){{end}}
+{{/*    {{if .DictName}}d.lastValStack.init(){{end}}*/}}
 
     {{ range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
@@ -739,14 +767,15 @@ func (d *{{ .StructName }}Decoder) Reset() {
     }
     {{else}}d.{{.name}}Decoder.Reset(){{end}}
     {{- end}}
-    {{if .DictName}}d.lastValStack.reset(){{end}}
+{{/*    {{if .DictName}}d.lastValStack.reset(){{end}}*/}}
+    d.lastVal = nil
 }
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
     {{- if .DictName}}
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+{{/*	lastVal := d.lastValStack.top()*/}}
+{{/*	d.lastValStack.addOnTop()*/}}
+{{/*	defer func() { d.lastValStack.removeFromTop() }()*/}}
 	// Check if the {{ .StructName }} exists in the dictionary.
     dictFlag := d.buf.ReadBit()
     if dictFlag == 0 {
@@ -754,16 +783,24 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if refNum >= uint64(len(d.dict.dict)) {
             return pkg.ErrInvalidRefNum
         }
-        lastVal.ptr = d.dict.dict[refNum]
-        *dstPtr = lastVal.ptr
+        d.lastVal = d.dict.dict[refNum]
+        //lastVal.ptr = d.dict.dict[refNum]
+        *dstPtr = d.lastVal
         return nil
     }
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &{{.StructName}}{}
-	val.Init()
+	var val *{{.StructName}}
+	if d.lastVal != nil {
+	    val = d.lastVal.Clone()
+	} else {
+        val = &{{.StructName}}{}
+        val.Init()
+    }
     *dstPtr = val
+    lastVal := d.lastVal
+
 	{{- else}}
     val := dstPtr
     {{- end}}
@@ -795,13 +832,13 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         if err != nil {
             return err
         }
-    }{{if $.DictName}}else if (lastVal.ptr != nil) {
-        val.{{.name}} = lastVal.ptr.{{.name}}
+    }{{if $.DictName}}else if (lastVal != nil) {
+        val.{{.name}} = lastVal.{{.name}}
     }{{end}}
     {{ end }}
 
     {{if .DictName}}
-    lastVal.ptr = val
+    d.lastVal = val
     d.dict.dict = append(d.dict.dict, val)
     {{end}}
 

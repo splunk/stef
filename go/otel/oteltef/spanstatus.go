@@ -241,8 +241,11 @@ func CmpSpanStatus(left, right *SpanStatus) int {
 
 // SpanStatusEncoder implements encoding of SpanStatus
 type SpanStatusEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           SpanStatus
+	lastValPtr        *SpanStatus
+	lastEncodedValPtr *SpanStatus
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -267,6 +270,9 @@ func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	defer func() { state.SpanStatusEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -312,11 +318,20 @@ func (e *SpanStatusEncoder) Reset() {
 		return // Code and all subsequent fields are skipped.
 	}
 	e.codeEncoder.Reset()
+
+	e.lastVal = SpanStatus{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -341,11 +356,17 @@ func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 	if fieldMask&fieldModifiedSpanStatusMessage != 0 {
 		// Encode Message
 		e.messageEncoder.Encode(val.message)
+
+		e.lastVal.message = val.message
+
 	}
 
 	if fieldMask&fieldModifiedSpanStatusCode != 0 {
 		// Encode Code
 		e.codeEncoder.Encode(val.code)
+
+		e.lastVal.code = val.code
+
 	}
 
 	// Account written bits in the limiter.
@@ -354,6 +375,7 @@ func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -383,6 +405,7 @@ type SpanStatusDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *SpanStatus
 	fieldCount uint
 
 	messageDecoder encoders.StringDecoder
@@ -455,6 +478,7 @@ func (d *SpanStatusDecoder) Reset() {
 	}
 	d.codeDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {

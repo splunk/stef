@@ -865,8 +865,11 @@ func CmpSpan(left, right *Span) int {
 
 // SpanEncoder implements encoding of Span
 type SpanEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Span
+	lastValPtr        *Span
+	lastEncodedValPtr *Span
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -919,6 +922,9 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.SpanEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -1164,11 +1170,19 @@ func (e *SpanEncoder) Reset() {
 		e.statusEncoder.Reset()
 	}
 
+	e.lastVal = Span{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *SpanEncoder) Encode(val *Span) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -1205,71 +1219,113 @@ func (e *SpanEncoder) Encode(val *Span) {
 	if fieldMask&fieldModifiedSpanTraceID != 0 {
 		// Encode TraceID
 		e.traceIDEncoder.Encode(val.traceID)
+
+		e.lastVal.traceID = val.traceID
+
 	}
 
 	if fieldMask&fieldModifiedSpanSpanID != 0 {
 		// Encode SpanID
 		e.spanIDEncoder.Encode(val.spanID)
+
+		e.lastVal.spanID = val.spanID
+
 	}
 
 	if fieldMask&fieldModifiedSpanTraceState != 0 {
 		// Encode TraceState
 		e.traceStateEncoder.Encode(val.traceState)
+
+		e.lastVal.traceState = val.traceState
+
 	}
 
 	if fieldMask&fieldModifiedSpanParentSpanID != 0 {
 		// Encode ParentSpanID
 		e.parentSpanIDEncoder.Encode(val.parentSpanID)
+
+		e.lastVal.parentSpanID = val.parentSpanID
+
 	}
 
 	if fieldMask&fieldModifiedSpanFlags != 0 {
 		// Encode Flags
 		e.flagsEncoder.Encode(val.flags)
+
+		e.lastVal.flags = val.flags
+
 	}
 
 	if fieldMask&fieldModifiedSpanName != 0 {
 		// Encode Name
 		e.nameEncoder.Encode(val.name)
+
+		e.lastVal.name = val.name
+
 	}
 
 	if fieldMask&fieldModifiedSpanKind != 0 {
 		// Encode Kind
 		e.kindEncoder.Encode(val.kind)
+
+		e.lastVal.kind = val.kind
+
 	}
 
 	if fieldMask&fieldModifiedSpanStartTimeUnixNano != 0 {
 		// Encode StartTimeUnixNano
 		e.startTimeUnixNanoEncoder.Encode(val.startTimeUnixNano)
+
+		e.lastVal.startTimeUnixNano = val.startTimeUnixNano
+
 	}
 
 	if fieldMask&fieldModifiedSpanEndTimeUnixNano != 0 {
 		// Encode EndTimeUnixNano
 		e.endTimeUnixNanoEncoder.Encode(val.endTimeUnixNano)
+
+		e.lastVal.endTimeUnixNano = val.endTimeUnixNano
+
 	}
 
 	if fieldMask&fieldModifiedSpanAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
+		copyAttributes(&e.lastVal.attributes, &val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedSpanDroppedAttributesCount != 0 {
 		// Encode DroppedAttributesCount
 		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+
+		e.lastVal.droppedAttributesCount = val.droppedAttributesCount
+
 	}
 
 	if fieldMask&fieldModifiedSpanEvents != 0 {
 		// Encode Events
 		e.eventsEncoder.Encode(&val.events)
+
+		copyEventArray(&e.lastVal.events, &val.events)
+
 	}
 
 	if fieldMask&fieldModifiedSpanLinks != 0 {
 		// Encode Links
 		e.linksEncoder.Encode(&val.links)
+
+		copyLinkArray(&e.lastVal.links, &val.links)
+
 	}
 
 	if fieldMask&fieldModifiedSpanStatus != 0 {
 		// Encode Status
 		e.statusEncoder.Encode(&val.status)
+
+		copySpanStatus(&e.lastVal.status, &val.status)
+
 	}
 
 	// Account written bits in the limiter.
@@ -1278,6 +1334,7 @@ func (e *SpanEncoder) Encode(val *Span) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -1407,6 +1464,7 @@ type SpanDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Span
 	fieldCount uint
 
 	traceIDDecoder encoders.BytesDecoder
@@ -1746,6 +1804,7 @@ func (d *SpanDecoder) Reset() {
 		d.statusDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *SpanDecoder) Decode(dstPtr *Span) error {

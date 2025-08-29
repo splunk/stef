@@ -293,8 +293,11 @@ func CmpResource(left, right *Resource) int {
 
 // ResourceEncoder implements encoding of Resource
 type ResourceEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Resource
+	lastValPtr        *Resource
+	lastEncodedValPtr *Resource
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -347,6 +350,9 @@ func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Resource
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -416,6 +422,10 @@ func (e *ResourceEncoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	e.droppedAttributesCountEncoder.Reset()
+
+	e.lastVal = Resource{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
@@ -437,6 +447,8 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		e.lastValPtr = entry.val
 		return
 	}
 
@@ -450,6 +462,11 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -474,16 +491,19 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	if fieldMask&fieldModifiedResourceSchemaURL != 0 {
 		// Encode SchemaURL
 		e.schemaURLEncoder.Encode(val.schemaURL)
+
 	}
 
 	if fieldMask&fieldModifiedResourceAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedResourceDroppedAttributesCount != 0 {
 		// Encode DroppedAttributesCount
 		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+
 	}
 
 	// Account written bits in the limiter.
@@ -492,6 +512,9 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
+	e.lastValPtr = valInDict
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -530,6 +553,7 @@ type ResourceDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Resource
 	fieldCount uint
 
 	schemaURLDecoder encoders.StringDecoder
@@ -542,7 +566,8 @@ type ResourceDecoder struct {
 	dict *ResourceDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ResourceDecoderLastValStack
+	//lastValStack ResourceDecoderLastValStack
+
 }
 type ResourceDecoderLastValStack []*ResourceDecoderLastValElem
 
@@ -618,8 +643,6 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 	d.dict = &state.Resource
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // SchemaURL and subsequent fields are skipped.
@@ -697,13 +720,12 @@ func (d *ResourceDecoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	d.droppedAttributesCountDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Resource exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -711,15 +733,23 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Resource{}
+	var val *Resource
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Resource{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -732,8 +762,8 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.schemaURL = lastVal.ptr.schemaURL
+	} else if lastVal != nil {
+		val.schemaURL = lastVal.schemaURL
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 {
@@ -742,8 +772,8 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
+	} else if lastVal != nil {
+		val.attributes = lastVal.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 {
@@ -752,11 +782,11 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
+	} else if lastVal != nil {
+		val.droppedAttributesCount = lastVal.droppedAttributesCount
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

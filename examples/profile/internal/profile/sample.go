@@ -337,6 +337,9 @@ func CmpSample(left, right *Sample) int {
 type SampleEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal Sample
+	//lastValPtr *Sample
+	//lastEncodedValPtr *Sample
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -369,6 +372,9 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.SampleEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -484,11 +490,19 @@ func (e *SampleEncoder) Reset() {
 		e.labelsEncoder.Reset()
 	}
 
+	//e.lastVal = Sample{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *SampleEncoder) Encode(val *Sample) {
+func (e *SampleEncoder) Encode(val, prevVal *Sample) {
 	var bitCount uint
+
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -514,22 +528,26 @@ func (e *SampleEncoder) Encode(val *Sample) {
 
 	if fieldMask&fieldModifiedSampleMetadata != 0 {
 		// Encode Metadata
-		e.metadataEncoder.Encode(&val.metadata)
+		e.metadataEncoder.Encode(&val.metadata, &prevVal.metadata)
+
 	}
 
 	if fieldMask&fieldModifiedSampleLocations != 0 {
 		// Encode Locations
-		e.locationsEncoder.Encode(&val.locations)
+		e.locationsEncoder.Encode(&val.locations, &prevVal.locations)
+
 	}
 
 	if fieldMask&fieldModifiedSampleValues != 0 {
 		// Encode Values
-		e.valuesEncoder.Encode(&val.values)
+		e.valuesEncoder.Encode(&val.values, &prevVal.values)
+
 	}
 
 	if fieldMask&fieldModifiedSampleLabels != 0 {
 		// Encode Labels
-		e.labelsEncoder.Encode(&val.labels)
+		e.labelsEncoder.Encode(&val.labels, &prevVal.labels)
+
 	}
 
 	// Account written bits in the limiter.
@@ -538,6 +556,7 @@ func (e *SampleEncoder) Encode(val *Sample) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -587,6 +606,7 @@ type SampleDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Sample
 	fieldCount uint
 
 	metadataDecoder     *ProfileMetadataDecoder
@@ -756,6 +776,7 @@ func (d *SampleDecoder) Reset() {
 		d.labelsDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *SampleDecoder) Decode(dstPtr *Sample) error {

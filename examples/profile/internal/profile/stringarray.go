@@ -244,7 +244,7 @@ func (e *StringArrayEncoder) Reset() {
 	e.prevLen = 0
 }
 
-func (e *StringArrayEncoder) Encode(arr *StringArray) {
+func (e *StringArrayEncoder) Encode(arr, prev *StringArray) {
 
 	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()

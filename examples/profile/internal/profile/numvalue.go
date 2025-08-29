@@ -243,6 +243,9 @@ func CmpNumValue(left, right *NumValue) int {
 type NumValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal NumValue
+	//lastValPtr *NumValue
+	//lastEncodedValPtr *NumValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -267,6 +270,9 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.NumValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -312,11 +318,20 @@ func (e *NumValueEncoder) Reset() {
 		return // Unit and all subsequent fields are skipped.
 	}
 	e.unitEncoder.Reset()
+
+	//e.lastVal = NumValue{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *NumValueEncoder) Encode(val *NumValue) {
+func (e *NumValueEncoder) Encode(val, prevVal *NumValue) {
 	var bitCount uint
+
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -341,11 +356,13 @@ func (e *NumValueEncoder) Encode(val *NumValue) {
 	if fieldMask&fieldModifiedNumValueVal != 0 {
 		// Encode Val
 		e.valEncoder.Encode(val.val)
+
 	}
 
 	if fieldMask&fieldModifiedNumValueUnit != 0 {
 		// Encode Unit
 		e.unitEncoder.Encode(val.unit)
+
 	}
 
 	// Account written bits in the limiter.
@@ -354,6 +371,7 @@ func (e *NumValueEncoder) Encode(val *NumValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -383,6 +401,7 @@ type NumValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *NumValue
 	fieldCount uint
 
 	valDecoder encoders.Int64Decoder
@@ -455,6 +474,7 @@ func (d *NumValueDecoder) Reset() {
 	}
 	d.unitDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {

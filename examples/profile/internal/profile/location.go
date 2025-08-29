@@ -352,6 +352,9 @@ func CmpLocation(left, right *Location) int {
 type LocationEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal Location
+	//lastValPtr *Location
+	//lastEncodedValPtr *Location
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -407,6 +410,9 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Location
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -500,10 +506,14 @@ func (e *LocationEncoder) Reset() {
 		return // IsFolded and all subsequent fields are skipped.
 	}
 	e.isFoldedEncoder.Reset()
+
+	//e.lastVal = Location{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *LocationEncoder) Encode(val *Location) {
+func (e *LocationEncoder) Encode(val, prevVal *Location) {
 	var bitCount uint
 
 	// Check if the Location exists in the dictionary.
@@ -521,6 +531,8 @@ func (e *LocationEncoder) Encode(val *Location) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		//e.lastValPtr = entry.val
 		return
 	}
 
@@ -534,6 +546,11 @@ func (e *LocationEncoder) Encode(val *Location) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -558,22 +575,26 @@ func (e *LocationEncoder) Encode(val *Location) {
 
 	if fieldMask&fieldModifiedLocationMapping != 0 {
 		// Encode Mapping
-		e.mappingEncoder.Encode(val.mapping)
+		e.mappingEncoder.Encode(val.mapping, prevVal.mapping)
+
 	}
 
 	if fieldMask&fieldModifiedLocationAddress != 0 {
 		// Encode Address
 		e.addressEncoder.Encode(val.address)
+
 	}
 
 	if fieldMask&fieldModifiedLocationLines != 0 {
 		// Encode Lines
-		e.linesEncoder.Encode(&val.lines)
+		e.linesEncoder.Encode(&val.lines, &prevVal.lines)
+
 	}
 
 	if fieldMask&fieldModifiedLocationIsFolded != 0 {
 		// Encode IsFolded
 		e.isFoldedEncoder.Encode(val.isFolded)
+
 	}
 
 	// Account written bits in the limiter.
@@ -582,6 +603,7 @@ func (e *LocationEncoder) Encode(val *Location) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -629,6 +651,7 @@ type LocationDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Location
 	fieldCount uint
 
 	mappingDecoder     *MappingDecoder
@@ -644,7 +667,8 @@ type LocationDecoder struct {
 	dict *LocationDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack LocationDecoderLastValStack
+	//lastValStack LocationDecoderLastValStack
+
 }
 type LocationDecoderLastValStack []*LocationDecoderLastValElem
 
@@ -720,8 +744,6 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 	d.dict = &state.Location
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Mapping and subsequent fields are skipped.
@@ -829,13 +851,12 @@ func (d *LocationDecoder) Reset() {
 		return // IsFolded and all subsequent fields are skipped.
 	}
 	d.isFoldedDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *LocationDecoder) Decode(dstPtr **Location) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Location exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -843,16 +864,23 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Location{}
-	val.Init()
+	var val *Location
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Location{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -870,8 +898,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.mapping = lastVal.ptr.mapping
+	} else if lastVal != nil {
+		val.mapping = lastVal.mapping
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 {
@@ -880,8 +908,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.address = lastVal.ptr.address
+	} else if lastVal != nil {
+		val.address = lastVal.address
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 {
@@ -890,8 +918,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.lines = lastVal.ptr.lines
+	} else if lastVal != nil {
+		val.lines = lastVal.lines
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 {
@@ -900,11 +928,11 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.isFolded = lastVal.ptr.isFolded
+	} else if lastVal != nil {
+		val.isFolded = lastVal.isFolded
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

@@ -394,8 +394,11 @@ func CmpExemplar(left, right *Exemplar) int {
 
 // ExemplarEncoder implements encoding of Exemplar
 type ExemplarEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Exemplar
+	lastValPtr        *Exemplar
+	lastEncodedValPtr *Exemplar
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -428,6 +431,9 @@ func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.ExemplarEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -534,11 +540,19 @@ func (e *ExemplarEncoder) Reset() {
 		e.filteredAttributesEncoder.Reset()
 	}
 
+	e.lastVal = Exemplar{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *ExemplarEncoder) Encode(val *Exemplar) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -566,26 +580,41 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 	if fieldMask&fieldModifiedExemplarTimestamp != 0 {
 		// Encode Timestamp
 		e.timestampEncoder.Encode(val.timestamp)
+
+		e.lastVal.timestamp = val.timestamp
+
 	}
 
 	if fieldMask&fieldModifiedExemplarValue != 0 {
 		// Encode Value
 		e.valueEncoder.Encode(&val.value)
+
+		copyExemplarValue(&e.lastVal.value, &val.value)
+
 	}
 
 	if fieldMask&fieldModifiedExemplarSpanID != 0 {
 		// Encode SpanID
 		e.spanIDEncoder.Encode(val.spanID)
+
+		e.lastVal.spanID = val.spanID
+
 	}
 
 	if fieldMask&fieldModifiedExemplarTraceID != 0 {
 		// Encode TraceID
 		e.traceIDEncoder.Encode(val.traceID)
+
+		e.lastVal.traceID = val.traceID
+
 	}
 
 	if fieldMask&fieldModifiedExemplarFilteredAttributes != 0 {
 		// Encode FilteredAttributes
 		e.filteredAttributesEncoder.Encode(&val.filteredAttributes)
+
+		copyAttributes(&e.lastVal.filteredAttributes, &val.filteredAttributes)
+
 	}
 
 	// Account written bits in the limiter.
@@ -594,6 +623,7 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -649,6 +679,7 @@ type ExemplarDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Exemplar
 	fieldCount uint
 
 	timestampDecoder encoders.Uint64Decoder
@@ -803,6 +834,7 @@ func (d *ExemplarDecoder) Reset() {
 		d.filteredAttributesDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {

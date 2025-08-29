@@ -341,8 +341,11 @@ func CmpPoint(left, right *Point) int {
 
 // PointEncoder implements encoding of Point
 type PointEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Point
+	lastValPtr        *Point
+	lastEncodedValPtr *Point
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -373,6 +376,9 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.PointEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -466,11 +472,19 @@ func (e *PointEncoder) Reset() {
 		e.exemplarsEncoder.Reset()
 	}
 
+	e.lastVal = Point{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *PointEncoder) Encode(val *Point) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -497,21 +511,33 @@ func (e *PointEncoder) Encode(val *Point) {
 	if fieldMask&fieldModifiedPointStartTimestamp != 0 {
 		// Encode StartTimestamp
 		e.startTimestampEncoder.Encode(val.startTimestamp)
+
+		e.lastVal.startTimestamp = val.startTimestamp
+
 	}
 
 	if fieldMask&fieldModifiedPointTimestamp != 0 {
 		// Encode Timestamp
 		e.timestampEncoder.Encode(val.timestamp)
+
+		e.lastVal.timestamp = val.timestamp
+
 	}
 
 	if fieldMask&fieldModifiedPointValue != 0 {
 		// Encode Value
 		e.valueEncoder.Encode(&val.value)
+
+		copyPointValue(&e.lastVal.value, &val.value)
+
 	}
 
 	if fieldMask&fieldModifiedPointExemplars != 0 {
 		// Encode Exemplars
 		e.exemplarsEncoder.Encode(&val.exemplars)
+
+		copyExemplarArray(&e.lastVal.exemplars, &val.exemplars)
+
 	}
 
 	// Account written bits in the limiter.
@@ -520,6 +546,7 @@ func (e *PointEncoder) Encode(val *Point) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -567,6 +594,7 @@ type PointDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Point
 	fieldCount uint
 
 	startTimestampDecoder encoders.Uint64Decoder
@@ -704,6 +732,7 @@ func (d *PointDecoder) Reset() {
 		d.exemplarsDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *PointDecoder) Decode(dstPtr *Point) error {

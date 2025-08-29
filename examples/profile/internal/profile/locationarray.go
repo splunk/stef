@@ -326,7 +326,7 @@ func (e *LocationArrayEncoder) Reset() {
 	e.lastValStack.reset()
 }
 
-func (e *LocationArrayEncoder) Encode(arr *LocationArray) {
+func (e *LocationArrayEncoder) Encode(arr, prev *LocationArray) {
 	lastVal := e.lastValStack.top()
 	e.lastValStack.addOnTop()
 	defer func() { e.lastValStack.removeFromTop() }()
@@ -341,19 +341,12 @@ func (e *LocationArrayEncoder) Encode(arr *LocationArray) {
 
 	if newLen > 0 {
 		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
 
 			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
+			e.elemEncoder.Encode(arr.elems[i], prev.elems[i])
 		}
 		// Remember last encoded element.
-		copyLocation(&lastVal.elem, arr.elems[len(arr.elems)-1])
+		//copyLocation(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.

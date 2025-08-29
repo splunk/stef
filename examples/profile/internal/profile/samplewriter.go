@@ -138,7 +138,7 @@ func (w *SampleWriter) writeVarHeader() error {
 }
 
 func (w *SampleWriter) Write() error {
-	w.encoder.Encode(&w.Record)
+	w.encoder.Encode(&w.Record, &w.Record)
 	w.frameRecordCount++
 
 	nextFrameFlags := w.opts.FrameRestartFlags

@@ -291,8 +291,11 @@ func CmpSummaryValue(left, right *SummaryValue) int {
 
 // SummaryValueEncoder implements encoding of SummaryValue
 type SummaryValueEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           SummaryValue
+	lastValPtr        *SummaryValue
+	lastEncodedValPtr *SummaryValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -320,6 +323,9 @@ func (e *SummaryValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 	defer func() { state.SummaryValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -389,11 +395,19 @@ func (e *SummaryValueEncoder) Reset() {
 		e.quantileValuesEncoder.Reset()
 	}
 
+	e.lastVal = SummaryValue{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *SummaryValueEncoder) Encode(val *SummaryValue) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -419,16 +433,25 @@ func (e *SummaryValueEncoder) Encode(val *SummaryValue) {
 	if fieldMask&fieldModifiedSummaryValueCount != 0 {
 		// Encode Count
 		e.countEncoder.Encode(val.count)
+
+		e.lastVal.count = val.count
+
 	}
 
 	if fieldMask&fieldModifiedSummaryValueSum != 0 {
 		// Encode Sum
 		e.sumEncoder.Encode(val.sum)
+
+		e.lastVal.sum = val.sum
+
 	}
 
 	if fieldMask&fieldModifiedSummaryValueQuantileValues != 0 {
 		// Encode QuantileValues
 		e.quantileValuesEncoder.Encode(&val.quantileValues)
+
+		copyQuantileValueArray(&e.lastVal.quantileValues, &val.quantileValues)
+
 	}
 
 	// Account written bits in the limiter.
@@ -437,6 +460,7 @@ func (e *SummaryValueEncoder) Encode(val *SummaryValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -475,6 +499,7 @@ type SummaryValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *SummaryValue
 	fieldCount uint
 
 	countDecoder encoders.Uint64Decoder
@@ -579,6 +604,7 @@ func (d *SummaryValueDecoder) Reset() {
 		d.quantileValuesDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {

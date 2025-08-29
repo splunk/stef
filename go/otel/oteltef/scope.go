@@ -399,8 +399,11 @@ func CmpScope(left, right *Scope) int {
 
 // ScopeEncoder implements encoding of Scope
 type ScopeEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Scope
+	lastValPtr        *Scope
+	lastEncodedValPtr *Scope
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -457,6 +460,9 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 
 	e.limiter = &state.limiter
 	e.dict = &state.Scope
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -552,6 +558,10 @@ func (e *ScopeEncoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	e.droppedAttributesCountEncoder.Reset()
+
+	e.lastVal = Scope{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
@@ -573,6 +583,8 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		e.lastValPtr = entry.val
 		return
 	}
 
@@ -586,6 +598,11 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -612,26 +629,31 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	if fieldMask&fieldModifiedScopeName != 0 {
 		// Encode Name
 		e.nameEncoder.Encode(val.name)
+
 	}
 
 	if fieldMask&fieldModifiedScopeVersion != 0 {
 		// Encode Version
 		e.versionEncoder.Encode(val.version)
+
 	}
 
 	if fieldMask&fieldModifiedScopeSchemaURL != 0 {
 		// Encode SchemaURL
 		e.schemaURLEncoder.Encode(val.schemaURL)
+
 	}
 
 	if fieldMask&fieldModifiedScopeAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedScopeDroppedAttributesCount != 0 {
 		// Encode DroppedAttributesCount
 		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+
 	}
 
 	// Account written bits in the limiter.
@@ -640,6 +662,9 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
+	e.lastValPtr = valInDict
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -694,6 +719,7 @@ type ScopeDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Scope
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -710,7 +736,8 @@ type ScopeDecoder struct {
 	dict *ScopeDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack ScopeDecoderLastValStack
+	//lastValStack ScopeDecoderLastValStack
+
 }
 type ScopeDecoderLastValStack []*ScopeDecoderLastValElem
 
@@ -786,8 +813,6 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 
 	d.column = columns.Column()
 	d.dict = &state.Scope
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -895,13 +920,12 @@ func (d *ScopeDecoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	d.droppedAttributesCountDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Scope exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -909,15 +933,23 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Scope{}
+	var val *Scope
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Scope{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -930,8 +962,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.name = lastVal.ptr.name
+	} else if lastVal != nil {
+		val.name = lastVal.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeVersion != 0 {
@@ -940,8 +972,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.version = lastVal.ptr.version
+	} else if lastVal != nil {
+		val.version = lastVal.version
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeSchemaURL != 0 {
@@ -950,8 +982,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.schemaURL = lastVal.ptr.schemaURL
+	} else if lastVal != nil {
+		val.schemaURL = lastVal.schemaURL
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 {
@@ -960,8 +992,8 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.attributes = lastVal.ptr.attributes
+	} else if lastVal != nil {
+		val.attributes = lastVal.attributes
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 {
@@ -970,11 +1002,11 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.droppedAttributesCount = lastVal.ptr.droppedAttributesCount
+	} else if lastVal != nil {
+		val.droppedAttributesCount = lastVal.droppedAttributesCount
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

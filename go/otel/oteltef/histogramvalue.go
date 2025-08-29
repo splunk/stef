@@ -517,8 +517,11 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 
 // HistogramValueEncoder implements encoding of HistogramValue
 type HistogramValueEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           HistogramValue
+	lastValPtr        *HistogramValue
+	lastEncodedValPtr *HistogramValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -550,6 +553,9 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 	defer func() { state.HistogramValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -645,11 +651,19 @@ func (e *HistogramValueEncoder) Reset() {
 		e.bucketCountsEncoder.Reset()
 	}
 
+	e.lastVal = HistogramValue{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -681,29 +695,44 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 	if fieldMask&fieldModifiedHistogramValueCount != 0 {
 		// Encode Count
 		e.countEncoder.Encode(val.count)
+
+		e.lastVal.count = val.count
+
 	}
 
 	if fieldMask&fieldModifiedHistogramValueSum != 0 &&
 		val.optionalFieldsPresent&fieldPresentHistogramValueSum != 0 {
 		// Encode Sum
 		e.sumEncoder.Encode(val.sum)
+
+		e.lastVal.sum = val.sum
+
 	}
 
 	if fieldMask&fieldModifiedHistogramValueMin != 0 &&
 		val.optionalFieldsPresent&fieldPresentHistogramValueMin != 0 {
 		// Encode Min
 		e.minEncoder.Encode(val.min)
+
+		e.lastVal.min = val.min
+
 	}
 
 	if fieldMask&fieldModifiedHistogramValueMax != 0 &&
 		val.optionalFieldsPresent&fieldPresentHistogramValueMax != 0 {
 		// Encode Max
 		e.maxEncoder.Encode(val.max)
+
+		e.lastVal.max = val.max
+
 	}
 
 	if fieldMask&fieldModifiedHistogramValueBucketCounts != 0 {
 		// Encode BucketCounts
 		e.bucketCountsEncoder.Encode(&val.bucketCounts)
+
+		copyInt64Array(&e.lastVal.bucketCounts, &val.bucketCounts)
+
 	}
 
 	// Account written bits in the limiter.
@@ -712,6 +741,7 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -766,6 +796,7 @@ type HistogramValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *HistogramValue
 	fieldCount uint
 
 	countDecoder encoders.Int64Decoder
@@ -904,6 +935,7 @@ func (d *HistogramValueDecoder) Reset() {
 		d.bucketCountsDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {

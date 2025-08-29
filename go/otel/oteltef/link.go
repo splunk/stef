@@ -450,8 +450,11 @@ func CmpLink(left, right *Link) int {
 
 // LinkEncoder implements encoding of Link
 type LinkEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Link
+	lastValPtr        *Link
+	lastEncodedValPtr *Link
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -485,6 +488,9 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.LinkEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -593,11 +599,20 @@ func (e *LinkEncoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	e.droppedAttributesCountEncoder.Reset()
+
+	e.lastVal = Link{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *LinkEncoder) Encode(val *Link) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -626,31 +641,49 @@ func (e *LinkEncoder) Encode(val *Link) {
 	if fieldMask&fieldModifiedLinkTraceID != 0 {
 		// Encode TraceID
 		e.traceIDEncoder.Encode(val.traceID)
+
+		e.lastVal.traceID = val.traceID
+
 	}
 
 	if fieldMask&fieldModifiedLinkSpanID != 0 {
 		// Encode SpanID
 		e.spanIDEncoder.Encode(val.spanID)
+
+		e.lastVal.spanID = val.spanID
+
 	}
 
 	if fieldMask&fieldModifiedLinkTraceState != 0 {
 		// Encode TraceState
 		e.traceStateEncoder.Encode(val.traceState)
+
+		e.lastVal.traceState = val.traceState
+
 	}
 
 	if fieldMask&fieldModifiedLinkFlags != 0 {
 		// Encode Flags
 		e.flagsEncoder.Encode(val.flags)
+
+		e.lastVal.flags = val.flags
+
 	}
 
 	if fieldMask&fieldModifiedLinkAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
+		copyAttributes(&e.lastVal.attributes, &val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedLinkDroppedAttributesCount != 0 {
 		// Encode DroppedAttributesCount
 		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+
+		e.lastVal.droppedAttributesCount = val.droppedAttributesCount
+
 	}
 
 	// Account written bits in the limiter.
@@ -659,6 +692,7 @@ func (e *LinkEncoder) Encode(val *Link) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -721,6 +755,7 @@ type LinkDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Link
 	fieldCount uint
 
 	traceIDDecoder encoders.BytesDecoder
@@ -877,6 +912,7 @@ func (d *LinkDecoder) Reset() {
 	}
 	d.droppedAttributesCountDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *LinkDecoder) Decode(dstPtr *Link) error {

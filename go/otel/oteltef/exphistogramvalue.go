@@ -726,8 +726,11 @@ func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
 
 // ExpHistogramValueEncoder implements encoding of ExpHistogramValue
 type ExpHistogramValueEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           ExpHistogramValue
+	lastValPtr        *ExpHistogramValue
+	lastEncodedValPtr *ExpHistogramValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -768,6 +771,9 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 	defer func() { state.ExpHistogramValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -926,11 +932,20 @@ func (e *ExpHistogramValueEncoder) Reset() {
 		return // ZeroThreshold and all subsequent fields are skipped.
 	}
 	e.zeroThresholdEncoder.Reset()
+
+	e.lastVal = ExpHistogramValue{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -966,49 +981,76 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 	if fieldMask&fieldModifiedExpHistogramValueCount != 0 {
 		// Encode Count
 		e.countEncoder.Encode(val.count)
+
+		e.lastVal.count = val.count
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueSum != 0 &&
 		val.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 {
 		// Encode Sum
 		e.sumEncoder.Encode(val.sum)
+
+		e.lastVal.sum = val.sum
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueMin != 0 &&
 		val.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 {
 		// Encode Min
 		e.minEncoder.Encode(val.min)
+
+		e.lastVal.min = val.min
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueMax != 0 &&
 		val.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 {
 		// Encode Max
 		e.maxEncoder.Encode(val.max)
+
+		e.lastVal.max = val.max
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueScale != 0 {
 		// Encode Scale
 		e.scaleEncoder.Encode(val.scale)
+
+		e.lastVal.scale = val.scale
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueZeroCount != 0 {
 		// Encode ZeroCount
 		e.zeroCountEncoder.Encode(val.zeroCount)
+
+		e.lastVal.zeroCount = val.zeroCount
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValuePositiveBuckets != 0 {
 		// Encode PositiveBuckets
 		e.positiveBucketsEncoder.Encode(&val.positiveBuckets)
+
+		copyExpHistogramBuckets(&e.lastVal.positiveBuckets, &val.positiveBuckets)
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueNegativeBuckets != 0 {
 		// Encode NegativeBuckets
 		e.negativeBucketsEncoder.Encode(&val.negativeBuckets)
+
+		copyExpHistogramBuckets(&e.lastVal.negativeBuckets, &val.negativeBuckets)
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramValueZeroThreshold != 0 {
 		// Encode ZeroThreshold
 		e.zeroThresholdEncoder.Encode(val.zeroThreshold)
+
+		e.lastVal.zeroThreshold = val.zeroThreshold
+
 	}
 
 	// Account written bits in the limiter.
@@ -1017,6 +1059,7 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -1104,6 +1147,7 @@ type ExpHistogramValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *ExpHistogramValue
 	fieldCount uint
 
 	countDecoder encoders.Uint64Decoder
@@ -1327,6 +1371,7 @@ func (d *ExpHistogramValueDecoder) Reset() {
 	}
 	d.zeroThresholdDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {

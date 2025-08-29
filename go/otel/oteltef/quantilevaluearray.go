@@ -341,13 +341,6 @@ func (e *QuantileValueArrayEncoder) Encode(arr *QuantileValueArray) {
 
 	if newLen > 0 {
 		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				//arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				//arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
 
 			// Encode the element.
 			e.elemEncoder.Encode(arr.elems[i])

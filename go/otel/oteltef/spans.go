@@ -349,8 +349,11 @@ func CmpSpans(left, right *Spans) int {
 
 // SpansEncoder implements encoding of Spans
 type SpansEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Spans
+	lastValPtr        *Spans
+	lastEncodedValPtr *Spans
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -383,6 +386,9 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.SpansEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -498,11 +504,19 @@ func (e *SpansEncoder) Reset() {
 		e.spanEncoder.Reset()
 	}
 
+	e.lastVal = Spans{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *SpansEncoder) Encode(val *Spans) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -529,21 +543,33 @@ func (e *SpansEncoder) Encode(val *Spans) {
 	if fieldMask&fieldModifiedSpansEnvelope != 0 {
 		// Encode Envelope
 		e.envelopeEncoder.Encode(&val.envelope)
+
+		copyEnvelope(&e.lastVal.envelope, &val.envelope)
+
 	}
 
 	if fieldMask&fieldModifiedSpansResource != 0 {
 		// Encode Resource
 		e.resourceEncoder.Encode(val.resource)
+
+		copyResource(e.lastVal.resource, val.resource)
+
 	}
 
 	if fieldMask&fieldModifiedSpansScope != 0 {
 		// Encode Scope
 		e.scopeEncoder.Encode(val.scope)
+
+		copyScope(e.lastVal.scope, val.scope)
+
 	}
 
 	if fieldMask&fieldModifiedSpansSpan != 0 {
 		// Encode Span
 		e.spanEncoder.Encode(&val.span)
+
+		copySpan(&e.lastVal.span, &val.span)
+
 	}
 
 	// Account written bits in the limiter.
@@ -552,6 +578,7 @@ func (e *SpansEncoder) Encode(val *Spans) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -601,6 +628,7 @@ type SpansDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Spans
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -770,6 +798,7 @@ func (d *SpansDecoder) Reset() {
 		d.spanDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {

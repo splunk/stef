@@ -247,6 +247,9 @@ func CmpSampleValue(left, right *SampleValue) int {
 type SampleValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal SampleValue
+	//lastValPtr *SampleValue
+	//lastEncodedValPtr *SampleValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -272,6 +275,9 @@ func (e *SampleValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	defer func() { state.SampleValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -328,11 +334,19 @@ func (e *SampleValueEncoder) Reset() {
 		e.type_Encoder.Reset()
 	}
 
+	//e.lastVal = SampleValue{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *SampleValueEncoder) Encode(val *SampleValue) {
+func (e *SampleValueEncoder) Encode(val, prevVal *SampleValue) {
 	var bitCount uint
+
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -357,11 +371,13 @@ func (e *SampleValueEncoder) Encode(val *SampleValue) {
 	if fieldMask&fieldModifiedSampleValueVal != 0 {
 		// Encode Val
 		e.valEncoder.Encode(val.val)
+
 	}
 
 	if fieldMask&fieldModifiedSampleValueType != 0 {
 		// Encode Type
-		e.type_Encoder.Encode(val.type_)
+		e.type_Encoder.Encode(val.type_, prevVal.type_)
+
 	}
 
 	// Account written bits in the limiter.
@@ -370,6 +386,7 @@ func (e *SampleValueEncoder) Encode(val *SampleValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -400,6 +417,7 @@ type SampleValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *SampleValue
 	fieldCount uint
 
 	valDecoder encoders.Int64Decoder
@@ -487,6 +505,7 @@ func (d *SampleValueDecoder) Reset() {
 		d.type_Decoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {

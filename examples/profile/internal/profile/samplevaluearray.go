@@ -326,7 +326,7 @@ func (e *SampleValueArrayEncoder) Reset() {
 	e.lastValStack.reset()
 }
 
-func (e *SampleValueArrayEncoder) Encode(arr *SampleValueArray) {
+func (e *SampleValueArrayEncoder) Encode(arr, prev *SampleValueArray) {
 	lastVal := e.lastValStack.top()
 	e.lastValStack.addOnTop()
 	defer func() { e.lastValStack.removeFromTop() }()
@@ -341,19 +341,12 @@ func (e *SampleValueArrayEncoder) Encode(arr *SampleValueArray) {
 
 	if newLen > 0 {
 		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
 
 			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
+			e.elemEncoder.Encode(arr.elems[i], prev.elems[i])
 		}
 		// Remember last encoded element.
-		copySampleValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
+		//copySampleValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
 	}
 
 	// Account written bits in the limiter.

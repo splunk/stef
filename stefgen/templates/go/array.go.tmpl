@@ -404,7 +404,7 @@ func (e *{{ .ArrayName }}Encoder) Reset() {
 	{{- end}}
 }
 
-func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
+func (e *{{ .ArrayName }}Encoder) Encode(arr, prev *{{ .ArrayName }}) {
 	{{- if not .ElemType.IsPrimitive -}}
 	lastVal := e.lastValStack.top()
 	e.lastValStack.addOnTop()
@@ -429,22 +429,22 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 			{{- if .ElemType.IsPrimitive}}
 			e.elemEncoder.Encode(arr.elems[i])
 			{{- else}}
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
+{{/*			if i == 0 {*/}}
+{{/*				// Compute and mark fields that are modified compared to the last encoded value.*/}}
+{{/*				arr.elems[i].markDiffModified(&lastVal.elem)*/}}
+{{/*			} else {*/}}
+{{/*				// Compute and mark fields that are modified compared to the previous element.*/}}
+{{/*				arr.elems[i].markDiffModified(arr.elems[i-1])*/}}
+{{/*			}*/}}
 
 			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
+			e.elemEncoder.Encode(arr.elems[i], prev.elems[i])
 			{{- end}}
 		}
 
 		{{- if not .ElemType.IsPrimitive}}
 		// Remember last encoded element.
-		copy{{.ElemType.TypeName}}(&lastVal.elem, arr.elems[len(arr.elems)-1])
+		//copy{{.ElemType.TypeName}}(&lastVal.elem, arr.elems[len(arr.elems)-1])
 		{{- end}}
 	}
 

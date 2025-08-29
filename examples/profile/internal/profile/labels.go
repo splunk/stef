@@ -372,7 +372,7 @@ func (e *LabelsEncoder) Reset() {
 	e.lastValStack.reset()
 }
 
-func (e *LabelsEncoder) Encode(list *Labels) (changed bool) {
+func (e *LabelsEncoder) Encode(list, prev *Labels) (changed bool) {
 	oldLen := len(e.buf.Bytes())
 	lastVal := &e.lastValStack.top().val
 	e.lastValStack.addOnTop()
@@ -427,7 +427,7 @@ func (e *LabelsEncoder) encodeValuesOnly(lastVal *Labels, list *Labels) (changed
 	bitToRead := uint64(1) << (len(list.elems) - 1)
 	for i := range list.elems {
 		if (bitToRead & changedValuesBits) != 0 {
-			e.valueEncoder.Encode(&list.elems[i].value)
+			e.valueEncoder.Encode(&list.elems[i].value, &lastVal.elems[i].value)
 		}
 		bitToRead >>= 1
 		if bitToRead == 0 {
@@ -457,7 +457,7 @@ func (e *LabelsEncoder) encodeFull(lastVal *Labels, list *Labels) {
 	// Encode values first.
 	for i := range list.elems {
 		e.keyEncoder.Encode(list.elems[i].key)
-		e.valueEncoder.Encode(&list.elems[i].value)
+		e.valueEncoder.Encode(&list.elems[i].value, &lastVal.elems[i].value)
 	}
 
 	// Store changed values in lastVal.

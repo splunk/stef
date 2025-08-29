@@ -238,8 +238,11 @@ func CmpExpHistogramBuckets(left, right *ExpHistogramBuckets) int {
 
 // ExpHistogramBucketsEncoder implements encoding of ExpHistogramBuckets
 type ExpHistogramBucketsEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           ExpHistogramBuckets
+	lastValPtr        *ExpHistogramBuckets
+	lastEncodedValPtr *ExpHistogramBuckets
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -265,6 +268,9 @@ func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.Write
 	defer func() { state.ExpHistogramBucketsEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -321,11 +327,19 @@ func (e *ExpHistogramBucketsEncoder) Reset() {
 		e.bucketCountsEncoder.Reset()
 	}
 
+	e.lastVal = ExpHistogramBuckets{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -350,11 +364,17 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 	if fieldMask&fieldModifiedExpHistogramBucketsOffset != 0 {
 		// Encode Offset
 		e.offsetEncoder.Encode(val.offset)
+
+		e.lastVal.offset = val.offset
+
 	}
 
 	if fieldMask&fieldModifiedExpHistogramBucketsBucketCounts != 0 {
 		// Encode BucketCounts
 		e.bucketCountsEncoder.Encode(&val.bucketCounts)
+
+		copyUint64Array(&e.lastVal.bucketCounts, &val.bucketCounts)
+
 	}
 
 	// Account written bits in the limiter.
@@ -363,6 +383,7 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -393,6 +414,7 @@ type ExpHistogramBucketsDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *ExpHistogramBuckets
 	fieldCount uint
 
 	offsetDecoder encoders.Int64Decoder
@@ -480,6 +502,7 @@ func (d *ExpHistogramBucketsDecoder) Reset() {
 		d.bucketCountsDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {

@@ -185,8 +185,11 @@ func CmpEnvelope(left, right *Envelope) int {
 
 // EnvelopeEncoder implements encoding of Envelope
 type EnvelopeEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Envelope
+	lastValPtr        *Envelope
+	lastEncodedValPtr *Envelope
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -210,6 +213,9 @@ func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.EnvelopeEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -253,11 +259,19 @@ func (e *EnvelopeEncoder) Reset() {
 		e.attributesEncoder.Reset()
 	}
 
+	e.lastVal = Envelope{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *EnvelopeEncoder) Encode(val *Envelope) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -281,6 +295,9 @@ func (e *EnvelopeEncoder) Encode(val *Envelope) {
 	if fieldMask&fieldModifiedEnvelopeAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
+		copyEnvelopeAttributes(&e.lastVal.attributes, &val.attributes)
+
 	}
 
 	// Account written bits in the limiter.
@@ -289,6 +306,7 @@ func (e *EnvelopeEncoder) Encode(val *Envelope) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -311,6 +329,7 @@ type EnvelopeDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Envelope
 	fieldCount uint
 
 	attributesDecoder     *EnvelopeAttributesDecoder
@@ -381,6 +400,7 @@ func (d *EnvelopeDecoder) Reset() {
 		d.attributesDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {

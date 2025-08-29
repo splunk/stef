@@ -566,6 +566,9 @@ func CmpProfileMetadata(left, right *ProfileMetadata) int {
 type ProfileMetadataEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
+	//lastVal ProfileMetadata
+	//lastValPtr *ProfileMetadata
+	//lastEncodedValPtr *ProfileMetadata
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -605,6 +608,9 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	defer func() { state.ProfileMetadataEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -761,11 +767,19 @@ func (e *ProfileMetadataEncoder) Reset() {
 		e.defaultSampleTypeEncoder.Reset()
 	}
 
+	//e.lastVal = ProfileMetadata{}
+	//e.lastVal.Init()
+	//e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
-func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
+func (e *ProfileMetadataEncoder) Encode(val, prevVal *ProfileMetadata) {
 	var bitCount uint
+
+	if val != prevVal {
+		//e.lastEncodedValPtr = val
+		val.markDiffModified(prevVal)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -796,41 +810,49 @@ func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
 	if fieldMask&fieldModifiedProfileMetadataDropFrames != 0 {
 		// Encode DropFrames
 		e.dropFramesEncoder.Encode(val.dropFrames)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataKeepFrames != 0 {
 		// Encode KeepFrames
 		e.keepFramesEncoder.Encode(val.keepFrames)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataTimeNanos != 0 {
 		// Encode TimeNanos
 		e.timeNanosEncoder.Encode(val.timeNanos)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataDurationNanos != 0 {
 		// Encode DurationNanos
 		e.durationNanosEncoder.Encode(val.durationNanos)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataPeriodType != 0 {
 		// Encode PeriodType
-		e.periodTypeEncoder.Encode(val.periodType)
+		e.periodTypeEncoder.Encode(val.periodType, prevVal.periodType)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataPeriod != 0 {
 		// Encode Period
 		e.periodEncoder.Encode(val.period)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataComments != 0 {
 		// Encode Comments
-		e.commentsEncoder.Encode(&val.comments)
+		e.commentsEncoder.Encode(&val.comments, &prevVal.comments)
+
 	}
 
 	if fieldMask&fieldModifiedProfileMetadataDefaultSampleType != 0 {
 		// Encode DefaultSampleType
-		e.defaultSampleTypeEncoder.Encode(val.defaultSampleType)
+		e.defaultSampleTypeEncoder.Encode(val.defaultSampleType, prevVal.defaultSampleType)
+
 	}
 
 	// Account written bits in the limiter.
@@ -839,6 +861,7 @@ func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -919,6 +942,7 @@ type ProfileMetadataDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *ProfileMetadata
 	fieldCount uint
 
 	dropFramesDecoder encoders.StringDecoder
@@ -1140,6 +1164,7 @@ func (d *ProfileMetadataDecoder) Reset() {
 		d.defaultSampleTypeDecoder.Reset()
 	}
 
+	d.lastVal = nil
 }
 
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {

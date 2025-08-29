@@ -555,8 +555,11 @@ func CmpMetric(left, right *Metric) int {
 
 // MetricEncoder implements encoding of Metric
 type MetricEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Metric
+	lastValPtr        *Metric
+	lastEncodedValPtr *Metric
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -620,6 +623,9 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	e.limiter = &state.limiter
 	e.dict = &state.Metric
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -765,6 +771,10 @@ func (e *MetricEncoder) Reset() {
 		return // Monotonic and all subsequent fields are skipped.
 	}
 	e.monotonicEncoder.Reset()
+
+	e.lastVal = Metric{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
@@ -786,6 +796,8 @@ func (e *MetricEncoder) Encode(val *Metric) {
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
 		val.markUnmodifiedRecursively()
+
+		e.lastValPtr = entry.val
 		return
 	}
 
@@ -799,6 +811,11 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	e.buf.WriteBit(1)
 	bitCount += 1
 	// TODO: optimize and merge WriteBit with the following WriteBits.
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
+
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
 
@@ -828,41 +845,49 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	if fieldMask&fieldModifiedMetricName != 0 {
 		// Encode Name
 		e.nameEncoder.Encode(val.name)
+
 	}
 
 	if fieldMask&fieldModifiedMetricDescription != 0 {
 		// Encode Description
 		e.descriptionEncoder.Encode(val.description)
+
 	}
 
 	if fieldMask&fieldModifiedMetricUnit != 0 {
 		// Encode Unit
 		e.unitEncoder.Encode(val.unit)
+
 	}
 
 	if fieldMask&fieldModifiedMetricType != 0 {
 		// Encode Type
 		e.type_Encoder.Encode(val.type_)
+
 	}
 
 	if fieldMask&fieldModifiedMetricMetadata != 0 {
 		// Encode Metadata
 		e.metadataEncoder.Encode(&val.metadata)
+
 	}
 
 	if fieldMask&fieldModifiedMetricHistogramBounds != 0 {
 		// Encode HistogramBounds
 		e.histogramBoundsEncoder.Encode(&val.histogramBounds)
+
 	}
 
 	if fieldMask&fieldModifiedMetricAggregationTemporality != 0 {
 		// Encode AggregationTemporality
 		e.aggregationTemporalityEncoder.Encode(val.aggregationTemporality)
+
 	}
 
 	if fieldMask&fieldModifiedMetricMonotonic != 0 {
 		// Encode Monotonic
 		e.monotonicEncoder.Encode(val.monotonic)
+
 	}
 
 	// Account written bits in the limiter.
@@ -871,6 +896,9 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
+	e.lastValPtr = valInDict
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -950,6 +978,7 @@ type MetricDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Metric
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -973,7 +1002,8 @@ type MetricDecoder struct {
 	dict *MetricDecoderDict
 
 	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack MetricDecoderLastValStack
+	//lastValStack MetricDecoderLastValStack
+
 }
 type MetricDecoderLastValStack []*MetricDecoderLastValElem
 
@@ -1049,8 +1079,6 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 
 	d.column = columns.Column()
 	d.dict = &state.Metric
-
-	d.lastValStack.init()
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.
@@ -1218,13 +1246,12 @@ func (d *MetricDecoder) Reset() {
 		return // Monotonic and all subsequent fields are skipped.
 	}
 	d.monotonicDecoder.Reset()
-	d.lastValStack.reset()
+
+	d.lastVal = nil
 }
 
 func (d *MetricDecoder) Decode(dstPtr **Metric) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
+
 	// Check if the Metric exists in the dictionary.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
@@ -1232,15 +1259,23 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		lastVal.ptr = d.dict.dict[refNum]
-		*dstPtr = lastVal.ptr
+		d.lastVal = d.dict.dict[refNum]
+		//lastVal.ptr = d.dict.dict[refNum]
+		*dstPtr = d.lastVal
 		return nil
 	}
 
 	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := &Metric{}
+	var val *Metric
+	if d.lastVal != nil {
+		val = d.lastVal.Clone()
+	} else {
+		val = &Metric{}
+		val.Init()
+	}
 	*dstPtr = val
+	lastVal := d.lastVal
 
 	var err error
 
@@ -1253,8 +1288,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.name = lastVal.ptr.name
+	} else if lastVal != nil {
+		val.name = lastVal.name
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricDescription != 0 {
@@ -1263,8 +1298,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.description = lastVal.ptr.description
+	} else if lastVal != nil {
+		val.description = lastVal.description
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricUnit != 0 {
@@ -1273,8 +1308,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.unit = lastVal.ptr.unit
+	} else if lastVal != nil {
+		val.unit = lastVal.unit
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricType != 0 {
@@ -1283,8 +1318,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.type_ = lastVal.ptr.type_
+	} else if lastVal != nil {
+		val.type_ = lastVal.type_
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricMetadata != 0 {
@@ -1293,8 +1328,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.metadata = lastVal.ptr.metadata
+	} else if lastVal != nil {
+		val.metadata = lastVal.metadata
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricHistogramBounds != 0 {
@@ -1303,8 +1338,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.histogramBounds = lastVal.ptr.histogramBounds
+	} else if lastVal != nil {
+		val.histogramBounds = lastVal.histogramBounds
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricAggregationTemporality != 0 {
@@ -1313,8 +1348,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.aggregationTemporality = lastVal.ptr.aggregationTemporality
+	} else if lastVal != nil {
+		val.aggregationTemporality = lastVal.aggregationTemporality
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricMonotonic != 0 {
@@ -1323,11 +1358,11 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 		if err != nil {
 			return err
 		}
-	} else if lastVal.ptr != nil {
-		val.monotonic = lastVal.ptr.monotonic
+	} else if lastVal != nil {
+		val.monotonic = lastVal.monotonic
 	}
 
-	lastVal.ptr = val
+	d.lastVal = val
 	d.dict.dict = append(d.dict.dict, val)
 
 	return nil

@@ -344,8 +344,11 @@ func CmpEvent(left, right *Event) int {
 
 // EventEncoder implements encoding of Event
 type EventEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           Event
+	lastValPtr        *Event
+	lastEncodedValPtr *Event
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -375,6 +378,9 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.EventEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -457,11 +463,20 @@ func (e *EventEncoder) Reset() {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
 	e.droppedAttributesCountEncoder.Reset()
+
+	e.lastVal = Event{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *EventEncoder) Encode(val *Event) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -488,21 +503,33 @@ func (e *EventEncoder) Encode(val *Event) {
 	if fieldMask&fieldModifiedEventName != 0 {
 		// Encode Name
 		e.nameEncoder.Encode(val.name)
+
+		e.lastVal.name = val.name
+
 	}
 
 	if fieldMask&fieldModifiedEventTimeUnixNano != 0 {
 		// Encode TimeUnixNano
 		e.timeUnixNanoEncoder.Encode(val.timeUnixNano)
+
+		e.lastVal.timeUnixNano = val.timeUnixNano
+
 	}
 
 	if fieldMask&fieldModifiedEventAttributes != 0 {
 		// Encode Attributes
 		e.attributesEncoder.Encode(&val.attributes)
+
+		copyAttributes(&e.lastVal.attributes, &val.attributes)
+
 	}
 
 	if fieldMask&fieldModifiedEventDroppedAttributesCount != 0 {
 		// Encode DroppedAttributesCount
 		e.droppedAttributesCountEncoder.Encode(val.droppedAttributesCount)
+
+		e.lastVal.droppedAttributesCount = val.droppedAttributesCount
+
 	}
 
 	// Account written bits in the limiter.
@@ -511,6 +538,7 @@ func (e *EventEncoder) Encode(val *Event) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -557,6 +585,7 @@ type EventDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *Event
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -679,6 +708,7 @@ func (d *EventDecoder) Reset() {
 	}
 	d.droppedAttributesCountDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *EventDecoder) Decode(dstPtr *Event) error {

@@ -241,8 +241,11 @@ func CmpQuantileValue(left, right *QuantileValue) int {
 
 // QuantileValueEncoder implements encoding of QuantileValue
 type QuantileValueEncoder struct {
-	buf     pkg.BitsWriter
-	limiter *pkg.SizeLimiter
+	buf               pkg.BitsWriter
+	limiter           *pkg.SizeLimiter
+	lastVal           QuantileValue
+	lastValPtr        *QuantileValue
+	lastEncodedValPtr *QuantileValue
 
 	// forceModifiedFields is set to true if the next encoding operation
 	// must write all fields, whether they are modified or no.
@@ -267,6 +270,9 @@ func (e *QuantileValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 	defer func() { state.QuantileValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 
 	// Number of fields in the output data schema.
 	var err error
@@ -312,11 +318,20 @@ func (e *QuantileValueEncoder) Reset() {
 		return // Value and all subsequent fields are skipped.
 	}
 	e.valueEncoder.Reset()
+
+	e.lastVal = QuantileValue{}
+	e.lastVal.Init()
+	e.lastValPtr = &e.lastVal
 }
 
 // Encode encodes val into buf
 func (e *QuantileValueEncoder) Encode(val *QuantileValue) {
 	var bitCount uint
+
+	if val != e.lastEncodedValPtr {
+		e.lastEncodedValPtr = val
+		val.markDiffModified(e.lastValPtr)
+	}
 
 	// Mask that describes what fields are encoded. Start with all modified fields.
 	fieldMask := val.modifiedFields.mask
@@ -341,11 +356,17 @@ func (e *QuantileValueEncoder) Encode(val *QuantileValue) {
 	if fieldMask&fieldModifiedQuantileValueQuantile != 0 {
 		// Encode Quantile
 		e.quantileEncoder.Encode(val.quantile)
+
+		e.lastVal.quantile = val.quantile
+
 	}
 
 	if fieldMask&fieldModifiedQuantileValueValue != 0 {
 		// Encode Value
 		e.valueEncoder.Encode(val.value)
+
+		e.lastVal.value = val.value
+
 	}
 
 	// Account written bits in the limiter.
@@ -354,6 +375,7 @@ func (e *QuantileValueEncoder) Encode(val *QuantileValue) {
 	// Mark all fields non-modified so that next Encode() correctly
 	// encodes only fields that change after this.
 	val.modifiedFields.mask = 0
+
 }
 
 // CollectColumns collects all buffers from all encoders into buf.
@@ -383,6 +405,7 @@ type QuantileValueDecoder struct {
 	buf    pkg.BitsReader
 	column *pkg.ReadableColumn
 
+	lastVal    *QuantileValue
 	fieldCount uint
 
 	quantileDecoder encoders.Float64Decoder
@@ -455,6 +478,7 @@ func (d *QuantileValueDecoder) Reset() {
 	}
 	d.valueDecoder.Reset()
 
+	d.lastVal = nil
 }
 
 func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
