@@ -39,6 +39,22 @@ public class PointValue {
         
     }
 
+    void reset() {
+        typ = Type.TypeNone;
+        
+        
+        
+        if (histogram != null) {
+            histogram.reset();
+        }
+        if (expHistogram != null) {
+            expHistogram.reset();
+        }
+        if (summary != null) {
+            summary.reset();
+        }
+    }
+
     // Type enum for oneof
     public enum Type {
         TypeNone(0),
@@ -201,12 +217,6 @@ public class PointValue {
         }
     }
 
-    void markUnmodified() {
-        this.histogram.markUnmodified();
-        this.expHistogram.markUnmodified();
-        this.summary.markUnmodified();
-    }
-
     void markModifiedRecursively() {
         switch (this.typ) {
         case TypeInt64:
@@ -245,50 +255,6 @@ public class PointValue {
         default:
             break;
         }
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(PointValue v) {
-        if (this.typ != v.typ) {
-            this.markModifiedRecursively();
-            return true;
-        }
-
-        boolean modified = false;
-        switch (this.typ) {
-        case TypeInt64:
-            if (!Types.Int64Equal(this.int64, v.int64)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeFloat64:
-            if (!Types.Float64Equal(this.float64, v.float64)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeHistogram:
-            if (this.histogram.markDiffModified(v.histogram)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeExpHistogram:
-            if (this.expHistogram.markDiffModified(v.expHistogram)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeSummary:
-            if (this.summary.markDiffModified(v.summary)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        }
-        return modified;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

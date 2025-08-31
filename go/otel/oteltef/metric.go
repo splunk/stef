@@ -67,6 +67,24 @@ func (s *Metric) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.histogramBounds.init(&s.modifiedFields, fieldModifiedMetricHistogramBounds)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Metric) reset() {
+
+	s.metadata.reset()
+	s.histogramBounds.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Metric) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.metadata.fixParent(&s.modifiedFields)
+	s.histogramBounds.fixParent(&s.modifiedFields)
+}
+
 func (s *Metric) Name() string {
 	return s.name
 }
@@ -291,52 +309,6 @@ func (s *Metric) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Metric) markDiffModified(v *Metric) (modified bool) {
-	if !pkg.StringEqual(s.name, v.name) {
-		s.markNameModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.description, v.description) {
-		s.markDescriptionModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.unit, v.unit) {
-		s.markUnitModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.type_, uint64(v.type_)) {
-		s.markTypeModified()
-		modified = true
-	}
-
-	if s.metadata.markDiffModified(&v.metadata) {
-		s.modifiedFields.markModified(fieldModifiedMetricMetadata)
-		modified = true
-	}
-
-	if s.histogramBounds.markDiffModified(&v.histogramBounds) {
-		s.modifiedFields.markModified(fieldModifiedMetricHistogramBounds)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.aggregationTemporality, v.aggregationTemporality) {
-		s.markAggregationTemporalityModified()
-		modified = true
-	}
-
-	if !pkg.BoolEqual(s.monotonic, v.monotonic) {
-		s.markMonotonicModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Metric) Clone() *Metric {
 	return &Metric{
 		name:                   s.name,
@@ -375,12 +347,6 @@ func (s *Metric) CopyFrom(src *Metric) {
 
 func (s *Metric) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Metric) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.metadata.markUnmodified()
-	s.histogramBounds.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -949,8 +915,6 @@ func (e *MetricEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type MetricDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Metric
-	lastVal    Metric
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -991,9 +955,6 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Metric
 
 	if d.fieldCount <= 0 {
@@ -1165,22 +1126,20 @@ func (d *MetricDecoder) Reset() {
 }
 
 func (d *MetricDecoder) Decode(dstPtr **Metric) error {
-	// Check if the Metric exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		*dstPtr = d.dict.dict[refNum]
 		return nil
 	}
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

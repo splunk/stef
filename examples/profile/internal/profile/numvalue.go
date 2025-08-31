@@ -51,6 +51,19 @@ func (s *NumValue) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *NumValue) reset() {
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+}
+
 func (s *NumValue) Val() int64 {
 	return s.val
 }
@@ -117,22 +130,6 @@ func (s *NumValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *NumValue) markDiffModified(v *NumValue) (modified bool) {
-	if !pkg.Int64Equal(s.val, v.val) {
-		s.markValModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.unit, v.unit) {
-		s.markUnitModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *NumValue) Clone() NumValue {
 	return NumValue{
 		val:  s.val,
@@ -159,10 +156,6 @@ func (s *NumValue) CopyFrom(src *NumValue) {
 
 func (s *NumValue) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *NumValue) markUnmodified() {
-	s.modifiedFields.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -382,8 +375,6 @@ func (e *NumValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type NumValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *NumValue
-	lastVal    NumValue
 	fieldCount uint
 
 	valDecoder encoders.Int64Decoder
@@ -408,9 +399,6 @@ func (d *NumValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Val and subsequent fields are skipped.

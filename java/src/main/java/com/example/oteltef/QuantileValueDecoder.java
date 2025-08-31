@@ -12,7 +12,6 @@ import java.io.IOException;
 class QuantileValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private QuantileValue lastVal;
     private int fieldCount;
 
     
@@ -34,8 +33,6 @@ class QuantileValueDecoder {
             fieldCount = state.getStructFieldCounts().getQuantileValueFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new QuantileValue(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Quantile and subsequent fields are skipped.

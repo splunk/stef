@@ -29,6 +29,19 @@ func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifi
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *{{.ArrayName}}) reset() {
+    e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *{{.ArrayName}}) fixParent(parentModifiedFields *modifiedFields) {
+    e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of {{ .ArrayName }}
 func (e *{{.ArrayName}}) Clone() {{ .ArrayName }} {
     var clone {{ .ArrayName }}
@@ -75,10 +88,6 @@ func (e* {{.ArrayName}}) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e* {{.ArrayName}}) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e* {{.ArrayName}}) markModifiedRecursively() {
 {{if not .ElemType.IsPrimitive -}}
 	for i:=0; i < len(e.elems); i++ {
@@ -93,42 +102,6 @@ func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 		e.elems[i].markUnmodifiedRecursively()
 	}
 {{end}}
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e* {{.ArrayName}}) markDiffModified(v *{{.ArrayName}}) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i:=0; i < minLen; i++ {
-		{{- if .ElemType.IsPrimitive -}}
-		if !{{ .ElemType.EqualFunc }}(e.elems[i], {{.ElemType.ToStorage "v.elems[i]"}}) {
-			modified = true
-		}
-		{{else}}
-		if e.elems[i].markDiffModified(v.elems[i]) {
-			modified = true
-		}
-		{{- end}}
-	}
-
-	{{if not .ElemType.IsPrimitive -}}
-	// Mark the rest of the elements as modified.
-	for i:=minLen; i<len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
-	}
-	{{end}}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
@@ -289,76 +262,7 @@ type {{ .ArrayName }}Encoder struct {
 	elemEncoder *{{.ElemType.EncoderType}}Encoder
     isRecursive bool
 	state* WriterState
-
-	{{- if .ElemType.IsPrimitive}}
-	prevLen int
-	{{- else}}
-	// lastValStack are last encoded values stacked by the level of recursion.
-	lastValStack {{ .ArrayName }}EncoderLastValStack
-	{{- end}}
 }
-
-{{- if not .ElemType.IsPrimitive}}
-type {{ .ArrayName }}EncoderLastValStack []*{{ .ArrayName }}EncoderLastValElem
-
-func (s* {{ .ArrayName }}EncoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s* {{ .ArrayName }}EncoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i:=0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s* {{ .ArrayName }}EncoderLastValStack) top() *{{ .ArrayName }}EncoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s* {{ .ArrayName }}EncoderLastValStack) addOnTopSlow() {
-	elem := &{{ .ArrayName }}EncoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i:=len(*s); i< len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &{{ .ArrayName }}EncoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s* {{ .ArrayName }}EncoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s* {{ .ArrayName }}EncoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type {{ .ArrayName }}EncoderLastValElem struct {
-	prevLen int
-	elem {{.ElemType.Storage}}
-	modifiedFields modifiedFields
-}
-
-func (e *{{ .ArrayName }}EncoderLastValElem) init() {
-	e.elem.init(&e.modifiedFields, 1)
-}
-
-func (e *{{ .ArrayName }}EncoderLastValElem) reset() {
-	e.elem = {{.ElemType.Storage}}{}
-	e.prevLen = 0
-}
-{{- end}}
 
 func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteColumnSet) error {
 	e.state = state
@@ -387,7 +291,6 @@ func (e *{{ .ArrayName }}Encoder) Init(state* WriterState, columns *pkg.WriteCol
 			return err
 		}
 	}
-	e.lastValStack.init()
 	{{- end}}
 
 	return nil
@@ -397,56 +300,19 @@ func (e *{{ .ArrayName }}Encoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-	{{if .ElemType.IsPrimitive -}}
-	e.prevLen = 0
-	{{- else}}
-	e.lastValStack.reset()
-	{{- end}}
 }
 
 func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
-	{{- if not .ElemType.IsPrimitive -}}
-	lastVal := e.lastValStack.top()
-	e.lastValStack.addOnTop()
-	defer func() { e.lastValStack.removeFromTop() }()
-	{{- end}}
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	{{if .ElemType.IsPrimitive -}}
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
-	{{- else}}
-	lenDelta := newLen - lastVal.prevLen
-	lastVal.prevLen = newLen
-	{{- end}}
+    // Write the length of the array.
+	newLen := len(arr.elems)
+    e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			{{- if .ElemType.IsPrimitive}}
-			e.elemEncoder.Encode(arr.elems[i])
-			{{- else}}
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
-
-			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
-			{{- end}}
-		}
-
-		{{- if not .ElemType.IsPrimitive}}
-		// Remember last encoded element.
-		copy{{.ElemType.TypeName}}(&lastVal.elem, arr.elems[len(arr.elems)-1])
-		{{- end}}
-	}
+    // Encode the elements of the array.
+    for i := 0; i < newLen; i++ {
+        e.elemEncoder.Encode(arr.elems[i])
+    }
 
 	// Account written bits in the limiter.
 	newBitLen := e.buf.BitCount()
@@ -465,78 +331,7 @@ type {{ .ArrayName }}Decoder struct {
 	column *pkg.ReadableColumn
 	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
-
-	{{- if .ElemType.IsPrimitive}}
-	prevLen int
-	{{- else}}
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack {{ .ArrayName }}DecoderLastValStack
-	{{- end}}
 }
-
-{{- if not .ElemType.IsPrimitive}}
-type {{ .ArrayName }}DecoderLastValStack []*{{ .ArrayName }}DecoderLastValElem
-
-func (s* {{ .ArrayName }}DecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s* {{ .ArrayName }}DecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i:=0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s* {{ .ArrayName }}DecoderLastValStack) top() *{{ .ArrayName }}DecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s* {{ .ArrayName }}DecoderLastValStack) addOnTopSlow() {
-	elem := &{{ .ArrayName }}DecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i:=len(*s); i< len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &{{ .ArrayName }}DecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s* {{ .ArrayName }}DecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s* {{ .ArrayName }}DecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type {{ .ArrayName }}DecoderLastValElem struct {
-	prevLen int
-	elem {{if .ElemType.Flags.StoreByPtr}}*{{end}}{{.ElemType.Storage}}
-	{{if .ElemType.Flags.StoreByPtr}}elemStorage {{.ElemType.Storage}}{{end}}
-}
-
-func (e *{{ .ArrayName }}DecoderLastValElem) init() {
-	{{- if .ElemType.Flags.StoreByPtr}}
-	e.elem = &e.elemStorage
-	{{end}}
-}
-
-func (e *{{ .ArrayName }}DecoderLastValElem) reset() {
-	e.prevLen = 0
-	{{if .ElemType.Flags.StoreByPtr}}*{{end}}e.elem = {{.ElemType.Storage}}{}
-}
-{{- end}}
 
 // Init is called once in the lifetime of the stream.
 func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColumnSet) error {
@@ -571,7 +366,6 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 			return err
 		}
 	}
-	d.lastValStack.init()
 {{- end}}
 
 	return nil
@@ -593,29 +387,10 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	{{if .ElemType.IsPrimitive -}}
-	d.prevLen = 0
-	{{- else -}}
-	d.lastValStack.reset()
-	{{- end}}
 }
 
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
-	{{- if not .ElemType.IsPrimitive -}}
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
-	{{- end}}
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	{{if .ElemType.IsPrimitive -}}
-	newLen := d.prevLen + int(lenDelta)
-	d.prevLen = newLen
-	{{- else}}
-	newLen := lastVal.prevLen + int(lenDelta)
-	lastVal.prevLen = newLen
-	{{- end}}
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 
@@ -626,11 +401,10 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}lastVal.elem)
+		err := d.elemDecoder.Decode({{if .ElemType.DictName}}&{{end}}dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copy{{.ElemType.TypeName}}(dst.elems[i], {{if not .ElemType.Flags.StoreByPtr}}&{{end}}lastVal.elem)
 		{{- end}}
 	}
 

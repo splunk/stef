@@ -62,6 +62,16 @@ public class {{ .StructName }} {
         {{- end }}
     }
 
+    void reset() {
+        {{ range .Fields }}
+        {{- if .Type.IsPrimitive }}
+        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
+        {{- else}}
+        {{.name}}.reset();
+        {{- end }}
+        {{- end }}
+    }
+
     {{ range .Fields }}
     public {{.Type.Exported}} get{{.Name}}() {
         {{- if .Type.IsPrimitive}}
@@ -114,17 +124,6 @@ public class {{ .StructName }} {
     }
     {{ end}}
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        {{- range .Fields }}
-        {{- if not .Type.IsPrimitive}}
-        if (this.is{{.Name}}Modified()) {
-            this.{{.name}}.markUnmodified();
-        }
-        {{- end}}
-        {{- end }}
-    }
-
     void markModifiedRecursively() {
         {{- range .Fields }}
         {{- if not .Type.IsPrimitive}}
@@ -145,30 +144,6 @@ public class {{ .StructName }} {
         {{- end}}
         {{- end }}
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified({{ $.StructName }} v) {
-        boolean modified = false;
-        {{- range .Fields }}
-        {{- if .Type.IsPrimitive}}
-        if (!{{ .Type.EqualFunc }}({{.name}}, v.{{.name}})
-            {{- if .Optional}}|| (optionalFieldsPresent & fieldPresent{{.Name}})==0{{end}}) {
-            mark{{.Name}}Modified();
-            {{- if .Optional}}
-            optionalFieldsPresent |= fieldPresent{{.Name}};
-            {{- end}}
-            modified = true;
-        }
-        {{- else}}
-        if ({{.name}}.markDiffModified(v.{{.name}})) {
-            modifiedFields.markModified(fieldModified{{.Name}});
-            modified = true;
-        }
-        {{- end}}
-        {{ end }}
-        return modified;
     }
 
     public {{.StructName}} clone() {

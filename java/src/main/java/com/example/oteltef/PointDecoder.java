@@ -12,7 +12,6 @@ import java.io.IOException;
 class PointDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Point lastVal;
     private int fieldCount;
 
     
@@ -38,8 +37,6 @@ class PointDecoder {
             fieldCount = state.getStructFieldCounts().getPointFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Point(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // StartTimestamp and subsequent fields are skipped.

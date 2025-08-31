@@ -14,8 +14,6 @@ class AnyValueArrayDecoder {
     private ReadableColumn column;
     private AnyValueDecoder elemDecoder;
     private boolean isRecursive = false;
-    // lastValStack are last decoded values stacked by the level of recursion.
-    private AnyValueArrayEncoder.LastValStack lastValStack;
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
@@ -33,7 +31,6 @@ class AnyValueArrayDecoder {
                 elemDecoder = new AnyValueDecoder();
                 elemDecoder.init(state, columns.addSubColumn());
             }
-            this.lastValStack = new AnyValueArrayEncoder.LastValStack();
         } finally {
             state.AnyValueArrayDecoder = null;
         }
@@ -55,37 +52,22 @@ class AnyValueArrayDecoder {
         if (!isRecursive) {
             elemDecoder.reset();
         }
-        lastValStack.reset();
     }
 
     public AnyValueArray decode(AnyValueArray dst) throws IOException {
-        AnyValueArrayEncoder.LastValElem lastVal = lastValStack.top();
-        lastValStack.addOnTop();
-        try {
-            long lenDelta = buf.readVarintCompact();
-            
-            long newLen = lastVal.prevLen + lenDelta;
-            lastVal.prevLen = newLen;
+        long newLen = buf.readUvarintCompact();
+        if (newLen < 0) {
+            throw new IllegalStateException("Invalid array length: " + newLen);
+        }
+        if (newLen > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+        }
 
-            if (newLen < 0) {
-                throw new IllegalStateException("Invalid array length: " + newLen);
-            }
-            if (newLen > Integer.MAX_VALUE) {
-                throw new IllegalStateException("Array length exceeds maximum: " + newLen);
-            }
-
-            dst.ensureLen((int)newLen);
-            for (int i = 0; i < newLen; i++) {
-                
-                lastVal.elem = elemDecoder.decode(lastVal.elem);
-                dst.elems[i].copyFrom(lastVal.elem);
-                
-            }
-        } finally {
-            lastValStack.removeFromTop();
+        dst.ensureLen((int)newLen);
+        for (int i = 0; i < newLen; i++) {
+            dst.elems[i] = elemDecoder.decode(dst.elems[i]);
         }
 
         return dst;
     }
 }
-

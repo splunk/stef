@@ -80,6 +80,24 @@ public class Span {
         status = new SpanStatus(modifiedFields, fieldModifiedStatus);
     }
 
+    void reset() {
+        
+        traceID = Types.emptyBytes;
+        spanID = Types.emptyBytes;
+        traceState = StringValue.empty;
+        parentSpanID = Types.emptyBytes;
+        
+        name = StringValue.empty;
+        
+        
+        
+        attributes.reset();
+        
+        events.reset();
+        links.reset();
+        status.reset();
+    }
+
     
     public byte[] getTraceID() {
         return traceID;
@@ -386,22 +404,6 @@ public class Span {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-        if (this.isEventsModified()) {
-            this.events.markUnmodified();
-        }
-        if (this.isLinksModified()) {
-            this.links.markUnmodified();
-        }
-        if (this.isStatusModified()) {
-            this.status.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         events.markModifiedRecursively();
@@ -438,83 +440,6 @@ public class Span {
             status.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Span v) {
-        boolean modified = false;
-        if (!Types.BytesEqual(traceID, v.traceID)) {
-            markTraceIDModified();
-            modified = true;
-        }
-        
-        if (!Types.BytesEqual(spanID, v.spanID)) {
-            markSpanIDModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(traceState, v.traceState)) {
-            markTraceStateModified();
-            modified = true;
-        }
-        
-        if (!Types.BytesEqual(parentSpanID, v.parentSpanID)) {
-            markParentSpanIDModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(flags, v.flags)) {
-            markFlagsModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(name, v.name)) {
-            markNameModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(kind, v.kind)) {
-            markKindModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(startTimeUnixNano, v.startTimeUnixNano)) {
-            markStartTimeUnixNanoModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(endTimeUnixNano, v.endTimeUnixNano)) {
-            markEndTimeUnixNanoModified();
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
-            markDroppedAttributesCountModified();
-            modified = true;
-        }
-        
-        if (events.markDiffModified(v.events)) {
-            modifiedFields.markModified(fieldModifiedEvents);
-            modified = true;
-        }
-        
-        if (links.markDiffModified(v.links)) {
-            modifiedFields.markModified(fieldModifiedLinks);
-            modified = true;
-        }
-        
-        if (status.markDiffModified(v.status)) {
-            modifiedFields.markModified(fieldModifiedStatus);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Span clone() {

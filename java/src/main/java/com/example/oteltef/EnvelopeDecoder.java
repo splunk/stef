@@ -12,7 +12,6 @@ import java.io.IOException;
 class EnvelopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Envelope lastVal;
     private int fieldCount;
 
     
@@ -32,8 +31,6 @@ class EnvelopeDecoder {
             fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Envelope(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Attributes and subsequent fields are skipped.

@@ -78,6 +78,24 @@ func (s *ExpHistogramValue) init(parentModifiedFields *modifiedFields, parentMod
 	s.negativeBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *ExpHistogramValue) reset() {
+
+	s.positiveBuckets.reset()
+	s.negativeBuckets.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *ExpHistogramValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.positiveBuckets.fixParent(&s.modifiedFields)
+	s.negativeBuckets.fixParent(&s.modifiedFields)
+}
+
 func (s *ExpHistogramValue) Count() uint64 {
 	return s.count
 }
@@ -372,60 +390,6 @@ func (s *ExpHistogramValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *ExpHistogramValue) markDiffModified(v *ExpHistogramValue) (modified bool) {
-	if !pkg.Uint64Equal(s.count, v.count) {
-		s.markCountModified()
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.sum, v.sum) || s.optionalFieldsPresent&fieldPresentExpHistogramValueSum == 0 {
-		s.markSumModified()
-		s.optionalFieldsPresent |= fieldPresentExpHistogramValueSum
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.min, v.min) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMin == 0 {
-		s.markMinModified()
-		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMin
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.max, v.max) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMax == 0 {
-		s.markMaxModified()
-		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMax
-		modified = true
-	}
-
-	if !pkg.Int64Equal(s.scale, v.scale) {
-		s.markScaleModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.zeroCount, v.zeroCount) {
-		s.markZeroCountModified()
-		modified = true
-	}
-
-	if s.positiveBuckets.markDiffModified(&v.positiveBuckets) {
-		s.modifiedFields.markModified(fieldModifiedExpHistogramValuePositiveBuckets)
-		modified = true
-	}
-
-	if s.negativeBuckets.markDiffModified(&v.negativeBuckets) {
-		s.modifiedFields.markModified(fieldModifiedExpHistogramValueNegativeBuckets)
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.zeroThreshold, v.zeroThreshold) {
-		s.markZeroThresholdModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *ExpHistogramValue) Clone() ExpHistogramValue {
 	return ExpHistogramValue{
 		count:           s.count,
@@ -482,12 +446,6 @@ func (s *ExpHistogramValue) CopyFrom(src *ExpHistogramValue) {
 
 func (s *ExpHistogramValue) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *ExpHistogramValue) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.positiveBuckets.markUnmodified()
-	s.negativeBuckets.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -1103,8 +1061,6 @@ func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 type ExpHistogramValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *ExpHistogramValue
-	lastVal    ExpHistogramValue
 	fieldCount uint
 
 	countDecoder encoders.Uint64Decoder
@@ -1145,9 +1101,6 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.

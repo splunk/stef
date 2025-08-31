@@ -12,7 +12,6 @@ import java.io.IOException;
 class EventDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Event lastVal;
     private int fieldCount;
 
     
@@ -38,8 +37,6 @@ class EventDecoder {
             fieldCount = state.getStructFieldCounts().getEventFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Event(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.

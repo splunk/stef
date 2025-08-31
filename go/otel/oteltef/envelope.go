@@ -50,6 +50,22 @@ func (s *Envelope) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.attributes.init(&s.modifiedFields, fieldModifiedEnvelopeAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Envelope) reset() {
+
+	s.attributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Envelope) Attributes() *EnvelopeAttributes {
 	return &s.attributes
 }
@@ -83,17 +99,6 @@ func (s *Envelope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Envelope) markDiffModified(v *Envelope) (modified bool) {
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedEnvelopeAttributes)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Envelope) Clone() Envelope {
 	return Envelope{
 		attributes: s.attributes.Clone(),
@@ -118,11 +123,6 @@ func (s *Envelope) CopyFrom(src *Envelope) {
 
 func (s *Envelope) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Envelope) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -310,8 +310,6 @@ func (e *EnvelopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type EnvelopeDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Envelope
-	lastVal    Envelope
 	fieldCount uint
 
 	attributesDecoder     *EnvelopeAttributesDecoder
@@ -335,9 +333,6 @@ func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Attributes and subsequent fields are skipped.

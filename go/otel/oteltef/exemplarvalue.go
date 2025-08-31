@@ -40,6 +40,20 @@ func (s *ExemplarValue) init(parentModifiedFields *modifiedFields, parentModifie
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *ExemplarValue) reset() {
+	s.typ = ExemplarValueTypeNone
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *ExemplarValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.parentModifiedFields = parentModifiedFields
+
+}
+
 type ExemplarValueType byte
 
 const (
@@ -130,9 +144,6 @@ func (s *ExemplarValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *ExemplarValue) markUnmodified() {
-}
-
 func (s *ExemplarValue) markModifiedRecursively() {
 	switch s.typ {
 	case ExemplarValueTypeInt64:
@@ -145,30 +156,6 @@ func (s *ExemplarValue) markUnmodifiedRecursively() {
 	case ExemplarValueTypeInt64:
 	case ExemplarValueTypeFloat64:
 	}
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *ExemplarValue) markDiffModified(v *ExemplarValue) (modified bool) {
-	if s.typ != v.typ {
-		modified = true
-		s.markModifiedRecursively()
-		return modified
-	}
-
-	switch s.typ {
-	case ExemplarValueTypeInt64:
-		if !pkg.Int64Equal(s.int64, v.int64) {
-			s.markParentModified()
-			modified = true
-		}
-	case ExemplarValueTypeFloat64:
-		if !pkg.Float64Equal(s.float64, v.float64) {
-			s.markParentModified()
-			modified = true
-		}
-	}
-	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

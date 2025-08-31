@@ -37,6 +37,19 @@ public class {{ .StructName }} {
         {{- end }}
     }
 
+    void reset() {
+        typ = Type.TypeNone;
+        {{ range .Fields }}
+        {{- if .Type.IsPrimitive }}
+        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
+        {{- else}}
+        if ({{.name}} != null) {
+            {{.name}}.reset();
+        }
+        {{- end }}
+        {{- end }}
+    }
+
     // Type enum for oneof
     public enum Type {
         TypeNone(0),
@@ -146,14 +159,6 @@ public class {{ .StructName }} {
         }
     }
 
-    void markUnmodified() {
-        {{- range .Fields }}
-        {{- if not .Type.IsPrimitive }}
-        this.{{.name}}.markUnmodified();
-        {{- end }}
-        {{- end }}
-    }
-
     void markModifiedRecursively() {
         switch (this.typ) {
         {{- range .Fields }}
@@ -180,35 +185,6 @@ public class {{ .StructName }} {
         default:
             break;
         }
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified({{ $.StructName }} v) {
-        if (this.typ != v.typ) {
-            this.markModifiedRecursively();
-            return true;
-        }
-
-        boolean modified = false;
-        switch (this.typ) {
-        {{- range .Fields }}
-        case Type{{.Name}}:
-            {{- if .Type.IsPrimitive}}
-            if (!{{ .Type.EqualFunc }}(this.{{.name}}, {{.Type.ToStorage (print "v." .name)}})) {
-                this.markParentModified();
-                modified = true;
-            }
-            {{- else}}
-            if (this.{{.name}}.markDiffModified(v.{{.name}})) {
-                this.markParentModified();
-                modified = true;
-            }
-            {{- end}}
-            break;
-        {{- end }}
-        }
-        return modified;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

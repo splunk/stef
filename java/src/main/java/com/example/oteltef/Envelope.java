@@ -41,6 +41,11 @@ public class Envelope {
         attributes = new EnvelopeAttributes(modifiedFields, fieldModifiedAttributes);
     }
 
+    void reset() {
+        
+        attributes.reset();
+    }
+
     
     public EnvelopeAttributes getAttributes() {
         return this.attributes;
@@ -59,13 +64,6 @@ public class Envelope {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         modifiedFields.mask =
@@ -77,18 +75,6 @@ public class Envelope {
             attributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Envelope v) {
-        boolean modified = false;
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Envelope clone() {

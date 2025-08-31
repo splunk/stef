@@ -17,8 +17,6 @@ class ExemplarArrayEncoder {
     private ExemplarEncoder elemEncoder;
     private WriterState state;
     private boolean isRecursive = false;
-    // lastValStack are last encoded values stacked by the level of recursion.
-    private LastValStack lastValStack;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
@@ -39,7 +37,6 @@ class ExemplarArrayEncoder {
                 elemEncoder = new ExemplarEncoder();
                 elemEncoder.init(state, columns.addSubColumn());
             }
-            this.lastValStack = new LastValStack();
         } finally {
             state.ExemplarArrayEncoder = null;
         }
@@ -49,111 +46,28 @@ class ExemplarArrayEncoder {
         if (!isRecursive) {
             elemEncoder.reset();
         }
-        
-        lastValStack.reset();
     }
 
     public void encode(ExemplarArray arr) throws IOException {
-        LastValElem lastVal = lastValStack.top();
-        lastValStack.addOnTop();
-        try {
-            int newLen = arr.elemsLen;
-            int oldBitLen = buf.bitCount();
-            long lenDelta = newLen - lastVal.prevLen;
-            lastVal.prevLen = newLen;
+        int oldBitLen = buf.bitCount();
 
-            buf.writeVarintCompact(lenDelta);
+        // Write the length of the array.
+        int newLen = arr.elemsLen;
+        buf.writeUvarintCompact(newLen);
 
-            if (newLen > 0) {
-                for (int i = 0; i < newLen; i++) {
-                    if (i == 0) {
-                        // Compute and mark fields that are modified compared to the last encoded value.
-                        arr.elems[i].markDiffModified(lastVal.elem);
-                    } else {
-                        // Compute and mark fields that are modified compared to the previous element.
-                        arr.elems[i].markDiffModified(arr.elems[i - 1]);
-                    }
-
-                    // Encode the element.
-                    elemEncoder.encode(arr.elems[i]);
-                }
-                // Remember last encoded element.
-                lastVal.elem.copyFrom(arr.elems[newLen - 1]);
-            }
-
-            // Account written bits in the limiter.
-            int newBitLen = buf.bitCount();
-            limiter.addFrameBits(newBitLen - oldBitLen);
-        } finally {
-            lastValStack.removeFromTop();
+        for (int i = 0; i < newLen; i++) {
+            elemEncoder.encode(arr.elems[i]);
         }
+
+        // Account written bits in the limiter.
+        int newBitLen = buf.bitCount();
+        limiter.addFrameBits(newBitLen - oldBitLen);
     }
 
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(buf);
         if (!isRecursive) {
             elemEncoder.collectColumns(columnSet.at(0));
-        }
-    }
-    static class LastValStack {
-        private LastValElem []stack;
-        private int stackIndex;
-
-        LastValStack() {
-            // We need one top-level element in the stack to store the last value initially.
-            stack = new LastValElem[1];
-            stack[0] = new LastValElem();
-            stack[0].init();
-            stackIndex = 0;
-        }
-
-        void reset() {
-            // Reset all elements in the stack.
-            for (LastValElem elem : stack) {
-                elem.reset();
-            }
-            // Reset the stack to have one element for top-level.
-            stackIndex = 0;
-        }
-    
-        LastValElem top() {
-            return stack[stackIndex];
-        }
-    
-        void addOnTop() {
-            stackIndex++;
-            if (stackIndex >= stack.length) {
-                // Double the stack size if we run out of space.
-                LastValElem[] newStack = new LastValElem[stack.length * 2];
-                System.arraycopy(stack, 0, newStack, 0, stack.length);
-                stack = newStack;
-                // Initialize new elements in the stack.
-                for (int i = stackIndex; i < stack.length; i++) {
-                    LastValElem newElem = new LastValElem();
-                    newElem.init();
-                    stack[i] = newElem;
-                }
-            }
-        }
-
-        void removeFromTop() {
-            stackIndex--;
-        }
-    }
-    
-    static class LastValElem {
-        long prevLen;
-        Exemplar elem;
-
-        private ModifiedFields modifiedFields = new ModifiedFields();
-    
-        void init() {
-            this.elem = new Exemplar(modifiedFields, 1);
-        }
-    
-        void reset() {
-            this.elem = new Exemplar();
-            this.prevLen = 0;
         }
     }
 }

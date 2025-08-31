@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math/rand/v2"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -131,12 +132,17 @@ func TestWriterFrameLimit(t *testing.T) {
 func mapToTef(m map[string]any, out *oteltef.Attributes) {
 	out.EnsureLen(len(m))
 	i := 0
-	for k, v := range m {
-		valueToTef(v, out.At(i).Value())
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		valueToTef(m[k], out.At(i).Value())
 		out.SetKey(i, k)
 		i++
 	}
-	out.Sort()
 }
 
 func valueToTef(v any, into *oteltef.AnyValue) {

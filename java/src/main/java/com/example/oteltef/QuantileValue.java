@@ -44,6 +44,12 @@ public class QuantileValue {
         
     }
 
+    void reset() {
+        
+        
+        
+    }
+
     
     public double getQuantile() {
         return quantile;
@@ -94,10 +100,6 @@ public class QuantileValue {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-    }
-
     void markModifiedRecursively() {
         modifiedFields.mask =
             fieldModifiedQuantile | 
@@ -106,23 +108,6 @@ public class QuantileValue {
 
     void markUnmodifiedRecursively() {
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(QuantileValue v) {
-        boolean modified = false;
-        if (!Types.Float64Equal(quantile, v.quantile)) {
-            markQuantileModified();
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(value, v.value)) {
-            markValueModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public QuantileValue clone() {

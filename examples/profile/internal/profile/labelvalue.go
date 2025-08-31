@@ -41,6 +41,23 @@ func (s *LabelValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.num.init(parentModifiedFields, parentModifiedBit)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *LabelValue) reset() {
+	s.typ = LabelValueTypeNone
+
+	s.num.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *LabelValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.parentModifiedFields = parentModifiedFields
+
+	s.num.fixParent(parentModifiedFields)
+}
+
 type LabelValueType byte
 
 const (
@@ -123,10 +140,6 @@ func (s *LabelValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *LabelValue) markUnmodified() {
-	s.num.markUnmodified()
-}
-
 func (s *LabelValue) markModifiedRecursively() {
 	switch s.typ {
 	case LabelValueTypeStr:
@@ -141,30 +154,6 @@ func (s *LabelValue) markUnmodifiedRecursively() {
 	case LabelValueTypeNum:
 		s.num.markUnmodifiedRecursively()
 	}
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *LabelValue) markDiffModified(v *LabelValue) (modified bool) {
-	if s.typ != v.typ {
-		modified = true
-		s.markModifiedRecursively()
-		return modified
-	}
-
-	switch s.typ {
-	case LabelValueTypeStr:
-		if !pkg.StringEqual(s.str, v.str) {
-			s.markParentModified()
-			modified = true
-		}
-	case LabelValueTypeNum:
-		if s.num.markDiffModified(&v.num) {
-			s.markParentModified()
-			modified = true
-		}
-	}
-	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

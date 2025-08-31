@@ -44,6 +44,22 @@ public class AnyValue {
         bytes = Types.emptyBytes;
     }
 
+    void reset() {
+        typ = Type.TypeNone;
+        
+        string = StringValue.empty;
+        
+        
+        
+        if (array != null) {
+            array.reset();
+        }
+        if (kVList != null) {
+            kVList.reset();
+        }
+        bytes = Types.emptyBytes;
+    }
+
     // Type enum for oneof
     public enum Type {
         TypeNone(0),
@@ -253,11 +269,6 @@ public class AnyValue {
         }
     }
 
-    void markUnmodified() {
-        this.array.markUnmodified();
-        this.kVList.markUnmodified();
-    }
-
     void markModifiedRecursively() {
         switch (this.typ) {
         case TypeString:
@@ -302,62 +313,6 @@ public class AnyValue {
         default:
             break;
         }
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(AnyValue v) {
-        if (this.typ != v.typ) {
-            this.markModifiedRecursively();
-            return true;
-        }
-
-        boolean modified = false;
-        switch (this.typ) {
-        case TypeString:
-            if (!Types.StringEqual(this.string, v.string)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeBool:
-            if (!Types.BoolEqual(this.bool, v.bool)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeInt64:
-            if (!Types.Int64Equal(this.int64, v.int64)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeFloat64:
-            if (!Types.Float64Equal(this.float64, v.float64)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeArray:
-            if (this.array.markDiffModified(v.array)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeKVList:
-            if (this.kVList.markDiffModified(v.kVList)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        case TypeBytes:
-            if (!Types.BytesEqual(this.bytes, v.bytes)) {
-                this.markParentModified();
-                modified = true;
-            }
-            break;
-        }
-        return modified;
     }
 
     // equals performs deep comparison and returns true if struct is equal to val.

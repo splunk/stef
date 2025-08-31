@@ -50,6 +50,14 @@ public class Event {
         
     }
 
+    void reset() {
+        
+        name = StringValue.empty;
+        
+        attributes.reset();
+        
+    }
+
     
     public StringValue getName() {
         return name;
@@ -140,13 +148,6 @@ public class Event {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         modifiedFields.mask =
@@ -161,33 +162,6 @@ public class Event {
             attributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Event v) {
-        boolean modified = false;
-        if (!Types.StringEqual(name, v.name)) {
-            markNameModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(timeUnixNano, v.timeUnixNano)) {
-            markTimeUnixNanoModified();
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
-            markDroppedAttributesCountModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Event clone() {

@@ -59,6 +59,28 @@ func (s *Sample) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.labels.init(&s.modifiedFields, fieldModifiedSampleLabels)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Sample) reset() {
+
+	s.metadata.reset()
+	s.locations.reset()
+	s.values.reset()
+	s.labels.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Sample) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.metadata.fixParent(&s.modifiedFields)
+	s.locations.fixParent(&s.modifiedFields)
+	s.values.fixParent(&s.modifiedFields)
+	s.labels.fixParent(&s.modifiedFields)
+}
+
 func (s *Sample) Metadata() *ProfileMetadata {
 	return &s.metadata
 }
@@ -161,32 +183,6 @@ func (s *Sample) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Sample) markDiffModified(v *Sample) (modified bool) {
-	if s.metadata.markDiffModified(&v.metadata) {
-		s.modifiedFields.markModified(fieldModifiedSampleMetadata)
-		modified = true
-	}
-
-	if s.locations.markDiffModified(&v.locations) {
-		s.modifiedFields.markModified(fieldModifiedSampleLocations)
-		modified = true
-	}
-
-	if s.values.markDiffModified(&v.values) {
-		s.modifiedFields.markModified(fieldModifiedSampleValues)
-		modified = true
-	}
-
-	if s.labels.markDiffModified(&v.labels) {
-		s.modifiedFields.markModified(fieldModifiedSampleLabels)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Sample) Clone() Sample {
 	return Sample{
 		metadata:  s.metadata.Clone(),
@@ -217,14 +213,6 @@ func (s *Sample) CopyFrom(src *Sample) {
 
 func (s *Sample) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Sample) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.metadata.markUnmodified()
-	s.locations.markUnmodified()
-	s.values.markUnmodified()
-	s.labels.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -586,8 +574,6 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SampleDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Sample
-	lastVal    Sample
 	fieldCount uint
 
 	metadataDecoder     *ProfileMetadataDecoder
@@ -620,9 +606,6 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Metadata and subsequent fields are skipped.

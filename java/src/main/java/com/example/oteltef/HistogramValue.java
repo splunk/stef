@@ -62,6 +62,15 @@ public class HistogramValue {
         bucketCounts = new Int64Array(modifiedFields, fieldModifiedBucketCounts);
     }
 
+    void reset() {
+        
+        
+        
+        
+        
+        bucketCounts.reset();
+    }
+
     
     public long getCount() {
         return count;
@@ -215,13 +224,6 @@ public class HistogramValue {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isBucketCountsModified()) {
-            this.bucketCounts.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         bucketCounts.markModifiedRecursively();
         modifiedFields.mask =
@@ -237,41 +239,6 @@ public class HistogramValue {
             bucketCounts.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(HistogramValue v) {
-        boolean modified = false;
-        if (!Types.Int64Equal(count, v.count)) {
-            markCountModified();
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(sum, v.sum)|| (optionalFieldsPresent & fieldPresentSum)==0) {
-            markSumModified();
-            optionalFieldsPresent |= fieldPresentSum;
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(min, v.min)|| (optionalFieldsPresent & fieldPresentMin)==0) {
-            markMinModified();
-            optionalFieldsPresent |= fieldPresentMin;
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(max, v.max)|| (optionalFieldsPresent & fieldPresentMax)==0) {
-            markMaxModified();
-            optionalFieldsPresent |= fieldPresentMax;
-            modified = true;
-        }
-        
-        if (bucketCounts.markDiffModified(v.bucketCounts)) {
-            modifiedFields.markModified(fieldModifiedBucketCounts);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public HistogramValue clone() {

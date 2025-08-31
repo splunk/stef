@@ -52,6 +52,22 @@ func (s *ExpHistogramBuckets) init(parentModifiedFields *modifiedFields, parentM
 	s.bucketCounts.init(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *ExpHistogramBuckets) reset() {
+
+	s.bucketCounts.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.bucketCounts.fixParent(&s.modifiedFields)
+}
+
 func (s *ExpHistogramBuckets) Offset() int64 {
 	return s.offset
 }
@@ -113,22 +129,6 @@ func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *ExpHistogramBuckets) markDiffModified(v *ExpHistogramBuckets) (modified bool) {
-	if !pkg.Int64Equal(s.offset, v.offset) {
-		s.markOffsetModified()
-		modified = true
-	}
-
-	if s.bucketCounts.markDiffModified(&v.bucketCounts) {
-		s.modifiedFields.markModified(fieldModifiedExpHistogramBucketsBucketCounts)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *ExpHistogramBuckets) Clone() ExpHistogramBuckets {
 	return ExpHistogramBuckets{
 		offset:       s.offset,
@@ -155,11 +155,6 @@ func (s *ExpHistogramBuckets) CopyFrom(src *ExpHistogramBuckets) {
 
 func (s *ExpHistogramBuckets) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *ExpHistogramBuckets) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.bucketCounts.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -392,8 +387,6 @@ func (e *ExpHistogramBucketsEncoder) CollectColumns(columnSet *pkg.WriteColumnSe
 type ExpHistogramBucketsDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *ExpHistogramBuckets
-	lastVal    ExpHistogramBuckets
 	fieldCount uint
 
 	offsetDecoder encoders.Int64Decoder
@@ -419,9 +412,6 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Offset and subsequent fields are skipped.

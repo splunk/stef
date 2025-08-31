@@ -20,9 +20,6 @@ class EnvelopeAttributesEncoder {
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
 
-    
-    private EnvelopeAttributes lastVal = new EnvelopeAttributes();
-
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
         if (state.EnvelopeAttributesEncoder != null) {
@@ -47,98 +44,63 @@ class EnvelopeAttributesEncoder {
         if (!isValueRecursive) {
             valueEncoder.reset();
         }
-        lastVal = new EnvelopeAttributes();
     }
 
-    public boolean encode(EnvelopeAttributes list) throws IOException {
+    public void encode(EnvelopeAttributes list) throws IOException {
         int oldLen = buf.size();
-            if (list.elemsLen == 0) {
-                // Zero-length attr list.
-                buf.writeUvarint(0b1);
 
-                boolean changed = lastVal.elemsLen != 0;
-                lastVal.ensureLen(0);
-
-                limiter.addFrameBytes(buf.size() - oldLen);
-
-                return changed;
-            }
-
-            boolean changed;
-            if (list.isSameKeys(lastVal) && lastVal.elemsLen < 63) {
-                list.markValueDiffModified(lastVal);
-                changed = encodeValuesOnly(lastVal, list);
-            } else {
-                list.markDiffModified(lastVal);
-                encodeFull(lastVal, list);
-                changed = true;
-            }
+        if (list.elemsLen == 0) {
+            // Zero-length attr list.
+            buf.writeUvarint(0b1);
 
             limiter.addFrameBytes(buf.size() - oldLen);
 
-            return changed;
+            return;
+        }
 
-        
+        if (!list.areKeysModified() && list.elemsLen < 63) {
+            encodeValuesOnly(list);
+        } else {
+            encodeFull(list);
+        }
+
+        limiter.addFrameBytes(buf.size() - oldLen);
+
+        // Mark all elems non-modified so that next Encode() correctly
+        // encodes only elems that change after this.
+        list.modifiedElems.markUnmodifiedAll();
     }
 
-    private boolean encodeValuesOnly(EnvelopeAttributes lastVal, EnvelopeAttributes list) throws IOException {
+    private void encodeValuesOnly(EnvelopeAttributes list) throws IOException {
         if (list.elemsLen > 62) {
             throw new UnsupportedOperationException("Not implemented for >62 elements");
         }
 
-        // Calculate changed values.
-        long changedValuesBits = 0;
-        for (int i = 0; i < list.elemsLen; i++) {
-            changedValuesBits <<= 1;
-            if (!Types.BytesEqual(lastVal.elems[i].value, list.elems[i].value)) {
-                changedValuesBits |= 1;
-            }
-            
-        }
+        // The bits that describe the change value are exactly the bits
+       	// that are set in modifiedElems.
+        long changedValuesBits = list.modifiedElems.vals.mask;
 
+        // Record changedValuesBits (LSB is 0 to indicate values-only encoding).
         buf.writeUvarint(changedValuesBits << 1);
 
-        // Encode changed values first.
-        long bitToRead = 1L << (list.elemsLen - 1);
+        // Encode changed values only.
+        long bitToEncode = 1L;
         for (int i = 0; i < list.elemsLen; i++) {
-            if ((bitToRead & changedValuesBits) != 0) {
+            if ((bitToEncode & changedValuesBits) != 0) {
                 valueEncoder.encode(list.elems[i].value);
             }
-            bitToRead >>>= 1;
-            if (bitToRead == 0) {
-                break;
-            }
+            bitToEncode <<= 1;
         }
-
-        // Store changed values in lastVal after encoding.
-        lastVal.ensureLen(list.elemsLen);
-        bitToRead = 1L << (list.elemsLen - 1);
-        for (int i = 0; i < list.elemsLen; i++) {
-            if ((bitToRead & changedValuesBits) != 0) {
-                lastVal.elems[i].value = list.elems[i].value;
-                
-            }
-            bitToRead >>>= 1;
-            if (bitToRead == 0) {
-                break;
-            }
-        }
-        return changedValuesBits != 0;
     }
 
-    private void encodeFull(EnvelopeAttributes lastVal, EnvelopeAttributes list) throws IOException {
+    private void encodeFull(EnvelopeAttributes list) throws IOException {
+        // Record multimap len (LSB is 1 to indicate full encoding).
         buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
 
-        // Encode values first.
+    	// Encode keys and values.
         for (int i = 0; i < list.elemsLen; i++) {
             keyEncoder.encode(list.elems[i].key);
             valueEncoder.encode(list.elems[i].value);
-        }
-
-        lastVal.ensureLen(list.elemsLen);
-        for (int i = 0; i < list.elemsLen; i++) {
-            lastVal.elems[i].key = list.elems[i].key;
-            lastVal.elems[i].value = list.elems[i].value;
         }
     }
 
@@ -149,50 +111,6 @@ class EnvelopeAttributesEncoder {
         }
         if (!isValueRecursive) {
             valueEncoder.collectColumns(columnSet.at(1));
-        }
-    }
-
-    
-    static class LastValStack {
-        private EnvelopeAttributes []stack;
-        private int stackIndex;
-
-        LastValStack() {
-            // We need one top-level element in the stack to store the last value initially.
-            stack = new EnvelopeAttributes[1];
-            stack[0] = new EnvelopeAttributes();
-            stackIndex = 0;
-        }
-
-        void reset() {
-            // Reset all elements in the stack.
-            for (int i=0; i < stack.length; i++) {
-                stack[i] = new EnvelopeAttributes();
-            }
-            // Reset the stack to have one element for top-level.
-            stackIndex = 0;
-        }
-
-        EnvelopeAttributes top() {
-            return stack[stackIndex];
-        }
-    
-        void addOnTop() {
-            stackIndex++;
-            if (stackIndex >= stack.length) {
-                // Double the stack size if we run out of space.
-                EnvelopeAttributes[] newStack = new EnvelopeAttributes[stack.length * 2];
-                System.arraycopy(stack, 0, newStack, 0, stack.length);
-                stack = newStack;
-                // Initialize new elements in the stack.
-                for (int i = stackIndex; i < stack.length; i++) {
-                    stack[i] = new EnvelopeAttributes();
-                }
-            }
-        }
-
-        void removeFromTop() {
-            stackIndex--;
         }
     }
 }

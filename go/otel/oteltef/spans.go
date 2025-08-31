@@ -61,6 +61,28 @@ func (s *Spans) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.span.init(&s.modifiedFields, fieldModifiedSpansSpan)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Spans) reset() {
+
+	s.envelope.reset()
+	s.resource.reset()
+	s.scope.reset()
+	s.span.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.envelope.fixParent(&s.modifiedFields)
+	s.resource.fixParent(&s.modifiedFields)
+	s.scope.fixParent(&s.modifiedFields)
+	s.span.fixParent(&s.modifiedFields)
+}
+
 func (s *Spans) Envelope() *Envelope {
 	return &s.envelope
 }
@@ -163,32 +185,6 @@ func (s *Spans) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Spans) markDiffModified(v *Spans) (modified bool) {
-	if s.envelope.markDiffModified(&v.envelope) {
-		s.modifiedFields.markModified(fieldModifiedSpansEnvelope)
-		modified = true
-	}
-
-	if s.resource.markDiffModified(v.resource) {
-		s.modifiedFields.markModified(fieldModifiedSpansResource)
-		modified = true
-	}
-
-	if s.scope.markDiffModified(v.scope) {
-		s.modifiedFields.markModified(fieldModifiedSpansScope)
-		modified = true
-	}
-
-	if s.span.markDiffModified(&v.span) {
-		s.modifiedFields.markModified(fieldModifiedSpansSpan)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Spans) Clone() Spans {
 	return Spans{
 		envelope: s.envelope.Clone(),
@@ -231,14 +227,6 @@ func (s *Spans) CopyFrom(src *Spans) {
 
 func (s *Spans) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Spans) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.envelope.markUnmodified()
-	s.resource.markUnmodified()
-	s.scope.markUnmodified()
-	s.span.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -600,8 +588,6 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SpansDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Spans
-	lastVal    Spans
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -634,9 +620,6 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.

@@ -28,6 +28,19 @@ func (e *LocationArray) init(parentModifiedFields *modifiedFields, parentModifie
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *LocationArray) reset() {
+	e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *LocationArray) fixParent(parentModifiedFields *modifiedFields) {
+	e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of LocationArray
 func (e *LocationArray) Clone() LocationArray {
 	var clone LocationArray
@@ -60,10 +73,6 @@ func (e *LocationArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *LocationArray) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e *LocationArray) markModifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markModifiedRecursively()
@@ -76,34 +85,6 @@ func (e *LocationArray) markUnmodifiedRecursively() {
 		e.elems[i].markUnmodifiedRecursively()
 	}
 
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e *LocationArray) markDiffModified(v *LocationArray) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if e.elems[i].markDiffModified(v.elems[i]) {
-			modified = true
-		}
-	}
-
-	// Mark the rest of the elements as modified.
-	for i := minLen; i < len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
-	}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copyLocationArray(dst *LocationArray, src *LocationArray) {
@@ -229,67 +210,6 @@ type LocationArrayEncoder struct {
 	elemEncoder *LocationEncoder
 	isRecursive bool
 	state       *WriterState
-	// lastValStack are last encoded values stacked by the level of recursion.
-	lastValStack LocationArrayEncoderLastValStack
-}
-type LocationArrayEncoderLastValStack []*LocationArrayEncoderLastValElem
-
-func (s *LocationArrayEncoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LocationArrayEncoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LocationArrayEncoderLastValStack) top() *LocationArrayEncoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LocationArrayEncoderLastValStack) addOnTopSlow() {
-	elem := &LocationArrayEncoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LocationArrayEncoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LocationArrayEncoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LocationArrayEncoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LocationArrayEncoderLastValElem struct {
-	prevLen        int
-	elem           Location
-	modifiedFields modifiedFields
-}
-
-func (e *LocationArrayEncoderLastValElem) init() {
-	e.elem.init(&e.modifiedFields, 1)
-}
-
-func (e *LocationArrayEncoderLastValElem) reset() {
-	e.elem = Location{}
-	e.prevLen = 0
 }
 
 func (e *LocationArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -313,7 +233,6 @@ func (e *LocationArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 			return err
 		}
 	}
-	e.lastValStack.init()
 
 	return nil
 }
@@ -322,38 +241,18 @@ func (e *LocationArrayEncoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-
-	e.lastValStack.reset()
 }
 
 func (e *LocationArrayEncoder) Encode(arr *LocationArray) {
-	lastVal := e.lastValStack.top()
-	e.lastValStack.addOnTop()
-	defer func() { e.lastValStack.removeFromTop() }()
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - lastVal.prevLen
-	lastVal.prevLen = newLen
+	// Write the length of the array.
+	newLen := len(arr.elems)
+	e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
-
-			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
-		}
-		// Remember last encoded element.
-		copyLocation(&lastVal.elem, arr.elems[len(arr.elems)-1])
+	// Encode the elements of the array.
+	for i := 0; i < newLen; i++ {
+		e.elemEncoder.Encode(arr.elems[i])
 	}
 
 	// Account written bits in the limiter.
@@ -373,68 +272,6 @@ type LocationArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *LocationDecoder
 	isRecursive bool
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack LocationArrayDecoderLastValStack
-}
-type LocationArrayDecoderLastValStack []*LocationArrayDecoderLastValElem
-
-func (s *LocationArrayDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LocationArrayDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LocationArrayDecoderLastValStack) top() *LocationArrayDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LocationArrayDecoderLastValStack) addOnTopSlow() {
-	elem := &LocationArrayDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LocationArrayDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LocationArrayDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LocationArrayDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LocationArrayDecoderLastValElem struct {
-	prevLen     int
-	elem        *Location
-	elemStorage Location
-}
-
-func (e *LocationArrayDecoderLastValElem) init() {
-	e.elem = &e.elemStorage
-
-}
-
-func (e *LocationArrayDecoderLastValElem) reset() {
-	e.prevLen = 0
-	*e.elem = Location{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -456,7 +293,6 @@ func (d *LocationArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 			return err
 		}
 	}
-	d.lastValStack.init()
 
 	return nil
 }
@@ -477,27 +313,18 @@ func (d *LocationArrayDecoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	d.lastValStack.reset()
 }
 
 func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	newLen := lastVal.prevLen + int(lenDelta)
-	lastVal.prevLen = newLen
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(&dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyLocation(dst.elems[i], lastVal.elem)
 	}
 
 	return nil

@@ -51,6 +51,19 @@ func (s *SpanStatus) init(parentModifiedFields *modifiedFields, parentModifiedBi
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *SpanStatus) reset() {
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *SpanStatus) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+}
+
 func (s *SpanStatus) Message() string {
 	return s.message
 }
@@ -117,22 +130,6 @@ func (s *SpanStatus) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *SpanStatus) markDiffModified(v *SpanStatus) (modified bool) {
-	if !pkg.StringEqual(s.message, v.message) {
-		s.markMessageModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.code, v.code) {
-		s.markCodeModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *SpanStatus) Clone() SpanStatus {
 	return SpanStatus{
 		message: s.message,
@@ -159,10 +156,6 @@ func (s *SpanStatus) CopyFrom(src *SpanStatus) {
 
 func (s *SpanStatus) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *SpanStatus) markUnmodified() {
-	s.modifiedFields.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -382,8 +375,6 @@ func (e *SpanStatusEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SpanStatusDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *SpanStatus
-	lastVal    SpanStatus
 	fieldCount uint
 
 	messageDecoder encoders.StringDecoder
@@ -408,9 +399,6 @@ func (d *SpanStatusDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Message and subsequent fields are skipped.

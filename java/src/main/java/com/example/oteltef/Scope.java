@@ -53,6 +53,15 @@ public class Scope {
         
     }
 
+    void reset() {
+        
+        name = StringValue.empty;
+        version = StringValue.empty;
+        schemaURL = StringValue.empty;
+        attributes.reset();
+        
+    }
+
     
     public StringValue getName() {
         return name;
@@ -167,13 +176,6 @@ public class Scope {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         modifiedFields.mask =
@@ -189,38 +191,6 @@ public class Scope {
             attributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Scope v) {
-        boolean modified = false;
-        if (!Types.StringEqual(name, v.name)) {
-            markNameModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(version, v.version)) {
-            markVersionModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(schemaURL, v.schemaURL)) {
-            markSchemaURLModified();
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
-            markDroppedAttributesCountModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Scope clone() {

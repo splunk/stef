@@ -12,7 +12,6 @@ import java.io.IOException;
 class SpansDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Spans lastVal;
     private int fieldCount;
 
     
@@ -38,8 +37,6 @@ class SpansDecoder {
             fieldCount = state.getStructFieldCounts().getSpansFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Spans();
             
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.

@@ -12,7 +12,6 @@ import java.io.IOException;
 class HistogramValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private HistogramValue lastVal;
     private int fieldCount;
 
     
@@ -40,8 +39,6 @@ class HistogramValueDecoder {
             fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new HistogramValue(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.

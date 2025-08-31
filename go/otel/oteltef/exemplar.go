@@ -59,6 +59,24 @@ func (s *Exemplar) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.filteredAttributes.init(&s.modifiedFields, fieldModifiedExemplarFilteredAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Exemplar) reset() {
+
+	s.value.reset()
+	s.filteredAttributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Exemplar) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.value.fixParent(&s.modifiedFields)
+	s.filteredAttributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Exemplar) Timestamp() uint64 {
 	return s.timestamp
 }
@@ -199,37 +217,6 @@ func (s *Exemplar) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Exemplar) markDiffModified(v *Exemplar) (modified bool) {
-	if !pkg.Uint64Equal(s.timestamp, v.timestamp) {
-		s.markTimestampModified()
-		modified = true
-	}
-
-	if s.value.markDiffModified(&v.value) {
-		s.modifiedFields.markModified(fieldModifiedExemplarValue)
-		modified = true
-	}
-
-	if !pkg.BytesEqual(s.spanID, v.spanID) {
-		s.markSpanIDModified()
-		modified = true
-	}
-
-	if !pkg.BytesEqual(s.traceID, v.traceID) {
-		s.markTraceIDModified()
-		modified = true
-	}
-
-	if s.filteredAttributes.markDiffModified(&v.filteredAttributes) {
-		s.modifiedFields.markModified(fieldModifiedExemplarFilteredAttributes)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Exemplar) Clone() Exemplar {
 	return Exemplar{
 		timestamp:          s.timestamp,
@@ -262,12 +249,6 @@ func (s *Exemplar) CopyFrom(src *Exemplar) {
 
 func (s *Exemplar) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Exemplar) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.value.markUnmodified()
-	s.filteredAttributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -648,8 +629,6 @@ func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type ExemplarDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Exemplar
-	lastVal    Exemplar
 	fieldCount uint
 
 	timestampDecoder encoders.Uint64Decoder
@@ -682,9 +661,6 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Timestamp and subsequent fields are skipped.

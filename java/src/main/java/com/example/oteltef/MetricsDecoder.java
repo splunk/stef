@@ -12,7 +12,6 @@ import java.io.IOException;
 class MetricsDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Metrics lastVal;
     private int fieldCount;
 
     
@@ -42,8 +41,6 @@ class MetricsDecoder {
             fieldCount = state.getStructFieldCounts().getMetricsFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Metrics();
             
             if (this.fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.

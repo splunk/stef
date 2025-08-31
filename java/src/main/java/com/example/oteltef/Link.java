@@ -56,6 +56,16 @@ public class Link {
         
     }
 
+    void reset() {
+        
+        traceID = Types.emptyBytes;
+        spanID = Types.emptyBytes;
+        traceState = StringValue.empty;
+        
+        attributes.reset();
+        
+    }
+
     
     public byte[] getTraceID() {
         return traceID;
@@ -194,13 +204,6 @@ public class Link {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         modifiedFields.mask =
@@ -217,43 +220,6 @@ public class Link {
             attributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Link v) {
-        boolean modified = false;
-        if (!Types.BytesEqual(traceID, v.traceID)) {
-            markTraceIDModified();
-            modified = true;
-        }
-        
-        if (!Types.BytesEqual(spanID, v.spanID)) {
-            markSpanIDModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(traceState, v.traceState)) {
-            markTraceStateModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(flags, v.flags)) {
-            markFlagsModified();
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
-            markDroppedAttributesCountModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Link clone() {

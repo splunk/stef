@@ -18,9 +18,6 @@ class EnvelopeAttributesDecoder {
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
 
-    
-    private EnvelopeAttributes lastVal = new EnvelopeAttributes();
-
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         this.column = columns.getColumn();
@@ -62,81 +59,48 @@ class EnvelopeAttributesDecoder {
         if (!isValueRecursive) {
             valueDecoder.reset();
         }
-        lastVal = new EnvelopeAttributes();
     }
 
     public EnvelopeAttributes decode(EnvelopeAttributes dst) throws IOException {
-            long countOrChangedValues = buf.readUvarint();
-            if (countOrChangedValues == 0) {
-                decodeCopyOfLast(lastVal, dst);
-                return dst;
-            }
-            if ((countOrChangedValues & 0b1) == 0) {
-                decodeValuesOnly(lastVal, countOrChangedValues >>> 1, dst);
-                return dst;
-            }
-            if ((countOrChangedValues & 0b1) == 0b1) {
-                decodeFull(lastVal, (int)(countOrChangedValues >>> 1), dst);
-                return dst;
-            }
-            throw new RuntimeException("Multimap decode error");
-}
-
-    private void decodeCopyOfLast(EnvelopeAttributes lastVal, EnvelopeAttributes dst) {
-        dst.ensureLen(lastVal.elemsLen);
-        for (int i=0; i < dst.elemsLen; i++) {
-            dst.elems[i].key = lastVal.elems[i].key;
-            dst.elems[i].value = lastVal.elems[i].value;
+        long countOrChangedValues = buf.readUvarint();
+        if (countOrChangedValues == 0) {
+       		// Nothing changed.
+            return dst;
         }
+        if ((countOrChangedValues & 0b1) == 0) {
+            decodeValuesOnly(countOrChangedValues >>> 1, dst);
+            return dst;
+        }
+        if ((countOrChangedValues & 0b1) == 0b1) {
+            decodeFull((int)(countOrChangedValues >>> 1), dst);
+            return dst;
+        }
+        throw new RuntimeException("Multimap decode error");
     }
 
-    private void decodeValuesOnly(EnvelopeAttributes lastVal, long changedValuesBits, EnvelopeAttributes dst) throws IOException {
-        if (lastVal.elemsLen == 0) {
-            throw new RuntimeException("Multimap decode error: lastVal empty");
-        }
-        int count = lastVal.elemsLen;
-        dst.ensureLen(count);
-        long bitToRead = 1L << (dst.elemsLen - 1);
-        for (int i = 0; i < dst.elemsLen; i++) {
-            // Copy the key from lastVal. All keys are the same.
-            dst.elems[i].key = lastVal.elems[i].key;
-            if ((bitToRead & changedValuesBits) == 0) {
-                // Value is not changed, copy from lastVal.
-                dst.elems[i].value = lastVal.elems[i].value;
-            }
-            bitToRead >>= 1;
-        }
-
+    private void decodeValuesOnly(long changedValuesBits, EnvelopeAttributes dst) throws IOException {
         // Decode changed values
-        bitToRead = (long)1 << (dst.elemsLen - 1);
+        long bitToRead = 1L;
         for (int i = 0; i<dst.elemsLen; i++) {
             if ((bitToRead & changedValuesBits) != 0) {
                 // Value is changed, decode it.
                 dst.elems[i].value = valueDecoder.decode();
-
-                // Store the values in lastVal.
-                lastVal.elems[i].value = dst.elems[i].value;
             }
-            bitToRead >>= 1;
+            bitToRead <<= 1;
         }
     }
 
-    private void decodeFull(EnvelopeAttributes lastVal, int count, EnvelopeAttributes dst) throws IOException {
+    private void decodeFull(int count, EnvelopeAttributes dst) throws IOException {
         if (count < 0 || count >= Limits.MultimapElemCountLimit) {
             throw new RuntimeException("Multimap decode error: invalid count " + count);
         }
         
         dst.ensureLen(count);
-        lastVal.ensureLen(count);
 
         // Decode values first.
         for (int i = 0; i < count; i++) {
             dst.elems[i].key = keyDecoder.decode();
             dst.elems[i].value = valueDecoder.decode();
-
-            // Store decoded values in lastVal.
-            lastVal.elems[i].key = dst.elems[i].key;
-            lastVal.elems[i].value = dst.elems[i].value;
         }
     }
 }

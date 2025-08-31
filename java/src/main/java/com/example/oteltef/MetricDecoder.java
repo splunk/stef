@@ -12,7 +12,6 @@ import java.io.IOException;
 class MetricDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Metric lastVal;
     private int fieldCount;
 
     
@@ -48,8 +47,6 @@ class MetricDecoder {
             fieldCount = state.getStructFieldCounts().getMetricFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Metric(null, 0);
             dict = state.Metric;
             
             if (this.fieldCount <= 0) {
@@ -208,23 +205,19 @@ class MetricDecoder {
     }
 
     public Metric decode(Metric dstPtr) throws IOException {
-        // Check if the Metric exists in the dictionary.
+        // Check if this is a dictionary-based decoding.
         int dictFlag = buf.readBit();
         if (dictFlag == 0) {
             long refNum = buf.readUvarintCompact();
             if (refNum >= dict.size()) {
                 throw new IOException("Invalid refNum");
             }
-            lastVal = dict.getByIndex((int)refNum);
-            dstPtr = lastVal;
-            return dstPtr;
+            return dict.getByIndex((int)refNum);
         }
 
-        // lastValPtr here is pointing to an element in the dictionary. We are not allowed
-        // to modify it. Make a clone of it and decode into the clone.
-        Metric val = lastVal.clone();
-        lastVal = val;
-        dstPtr = val;
+        // dstPtr is pointing to a element in the dictionary. We are not allowed
+       	// to modify it. Make a clone of it and decode into the clone.
+        Metric val = dstPtr.clone();
         // Read bits that indicate which fields follow.
         val.modifiedFields.mask = buf.readBits(fieldCount);
         

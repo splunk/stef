@@ -57,6 +57,24 @@ func (s *Point) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.exemplars.init(&s.modifiedFields, fieldModifiedPointExemplars)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Point) reset() {
+
+	s.value.reset()
+	s.exemplars.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.value.fixParent(&s.modifiedFields)
+	s.exemplars.fixParent(&s.modifiedFields)
+}
+
 func (s *Point) StartTimestamp() uint64 {
 	return s.startTimestamp
 }
@@ -169,32 +187,6 @@ func (s *Point) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Point) markDiffModified(v *Point) (modified bool) {
-	if !pkg.Uint64Equal(s.startTimestamp, v.startTimestamp) {
-		s.markStartTimestampModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.timestamp, v.timestamp) {
-		s.markTimestampModified()
-		modified = true
-	}
-
-	if s.value.markDiffModified(&v.value) {
-		s.modifiedFields.markModified(fieldModifiedPointValue)
-		modified = true
-	}
-
-	if s.exemplars.markDiffModified(&v.exemplars) {
-		s.modifiedFields.markModified(fieldModifiedPointExemplars)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Point) Clone() Point {
 	return Point{
 		startTimestamp: s.startTimestamp,
@@ -225,12 +217,6 @@ func (s *Point) CopyFrom(src *Point) {
 
 func (s *Point) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Point) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.value.markUnmodified()
-	s.exemplars.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -566,8 +552,6 @@ func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type PointDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Point
-	lastVal    Point
 	fieldCount uint
 
 	startTimestampDecoder encoders.Uint64Decoder
@@ -598,9 +582,6 @@ func (d *PointDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // StartTimestamp and subsequent fields are skipped.

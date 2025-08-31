@@ -46,6 +46,27 @@ func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.summary.init(parentModifiedFields, parentModifiedBit)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *PointValue) reset() {
+	s.typ = PointValueTypeNone
+
+	s.histogram.reset()
+	s.expHistogram.reset()
+	s.summary.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *PointValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.parentModifiedFields = parentModifiedFields
+
+	s.histogram.fixParent(parentModifiedFields)
+	s.expHistogram.fixParent(parentModifiedFields)
+	s.summary.fixParent(parentModifiedFields)
+}
+
 type PointValueType byte
 
 const (
@@ -169,12 +190,6 @@ func (s *PointValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *PointValue) markUnmodified() {
-	s.histogram.markUnmodified()
-	s.expHistogram.markUnmodified()
-	s.summary.markUnmodified()
-}
-
 func (s *PointValue) markModifiedRecursively() {
 	switch s.typ {
 	case PointValueTypeInt64:
@@ -199,45 +214,6 @@ func (s *PointValue) markUnmodifiedRecursively() {
 	case PointValueTypeSummary:
 		s.summary.markUnmodifiedRecursively()
 	}
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *PointValue) markDiffModified(v *PointValue) (modified bool) {
-	if s.typ != v.typ {
-		modified = true
-		s.markModifiedRecursively()
-		return modified
-	}
-
-	switch s.typ {
-	case PointValueTypeInt64:
-		if !pkg.Int64Equal(s.int64, v.int64) {
-			s.markParentModified()
-			modified = true
-		}
-	case PointValueTypeFloat64:
-		if !pkg.Float64Equal(s.float64, v.float64) {
-			s.markParentModified()
-			modified = true
-		}
-	case PointValueTypeHistogram:
-		if s.histogram.markDiffModified(&v.histogram) {
-			s.markParentModified()
-			modified = true
-		}
-	case PointValueTypeExpHistogram:
-		if s.expHistogram.markDiffModified(&v.expHistogram) {
-			s.markParentModified()
-			modified = true
-		}
-	case PointValueTypeSummary:
-		if s.summary.markDiffModified(&v.summary) {
-			s.markParentModified()
-			modified = true
-		}
-	}
-	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

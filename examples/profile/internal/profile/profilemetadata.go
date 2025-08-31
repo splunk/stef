@@ -68,6 +68,26 @@ func (s *ProfileMetadata) init(parentModifiedFields *modifiedFields, parentModif
 	s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *ProfileMetadata) reset() {
+
+	s.periodType.reset()
+	s.comments.reset()
+	s.defaultSampleType.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.periodType.fixParent(&s.modifiedFields)
+	s.comments.fixParent(&s.modifiedFields)
+	s.defaultSampleType.fixParent(&s.modifiedFields)
+}
+
 func (s *ProfileMetadata) DropFrames() string {
 	return s.dropFrames
 }
@@ -287,52 +307,6 @@ func (s *ProfileMetadata) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *ProfileMetadata) markDiffModified(v *ProfileMetadata) (modified bool) {
-	if !pkg.StringEqual(s.dropFrames, v.dropFrames) {
-		s.markDropFramesModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.keepFrames, v.keepFrames) {
-		s.markKeepFramesModified()
-		modified = true
-	}
-
-	if !pkg.Int64Equal(s.timeNanos, v.timeNanos) {
-		s.markTimeNanosModified()
-		modified = true
-	}
-
-	if !pkg.Int64Equal(s.durationNanos, v.durationNanos) {
-		s.markDurationNanosModified()
-		modified = true
-	}
-
-	if s.periodType.markDiffModified(v.periodType) {
-		s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
-		modified = true
-	}
-
-	if !pkg.Int64Equal(s.period, v.period) {
-		s.markPeriodModified()
-		modified = true
-	}
-
-	if s.comments.markDiffModified(&v.comments) {
-		s.modifiedFields.markModified(fieldModifiedProfileMetadataComments)
-		modified = true
-	}
-
-	if s.defaultSampleType.markDiffModified(v.defaultSampleType) {
-		s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *ProfileMetadata) Clone() ProfileMetadata {
 	return ProfileMetadata{
 		dropFrames:        s.dropFrames,
@@ -383,13 +357,6 @@ func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
 
 func (s *ProfileMetadata) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *ProfileMetadata) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.periodType.markUnmodified()
-	s.comments.markUnmodified()
-	s.defaultSampleType.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -918,8 +885,6 @@ func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type ProfileMetadataDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *ProfileMetadata
-	lastVal    ProfileMetadata
 	fieldCount uint
 
 	dropFramesDecoder encoders.StringDecoder
@@ -959,9 +924,6 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // DropFrames and subsequent fields are skipped.

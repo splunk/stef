@@ -756,95 +756,22 @@ chosen field) will have nothing appended to their columns.
 
 ```
 Array {
-    LengthDelta: SC
+    Length: SC
 }
 ```
 
-Array codec encodes in one column the lengths of the array in delta encoding:
-- If this is the first array instance since encoder was inited or was reset then 
-  LengthDelta is equal to the length of the array.
-- For subsequent array instances LengthDelta is the delta between the array's
-  length and the previous array's length.
+Array codec encodes in one column the length of the array.
 
 The array elements are encoded one by one in the child column using child element's codec
 using the differential encoding applicable to the child element encoder, i.e. the
-array encoder will compare the current element with the previous element and encode only
-fields that are modified in the current element compared to the previous element.
-This essentially requires the array codec to keep a state of the last value (last 
-child element). Note that the "last value" may be a primitive type or may be a composite
-type.
+array encoder will compare each element with the element of the previous root record 
+located at the same array index and encode only fields that are modified in the 
+current element compared to the previous element.
 
-The state of the encoder is maintained through arrays, i.e. the first element of an array
-is encoded differentially from the last element of the previous array of the same type.
-
-#### Recursive Arrays
-
-When arrays are part of a recursive type definition, a separate state of encoders is 
-kept for each recursion level. The description above applies to each of these 
-recursion level independently, i.e. the array codec for recursive types maintains
-one "last element value" per each recursion level.
-
-Let's illustrate this with an example. Consider the following schema:
-
-```
-struct Root root {
-  X int64
-  A []Root
-}
-```
-
-Let's say we have the following root record to encode (for brevity we are omitting
-`A=[]` when the array is empty).:
-
-```
-{
-  X=0,
-  A=[
-    {X=1, A=[X=10,X=11,X=12]},
-    {X=1, A=[X=20,X=20,X=22]},
-    {X=3, A=[X=30,X=31,X=32]},
-  ]
-}
-```
-
-To encode this data the encoder for `Root` struct will maintain a stack of states 
-containing 2 levels, similarly the encoder for `A` array will maintain a stack of states
-of 2 levels.
-
-The top-level array, containing X values of (1,1,3) will be encoded using one of the
-states, recording the length of the array as +1 to the previous length of 0 (the initial
-length - since this is the first array at that level).
-
-The 3 top-level Root structs similarly will be encoded the top-level state of the encoder,
-resulting in the second record recognizing that the value of field X is 1, unchanged
-from the previous value, which will be reflected in the output of the struct codec
-that specifies which fields are modified in the struct.
-
-The 3 second-level arrays, containing X values of (10,11,12), (20,20,22) and (30,
-31,32) will be encoded using the second-level state, thus resulting in the output of
-delta array lengths of (3,0,0). Note how the length of the top-level array does not 
-influence in any way how the length of the second-level arrays is encoded.
-
-The second-level Root structs will be encoded using the second-level state of the
-Root struct encoder, resulting in structs containing repeat values of X=20 to
-be encoded as unmodified value of field X.
-
-As expected all values for field X are all encoded using the same `int64` codec, the 
-values are sent to the codec in the usual depth-first traversal order of the data, 
-resulting in the following input to the codec: (1,10,11,12,1,20,20,22,3,30,31,32). 
-These values are all encoded in one column used by one `int64` codec since they all 
-belong the same field X.
-
-Because codecs traverse data structures in depth-first order, the typical implementation
-that maintains the "last value" per recursion level will have a stack of "last values".
-The stack grows when the codec detects an increase in recursion level and shrinks
-when the codec detects a decrease in recursion level. When the stack shrinks, the element
-that was removed from the stack is kept in memory since it will be used as the
-"last value" for the next element at the same recursion level.
-
-Note that codec resets (e.g. when the `RestartCodecs` bit is set in the frame) will
-clear the stack of "last values" and will start with an empty stack and the state
-of all previously seen "last values" will be forgotten.
+If the root record schema declares a complex schema with nested arrays, structs, 
+oneofs, etc, the previous element with which the current element is compared is located by
+traversing the record tree starting from the root of the previous record, following
+the same path as the current element in the current record.
 
 ### MultiMap Codec
 
@@ -864,18 +791,27 @@ LengthTransposed is computed as `(Length << 1) | 1`, where `Length` is the
 number of key-value pairs in the MultiMap.
 
 The multimap's keys are encoded in the key child column and values in the value 
-child column, in the order they are listed in the multimap.
+child column, in the order they are listed in the multimap. Keys and values are 
+encoded using key's and value's codec using the differential encoding applicable to 
+the key's or value's codec. As always the codecs compare each key or value with the key or
+value of the previous root record located at the same index.
+
+If the root record schema declares a complex schema with nested arrays, structs, 
+oneofs, etc, the previous MultiMap with which the current MultiMap is compared is 
+located by traversing the record tree starting from the root of the previous record, 
+following the same path as the current MultiMap in the current record.
 
 #### Value-Only MultiMap Encoding
 
 This encoding is used when the current instance of the MultiMap has exactly the same keys 
-as the previous instance of the MultiMap. In that case the keys are not encoded at all 
-and only values that differ from the previous instance's corresponding value are encoded.
+as the instance of the MultiMap in the previous root record. In that case the keys are 
+not encoded at all and only values that differ from the previous instance's corresponding
+value are encoded.
 
 The encoder compares the values of this instance of the MultiMap with the values of 
-the previous instance, key-by-key. For all values at index i bit number i is set in a 
-value `ChangedKeys`. After all values are iterated `ChangedKeysShifted` is computed 
-as `ChangedKeys << 1`.
+the previous instance in the previous root record, key-by-key. For all values at index i 
+bit number i is set in a value `ChangedKeys`. After all values are iterated 
+`ChangedKeysShifted` is computed as `ChangedKeys << 1`.
 
 The following is written to the MultiMap column:
 

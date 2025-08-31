@@ -44,6 +44,12 @@ public class ExpHistogramBuckets {
         bucketCounts = new Uint64Array(modifiedFields, fieldModifiedBucketCounts);
     }
 
+    void reset() {
+        
+        
+        bucketCounts.reset();
+    }
+
     
     public long getOffset() {
         return offset;
@@ -86,13 +92,6 @@ public class ExpHistogramBuckets {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isBucketCountsModified()) {
-            this.bucketCounts.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         bucketCounts.markModifiedRecursively();
         modifiedFields.mask =
@@ -105,23 +104,6 @@ public class ExpHistogramBuckets {
             bucketCounts.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(ExpHistogramBuckets v) {
-        boolean modified = false;
-        if (!Types.Int64Equal(offset, v.offset)) {
-            markOffsetModified();
-            modified = true;
-        }
-        
-        if (bucketCounts.markDiffModified(v.bucketCounts)) {
-            modifiedFields.markModified(fieldModifiedBucketCounts);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public ExpHistogramBuckets clone() {

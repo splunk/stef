@@ -55,6 +55,22 @@ func (s *Line) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Line) reset() {
+
+	s.function.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.function.fixParent(&s.modifiedFields)
+}
+
 func (s *Line) Function() *Function {
 	return s.function
 }
@@ -144,27 +160,6 @@ func (s *Line) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Line) markDiffModified(v *Line) (modified bool) {
-	if s.function.markDiffModified(v.function) {
-		s.modifiedFields.markModified(fieldModifiedLineFunction)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.line, v.line) {
-		s.markLineModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.column, v.column) {
-		s.markColumnModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Line) Clone() Line {
 	return Line{
 		function: s.function.Clone(),
@@ -199,11 +194,6 @@ func (s *Line) CopyFrom(src *Line) {
 
 func (s *Line) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Line) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.function.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -481,8 +471,6 @@ func (e *LineEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type LineDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Line
-	lastVal    Line
 	fieldCount uint
 
 	functionDecoder     *FunctionDecoder
@@ -510,9 +498,6 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Function and subsequent fields are skipped.

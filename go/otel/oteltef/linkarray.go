@@ -28,6 +28,19 @@ func (e *LinkArray) init(parentModifiedFields *modifiedFields, parentModifiedBit
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *LinkArray) reset() {
+	e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *LinkArray) fixParent(parentModifiedFields *modifiedFields) {
+	e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of LinkArray
 func (e *LinkArray) Clone() LinkArray {
 	var clone LinkArray
@@ -60,10 +73,6 @@ func (e *LinkArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *LinkArray) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e *LinkArray) markModifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markModifiedRecursively()
@@ -76,34 +85,6 @@ func (e *LinkArray) markUnmodifiedRecursively() {
 		e.elems[i].markUnmodifiedRecursively()
 	}
 
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e *LinkArray) markDiffModified(v *LinkArray) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if e.elems[i].markDiffModified(v.elems[i]) {
-			modified = true
-		}
-	}
-
-	// Mark the rest of the elements as modified.
-	for i := minLen; i < len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
-	}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copyLinkArray(dst *LinkArray, src *LinkArray) {
@@ -229,67 +210,6 @@ type LinkArrayEncoder struct {
 	elemEncoder *LinkEncoder
 	isRecursive bool
 	state       *WriterState
-	// lastValStack are last encoded values stacked by the level of recursion.
-	lastValStack LinkArrayEncoderLastValStack
-}
-type LinkArrayEncoderLastValStack []*LinkArrayEncoderLastValElem
-
-func (s *LinkArrayEncoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LinkArrayEncoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LinkArrayEncoderLastValStack) top() *LinkArrayEncoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LinkArrayEncoderLastValStack) addOnTopSlow() {
-	elem := &LinkArrayEncoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LinkArrayEncoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LinkArrayEncoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LinkArrayEncoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LinkArrayEncoderLastValElem struct {
-	prevLen        int
-	elem           Link
-	modifiedFields modifiedFields
-}
-
-func (e *LinkArrayEncoderLastValElem) init() {
-	e.elem.init(&e.modifiedFields, 1)
-}
-
-func (e *LinkArrayEncoderLastValElem) reset() {
-	e.elem = Link{}
-	e.prevLen = 0
 }
 
 func (e *LinkArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -313,7 +233,6 @@ func (e *LinkArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 			return err
 		}
 	}
-	e.lastValStack.init()
 
 	return nil
 }
@@ -322,38 +241,18 @@ func (e *LinkArrayEncoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-
-	e.lastValStack.reset()
 }
 
 func (e *LinkArrayEncoder) Encode(arr *LinkArray) {
-	lastVal := e.lastValStack.top()
-	e.lastValStack.addOnTop()
-	defer func() { e.lastValStack.removeFromTop() }()
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - lastVal.prevLen
-	lastVal.prevLen = newLen
+	// Write the length of the array.
+	newLen := len(arr.elems)
+	e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
-
-			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
-		}
-		// Remember last encoded element.
-		copyLink(&lastVal.elem, arr.elems[len(arr.elems)-1])
+	// Encode the elements of the array.
+	for i := 0; i < newLen; i++ {
+		e.elemEncoder.Encode(arr.elems[i])
 	}
 
 	// Account written bits in the limiter.
@@ -373,65 +272,6 @@ type LinkArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *LinkDecoder
 	isRecursive bool
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack LinkArrayDecoderLastValStack
-}
-type LinkArrayDecoderLastValStack []*LinkArrayDecoderLastValElem
-
-func (s *LinkArrayDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LinkArrayDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LinkArrayDecoderLastValStack) top() *LinkArrayDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LinkArrayDecoderLastValStack) addOnTopSlow() {
-	elem := &LinkArrayDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LinkArrayDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LinkArrayDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LinkArrayDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LinkArrayDecoderLastValElem struct {
-	prevLen int
-	elem    Link
-}
-
-func (e *LinkArrayDecoderLastValElem) init() {
-}
-
-func (e *LinkArrayDecoderLastValElem) reset() {
-	e.prevLen = 0
-	e.elem = Link{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -453,7 +293,6 @@ func (d *LinkArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 			return err
 		}
 	}
-	d.lastValStack.init()
 
 	return nil
 }
@@ -474,27 +313,18 @@ func (d *LinkArrayDecoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	d.lastValStack.reset()
 }
 
 func (d *LinkArrayDecoder) Decode(dst *LinkArray) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	newLen := lastVal.prevLen + int(lenDelta)
-	lastVal.prevLen = newLen
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyLink(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

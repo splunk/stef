@@ -47,6 +47,25 @@ func (s *AnyValue) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.kVList.init(parentModifiedFields, parentModifiedBit)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *AnyValue) reset() {
+	s.typ = AnyValueTypeNone
+
+	s.array.reset()
+	s.kVList.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *AnyValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.parentModifiedFields = parentModifiedFields
+
+	s.array.fixParent(parentModifiedFields)
+	s.kVList.fixParent(parentModifiedFields)
+}
+
 type AnyValueType byte
 
 const (
@@ -216,11 +235,6 @@ func (s *AnyValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *AnyValue) markUnmodified() {
-	s.array.markUnmodified()
-	s.kVList.markUnmodified()
-}
-
 func (s *AnyValue) markModifiedRecursively() {
 	switch s.typ {
 	case AnyValueTypeString:
@@ -247,55 +261,6 @@ func (s *AnyValue) markUnmodifiedRecursively() {
 		s.kVList.markUnmodifiedRecursively()
 	case AnyValueTypeBytes:
 	}
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *AnyValue) markDiffModified(v *AnyValue) (modified bool) {
-	if s.typ != v.typ {
-		modified = true
-		s.markModifiedRecursively()
-		return modified
-	}
-
-	switch s.typ {
-	case AnyValueTypeString:
-		if !pkg.StringEqual(s.string, v.string) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeBool:
-		if !pkg.BoolEqual(s.bool, v.bool) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeInt64:
-		if !pkg.Int64Equal(s.int64, v.int64) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeFloat64:
-		if !pkg.Float64Equal(s.float64, v.float64) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeArray:
-		if s.array.markDiffModified(&v.array) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeKVList:
-		if s.kVList.markDiffModified(&v.kVList) {
-			s.markParentModified()
-			modified = true
-		}
-	case AnyValueTypeBytes:
-		if !pkg.BytesEqual(s.bytes, v.bytes) {
-			s.markParentModified()
-			modified = true
-		}
-	}
-	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

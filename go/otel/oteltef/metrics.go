@@ -68,6 +68,32 @@ func (s *Metrics) init(parentModifiedFields *modifiedFields, parentModifiedBit u
 	s.point.init(&s.modifiedFields, fieldModifiedMetricsPoint)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Metrics) reset() {
+
+	s.envelope.reset()
+	s.metric.reset()
+	s.resource.reset()
+	s.scope.reset()
+	s.attributes.reset()
+	s.point.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.envelope.fixParent(&s.modifiedFields)
+	s.metric.fixParent(&s.modifiedFields)
+	s.resource.fixParent(&s.modifiedFields)
+	s.scope.fixParent(&s.modifiedFields)
+	s.attributes.fixParent(&s.modifiedFields)
+	s.point.fixParent(&s.modifiedFields)
+}
+
 func (s *Metrics) Envelope() *Envelope {
 	return &s.envelope
 }
@@ -216,42 +242,6 @@ func (s *Metrics) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Metrics) markDiffModified(v *Metrics) (modified bool) {
-	if s.envelope.markDiffModified(&v.envelope) {
-		s.modifiedFields.markModified(fieldModifiedMetricsEnvelope)
-		modified = true
-	}
-
-	if s.metric.markDiffModified(v.metric) {
-		s.modifiedFields.markModified(fieldModifiedMetricsMetric)
-		modified = true
-	}
-
-	if s.resource.markDiffModified(v.resource) {
-		s.modifiedFields.markModified(fieldModifiedMetricsResource)
-		modified = true
-	}
-
-	if s.scope.markDiffModified(v.scope) {
-		s.modifiedFields.markModified(fieldModifiedMetricsScope)
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedMetricsAttributes)
-		modified = true
-	}
-
-	if s.point.markDiffModified(&v.point) {
-		s.modifiedFields.markModified(fieldModifiedMetricsPoint)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Metrics) Clone() Metrics {
 	return Metrics{
 		envelope:   s.envelope.Clone(),
@@ -304,16 +294,6 @@ func (s *Metrics) CopyFrom(src *Metrics) {
 
 func (s *Metrics) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Metrics) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.envelope.markUnmodified()
-	s.metric.markUnmodified()
-	s.resource.markUnmodified()
-	s.scope.markUnmodified()
-	s.attributes.markUnmodified()
-	s.point.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -791,8 +771,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type MetricsDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Metrics
-	lastVal    Metrics
 	fieldCount uint
 
 	envelopeDecoder     *EnvelopeDecoder
@@ -831,9 +809,6 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Envelope and subsequent fields are skipped.

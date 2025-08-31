@@ -60,6 +60,22 @@ func (s *Link) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.attributes.init(&s.modifiedFields, fieldModifiedLinkAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Link) reset() {
+
+	s.attributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Link) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Link) TraceID() pkg.Bytes {
 	return s.traceID
 }
@@ -233,42 +249,6 @@ func (s *Link) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Link) markDiffModified(v *Link) (modified bool) {
-	if !pkg.BytesEqual(s.traceID, v.traceID) {
-		s.markTraceIDModified()
-		modified = true
-	}
-
-	if !pkg.BytesEqual(s.spanID, v.spanID) {
-		s.markSpanIDModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.traceState, v.traceState) {
-		s.markTraceStateModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.flags, v.flags) {
-		s.markFlagsModified()
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedLinkAttributes)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
-		s.markDroppedAttributesCountModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Link) Clone() Link {
 	return Link{
 		traceID:                s.traceID,
@@ -303,11 +283,6 @@ func (s *Link) CopyFrom(src *Link) {
 
 func (s *Link) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Link) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -720,8 +695,6 @@ func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type LinkDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Link
-	lastVal    Link
 	fieldCount uint
 
 	traceIDDecoder encoders.BytesDecoder
@@ -755,9 +728,6 @@ func (d *LinkDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.

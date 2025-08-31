@@ -54,6 +54,22 @@ func (s *SummaryValue) init(parentModifiedFields *modifiedFields, parentModified
 	s.quantileValues.init(&s.modifiedFields, fieldModifiedSummaryValueQuantileValues)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *SummaryValue) reset() {
+
+	s.quantileValues.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *SummaryValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.quantileValues.fixParent(&s.modifiedFields)
+}
+
 func (s *SummaryValue) Count() uint64 {
 	return s.count
 }
@@ -143,27 +159,6 @@ func (s *SummaryValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *SummaryValue) markDiffModified(v *SummaryValue) (modified bool) {
-	if !pkg.Uint64Equal(s.count, v.count) {
-		s.markCountModified()
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.sum, v.sum) {
-		s.markSumModified()
-		modified = true
-	}
-
-	if s.quantileValues.markDiffModified(&v.quantileValues) {
-		s.modifiedFields.markModified(fieldModifiedSummaryValueQuantileValues)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *SummaryValue) Clone() SummaryValue {
 	return SummaryValue{
 		count:          s.count,
@@ -192,11 +187,6 @@ func (s *SummaryValue) CopyFrom(src *SummaryValue) {
 
 func (s *SummaryValue) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *SummaryValue) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.quantileValues.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -474,8 +464,6 @@ func (e *SummaryValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SummaryValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *SummaryValue
-	lastVal    SummaryValue
 	fieldCount uint
 
 	countDecoder encoders.Uint64Decoder
@@ -503,9 +491,6 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Count and subsequent fields are skipped.
