@@ -159,13 +159,27 @@ type STEFStream interface {
 	SendDataResponse(response *stef_proto.STEFDataResponse) error
 }
 
+// ServerSettings contains configuration options for creating a new STEF-over-gRPC stream server.
 type ServerSettings struct {
-	Logger       types.Logger
+	// Logger for logging server events and errors. If nil, a no-op logger will be used.
+	// The logger should be safe for concurrent use across multiple goroutines.
+	Logger types.Logger
+
+	// ServerSchema defines the wire schema that the server will use for STEF message decoding.
+	// This schema must be compatible with the data being received from clients. If the schema
+	// is incompatible the client will refuse to send data. Must not be nil.
 	ServerSchema *schema.WireSchema
+
+	// MaxDictBytes sets the maximum size in bytes for dictionary data that the server will accept
+	// per STEF stream. This limit helps prevent memory exhaustion.
+	// A value of 0 means no limit is enforced and is not recommended.
 	MaxDictBytes uint64
-	Callbacks    Callbacks
+
+	// Callbacks contains the callback functions that will be invoked during stream processing.
+	Callbacks Callbacks
 }
 
+// NewStreamServer creates a new STEF-over-gRPC stream server with the given settings.
 func NewStreamServer(settings ServerSettings) *StreamServer {
 	if settings.Logger == nil {
 		settings.Logger = internal.NopLogger{}
