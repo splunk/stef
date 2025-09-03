@@ -152,6 +152,52 @@ func NewClient(settings ClientSettings) (*Client, error) {
 	return client, nil
 }
 
+// Connect establishes a bidirectional gRPC stream connection with the STEF server
+// and performs the initial handshake to negotiate protocol capabilities and schema compatibility.
+//
+// The method performs the following steps:
+// 1. Establishes a gRPC stream
+// 2. Sends the initial client message containing the root struct name
+// 3. Receives server capabilities including dictionary limits and server schema
+// 4. Performs schema compatibility checks between client and server schemas
+// 5. Configures writer options based on compatibility results
+// 6. Starts a background goroutine to receive messages from the server
+//
+// Parameters:
+//   - ctx: Context for controlling the connection attempt. When cancelled, it will
+//     stop connection attempt and return an error.
+//
+// Returns:
+//   - ChunkWriter: A writer interface for sending STEF data chunks to the server
+//   - WriterOptions: Configuration options for the writer, including schema settings
+//     and dictionary limits determined during the handshake
+//   - error: Any error encountered during connection establishment or handshake
+//
+// Schema Compatibility:
+// The method handles three compatibility scenarios:
+//   - Exact match: Client and server schemas are identical
+//   - Server superset: Server schema contains all client fields plus additional ones;
+//     client must include its schema descriptor in the STEF header and the server
+//     will correctly decode the data based on the client schema.
+//   - Client superset: Client schema contains all server fields plus additional ones;
+//     client will downgrade its schema.
+//   - Incompatible: Schemas cannot be reconciled, connection will fail
+//
+// The returned ChunkWriter and the WriterOptions should be used to create a root struct Writer.
+//
+// Example:
+//
+//	chunkWriter, opts, err := client.Connect(ctx)
+//	if err != nil {
+//	    return fmt.Errorf("failed to connect: %w", err)
+//	}
+//	defer client.Disconnect(ctx)
+//
+//	// Optionally adjust writer options, e.g., set compression
+//	opts.Compression = pkg.CompressionZstd
+//
+//	// Use writer with the returned options...
+//	stefWriter, err := mystefschema.NewMyRootStructWriter(chunkWriter, opts)
 func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOptions, error) {
 	c.logger.Debugf(context.Background(), "Begin connecting (client=%p)", c)
 
@@ -252,6 +298,22 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	return writer, opts, nil
 }
 
+// Disconnect shuts down the gRPC connection.
+//
+// It cancels the stream, terminates the background receive goroutine,
+// and waits for the goroutine to finish.
+//
+// Parameters:
+//   - ctx: Context for controlling the disconnect timeout. If the context
+//     is cancelled or times out before the receive goroutine finishes,
+//     the method returns the context error.
+//
+// Returns:
+//   - error: Returns ctx.Err() if the context is cancelled/times out before
+//     the disconnect completes, otherwise returns nil on success.
+//
+// This method should be called to properly clean up resources when the
+// client is no longer needed.
 func (c *Client) Disconnect(ctx context.Context) error {
 	// This will cancel and close the stream and terminate receive() method.
 	c.cancelFunc()
