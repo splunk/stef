@@ -77,7 +77,7 @@ struct TraceRecord root {
   Timestamp uint64
   Span Span
 }</code></pre>
-    <p>When multiple root structs are defined, each record in the stream will be one of the root types, and the STEF format includes type information to distinguish between them during deserialization.</p>
+    <p>When multiple root structs are defined, each record in the stream will be one of the root types.</p>
 
     <h3>Dictionary Compression</h3>
     <p>Fields can use dictionary compression for repeated values using the <code>dict</code> modifier:</p>
@@ -100,7 +100,7 @@ struct TraceEvent {
   ServiceName string dict(ServiceNames)  // Same dictionary as above
   SpanName string dict(SpanNames)
 }</code></pre>
-    <p>This sharing enables more efficient compression when the same values appear across different record types.</p>
+    <p>This sharing enables more efficient compression when the same values appear across different structs.</p>
 
     <h3>Optional Fields</h3>
     <p>Fields can be marked as optional, meaning they may not be present in every record:</p>
@@ -117,7 +117,6 @@ struct TraceEvent {
   Numbers []int64
   Objects []Person
 }</code></pre>
-    <p>Arrays are variable-length - they can be empty or contain any number of elements.</p>
 
     <h2>Oneofs (Union Types)</h2>
     <p>Oneofs define union types that can hold one of several possible field types:</p>
@@ -150,7 +149,7 @@ struct TraceEvent {
   Histogram = 2
   Summary = 3
 }</code></pre>
-    <p>Enum values must be explicitly assigned unsigned integer values. Multiple number formats are supported:</p>
+    <p>Enum values must be explicitly assigned unsigned integer values in the 0..2^64-1 range. Multiple number formats are supported:</p>
     <ul>
       <li><strong>Decimal:</strong> <code>MetricType = 42</code></li>
       <li><strong>Hexadecimal:</strong> <code>MetricType = 0x2A</code> or <code>MetricType = 0X2A</code></li>
