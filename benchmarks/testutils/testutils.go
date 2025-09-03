@@ -135,44 +135,14 @@ func ReadMultipartOTLPFileGeneric(filePath string, unmarshaler func([]byte) (any
 	return result, nil
 }
 
-func readOnePartOTLPFile(filePath string) (pmetric.Metrics, error) {
-	reader, closer, err := openOTLPFile(filePath)
+func ReadOTLPFile(filePath string) (pmetric.Metrics, error) {
+	combined := pmetric.NewMetrics()
+	parts, err := ReadMultipartOTLPFile(filePath)
 	if err != nil {
-		return pmetric.Metrics{}, err
+		return combined, err
 	}
-	defer closer()
-
-	protoUnmarshaler := pmetric.ProtoUnmarshaler{}
-
-	var inputBytes []byte
-	inputBytes = make([]byte, 0, 65536)
-	temp := make([]byte, 65536)
-	for {
-		n, err := io.ReadFull(reader, temp)
-		inputBytes = append(inputBytes, temp[:n]...)
-		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				break
-			}
-			return pmetric.Metrics{}, err
-		}
+	for _, part := range parts {
+		part.ResourceMetrics().MoveAndAppendTo(combined.ResourceMetrics())
 	}
-
-	return protoUnmarshaler.UnmarshalMetrics(inputBytes)
-}
-
-func ReadOTLPFile(filePath string, multipart bool) (pmetric.Metrics, error) {
-	if multipart {
-		combined := pmetric.NewMetrics()
-		parts, err := ReadMultipartOTLPFile(filePath)
-		if err != nil {
-			return combined, err
-		}
-		for _, part := range parts {
-			part.ResourceMetrics().MoveAndAppendTo(combined.ResourceMetrics())
-		}
-		return combined, nil
-	}
-
-	return readOnePartOTLPFile(filePath)
+	return combined, nil
 }

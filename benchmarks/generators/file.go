@@ -11,9 +11,8 @@ import (
 )
 
 type File struct {
-	FilePath      string
-	BatchSize     int
-	MultipartFile bool
+	FilePath  string
+	BatchSize int
 }
 
 func (f *File) GetName() string {
@@ -24,7 +23,7 @@ func (f *File) GetName() string {
 }
 
 func (f *File) Generate() pmetric.Metrics {
-	all, err := testutils.ReadOTLPFile(f.FilePath, f.MultipartFile)
+	all, err := testutils.ReadOTLPFile(f.FilePath)
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", f.FilePath, err)
 	}

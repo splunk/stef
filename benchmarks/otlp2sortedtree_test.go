@@ -106,7 +106,7 @@ func mapContains[K any](searchFor, inTree *b.Tree[K, bool]) bool {
 }
 
 func TestConvertFromOTLP(t *testing.T) {
-	otlpData, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst", false)
+	otlpData, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst")
 	require.NoError(t, err)
 
 	converter := otlpconvert.NewOtlpToSortedTree()

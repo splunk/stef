@@ -20,22 +20,20 @@ import (
 
 func TestConvertTEFFromToOTLP(t *testing.T) {
 	tests := []struct {
-		file           string
-		withSizePrefix bool
+		file string
 	}{
 		{
 			file: "testdata/hipstershop-otelmetrics.zst",
 		},
 		{
-			file:           "testdata/astronomy-otelmetrics.zst",
-			withSizePrefix: true,
+			file: "testdata/astronomy-otelmetrics.zst",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(
 			test.file, func(t *testing.T) {
-				otlpDataSrc, err := testutils.ReadOTLPFile(test.file, test.withSizePrefix)
+				otlpDataSrc, err := testutils.ReadOTLPFile(test.file)
 				require.NoError(t, err)
 
 				testtools.NormalizeMetrics(otlpDataSrc)
