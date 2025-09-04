@@ -60,6 +60,22 @@ func (s *Scope) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.attributes.init(&s.modifiedFields, fieldModifiedScopeAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Scope) reset() {
+
+	s.attributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Scope) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Scope) Name() string {
 	return s.name
 }
@@ -205,37 +221,6 @@ func (s *Scope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Scope) markDiffModified(v *Scope) (modified bool) {
-	if !pkg.StringEqual(s.name, v.name) {
-		s.markNameModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.version, v.version) {
-		s.markVersionModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.schemaURL, v.schemaURL) {
-		s.markSchemaURLModified()
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedScopeAttributes)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
-		s.markDroppedAttributesCountModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Scope) Clone() *Scope {
 	return &Scope{
 		name:                   s.name,
@@ -268,11 +253,6 @@ func (s *Scope) CopyFrom(src *Scope) {
 
 func (s *Scope) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Scope) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -693,8 +673,6 @@ func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type ScopeDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Scope
-	lastVal    Scope
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -728,9 +706,6 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Scope
 
 	if d.fieldCount <= 0 {
@@ -842,22 +817,20 @@ func (d *ScopeDecoder) Reset() {
 }
 
 func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
-	// Check if the Scope exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		*dstPtr = d.dict.dict[refNum]
 		return nil
 	}
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

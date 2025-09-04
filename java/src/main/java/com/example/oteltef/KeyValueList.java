@@ -7,6 +7,8 @@ import net.stef.Types;
 import java.util.*;
 import java.util.Objects;
 
+import static java.lang.Math.min;
+
 // KeyValueList is a multimap, (aka an associative array or a list) of key value
 // pairs from StringValue to AnyValue.
 public class KeyValueList {
@@ -29,10 +31,7 @@ public class KeyValueList {
     // a previous larger size.
     private int initedCount = 0;
 
-    // Reference to parent struct's modifiedFields and the bit to set
-    // if needed to indicate this field is modified.
-    private ModifiedFields parentModifiedFields;
-    private long parentModifiedBit;
+    ModifiedFieldsMultimap modifiedElems = new ModifiedFieldsMultimap();
 
     public KeyValueList() {
         init(null, 0);
@@ -43,8 +42,13 @@ public class KeyValueList {
     }
 
     private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
-        this.parentModifiedFields = parentModifiedFields;
-        this.parentModifiedBit = parentModifiedBit;
+        modifiedElems.init(parentModifiedFields, parentModifiedBit);
+    }
+
+    // reset the multimap to its initial state, as if init() was just called.
+    // Will not reset internal fields such as parentModifiedFields.
+    void reset() {
+        elemsLen = 0;
     }
 
     // clone() creates a deep copy of KeyValueList
@@ -85,31 +89,25 @@ public class KeyValueList {
     // initial values of key and value.
     public void ensureLen(int newLen) {
         int oldLen = elemsLen;
-        if (newLen==oldLen) {
+        if (newLen == oldLen) {
             return; // No change needed.
         }
+
+        modifiedElems.changeLen(oldLen, newLen);
 
         ensureElems(newLen);
         for (int i=initedCount; i < newLen; i++) {
             elems[i] = new Elem();
             elems[i].key = StringValue.empty;
-            elems[i].value = new AnyValue(parentModifiedFields, parentModifiedBit);
+            elems[i].value = new AnyValue(modifiedElems.vals, modifiedElems.maskForIndex(i));
         }
         if (initedCount < newLen) {
             initedCount = newLen;
         }
-        markModified();
-    }
 
-    private void markModified() {
-        if (parentModifiedFields != null) {
-            parentModifiedFields.markModified(parentModifiedBit);
-        }
-    }
-
-    void markUnmodified() {
-        if (parentModifiedFields != null) {
-            parentModifiedFields.markUnmodified();
+        for (int i=min(oldLen, newLen); i < newLen; i++) {
+            // Reset newly added values keys to initial state.
+            elems[i].value.reset();
         }
     }
 
@@ -117,6 +115,7 @@ public class KeyValueList {
         for (int i=0; i<elemsLen; i++) {
             elems[i].value.markModifiedRecursively();
         }
+        modifiedElems.markUnmodifiedAll();
     }
 
     void markUnmodifiedRecursively() {
@@ -125,75 +124,21 @@ public class KeyValueList {
         }
     }
 
-    // markDiffModified marks fields in each key and value of this multimap modified if they
-    // differ from the corresponding fields in v.
-    boolean markDiffModified(KeyValueList v) {
-        boolean modified = false;
-
-        if (elemsLen != v.elemsLen) {
-            // Array lengths are different, so they are definitely different.
-            modified = true;
-        }
-        
-        // Scan the elements and mark them as modified if they are different.
-        int minLen = Math.min(elemsLen, v.elemsLen);
-        for (int i=0; i < minLen; i++) {
-            if (!Types.StringEqual(elems[i].key, v.elems[i].key)) {
-                modified = true;
-            }
-            if (elems[i].value.markDiffModified(v.elems[i].value)) {
-                modified = true;
-            }
-        }
-        
-        // Mark the rest of the elements as modified.
-        for (int i=minLen; i<elemsLen; i++) {
-            elems[i].value.markModifiedRecursively();
-        }
-        
-        
-        if (modified) {
-            markModified();
-        }
-        
-        return modified;
-    }
-    
-    // markDiffModified marks fields in each value of this multimap modified if they
-    // differ from the corresponding fields in v.
-    // This function assumes the keys are the same and the lengths of multimaps are the same.
-    boolean markValueDiffModified(KeyValueList v) {
-        boolean modified = false;
-        // Scan the elements and mark them as modified if they are different.
-        for (int i=0; i < elemsLen; i++) {
-            if (elems[i].value.markDiffModified(v.elems[i].value)) {
-                modified = true;
-            }
-        }
-        
-        if (modified) {
-            markModified();
-        }
-        
-        return modified;
-    }
-
-
     // Append adds a key-value pair to the multimap.
     public void append(StringValue k, AnyValue v) {
+        modifiedElems.changeLen(elemsLen, elemsLen+1);
         ensureElems(elemsLen + 1);
         Elem elem = new Elem();
         elem.key = k;
         elem.value = v;
         elems[elemsLen-1] = elem;
-        markModified();
     }
 
     // setKey sets the key of the element at index i.
     public void setKey(int i, StringValue k) {
         if (!Types.StringEqual(elems[i].key, k)) {
             elems[i].key = k;
-            markModified();
+            modifiedElems.markKeyModified(i);
         }
     }
 
@@ -201,18 +146,8 @@ public class KeyValueList {
     public void setValue(int i, AnyValue v) {
         if (!elems[i].value.equals(v)) {
             elems[i].value = v;
-            markModified();
+            modifiedElems.markValModified(i);
         }
-    }
-
-    // Sorts the multimap by key.
-    public void sort() {
-        Arrays.sort(elems, 0, elemsLen, new Comparator<Elem>() {
-            @Override
-            public int compare(Elem a, Elem b) {
-                return Types.StringCompare(a.key, b.key);
-            }
-        });
     }
 
     // byteSize returns approximate memory usage in bytes. Used to calculate
@@ -225,26 +160,26 @@ public class KeyValueList {
 
     // Copy all elements from src to this multimap.
     public void copyFrom(KeyValueList src) {
-        boolean modified = false;
         if (elemsLen!=src.elemsLen) {
             ensureLen(src.elemsLen);
-            modified = true;
         }
         for (int i=0; i < src.elemsLen; i++) {
             if (!Types.StringEqual(elems[i].key, src.elems[i].key)) {
                 elems[i].key = src.elems[i].key;
-                modified = true;
+                modifiedElems.markKeyModified(i);
             }
         
             if (!elems[i].value.equals(src.elems[i].value)) {
                 elems[i].value.copyFrom(src.elems[i].value);
-                modified = true;
+                modifiedElems.markValModified(i);
             }
         }
+    }
 
-        if (modified) {
-            markModified();
-        }
+    // areKeysModified returns true if any key in the multimap was modified
+    // since the modified flags were last cleared.
+    boolean areKeysModified() {
+    	return modifiedElems.areKeysModified();
     }
 
     // equals performs deep comparison and returns true if this multimap is equal to val.
@@ -303,25 +238,6 @@ public class KeyValueList {
 
     // Helper for copying multimaps
     public static void copyKeyValueList(KeyValueList dst, KeyValueList src) {
-        dst.ensureLen(src.elemsLen);
-        for (int i = 0; i < src.elemsLen; i++) {
-            dst.elems[i].key = src.elems[i].key;
-            dst.elems[i].value = src.elems[i].value;
-        }
-        dst.markModified();
-    }
-
-    boolean isSameKeys(KeyValueList val2) {
-        if (elemsLen != val2.elemsLen) {
-            return false;
-        }
-
-        for (int i=0; i<elemsLen; i++) {
-            if (elems[i].key != val2.elems[i].key) {
-                return false;
-            }
-        }
-
-        return true;
+        dst.copyFrom(src);
     }
 }

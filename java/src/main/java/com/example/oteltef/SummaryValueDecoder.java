@@ -12,7 +12,6 @@ import java.io.IOException;
 class SummaryValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private SummaryValue lastVal;
     private int fieldCount;
 
     
@@ -36,8 +35,6 @@ class SummaryValueDecoder {
             fieldCount = state.getStructFieldCounts().getSummaryValueFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new SummaryValue(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.

@@ -74,6 +74,19 @@ public class ExpHistogramValue {
         
     }
 
+    void reset() {
+        
+        
+        
+        
+        
+        
+        
+        positiveBuckets.reset();
+        negativeBuckets.reset();
+        
+    }
+
     
     public long getCount() {
         return count;
@@ -315,16 +328,6 @@ public class ExpHistogramValue {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isPositiveBucketsModified()) {
-            this.positiveBuckets.markUnmodified();
-        }
-        if (this.isNegativeBucketsModified()) {
-            this.negativeBuckets.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         positiveBuckets.markModifiedRecursively();
         negativeBuckets.markModifiedRecursively();
@@ -348,61 +351,6 @@ public class ExpHistogramValue {
             negativeBuckets.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(ExpHistogramValue v) {
-        boolean modified = false;
-        if (!Types.Uint64Equal(count, v.count)) {
-            markCountModified();
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(sum, v.sum)|| (optionalFieldsPresent & fieldPresentSum)==0) {
-            markSumModified();
-            optionalFieldsPresent |= fieldPresentSum;
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(min, v.min)|| (optionalFieldsPresent & fieldPresentMin)==0) {
-            markMinModified();
-            optionalFieldsPresent |= fieldPresentMin;
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(max, v.max)|| (optionalFieldsPresent & fieldPresentMax)==0) {
-            markMaxModified();
-            optionalFieldsPresent |= fieldPresentMax;
-            modified = true;
-        }
-        
-        if (!Types.Int64Equal(scale, v.scale)) {
-            markScaleModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(zeroCount, v.zeroCount)) {
-            markZeroCountModified();
-            modified = true;
-        }
-        
-        if (positiveBuckets.markDiffModified(v.positiveBuckets)) {
-            modifiedFields.markModified(fieldModifiedPositiveBuckets);
-            modified = true;
-        }
-        
-        if (negativeBuckets.markDiffModified(v.negativeBuckets)) {
-            modifiedFields.markModified(fieldModifiedNegativeBuckets);
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(zeroThreshold, v.zeroThreshold)) {
-            markZeroThresholdModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public ExpHistogramValue clone() {

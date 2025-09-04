@@ -51,6 +51,19 @@ func (s *QuantileValue) init(parentModifiedFields *modifiedFields, parentModifie
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *QuantileValue) reset() {
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+}
+
 func (s *QuantileValue) Quantile() float64 {
 	return s.quantile
 }
@@ -117,22 +130,6 @@ func (s *QuantileValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *QuantileValue) markDiffModified(v *QuantileValue) (modified bool) {
-	if !pkg.Float64Equal(s.quantile, v.quantile) {
-		s.markQuantileModified()
-		modified = true
-	}
-
-	if !pkg.Float64Equal(s.value, v.value) {
-		s.markValueModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *QuantileValue) Clone() QuantileValue {
 	return QuantileValue{
 		quantile: s.quantile,
@@ -159,10 +156,6 @@ func (s *QuantileValue) CopyFrom(src *QuantileValue) {
 
 func (s *QuantileValue) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *QuantileValue) markUnmodified() {
-	s.modifiedFields.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -382,8 +375,6 @@ func (e *QuantileValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type QuantileValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *QuantileValue
-	lastVal    QuantileValue
 	fieldCount uint
 
 	quantileDecoder encoders.Float64Decoder
@@ -408,9 +399,6 @@ func (d *QuantileValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Quantile and subsequent fields are skipped.

@@ -79,6 +79,28 @@ func (s *Span) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.status.init(&s.modifiedFields, fieldModifiedSpanStatus)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Span) reset() {
+
+	s.attributes.reset()
+	s.events.reset()
+	s.links.reset()
+	s.status.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Span) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+	s.events.fixParent(&s.modifiedFields)
+	s.links.fixParent(&s.modifiedFields)
+	s.status.fixParent(&s.modifiedFields)
+}
+
 func (s *Span) TraceID() pkg.Bytes {
 	return s.traceID
 }
@@ -461,82 +483,6 @@ func (s *Span) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Span) markDiffModified(v *Span) (modified bool) {
-	if !pkg.BytesEqual(s.traceID, v.traceID) {
-		s.markTraceIDModified()
-		modified = true
-	}
-
-	if !pkg.BytesEqual(s.spanID, v.spanID) {
-		s.markSpanIDModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.traceState, v.traceState) {
-		s.markTraceStateModified()
-		modified = true
-	}
-
-	if !pkg.BytesEqual(s.parentSpanID, v.parentSpanID) {
-		s.markParentSpanIDModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.flags, v.flags) {
-		s.markFlagsModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.name, v.name) {
-		s.markNameModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.kind, v.kind) {
-		s.markKindModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.startTimeUnixNano, v.startTimeUnixNano) {
-		s.markStartTimeUnixNanoModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.endTimeUnixNano, v.endTimeUnixNano) {
-		s.markEndTimeUnixNanoModified()
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedSpanAttributes)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
-		s.markDroppedAttributesCountModified()
-		modified = true
-	}
-
-	if s.events.markDiffModified(&v.events) {
-		s.modifiedFields.markModified(fieldModifiedSpanEvents)
-		modified = true
-	}
-
-	if s.links.markDiffModified(&v.links) {
-		s.modifiedFields.markModified(fieldModifiedSpanLinks)
-		modified = true
-	}
-
-	if s.status.markDiffModified(&v.status) {
-		s.modifiedFields.markModified(fieldModifiedSpanStatus)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Span) Clone() Span {
 	return Span{
 		traceID:                s.traceID,
@@ -587,14 +533,6 @@ func (s *Span) CopyFrom(src *Span) {
 
 func (s *Span) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Span) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
-	s.events.markUnmodified()
-	s.links.markUnmodified()
-	s.status.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -1406,8 +1344,6 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SpanDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Span
-	lastVal    Span
 	fieldCount uint
 
 	traceIDDecoder encoders.BytesDecoder
@@ -1460,9 +1396,6 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.

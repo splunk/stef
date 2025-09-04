@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/splunk/stef/go/pkg"
 
@@ -19,12 +20,19 @@ func convertToJsonValue(src interface{}, dst *jsonstef.JsonValue) {
 		obj := dst.Object()
 		obj.EnsureLen(len(v))
 		i := 0
-		for k, subv := range v {
+
+		var keys []string
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
 			obj.SetKey(i, k)
-			convertToJsonValue(subv, obj.At(i).Value())
+			convertToJsonValue(v[k], obj.At(i).Value())
 			i++
 		}
-		obj.Sort()
+		//obj.Sort()
 	case []interface{}:
 		dst.SetType(jsonstef.JsonValueTypeArray)
 		arr := dst.Array()

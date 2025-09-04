@@ -84,6 +84,35 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     {{- end -}}
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *{{ $.StructName }}) reset() {
+    {{ range .Fields }}
+	{{- if not .Type.IsPrimitive }}
+    s.{{.name}}.reset()
+    {{- end -}}
+    {{- end -}}
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
+    s.modifiedFields.parent = parentModifiedFields
+
+    {{ range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    {{- if .Type.Flags.StoreByPtr}}
+    {{- if not .Optional}}
+    s.{{.name}}.fixParent(&s.modifiedFields)
+    {{- end}}
+    {{- else }}
+    s.{{.name}}.fixParent(&s.modifiedFields)
+    {{- end }}
+    {{- end -}}
+    {{- end -}}
+}
+
 {{ range .Fields }}
 func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
 {{- if .Type.IsPrimitive}}
@@ -157,29 +186,6 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified bool) {
-{{- range .Fields }}
-    {{- if .Type.IsPrimitive}}
-    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage (print "v." .name)}})
-        {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
-        s.mark{{.Name}}Modified()
-        {{- if .Optional}}
-            s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
-        {{- end}}
-        modified = true
-    }
-    {{- else}}
-    if s.{{.name}}.markDiffModified({{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}v.{{.name}}) {
-        s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
-        modified = true
-    }
-    {{- end}}
-{{ end }}
-    return modified
-}
-
 func (s *{{ .StructName }}) Clone() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
@@ -241,15 +247,6 @@ func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
 
 func (s* {{.StructName}}) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s* {{.StructName}}) markUnmodified() {
-    s.modifiedFields.markUnmodified()
-    {{- range .Fields }}
-    {{- if not .Type.IsPrimitive }}
-	s.{{.name}}.markUnmodified()
-	{{- end}}
-	{{- end }}
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -578,8 +575,6 @@ func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 type {{ .StructName }}Decoder struct {
     buf pkg.BitsReader
     column *pkg.ReadableColumn
-    lastValPtr *{{.StructName}}
-    lastVal {{.StructName}}
     fieldCount uint
 
     {{ range .Fields }}
@@ -609,13 +604,6 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     }
 
     d.column = columns.Column()
-
-    {{if .IsMainStruct}}
-    d.lastVal.Init()
-	{{- else}}
-    d.lastVal.init(nil,0)
-    {{- end}}
-    d.lastValPtr = &d.lastVal
 
     {{- if .DictName}}
     d.dict = &state.{{.DictName}}
@@ -686,22 +674,20 @@ func (d *{{ .StructName }}Decoder) Reset() {
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
     {{- if .DictName}}
-	// Check if the {{ .StructName }} exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
     dictFlag := d.buf.ReadBit()
     if dictFlag == 0 {
         refNum := d.buf.ReadUvarintCompact()
         if refNum >= uint64(len(d.dict.dict)) {
             return pkg.ErrInvalidRefNum
         }
-        d.lastValPtr = d.dict.dict[refNum]
-        *dstPtr = d.lastValPtr
+        *dstPtr = d.dict.dict[refNum]
         return nil
     }
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-    d.lastValPtr = val
+	val := (*dstPtr).Clone()
     *dstPtr = val
 	{{- else}}
     val := dstPtr

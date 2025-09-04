@@ -47,6 +47,13 @@ public class SummaryValue {
         quantileValues = new QuantileValueArray(modifiedFields, fieldModifiedQuantileValues);
     }
 
+    void reset() {
+        
+        
+        
+        quantileValues.reset();
+    }
+
     
     public long getCount() {
         return count;
@@ -113,13 +120,6 @@ public class SummaryValue {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isQuantileValuesModified()) {
-            this.quantileValues.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         quantileValues.markModifiedRecursively();
         modifiedFields.mask =
@@ -133,28 +133,6 @@ public class SummaryValue {
             quantileValues.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(SummaryValue v) {
-        boolean modified = false;
-        if (!Types.Uint64Equal(count, v.count)) {
-            markCountModified();
-            modified = true;
-        }
-        
-        if (!Types.Float64Equal(sum, v.sum)) {
-            markSumModified();
-            modified = true;
-        }
-        
-        if (quantileValues.markDiffModified(v.quantileValues)) {
-            modifiedFields.markModified(fieldModifiedQuantileValues);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public SummaryValue clone() {

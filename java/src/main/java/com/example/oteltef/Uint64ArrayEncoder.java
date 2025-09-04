@@ -17,7 +17,6 @@ class Uint64ArrayEncoder {
     private Uint64Encoder elemEncoder;
     private WriterState state;
     private boolean isRecursive = false;
-    private int prevLen = 0;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
@@ -31,26 +30,22 @@ class Uint64ArrayEncoder {
         if (!isRecursive) {
             elemEncoder.reset();
         }
-        prevLen = 0;
     }
 
     public void encode(Uint64Array arr) throws IOException {
-            int newLen = arr.elemsLen;
-            int oldBitLen = buf.bitCount();
-            int lenDelta = newLen - prevLen;
-            prevLen = newLen;
+        int oldBitLen = buf.bitCount();
 
-            buf.writeVarintCompact(lenDelta);
+        // Write the length of the array.
+        int newLen = arr.elemsLen;
+        buf.writeUvarintCompact(newLen);
 
-            if (newLen > 0) {
-                for (int i = 0; i < newLen; i++) {
-                    elemEncoder.encode(arr.elems[i]);
-                }
-            }
+        for (int i = 0; i < newLen; i++) {
+            elemEncoder.encode(arr.elems[i]);
+        }
 
-            // Account written bits in the limiter.
-            int newBitLen = buf.bitCount();
-            limiter.addFrameBits(newBitLen - oldBitLen);
+        // Account written bits in the limiter.
+        int newBitLen = buf.bitCount();
+        limiter.addFrameBits(newBitLen - oldBitLen);
     }
 
     public void collectColumns(WriteColumnSet columnSet) {

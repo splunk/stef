@@ -50,6 +50,14 @@ public class Spans {
         span = new Span(modifiedFields, fieldModifiedSpan);
     }
 
+    void reset() {
+        
+        envelope.reset();
+        resource.reset();
+        scope.reset();
+        span.reset();
+    }
+
     
     public Envelope getEnvelope() {
         return this.envelope;
@@ -116,22 +124,6 @@ public class Spans {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isEnvelopeModified()) {
-            this.envelope.markUnmodified();
-        }
-        if (this.isResourceModified()) {
-            this.resource.markUnmodified();
-        }
-        if (this.isScopeModified()) {
-            this.scope.markUnmodified();
-        }
-        if (this.isSpanModified()) {
-            this.span.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         envelope.markModifiedRecursively();
         resource.markModifiedRecursively();
@@ -158,33 +150,6 @@ public class Spans {
             span.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Spans v) {
-        boolean modified = false;
-        if (envelope.markDiffModified(v.envelope)) {
-            modifiedFields.markModified(fieldModifiedEnvelope);
-            modified = true;
-        }
-        
-        if (resource.markDiffModified(v.resource)) {
-            modifiedFields.markModified(fieldModifiedResource);
-            modified = true;
-        }
-        
-        if (scope.markDiffModified(v.scope)) {
-            modifiedFields.markModified(fieldModifiedScope);
-            modified = true;
-        }
-        
-        if (span.markDiffModified(v.span)) {
-            modifiedFields.markModified(fieldModifiedSpan);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Spans clone() {

@@ -62,6 +62,18 @@ public class Metric {
         
     }
 
+    void reset() {
+        
+        name = StringValue.empty;
+        description = StringValue.empty;
+        unit = StringValue.empty;
+        
+        metadata.reset();
+        histogramBounds.reset();
+        
+        
+    }
+
     
     public StringValue getName() {
         return name;
@@ -240,16 +252,6 @@ public class Metric {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isMetadataModified()) {
-            this.metadata.markUnmodified();
-        }
-        if (this.isHistogramBoundsModified()) {
-            this.histogramBounds.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         metadata.markModifiedRecursively();
         histogramBounds.markModifiedRecursively();
@@ -272,53 +274,6 @@ public class Metric {
             histogramBounds.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Metric v) {
-        boolean modified = false;
-        if (!Types.StringEqual(name, v.name)) {
-            markNameModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(description, v.description)) {
-            markDescriptionModified();
-            modified = true;
-        }
-        
-        if (!Types.StringEqual(unit, v.unit)) {
-            markUnitModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(type_, v.type_)) {
-            markTypeModified();
-            modified = true;
-        }
-        
-        if (metadata.markDiffModified(v.metadata)) {
-            modifiedFields.markModified(fieldModifiedMetadata);
-            modified = true;
-        }
-        
-        if (histogramBounds.markDiffModified(v.histogramBounds)) {
-            modifiedFields.markModified(fieldModifiedHistogramBounds);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(aggregationTemporality, v.aggregationTemporality)) {
-            markAggregationTemporalityModified();
-            modified = true;
-        }
-        
-        if (!Types.BoolEqual(monotonic, v.monotonic)) {
-            markMonotonicModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Metric clone() {

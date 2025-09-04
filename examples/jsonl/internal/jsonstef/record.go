@@ -51,6 +51,22 @@ func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Record) reset() {
+
+	s.value.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Record) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.value.fixParent(&s.modifiedFields)
+}
+
 func (s *Record) Value() *JsonValue {
 	return s.value
 }
@@ -84,17 +100,6 @@ func (s *Record) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Record) markDiffModified(v *Record) (modified bool) {
-	if s.value.markDiffModified(v.value) {
-		s.modifiedFields.markModified(fieldModifiedRecordValue)
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Record) Clone() Record {
 	return Record{
 		value: s.value.Clone(),
@@ -125,11 +130,6 @@ func (s *Record) CopyFrom(src *Record) {
 
 func (s *Record) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Record) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.value.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -317,8 +317,6 @@ func (e *RecordEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type RecordDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Record
-	lastVal    Record
 	fieldCount uint
 
 	valueDecoder     *JsonValueDecoder
@@ -342,9 +340,6 @@ func (d *RecordDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.Init()
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Value and subsequent fields are skipped.

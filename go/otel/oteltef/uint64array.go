@@ -30,6 +30,19 @@ func (e *Uint64Array) init(parentModifiedFields *modifiedFields, parentModifiedB
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *Uint64Array) reset() {
+	e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *Uint64Array) fixParent(parentModifiedFields *modifiedFields) {
+	e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of Uint64Array
 func (e *Uint64Array) Clone() Uint64Array {
 	var clone Uint64Array
@@ -70,40 +83,12 @@ func (e *Uint64Array) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *Uint64Array) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e *Uint64Array) markModifiedRecursively() {
 
 }
 
 func (e *Uint64Array) markUnmodifiedRecursively() {
 
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e *Uint64Array) markDiffModified(v *Uint64Array) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if !pkg.Uint64Equal(e.elems[i], v.elems[i]) {
-			modified = true
-		}
-
-	}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
@@ -222,7 +207,6 @@ type Uint64ArrayEncoder struct {
 	elemEncoder *encoders.Uint64Encoder
 	isRecursive bool
 	state       *WriterState
-	prevLen     int
 }
 
 func (e *Uint64ArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -241,23 +225,18 @@ func (e *Uint64ArrayEncoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-	e.prevLen = 0
 }
 
 func (e *Uint64ArrayEncoder) Encode(arr *Uint64Array) {
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
+	// Write the length of the array.
+	newLen := len(arr.elems)
+	e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			e.elemEncoder.Encode(arr.elems[i])
-		}
+	// Encode the elements of the array.
+	for i := 0; i < newLen; i++ {
+		e.elemEncoder.Encode(arr.elems[i])
 	}
 
 	// Account written bits in the limiter.
@@ -277,7 +256,6 @@ type Uint64ArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *encoders.Uint64Decoder
 	isRecursive bool
-	prevLen     int
 }
 
 // Init is called once in the lifetime of the stream.
@@ -308,15 +286,10 @@ func (d *Uint64ArrayDecoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	d.prevLen = 0
 }
 
 func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	newLen := d.prevLen + int(lenDelta)
-	d.prevLen = newLen
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 

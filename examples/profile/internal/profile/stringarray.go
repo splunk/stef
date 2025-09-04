@@ -30,6 +30,19 @@ func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedB
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *StringArray) reset() {
+	e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *StringArray) fixParent(parentModifiedFields *modifiedFields) {
+	e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of StringArray
 func (e *StringArray) Clone() StringArray {
 	var clone StringArray
@@ -70,40 +83,12 @@ func (e *StringArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *StringArray) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e *StringArray) markModifiedRecursively() {
 
 }
 
 func (e *StringArray) markUnmodifiedRecursively() {
 
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e *StringArray) markDiffModified(v *StringArray) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if !pkg.StringEqual(e.elems[i], v.elems[i]) {
-			modified = true
-		}
-
-	}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copyStringArray(dst *StringArray, src *StringArray) {
@@ -222,7 +207,6 @@ type StringArrayEncoder struct {
 	elemEncoder *encoders.StringEncoder
 	isRecursive bool
 	state       *WriterState
-	prevLen     int
 }
 
 func (e *StringArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -241,23 +225,18 @@ func (e *StringArrayEncoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-	e.prevLen = 0
 }
 
 func (e *StringArrayEncoder) Encode(arr *StringArray) {
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - e.prevLen
-	e.prevLen = newLen
+	// Write the length of the array.
+	newLen := len(arr.elems)
+	e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			e.elemEncoder.Encode(arr.elems[i])
-		}
+	// Encode the elements of the array.
+	for i := 0; i < newLen; i++ {
+		e.elemEncoder.Encode(arr.elems[i])
 	}
 
 	// Account written bits in the limiter.
@@ -277,7 +256,6 @@ type StringArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *encoders.StringDecoder
 	isRecursive bool
-	prevLen     int
 }
 
 // Init is called once in the lifetime of the stream.
@@ -308,15 +286,10 @@ func (d *StringArrayDecoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	d.prevLen = 0
 }
 
 func (d *StringArrayDecoder) Decode(dst *StringArray) error {
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	newLen := d.prevLen + int(lenDelta)
-	d.prevLen = newLen
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 

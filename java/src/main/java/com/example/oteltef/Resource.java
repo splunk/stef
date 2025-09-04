@@ -47,6 +47,13 @@ public class Resource {
         
     }
 
+    void reset() {
+        
+        schemaURL = StringValue.empty;
+        attributes.reset();
+        
+    }
+
     
     public StringValue getSchemaURL() {
         return schemaURL;
@@ -113,13 +120,6 @@ public class Resource {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         attributes.markModifiedRecursively();
         modifiedFields.mask =
@@ -133,28 +133,6 @@ public class Resource {
             attributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Resource v) {
-        boolean modified = false;
-        if (!Types.StringEqual(schemaURL, v.schemaURL)) {
-            markSchemaURLModified();
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(droppedAttributesCount, v.droppedAttributesCount)) {
-            markDroppedAttributesCountModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Resource clone() {

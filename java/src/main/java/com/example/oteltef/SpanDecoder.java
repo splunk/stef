@@ -12,7 +12,6 @@ import java.io.IOException;
 class SpanDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Span lastVal;
     private int fieldCount;
 
     
@@ -58,8 +57,6 @@ class SpanDecoder {
             fieldCount = state.getStructFieldCounts().getSpanFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Span(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // TraceID and subsequent fields are skipped.

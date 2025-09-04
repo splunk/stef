@@ -16,14 +16,24 @@ type modifiedFields struct {
     parentBit uint64
 }
 
+func (m* modifiedFields) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    m.parent = parentModifiedFields
+    m.parentBit = parentModifiedBit
+}
+
 func (m* modifiedFields) markModified(fieldBit uint64) {
-	if m != nil && m.mask & fieldBit == 0 {
+	if m != nil && m.mask & fieldBit != fieldBit {
         m.markModifiedSlow(fieldBit)
     }
 }
 
-func (m* modifiedFields) isModified(fieldBit uint64) bool {
-    return m!=nil && m.mask & fieldBit != 0
+func (m* modifiedFields) isAnyModified() bool {
+    return m.mask != 0
+}
+
+// Mark the parent struct as modified without modifying any field in this struct.
+func (m* modifiedFields) markParentModified() {
+    m.markModifiedSlow(0)
 }
 
 func (m* modifiedFields) markModifiedSlow(fieldBit uint64) {
@@ -41,6 +51,99 @@ func (m* modifiedFields) markModifiedSlow(fieldBit uint64) {
     }
 }
 
-func (m *modifiedFields) markUnmodified() {
+func (m *modifiedFields) markUnmodifiedAll() {
     m.mask = 0
+}
+
+// modifiedFieldsMultimap tracks modified elements of a multimap.
+type modifiedFieldsMultimap struct {
+    // Bit in modifiedFields that indicates if the key or value at the particular index
+    // of multimap elems array is modified.
+    // For multimaps larger than 63 elements we don't track individual element
+    // modifications and just mark that the entire multimap is modified.
+    keys modifiedFields
+    vals modifiedFields
+
+    // Indicates if the length of the multimap elems array was modified.
+    modifiedLen bool
+}
+
+func (m* modifiedFieldsMultimap) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    m.keys.init(parentModifiedFields, parentModifiedBit)
+    m.vals.init(parentModifiedFields, parentModifiedBit)
+}
+
+func (m *modifiedFieldsMultimap) fixParent(parentModifiedFields *modifiedFields) {
+    m.keys.parent = parentModifiedFields
+	m.vals.parent = parentModifiedFields
+}
+
+// Returns a bitmask to be set in keys or vals to mark modification of
+// multimap element at index.
+func (m* modifiedFieldsMultimap) maskForIndex(index int) uint64 {
+    if index >= 64 {
+        // For multimaps larger than 63 elements we don't track individual element
+        // modifications and just mark that the entire multimap is modified.
+        // Set all bits to indicate that an element with index 64 or higher is modified.
+        return ^uint64(0)
+    } else {
+        return uint64(1) << index
+    }
+}
+
+func (m* modifiedFieldsMultimap) markKeyModified(index int) {
+    if index >= 64 {
+        m.keys.markModified(^uint64(0))
+    } else {
+        m.keys.markModified(1 << index)
+    }
+}
+
+func (m* modifiedFieldsMultimap) markValModified(index int) {
+    if index >= 64 {
+        m.vals.markModified(^uint64(0))
+    } else {
+        m.vals.markModified(1 << index)
+    }
+}
+
+func (m* modifiedFieldsMultimap) markUnmodifiedAll() {
+	m.keys.markUnmodifiedAll()
+	m.vals.markUnmodifiedAll()
+	m.modifiedLen = false
+}
+
+func (m *modifiedFieldsMultimap) changeLen(oldLen, newLen int) {
+    // Even if no elems changed in this object (e.g. it was shrunk),
+    // we still need to mark this object as modified in the parent since
+    // the length has changed.
+    m.keys.markParentModified()
+    m.modifiedLen = true
+
+    if newLen >= 64 {
+        // If the new length is 64 or more, we just mark all elements as modified.
+        m.keys.markModified(^uint64(0))
+        m.vals.markModified(^uint64(0))
+        return
+    }
+
+    // Clear bits (unmodify) for elements that are now out of length range.
+    unmodifiedMask := ^(^uint64(0) << uint(newLen))
+    m.keys.mask &= unmodifiedMask
+    m.vals.mask &= unmodifiedMask
+
+    if newLen >= oldLen {
+        // Mark newly created elements in [oldLen,newLen] range as modified since they
+        // didn't exist before.
+
+        modifiedMask := unmodifiedMask & (^uint64(0) << uint(oldLen))
+
+        m.keys.mask |= modifiedMask
+        m.vals.mask |= modifiedMask
+    }
+}
+
+// areKeysModified returns true if the length or any key was modified.
+func (m *modifiedFieldsMultimap) areKeysModified() bool {
+	return m.modifiedLen || m.keys.isAnyModified()
 }

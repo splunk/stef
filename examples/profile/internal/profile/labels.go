@@ -3,7 +3,6 @@ package profile
 
 import (
 	"math/rand/v2"
-	"slices"
 	"strings"
 	"unsafe"
 
@@ -18,8 +17,7 @@ type Labels struct {
 	elems       []LabelsElem
 	initedCount int
 
-	parentModifiedFields *modifiedFields
-	parentModifiedBit    uint64
+	modifiedElems modifiedFieldsMultimap
 }
 
 type LabelsElem struct {
@@ -36,8 +34,20 @@ func (e *LabelsElem) Value() *LabelValue {
 }
 
 func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
-	m.parentModifiedFields = parentModifiedFields
-	m.parentModifiedBit = parentModifiedBit
+	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
+}
+
+// reset the multimap to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (m *Labels) reset() {
+	m.elems = m.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (m *Labels) fixParent(parentModifiedFields *modifiedFields) {
+	m.modifiedElems.fixParent(parentModifiedFields)
 }
 
 // Clone() creates a deep copy of Labels
@@ -62,28 +72,31 @@ func (m *Labels) At(i int) *LabelsElem {
 func (m *Labels) EnsureLen(newLen int) {
 	oldLen := len(m.elems)
 	if newLen != oldLen {
+		m.modifiedElems.changeLen(oldLen, newLen)
+
+		// Check if the underlying array is reallocated.
+		beforePtr := unsafe.SliceData(m.elems)
 		m.elems = pkg.EnsureLen(m.elems, newLen)
+		if beforePtr != unsafe.SliceData(m.elems) {
+			// Underlying array was reallocated, we need to fix parent pointers
+			// in all elements.
+			for i := 0; i < newLen; i++ {
+				m.elems[i].value.fixParent(&m.modifiedElems.vals)
+			}
+		}
+
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
-			m.elems[i].value.init(m.parentModifiedFields, m.parentModifiedBit)
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
 		}
 		if m.initedCount < newLen {
 			m.initedCount = newLen
 		}
-		m.markModified()
+		for i := min(oldLen, newLen); i < newLen; i++ {
+			// Reset newly added values keys to initial state.
+			m.elems[i].value.reset()
+		}
 	}
-}
-
-func (m *Labels) markModified() {
-	m.parentModifiedFields.markModified(m.parentModifiedBit)
-}
-
-func (m *Labels) isModified() bool {
-	return m.parentModifiedFields.isModified(m.parentModifiedBit)
-}
-
-func (m *Labels) markUnmodified() {
-	m.parentModifiedFields.markUnmodified()
 }
 
 func (m *Labels) markModifiedRecursively() {
@@ -96,70 +109,15 @@ func (m *Labels) markUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 		m.elems[i].value.markUnmodifiedRecursively()
 	}
-}
-
-// markDiffModified marks fields in each key and value of this multimap modified if they
-// differ from the corresponding fields in v.
-func (m *Labels) markDiffModified(v *Labels) (modified bool) {
-	if len(m.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(m.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if !pkg.StringEqual(m.elems[i].key, v.elems[i].key) {
-			modified = true
-		}
-
-		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
-			modified = true
-		}
-	}
-
-	// Mark the rest of the elements as modified.
-	for i := minLen; i < len(m.elems); i++ {
-		m.elems[i].value.markModifiedRecursively()
-	}
-
-	if modified {
-		m.markModified()
-	}
-
-	return modified
-}
-
-// markDiffModified marks fields in each value of this multimap modified if they
-// differ from the corresponding fields in v.
-// This function assumes the keys are the same and the lengths of multimaps are the same.
-func (m *Labels) markValueDiffModified(v *Labels) (modified bool) {
-	// Scan the elements and mark them as modified if they are different.
-	for i := 0; i < len(m.elems); i++ {
-		if m.elems[i].value.markDiffModified(&v.elems[i].value) {
-			modified = true
-		}
-	}
-
-	if modified {
-		m.markModified()
-	}
-
-	return modified
+	m.modifiedElems.markUnmodifiedAll()
 }
 
 // SetKey sets the key of the element at index i.
 func (m *Labels) SetKey(i int, k string) {
 	if m.elems[i].key != k {
 		m.elems[i].key = k
-		m.markModified()
+		m.modifiedElems.markKeyModified(i)
 	}
-}
-
-func (m *Labels) Sort() {
-	slices.SortFunc(m.elems, func(a, b LabelsElem) int {
-		return strings.Compare(a.key, b.key)
-	})
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -169,25 +127,20 @@ func (m *Labels) byteSize() uint {
 }
 
 func copyLabels(dst *Labels, src *Labels) {
-	modified := false
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
-		modified = true
 	}
+
 	for i := 0; i < len(src.elems); i++ {
 		if dst.elems[i].key != src.elems[i].key {
 			dst.elems[i].key = src.elems[i].key
-			modified = true
+			dst.modifiedElems.markKeyModified(i)
 		}
 
 		if !LabelValueEqual(&dst.elems[i].value, &src.elems[i].value) {
 			copyLabelValue(&dst.elems[i].value, &src.elems[i].value)
-			modified = true
+			dst.modifiedElems.markValModified(i)
 		}
-	}
-
-	if modified {
-		dst.markModified()
 	}
 }
 
@@ -263,6 +216,12 @@ func (m *Labels) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 }
 
+// areKeysModified returns true if any key in the multimap was modified
+// since the modified flags were last cleared.
+func (m *Labels) areKeysModified() bool {
+	return m.modifiedElems.areKeysModified()
+}
+
 type LabelsEncoder struct {
 	buf     pkg.BytesWriter
 	columns pkg.WriteColumnSet
@@ -272,65 +231,6 @@ type LabelsEncoder struct {
 	isKeyRecursive   bool
 	valueEncoder     *LabelValueEncoder
 	isValueRecursive bool
-	// lastValStack are last encoded values stacked by the level of recursion.
-	lastValStack LabelsLastValStack
-}
-type LabelsLastValStack []*LabelsLastValElem
-
-func (s *LabelsLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *LabelsLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *LabelsLastValStack) top() *LabelsLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *LabelsLastValStack) addOnTopSlow() {
-	elem := &LabelsLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &LabelsLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *LabelsLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *LabelsLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type LabelsLastValElem struct {
-	val            Labels
-	modifiedFields modifiedFields
-}
-
-func (e *LabelsLastValElem) init() {
-	e.val.init(&e.modifiedFields, 1)
-}
-
-func (e *LabelsLastValElem) reset() {
-	e.val = Labels{}
 }
 
 func (e *LabelsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -357,7 +257,6 @@ func (e *LabelsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 		e.valueEncoder = new(LabelValueEncoder)
 		err = e.valueEncoder.Init(state, columns.AddSubColumn())
 	}
-	e.lastValStack.init()
 
 	return err
 }
@@ -369,118 +268,66 @@ func (e *LabelsEncoder) Reset() {
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
 	}
-	e.lastValStack.reset()
 }
 
-func (e *LabelsEncoder) Encode(list *Labels) (changed bool) {
+func (e *LabelsEncoder) Encode(list *Labels) {
 	oldLen := len(e.buf.Bytes())
-	lastVal := &e.lastValStack.top().val
-	e.lastValStack.addOnTop()
-	defer func() { e.lastValStack.removeFromTop() }()
 
 	if len(list.elems) == 0 {
 		// Zero-length attr list.
 		e.buf.WriteUvarint(0b1)
 
-		changed = len(lastVal.elems) != 0
-		lastVal.elems = pkg.EnsureLen(lastVal.elems, 0)
-
 		newLen := len(e.buf.Bytes())
 		e.limiter.AddFrameBytes(uint(newLen - oldLen))
 
-		return changed
+		return
 	}
 
-	if list.isSameKeys(lastVal) && len(lastVal.elems) < 63 {
-		list.markValueDiffModified(lastVal)
-		changed = e.encodeValuesOnly(lastVal, list)
+	if !list.areKeysModified() && len(list.elems) < 63 {
+		e.encodeValuesOnly(list)
 	} else {
-		list.markDiffModified(lastVal)
-		e.encodeFull(lastVal, list)
-		changed = true
+		e.encodeFull(list)
 	}
 
 	newLen := len(e.buf.Bytes())
 	e.limiter.AddFrameBytes(uint(newLen - oldLen))
 
-	return changed
+	// Mark all elems non-modified so that next Encode() correctly
+	// encodes only elems that change after this.
+	list.modifiedElems.markUnmodifiedAll()
 }
 
-func (e *LabelsEncoder) encodeValuesOnly(lastVal *Labels, list *Labels) (changed bool) {
+func (e *LabelsEncoder) encodeValuesOnly(list *Labels) {
 	if len(list.elems) > 62 {
-		// TODO: implement this case.
-		panic("not implemented")
+		panic("not allowed to encode values-only for length > 62")
 	}
 
-	// Calculate changed values.
-	changedValuesBits := uint64(0)
-	for i := range list.elems {
-		changedValuesBits <<= 1
-		if !LabelValueEqual(&lastVal.elems[i].value, &list.elems[i].value) {
-			changedValuesBits |= 1
-		}
-	}
+	// The bits that describe the change value are exactly the bits
+	// that are set in modifiedElems.
+	changedValuesBits := list.modifiedElems.vals.mask
 
+	// Record changedValuesBits (LSB is 0 to indicate values-only encoding).
 	e.buf.WriteUvarint(changedValuesBits << 1)
 
-	// Encode changed values first.
-	bitToRead := uint64(1) << (len(list.elems) - 1)
+	// Encode changed values only.
+	bitToEncode := uint64(1)
 	for i := range list.elems {
-		if (bitToRead & changedValuesBits) != 0 {
+		if (bitToEncode & changedValuesBits) != 0 {
 			e.valueEncoder.Encode(&list.elems[i].value)
 		}
-		bitToRead >>= 1
-		if bitToRead == 0 {
-			break
-		}
+		bitToEncode <<= 1
 	}
-
-	// Store changed values in lastVal after encoding.
-	lastVal.EnsureLen(len(list.elems))
-	bitToRead = uint64(1) << (len(list.elems) - 1)
-	for i := range list.elems {
-		if (bitToRead & changedValuesBits) != 0 {
-			copyLabelValue(&lastVal.elems[i].value, &list.elems[i].value)
-		}
-		bitToRead >>= 1
-		if bitToRead == 0 {
-			break
-		}
-	}
-
-	return changedValuesBits != 0
 }
 
-func (e *LabelsEncoder) encodeFull(lastVal *Labels, list *Labels) {
+func (e *LabelsEncoder) encodeFull(list *Labels) {
+	// Record multimap len (LSB is 1 to indicate full encoding).
 	e.buf.WriteUvarint(uint64(len(list.elems))<<1 | 0b1)
 
-	// Encode values first.
+	// Encode keys and values.
 	for i := range list.elems {
 		e.keyEncoder.Encode(list.elems[i].key)
 		e.valueEncoder.Encode(&list.elems[i].value)
 	}
-
-	// Store changed values in lastVal.
-	lastVal.EnsureLen(len(list.elems))
-	for i := range list.elems {
-		lastVal.elems[i].key = list.elems[i].key
-		copyLabelValue(&lastVal.elems[i].value, &list.elems[i].value)
-	}
-}
-
-func (val1 *Labels) isSameKeys(val2 *Labels) bool {
-	if len(val1.elems) != len(val2.elems) {
-		return false
-	}
-
-	for i := range val1.elems {
-		// Attribute key.
-		if val1.elems[i].key != val2.elems[i].key {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (e *LabelsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
@@ -501,8 +348,6 @@ type LabelsDecoder struct {
 	isKeyRecursive   bool
 	valueDecoder     *LabelValueDecoder
 	isValueRecursive bool
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack LabelsLastValStack
 }
 
 // Init is called once in the lifetime of the stream.
@@ -530,7 +375,6 @@ func (d *LabelsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 		d.valueDecoder = new(LabelValueDecoder)
 		err = d.valueDecoder.Init(state, columns.AddSubColumn())
 	}
-	d.lastValStack.init()
 
 	return err
 }
@@ -557,66 +401,32 @@ func (d *LabelsDecoder) Reset() {
 	if !d.isValueRecursive {
 		d.valueDecoder.Reset()
 	}
-	d.lastValStack.reset()
 }
 
 func (d *LabelsDecoder) Decode(dst *Labels) error {
-	lastVal := &d.lastValStack.top().val
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
-
 	countOrChangedValues, err := d.buf.ReadUvarint()
 	if err != nil {
 		return err
 	}
 	if countOrChangedValues == 0 {
 		// Nothing changed.
-		return d.decodeCopyOfLast(lastVal, dst)
+		return nil
 	}
 
 	if countOrChangedValues&0b1 == 0 {
-		return d.decodeValuesOnly(lastVal, countOrChangedValues>>1, dst)
+		return d.decodeValuesOnly(countOrChangedValues>>1, dst)
 	}
 
 	if countOrChangedValues&0b1 == 0b1 {
-		return d.decodeFull(lastVal, int(countOrChangedValues>>1), dst)
+		return d.decodeFull(int(countOrChangedValues>>1), dst)
 	}
 	return pkg.ErrMultimap
 }
 
-func (d *LabelsDecoder) decodeCopyOfLast(lastVal *Labels, dst *Labels) error {
-	dst.EnsureLen(len(lastVal.elems))
-	for i := range dst.elems {
-		dst.elems[i].key = lastVal.elems[i].key
-		copyLabelValue(&dst.elems[i].value, &lastVal.elems[i].value)
-	}
-	return nil
-}
-
-func (d *LabelsDecoder) decodeValuesOnly(lastVal *Labels, changedValuesBits uint64, dst *Labels) error {
-	if len(lastVal.elems) == 0 {
-		// The last attrs empty so value-only encoding does not make sense.
-		return pkg.ErrMultimap
-	}
-
-	count := len(lastVal.elems)
-	dst.EnsureLen(count)
-
-	// Copy unchanged values from lastVal
-	bitToRead := uint64(1) << (len(dst.elems) - 1)
-	for i := range dst.elems {
-		// Copy the key from lastVal. All keys are the same.
-		dst.elems[i].key = lastVal.elems[i].key
-		if (bitToRead & changedValuesBits) == 0 {
-			// Value is not changed, copy from lastVal.
-			copyLabelValue(&dst.elems[i].value, &lastVal.elems[i].value)
-		}
-		bitToRead >>= 1
-	}
-
+func (d *LabelsDecoder) decodeValuesOnly(changedValuesBits uint64, dst *Labels) error {
 	// Decode changed values
 	var err error
-	bitToRead = uint64(1) << (len(dst.elems) - 1)
+	bitToRead := uint64(1)
 	for i := range dst.elems {
 		if (bitToRead & changedValuesBits) != 0 {
 			// Value is changed, decode it.
@@ -624,24 +434,20 @@ func (d *LabelsDecoder) decodeValuesOnly(lastVal *Labels, changedValuesBits uint
 			if err != nil {
 				return err
 			}
-			// Store the values in lastVal
-			copyLabelValue(&lastVal.elems[i].value, &dst.elems[i].value)
 		}
-		bitToRead >>= 1
+		bitToRead <<= 1
 	}
 
 	return nil
 }
 
-func (d *LabelsDecoder) decodeFull(lastVal *Labels, count int, dst *Labels) error {
+func (d *LabelsDecoder) decodeFull(count int, dst *Labels) error {
 	if count < 0 || count >= pkg.MultimapElemCountLimit {
 		return pkg.ErrMultimapCountLimit
 	}
 
 	dst.EnsureLen(count)
-	lastVal.EnsureLen(count)
 
-	// Decode values first.
 	var err error
 	for i := 0; i < count; i++ {
 		err = d.keyDecoder.Decode(&dst.elems[i].key)
@@ -652,10 +458,6 @@ func (d *LabelsDecoder) decodeFull(lastVal *Labels, count int, dst *Labels) erro
 		if err != nil {
 			return err
 		}
-
-		// Store decoded values in lastVal.
-		lastVal.elems[i].key = dst.elems[i].key
-		copyLabelValue(&lastVal.elems[i].value, &dst.elems[i].value)
 	}
 
 	return nil

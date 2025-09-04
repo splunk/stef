@@ -17,13 +17,6 @@ class {{ .MultimapName }}Decoder {
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
 
-    {{ if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
-    private {{ .MultimapName }} lastVal = new {{ .MultimapName }}();
-    {{- else}}
-    // lastValStack are last encoded values stacked by the level of recursion.
-    {{ .MultimapName }}Encoder.LastValStack lastValStack;
-    {{- end}}
-
     // Init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         this.column = columns.getColumn();
@@ -60,10 +53,6 @@ class {{ .MultimapName }}Decoder {
                 valueDecoder.init(state, columns.addSubColumn());
             }
             {{- end}}
-
-            {{- if or (not .Key.Type.IsPrimitive) (not .Value.Type.IsPrimitive)}}
-            lastValStack = new {{ .MultimapName }}Encoder.LastValStack();
-            {{- end}}
         } finally {
             state.{{ .MultimapName }}Decoder = null;
         }
@@ -91,121 +80,48 @@ class {{ .MultimapName }}Decoder {
         if (!isValueRecursive) {
             valueDecoder.reset();
         }
-        {{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
-        lastVal = new {{ .MultimapName }}();
-        {{- else}}
-        lastValStack.reset();
-        {{- end}}
     }
 
     public {{ .MultimapName }} decode({{ .MultimapName }} dst) throws IOException {
-        {{- if not (and .Key.Type.IsPrimitive .Value.Type.IsPrimitive)}}
-        {{ .MultimapName }} lastVal = lastValStack.top();
-        lastValStack.addOnTop();
-        try {
-        {{- end}}
-            long countOrChangedValues = buf.readUvarint();
-            if (countOrChangedValues == 0) {
-                decodeCopyOfLast(lastVal, dst);
-                return dst;
-            }
-            if ((countOrChangedValues & 0b1) == 0) {
-                decodeValuesOnly(lastVal, countOrChangedValues >>> 1, dst);
-                return dst;
-            }
-            if ((countOrChangedValues & 0b1) == 0b1) {
-                decodeFull(lastVal, (int)(countOrChangedValues >>> 1), dst);
-                return dst;
-            }
-            throw new RuntimeException("Multimap decode error");
-        {{- if not (and .Key.Type.IsPrimitive .Value.Type.IsPrimitive)}}
-        } finally {
-            lastValStack.removeFromTop();
+        long countOrChangedValues = buf.readUvarint();
+        if (countOrChangedValues == 0) {
+       		// Nothing changed.
+            return dst;
         }
-        {{- end}}
-}
-
-    private void decodeCopyOfLast({{.MultimapName}} lastVal, {{ .MultimapName }} dst) {
-        dst.ensureLen(lastVal.elemsLen);
-        for (int i=0; i < dst.elemsLen; i++) {
-            {{- if .Key.Type.IsPrimitive}}
-            dst.elems[i].key = lastVal.elems[i].key;
-            {{- else}}
-            copy{{.Key.Type.TypeName}}(lastVal.elems[i].key, dst.elems[i].key);
-            {{- end}}
-
-            {{- if .Value.Type.IsPrimitive}}
-            dst.elems[i].value = lastVal.elems[i].value;
-            {{- else}}
-            dst.elems[i].value.copyFrom(lastVal.elems[i].value);
-            {{- end}}
+        if ((countOrChangedValues & 0b1) == 0) {
+            decodeValuesOnly(countOrChangedValues >>> 1, dst);
+            return dst;
         }
+        if ((countOrChangedValues & 0b1) == 0b1) {
+            decodeFull((int)(countOrChangedValues >>> 1), dst);
+            return dst;
+        }
+        throw new RuntimeException("Multimap decode error");
     }
 
-    private void decodeValuesOnly({{.MultimapName}} lastVal, long changedValuesBits, {{ .MultimapName }} dst) throws IOException {
-        if (lastVal.elemsLen == 0) {
-            throw new RuntimeException("Multimap decode error: lastVal empty");
-        }
-        int count = lastVal.elemsLen;
-        dst.ensureLen(count);
-        long bitToRead = 1L << (dst.elemsLen - 1);
-        for (int i = 0; i < dst.elemsLen; i++) {
-            // Copy the key from lastVal. All keys are the same.
-            dst.elems[i].key = lastVal.elems[i].key;
-            if ((bitToRead & changedValuesBits) == 0) {
-                // Value is not changed, copy from lastVal.
-                {{- if .Value.Type.IsPrimitive}}
-                dst.elems[i].value = lastVal.elems[i].value;
-                {{- else}}
-                dst.elems[i].value.copyFrom(lastVal.elems[i].value);
-                {{- end}}
-            }
-            bitToRead >>= 1;
-        }
-
+    private void decodeValuesOnly(long changedValuesBits, {{ .MultimapName }} dst) throws IOException {
         // Decode changed values
-        bitToRead = (long)1 << (dst.elemsLen - 1);
+        long bitToRead = 1L;
         for (int i = 0; i<dst.elemsLen; i++) {
             if ((bitToRead & changedValuesBits) != 0) {
                 // Value is changed, decode it.
                 dst.elems[i].value = valueDecoder.decode({{if not .Value.Type.IsPrimitive}}dst.elems[i].value{{end}});
-
-                // Store the values in lastVal.
-                {{- if .Value.Type.IsPrimitive}}
-                lastVal.elems[i].value = dst.elems[i].value;
-                {{- else}}
-                lastVal.elems[i].value.copyFrom(dst.elems[i].value);
-                {{- end}}
             }
-            bitToRead >>= 1;
+            bitToRead <<= 1;
         }
     }
 
-    private void decodeFull({{.MultimapName}} lastVal, int count, {{ .MultimapName }} dst) throws IOException {
+    private void decodeFull(int count, {{ .MultimapName }} dst) throws IOException {
         if (count < 0 || count >= Limits.MultimapElemCountLimit) {
             throw new RuntimeException("Multimap decode error: invalid count " + count);
         }
         
         dst.ensureLen(count);
-        lastVal.ensureLen(count);
 
         // Decode values first.
         for (int i = 0; i < count; i++) {
             dst.elems[i].key = keyDecoder.decode({{if not .Key.Type.IsPrimitive }}dst.elems[i].key{{end}});
             dst.elems[i].value = valueDecoder.decode({{if not .Value.Type.IsPrimitive }}dst.elems[i].value{{end}});
-
-            // Store decoded values in lastVal.
-            {{- if .Key.Type.IsPrimitive}}
-            lastVal.elems[i].key = dst.elems[i].key;
-            {{- else}}
-            lastVal.elems[i].key.copyFrom(dst.elems[i].key);
-            {{- end}}
-        
-            {{- if .Value.Type.IsPrimitive}}
-            lastVal.elems[i].value = dst.elems[i].value;
-            {{- else}}
-            lastVal.elems[i].value.copyFrom(dst.elems[i].value);
-            {{- end}}
         }
     }
 }

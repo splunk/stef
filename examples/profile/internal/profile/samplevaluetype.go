@@ -53,6 +53,19 @@ func (s *SampleValueType) init(parentModifiedFields *modifiedFields, parentModif
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *SampleValueType) reset() {
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *SampleValueType) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+}
+
 func (s *SampleValueType) Type() string {
 	return s.type_
 }
@@ -119,22 +132,6 @@ func (s *SampleValueType) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *SampleValueType) markDiffModified(v *SampleValueType) (modified bool) {
-	if !pkg.StringEqual(s.type_, v.type_) {
-		s.markTypeModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.unit, v.unit) {
-		s.markUnitModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *SampleValueType) Clone() *SampleValueType {
 	return &SampleValueType{
 		type_: s.type_,
@@ -161,10 +158,6 @@ func (s *SampleValueType) CopyFrom(src *SampleValueType) {
 
 func (s *SampleValueType) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *SampleValueType) markUnmodified() {
-	s.modifiedFields.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -437,8 +430,6 @@ func (e *SampleValueTypeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type SampleValueTypeDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *SampleValueType
-	lastVal    SampleValueType
 	fieldCount uint
 
 	type_Decoder encoders.StringDecoder
@@ -465,9 +456,6 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.SampleValueType
 
 	if d.fieldCount <= 0 {
@@ -519,22 +507,20 @@ func (d *SampleValueTypeDecoder) Reset() {
 }
 
 func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
-	// Check if the SampleValueType exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		*dstPtr = d.dict.dict[refNum]
 		return nil
 	}
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

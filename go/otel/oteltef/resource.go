@@ -56,6 +56,22 @@ func (s *Resource) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.attributes.init(&s.modifiedFields, fieldModifiedResourceAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Resource) reset() {
+
+	s.attributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Resource) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Resource) SchemaURL() string {
 	return s.schemaURL
 }
@@ -145,27 +161,6 @@ func (s *Resource) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Resource) markDiffModified(v *Resource) (modified bool) {
-	if !pkg.StringEqual(s.schemaURL, v.schemaURL) {
-		s.markSchemaURLModified()
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedResourceAttributes)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
-		s.markDroppedAttributesCountModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Resource) Clone() *Resource {
 	return &Resource{
 		schemaURL:              s.schemaURL,
@@ -194,11 +189,6 @@ func (s *Resource) CopyFrom(src *Resource) {
 
 func (s *Resource) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Resource) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -529,8 +519,6 @@ func (e *ResourceEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type ResourceDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Resource
-	lastVal    Resource
 	fieldCount uint
 
 	schemaURLDecoder encoders.StringDecoder
@@ -560,9 +548,6 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Resource
 
 	if d.fieldCount <= 0 {
@@ -644,22 +629,20 @@ func (d *ResourceDecoder) Reset() {
 }
 
 func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
-	// Check if the Resource exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		*dstPtr = d.dict.dict[refNum]
 		return nil
 	}
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

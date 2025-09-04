@@ -47,6 +47,30 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     {{- end -}}
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *{{ $.StructName }}) reset() {
+    s.typ = {{$.StructName }}TypeNone
+    {{ range .Fields }}
+	{{- if not .Type.IsPrimitive }}
+    s.{{.name}}.reset()
+    {{- end -}}
+    {{- end -}}
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
+    s.parentModifiedFields = parentModifiedFields
+
+    {{ range .Fields }}
+	{{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr) }}
+    s.{{.name}}.fixParent(parentModifiedFields)
+    {{- end -}}
+    {{- end -}}
+}
+
 type {{$.StructName }}Type byte
 const (
     {{.StructName }}TypeNone = {{$.StructName }}Type(iota)
@@ -146,14 +170,6 @@ func (s* {{.StructName}}) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s* {{.StructName}}) markUnmodified() {
-    {{- range .Fields }}
-    {{- if not .Type.IsPrimitive }}
-	s.{{.name}}.markUnmodified()
-	{{- end}}
-	{{- end }}
-}
-
 func (s *{{ $.StructName }}) markModifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}
@@ -174,34 +190,6 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
         {{- end}}
     {{- end}}
     }
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *{{ $.StructName }}) markDiffModified(v *{{ $.StructName }}) (modified bool) {
-    if s.typ != v.typ {
-        modified = true
-        s.markModifiedRecursively()
-        return modified
-    }
-
-    switch s.typ {
-    {{- range .Fields }}
-    case {{ $.StructName }}Type{{.Name}}:
-    {{- if .Type.IsPrimitive}}
-        if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage (print "v." .name)}}) {
-            s.markParentModified()
-            modified = true
-        }
-    {{- else}}
-        if s.{{.name}}.markDiffModified({{if .Type.Flags.TakePtr}}&{{end}}v.{{.name}}) {
-            s.markParentModified()
-            modified = true
-        }
-    {{- end}}
-    {{- end }}
-    }
-    return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

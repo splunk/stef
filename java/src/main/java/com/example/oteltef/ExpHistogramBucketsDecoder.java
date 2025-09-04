@@ -12,7 +12,6 @@ import java.io.IOException;
 class ExpHistogramBucketsDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private ExpHistogramBuckets lastVal;
     private int fieldCount;
 
     
@@ -34,8 +33,6 @@ class ExpHistogramBucketsDecoder {
             fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new ExpHistogramBuckets(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Offset and subsequent fields are skipped.

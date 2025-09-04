@@ -53,6 +53,15 @@ public class Exemplar {
         filteredAttributes = new Attributes(modifiedFields, fieldModifiedFilteredAttributes);
     }
 
+    void reset() {
+        
+        
+        value.reset();
+        spanID = Types.emptyBytes;
+        traceID = Types.emptyBytes;
+        filteredAttributes.reset();
+    }
+
     
     public long getTimestamp() {
         return timestamp;
@@ -159,16 +168,6 @@ public class Exemplar {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isValueModified()) {
-            this.value.markUnmodified();
-        }
-        if (this.isFilteredAttributesModified()) {
-            this.filteredAttributes.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         value.markModifiedRecursively();
         filteredAttributes.markModifiedRecursively();
@@ -188,38 +187,6 @@ public class Exemplar {
             filteredAttributes.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Exemplar v) {
-        boolean modified = false;
-        if (!Types.Uint64Equal(timestamp, v.timestamp)) {
-            markTimestampModified();
-            modified = true;
-        }
-        
-        if (value.markDiffModified(v.value)) {
-            modifiedFields.markModified(fieldModifiedValue);
-            modified = true;
-        }
-        
-        if (!Types.BytesEqual(spanID, v.spanID)) {
-            markSpanIDModified();
-            modified = true;
-        }
-        
-        if (!Types.BytesEqual(traceID, v.traceID)) {
-            markTraceIDModified();
-            modified = true;
-        }
-        
-        if (filteredAttributes.markDiffModified(v.filteredAttributes)) {
-            modifiedFields.markModified(fieldModifiedFilteredAttributes);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Exemplar clone() {

@@ -6,7 +6,7 @@ all: generate default
 
 .PHONY: build
 build:
-	go test -v
+	go test -v ./...
 
 .PHONY: generate
 generate:

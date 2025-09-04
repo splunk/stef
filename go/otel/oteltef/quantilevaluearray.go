@@ -28,6 +28,19 @@ func (e *QuantileValueArray) init(parentModifiedFields *modifiedFields, parentMo
 	e.parentModifiedBit = parentModifiedBit
 }
 
+// reset the array to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (e *QuantileValueArray) reset() {
+	e.elems = e.elems[:0]
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (e *QuantileValueArray) fixParent(parentModifiedFields *modifiedFields) {
+	e.parentModifiedFields = parentModifiedFields
+}
+
 // Clone() creates a deep copy of QuantileValueArray
 func (e *QuantileValueArray) Clone() QuantileValueArray {
 	var clone QuantileValueArray
@@ -60,10 +73,6 @@ func (e *QuantileValueArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *QuantileValueArray) markUnmodified() {
-	e.parentModifiedFields.markUnmodified()
-}
-
 func (e *QuantileValueArray) markModifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].markModifiedRecursively()
@@ -76,34 +85,6 @@ func (e *QuantileValueArray) markUnmodifiedRecursively() {
 		e.elems[i].markUnmodifiedRecursively()
 	}
 
-}
-
-// markDiffModified marks fields in each element of this array modified if they differ from
-// the corresponding fields in v.
-func (e *QuantileValueArray) markDiffModified(v *QuantileValueArray) (modified bool) {
-	if len(e.elems) != len(v.elems) {
-		// Array lengths are different, so they are definitely different.
-		modified = true
-	}
-
-	// Scan the elements and mark them as modified if they are different.
-	minLen := min(len(e.elems), len(v.elems))
-	for i := 0; i < minLen; i++ {
-		if e.elems[i].markDiffModified(v.elems[i]) {
-			modified = true
-		}
-	}
-
-	// Mark the rest of the elements as modified.
-	for i := minLen; i < len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
-	}
-
-	if modified {
-		e.markModified()
-	}
-
-	return modified
 }
 
 func copyQuantileValueArray(dst *QuantileValueArray, src *QuantileValueArray) {
@@ -229,67 +210,6 @@ type QuantileValueArrayEncoder struct {
 	elemEncoder *QuantileValueEncoder
 	isRecursive bool
 	state       *WriterState
-	// lastValStack are last encoded values stacked by the level of recursion.
-	lastValStack QuantileValueArrayEncoderLastValStack
-}
-type QuantileValueArrayEncoderLastValStack []*QuantileValueArrayEncoderLastValElem
-
-func (s *QuantileValueArrayEncoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *QuantileValueArrayEncoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *QuantileValueArrayEncoderLastValStack) top() *QuantileValueArrayEncoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *QuantileValueArrayEncoderLastValStack) addOnTopSlow() {
-	elem := &QuantileValueArrayEncoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &QuantileValueArrayEncoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *QuantileValueArrayEncoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *QuantileValueArrayEncoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type QuantileValueArrayEncoderLastValElem struct {
-	prevLen        int
-	elem           QuantileValue
-	modifiedFields modifiedFields
-}
-
-func (e *QuantileValueArrayEncoderLastValElem) init() {
-	e.elem.init(&e.modifiedFields, 1)
-}
-
-func (e *QuantileValueArrayEncoderLastValElem) reset() {
-	e.elem = QuantileValue{}
-	e.prevLen = 0
 }
 
 func (e *QuantileValueArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -313,7 +233,6 @@ func (e *QuantileValueArrayEncoder) Init(state *WriterState, columns *pkg.WriteC
 			return err
 		}
 	}
-	e.lastValStack.init()
 
 	return nil
 }
@@ -322,38 +241,18 @@ func (e *QuantileValueArrayEncoder) Reset() {
 	if !e.isRecursive {
 		e.elemEncoder.Reset()
 	}
-
-	e.lastValStack.reset()
 }
 
 func (e *QuantileValueArrayEncoder) Encode(arr *QuantileValueArray) {
-	lastVal := e.lastValStack.top()
-	e.lastValStack.addOnTop()
-	defer func() { e.lastValStack.removeFromTop() }()
-
-	newLen := len(arr.elems)
 	oldBitLen := e.buf.BitCount()
 
-	lenDelta := newLen - lastVal.prevLen
-	lastVal.prevLen = newLen
+	// Write the length of the array.
+	newLen := len(arr.elems)
+	e.buf.WriteUvarintCompact(uint64(newLen))
 
-	e.buf.WriteVarintCompact(int64(lenDelta))
-
-	if newLen > 0 {
-		for i := 0; i < newLen; i++ {
-			if i == 0 {
-				// Compute and mark fields that are modified compared to the last encoded value.
-				arr.elems[i].markDiffModified(&lastVal.elem)
-			} else {
-				// Compute and mark fields that are modified compared to the previous element.
-				arr.elems[i].markDiffModified(arr.elems[i-1])
-			}
-
-			// Encode the element.
-			e.elemEncoder.Encode(arr.elems[i])
-		}
-		// Remember last encoded element.
-		copyQuantileValue(&lastVal.elem, arr.elems[len(arr.elems)-1])
+	// Encode the elements of the array.
+	for i := 0; i < newLen; i++ {
+		e.elemEncoder.Encode(arr.elems[i])
 	}
 
 	// Account written bits in the limiter.
@@ -373,65 +272,6 @@ type QuantileValueArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *QuantileValueDecoder
 	isRecursive bool
-	// lastValStack are last decoded values stacked by the level of recursion.
-	lastValStack QuantileValueArrayDecoderLastValStack
-}
-type QuantileValueArrayDecoderLastValStack []*QuantileValueArrayDecoderLastValElem
-
-func (s *QuantileValueArrayDecoderLastValStack) init() {
-	// We need one top-level element in the stack to store the last value initially.
-	s.addOnTop()
-}
-
-func (s *QuantileValueArrayDecoderLastValStack) reset() {
-	// Reset all elements in the stack.
-	t := (*s)[:cap(*s)]
-	for i := 0; i < len(t); i++ {
-		t[i].reset()
-	}
-	// Reset the stack to have one element for top-level.
-	*s = (*s)[:1]
-}
-
-func (s *QuantileValueArrayDecoderLastValStack) top() *QuantileValueArrayDecoderLastValElem {
-	return (*s)[len(*s)-1]
-}
-
-func (s *QuantileValueArrayDecoderLastValStack) addOnTopSlow() {
-	elem := &QuantileValueArrayDecoderLastValElem{}
-	elem.init()
-	*s = append(*s, elem)
-	t := (*s)[0:cap(*s)]
-	for i := len(*s); i < len(t); i++ {
-		// Ensure that all elements in the stack are initialized.
-		t[i] = &QuantileValueArrayDecoderLastValElem{}
-		t[i].init()
-	}
-}
-
-func (s *QuantileValueArrayDecoderLastValStack) addOnTop() {
-	if len(*s) < cap(*s) {
-		*s = (*s)[:len(*s)+1]
-		return
-	}
-	s.addOnTopSlow()
-}
-
-func (s *QuantileValueArrayDecoderLastValStack) removeFromTop() {
-	*s = (*s)[:len(*s)-1]
-}
-
-type QuantileValueArrayDecoderLastValElem struct {
-	prevLen int
-	elem    QuantileValue
-}
-
-func (e *QuantileValueArrayDecoderLastValElem) init() {
-}
-
-func (e *QuantileValueArrayDecoderLastValElem) reset() {
-	e.prevLen = 0
-	e.elem = QuantileValue{}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -453,7 +293,6 @@ func (d *QuantileValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadCo
 			return err
 		}
 	}
-	d.lastValStack.init()
 
 	return nil
 }
@@ -474,27 +313,18 @@ func (d *QuantileValueArrayDecoder) Reset() {
 	if !d.isRecursive {
 		d.elemDecoder.Reset()
 	}
-	d.lastValStack.reset()
 }
 
 func (d *QuantileValueArrayDecoder) Decode(dst *QuantileValueArray) error {
-	lastVal := d.lastValStack.top()
-	d.lastValStack.addOnTop()
-	defer func() { d.lastValStack.removeFromTop() }()
-
-	lenDelta := d.buf.ReadVarintCompact()
-
-	newLen := lastVal.prevLen + int(lenDelta)
-	lastVal.prevLen = newLen
+	newLen := int(d.buf.ReadUvarintCompact())
 
 	dst.EnsureLen(newLen)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&lastVal.elem)
+		err := d.elemDecoder.Decode(dst.elems[i])
 		if err != nil {
 			return err
 		}
-		copyQuantileValue(dst.elems[i], &lastVal.elem)
 	}
 
 	return nil

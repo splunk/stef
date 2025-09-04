@@ -21,8 +21,13 @@ public class ModifiedFields {
     // the bit that corresponds to this struct's field in the parent struct
     public long parentBit;
 
+    void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
+        parent = parentModifiedFields;
+        parentBit = parentModifiedBit;
+    }
+
     public void markModified(long fieldBit) {
-        if ((this.mask & fieldBit) == 0) {
+        if ((this.mask & fieldBit) != fieldBit) {
             this.markModifiedSlow(fieldBit);
         }
     }
@@ -46,8 +51,12 @@ public class ModifiedFields {
         }
     }
 
-    public void markUnmodified() {
+    // Mark the parent struct as modified without modifying any field in this struct.
+    public void markParentModified() {
+        markModifiedSlow(0);
+    }
+
+    public void markUnmodifiedAll() {
         this.mask = 0;
     }
 }
-

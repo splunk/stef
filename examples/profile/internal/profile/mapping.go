@@ -67,6 +67,19 @@ func (s *Mapping) init(parentModifiedFields *modifiedFields, parentModifiedBit u
 
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Mapping) reset() {
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Mapping) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+}
+
 func (s *Mapping) MemoryStart() uint64 {
 	return s.memoryStart
 }
@@ -329,57 +342,6 @@ func (s *Mapping) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Mapping) markDiffModified(v *Mapping) (modified bool) {
-	if !pkg.Uint64Equal(s.memoryStart, v.memoryStart) {
-		s.markMemoryStartModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.memoryLimit, v.memoryLimit) {
-		s.markMemoryLimitModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.fileOffset, v.fileOffset) {
-		s.markFileOffsetModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.filename, v.filename) {
-		s.markFilenameModified()
-		modified = true
-	}
-
-	if !pkg.StringEqual(s.buildId, v.buildId) {
-		s.markBuildIdModified()
-		modified = true
-	}
-
-	if !pkg.BoolEqual(s.hasFunctions, v.hasFunctions) {
-		s.markHasFunctionsModified()
-		modified = true
-	}
-
-	if !pkg.BoolEqual(s.hasFilenames, v.hasFilenames) {
-		s.markHasFilenamesModified()
-		modified = true
-	}
-
-	if !pkg.BoolEqual(s.hasLineNumbers, v.hasLineNumbers) {
-		s.markHasLineNumbersModified()
-		modified = true
-	}
-
-	if !pkg.BoolEqual(s.hasInlineFrames, v.hasInlineFrames) {
-		s.markHasInlineFramesModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Mapping) Clone() *Mapping {
 	return &Mapping{
 		memoryStart:     s.memoryStart,
@@ -420,10 +382,6 @@ func (s *Mapping) CopyFrom(src *Mapping) {
 
 func (s *Mapping) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Mapping) markUnmodified() {
-	s.modifiedFields.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -1011,8 +969,6 @@ func (e *MappingEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type MappingDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Mapping
-	lastVal    Mapping
 	fieldCount uint
 
 	memoryStartDecoder encoders.Uint64Decoder
@@ -1053,9 +1009,6 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 	d.dict = &state.Mapping
 
 	if d.fieldCount <= 0 {
@@ -1212,22 +1165,20 @@ func (d *MappingDecoder) Reset() {
 }
 
 func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
-	// Check if the Mapping exists in the dictionary.
+	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.ReadBit()
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
-		d.lastValPtr = d.dict.dict[refNum]
-		*dstPtr = d.lastValPtr
+		*dstPtr = d.dict.dict[refNum]
 		return nil
 	}
 
-	// lastValPtr here is pointing to a element in the dictionary. We are not allowed
+	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := d.lastValPtr.Clone()
-	d.lastValPtr = val
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

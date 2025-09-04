@@ -50,6 +50,14 @@ public class Point {
         exemplars = new ExemplarArray(modifiedFields, fieldModifiedExemplars);
     }
 
+    void reset() {
+        
+        
+        
+        value.reset();
+        exemplars.reset();
+    }
+
     
     public long getStartTimestamp() {
         return startTimestamp;
@@ -132,16 +140,6 @@ public class Point {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isValueModified()) {
-            this.value.markUnmodified();
-        }
-        if (this.isExemplarsModified()) {
-            this.exemplars.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         value.markModifiedRecursively();
         exemplars.markModifiedRecursively();
@@ -160,33 +158,6 @@ public class Point {
             exemplars.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Point v) {
-        boolean modified = false;
-        if (!Types.Uint64Equal(startTimestamp, v.startTimestamp)) {
-            markStartTimestampModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(timestamp, v.timestamp)) {
-            markTimestampModified();
-            modified = true;
-        }
-        
-        if (value.markDiffModified(v.value)) {
-            modifiedFields.markModified(fieldModifiedValue);
-            modified = true;
-        }
-        
-        if (exemplars.markDiffModified(v.exemplars)) {
-            modifiedFields.markModified(fieldModifiedExemplars);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Point clone() {

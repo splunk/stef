@@ -12,7 +12,6 @@ import java.io.IOException;
 class ExpHistogramValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private ExpHistogramValue lastVal;
     private int fieldCount;
 
     
@@ -48,8 +47,6 @@ class ExpHistogramValueDecoder {
             fieldCount = state.getStructFieldCounts().getExpHistogramValueFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new ExpHistogramValue(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.

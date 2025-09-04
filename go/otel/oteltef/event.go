@@ -56,6 +56,22 @@ func (s *Event) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.attributes.init(&s.modifiedFields, fieldModifiedEventAttributes)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *Event) reset() {
+
+	s.attributes.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
+	s.modifiedFields.parent = parentModifiedFields
+
+	s.attributes.fixParent(&s.modifiedFields)
+}
+
 func (s *Event) Name() string {
 	return s.name
 }
@@ -173,32 +189,6 @@ func (s *Event) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *Event) markDiffModified(v *Event) (modified bool) {
-	if !pkg.StringEqual(s.name, v.name) {
-		s.markNameModified()
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.timeUnixNano, v.timeUnixNano) {
-		s.markTimeUnixNanoModified()
-		modified = true
-	}
-
-	if s.attributes.markDiffModified(&v.attributes) {
-		s.modifiedFields.markModified(fieldModifiedEventAttributes)
-		modified = true
-	}
-
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v.droppedAttributesCount) {
-		s.markDroppedAttributesCountModified()
-		modified = true
-	}
-
-	return modified
-}
-
 func (s *Event) Clone() Event {
 	return Event{
 		name:                   s.name,
@@ -229,11 +219,6 @@ func (s *Event) CopyFrom(src *Event) {
 
 func (s *Event) markParentModified() {
 	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
-}
-
-func (s *Event) markUnmodified() {
-	s.modifiedFields.markUnmodified()
-	s.attributes.markUnmodified()
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -556,8 +541,6 @@ func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type EventDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
-	lastValPtr *Event
-	lastVal    Event
 	fieldCount uint
 
 	nameDecoder encoders.StringDecoder
@@ -587,9 +570,6 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 
 	d.column = columns.Column()
-
-	d.lastVal.init(nil, 0)
-	d.lastValPtr = &d.lastVal
 
 	if d.fieldCount <= 0 {
 		return nil // Name and subsequent fields are skipped.

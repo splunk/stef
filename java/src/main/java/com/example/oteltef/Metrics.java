@@ -56,6 +56,16 @@ public class Metrics {
         point = new Point(modifiedFields, fieldModifiedPoint);
     }
 
+    void reset() {
+        
+        envelope.reset();
+        metric.reset();
+        resource.reset();
+        scope.reset();
+        attributes.reset();
+        point.reset();
+    }
+
     
     public Envelope getEnvelope() {
         return this.envelope;
@@ -154,28 +164,6 @@ public class Metrics {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-        if (this.isEnvelopeModified()) {
-            this.envelope.markUnmodified();
-        }
-        if (this.isMetricModified()) {
-            this.metric.markUnmodified();
-        }
-        if (this.isResourceModified()) {
-            this.resource.markUnmodified();
-        }
-        if (this.isScopeModified()) {
-            this.scope.markUnmodified();
-        }
-        if (this.isAttributesModified()) {
-            this.attributes.markUnmodified();
-        }
-        if (this.isPointModified()) {
-            this.point.markUnmodified();
-        }
-    }
-
     void markModifiedRecursively() {
         envelope.markModifiedRecursively();
         metric.markModifiedRecursively();
@@ -212,43 +200,6 @@ public class Metrics {
             point.markUnmodifiedRecursively();
         }
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(Metrics v) {
-        boolean modified = false;
-        if (envelope.markDiffModified(v.envelope)) {
-            modifiedFields.markModified(fieldModifiedEnvelope);
-            modified = true;
-        }
-        
-        if (metric.markDiffModified(v.metric)) {
-            modifiedFields.markModified(fieldModifiedMetric);
-            modified = true;
-        }
-        
-        if (resource.markDiffModified(v.resource)) {
-            modifiedFields.markModified(fieldModifiedResource);
-            modified = true;
-        }
-        
-        if (scope.markDiffModified(v.scope)) {
-            modifiedFields.markModified(fieldModifiedScope);
-            modified = true;
-        }
-        
-        if (attributes.markDiffModified(v.attributes)) {
-            modifiedFields.markModified(fieldModifiedAttributes);
-            modified = true;
-        }
-        
-        if (point.markDiffModified(v.point)) {
-            modifiedFields.markModified(fieldModifiedPoint);
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public Metrics clone() {

@@ -45,6 +45,25 @@ func (s *JsonValue) init(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.array.init(parentModifiedFields, parentModifiedBit)
 }
 
+// reset the struct to its initial state, as if init() was just called.
+// Will not reset internal fields such as parentModifiedFields.
+func (s *JsonValue) reset() {
+	s.typ = JsonValueTypeNone
+
+	s.object.reset()
+	s.array.reset()
+}
+
+// fixParent sets the parentModifiedFields pointer to the supplied value.
+// This is used when the parent is moved in memory for example because the parent
+// an array element and the array was expanded.
+func (s *JsonValue) fixParent(parentModifiedFields *modifiedFields) {
+	s.parentModifiedFields = parentModifiedFields
+
+	s.object.fixParent(parentModifiedFields)
+	s.array.fixParent(parentModifiedFields)
+}
+
 type JsonValueType byte
 
 const (
@@ -176,11 +195,6 @@ func (s *JsonValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *JsonValue) markUnmodified() {
-	s.object.markUnmodified()
-	s.array.markUnmodified()
-}
-
 func (s *JsonValue) markModifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
@@ -203,45 +217,6 @@ func (s *JsonValue) markUnmodifiedRecursively() {
 	case JsonValueTypeNumber:
 	case JsonValueTypeBool:
 	}
-}
-
-// markDiffModified marks fields in this struct modified if they differ from
-// the corresponding fields in v.
-func (s *JsonValue) markDiffModified(v *JsonValue) (modified bool) {
-	if s.typ != v.typ {
-		modified = true
-		s.markModifiedRecursively()
-		return modified
-	}
-
-	switch s.typ {
-	case JsonValueTypeObject:
-		if s.object.markDiffModified(&v.object) {
-			s.markParentModified()
-			modified = true
-		}
-	case JsonValueTypeArray:
-		if s.array.markDiffModified(&v.array) {
-			s.markParentModified()
-			modified = true
-		}
-	case JsonValueTypeString:
-		if !pkg.StringEqual(s.string, v.string) {
-			s.markParentModified()
-			modified = true
-		}
-	case JsonValueTypeNumber:
-		if !pkg.Float64Equal(s.number, v.number) {
-			s.markParentModified()
-			modified = true
-		}
-	case JsonValueTypeBool:
-		if !pkg.BoolEqual(s.bool, v.bool) {
-			s.markParentModified()
-			modified = true
-		}
-	}
-	return modified
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.

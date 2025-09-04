@@ -44,6 +44,12 @@ public class SpanStatus {
         
     }
 
+    void reset() {
+        
+        message = StringValue.empty;
+        
+    }
+
     
     public StringValue getMessage() {
         return message;
@@ -94,10 +100,6 @@ public class SpanStatus {
     }
     
 
-    void markUnmodified() {
-        modifiedFields.markUnmodified();
-    }
-
     void markModifiedRecursively() {
         modifiedFields.mask =
             fieldModifiedMessage | 
@@ -106,23 +108,6 @@ public class SpanStatus {
 
     void markUnmodifiedRecursively() {
         modifiedFields.mask = 0;
-    }
-
-    // markDiffModified marks fields in this struct modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified(SpanStatus v) {
-        boolean modified = false;
-        if (!Types.StringEqual(message, v.message)) {
-            markMessageModified();
-            modified = true;
-        }
-        
-        if (!Types.Uint64Equal(code, v.code)) {
-            markCodeModified();
-            modified = true;
-        }
-        
-        return modified;
     }
 
     public SpanStatus clone() {

@@ -12,7 +12,6 @@ import java.io.IOException;
 class SpanStatusDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private SpanStatus lastVal;
     private int fieldCount;
 
     
@@ -34,8 +33,6 @@ class SpanStatusDecoder {
             fieldCount = state.getStructFieldCounts().getSpanStatusFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new SpanStatus(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Message and subsequent fields are skipped.

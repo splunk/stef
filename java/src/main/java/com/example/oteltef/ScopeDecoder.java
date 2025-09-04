@@ -12,7 +12,6 @@ import java.io.IOException;
 class ScopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Scope lastVal;
     private int fieldCount;
 
     
@@ -42,8 +41,6 @@ class ScopeDecoder {
             fieldCount = state.getStructFieldCounts().getScopeFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Scope(null, 0);
             dict = state.Scope;
             
             if (this.fieldCount <= 0) {
@@ -148,23 +145,19 @@ class ScopeDecoder {
     }
 
     public Scope decode(Scope dstPtr) throws IOException {
-        // Check if the Scope exists in the dictionary.
+        // Check if this is a dictionary-based decoding.
         int dictFlag = buf.readBit();
         if (dictFlag == 0) {
             long refNum = buf.readUvarintCompact();
             if (refNum >= dict.size()) {
                 throw new IOException("Invalid refNum");
             }
-            lastVal = dict.getByIndex((int)refNum);
-            dstPtr = lastVal;
-            return dstPtr;
+            return dict.getByIndex((int)refNum);
         }
 
-        // lastValPtr here is pointing to an element in the dictionary. We are not allowed
-        // to modify it. Make a clone of it and decode into the clone.
-        Scope val = lastVal.clone();
-        lastVal = val;
-        dstPtr = val;
+        // dstPtr is pointing to a element in the dictionary. We are not allowed
+       	// to modify it. Make a clone of it and decode into the clone.
+        Scope val = dstPtr.clone();
         // Read bits that indicate which fields follow.
         val.modifiedFields.mask = buf.readBits(fieldCount);
         

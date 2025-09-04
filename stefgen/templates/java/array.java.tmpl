@@ -1,5 +1,6 @@
 package {{ .PackageName }};
 
+import net.stef.StringValue;
 import net.stef.Types;
 
 import java.util.*;
@@ -26,6 +27,12 @@ public class {{ .ArrayName }} {
     private void init(ModifiedFields parentModifiedFields, long parentModifiedBit) {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
+    }
+
+    // reset the array to its initial state, as if init() was just called.
+    // Will not reset internal fields such as parentModifiedFields.
+    void reset() {
+        this.elemsLen = 0;
     }
 
     // clone() creates a deep copy of {{ .ArrayName }}
@@ -74,12 +81,6 @@ public class {{ .ArrayName }} {
         }
     }
 
-    public void markUnmodified() {
-        if (parentModifiedFields != null) {
-            parentModifiedFields.markUnmodified();
-        }
-    }
-
     public void markModifiedRecursively() {
         {{if not .ElemType.IsPrimitive}}
         for (int i=0; i<elemsLen; i++) {
@@ -94,44 +95,6 @@ public class {{ .ArrayName }} {
             elems[i].markUnmodifiedRecursively();
         }
         {{end}}
-    }
-
-    // markDiffModified marks fields in each element of this array modified if they differ from
-    // the corresponding fields in v.
-    boolean markDiffModified({{.ArrayName}} v) {
-        boolean modified = false;
-        if (elemsLen != v.elemsLen) {
-            // Array lengths are different, so they are definitely different.
-            modified = true;
-        }
-    
-        // Scan the elements and mark them as modified if they are different.
-        int minLen = Math.min(elemsLen, v.elemsLen);
-        int i=0;
-        for (; i < minLen; i++) {
-            {{- if .ElemType.IsPrimitive}}
-            if (!{{ .ElemType.EqualFunc }}(this.elems[i], {{.ElemType.ToStorage "v.elems[i]"}})) {
-                modified = true;
-            }
-            {{- else}}
-            if (this.elems[i].markDiffModified(v.elems[i])) {
-                modified = true;
-            }
-            {{- end}}
-        }
-    
-        {{- if not .ElemType.IsPrimitive}}
-        // Mark the rest of the elements as modified.
-        for (; i<elemsLen; i++) {
-            this.elems[i].markModifiedRecursively();
-        }
-        {{end}}
-    
-        if (modified) {
-            this.markModified();
-        }
-    
-        return modified;
     }
 
     public void copyFrom({{.ArrayName}} src) {
@@ -151,7 +114,7 @@ public class {{ .ArrayName }} {
             elems[i].copyFrom(src.elems[i]);
             isModified = true;
             {{- else}}
-            if (elems[i] != src.elems[i]) {
+            if (!{{.ElemType.EqualFunc}}(elems[i], src.elems[i])) {
                 elems[i] = src.elems[i];
                 isModified = true;
             }
@@ -174,7 +137,7 @@ public class {{ .ArrayName }} {
         }
         {{- else}}
         for (; i < elemsLen; i++) {
-            if (elems[i] != src.elems[i]) {
+            if (!{{.ElemType.EqualFunc}}(elems[i], src.elems[i])) {
                 elems[i] = src.elems[i];
                 isModified = true;
             }
@@ -221,16 +184,14 @@ public class {{ .ArrayName }} {
         if (newLen > oldLen) {
             ensureElems(newLen);
             markModified();
-            {{if .IsStructType}}
             // Initialize newly added elements.
             for (int i = oldLen; i < newLen; i++) {
                 {{if .ElemType.IsPrimitive -}}
-                {{if .ElemType.Storage.InitVal}}elems[i] = new {{.ElemType.Storage.InitVal}};{{end}}
+                {{if .ElemType.InitVal}}elems[i] = {{.ElemType.InitVal}};{{end}}
                 {{- else}}
                 elems[i] = new {{.ElemType.Storage}}(parentModifiedFields, parentModifiedBit);
                 {{- end}}
             }
-            {{end}}
         } else if (oldLen > newLen) {
             // Shrink it
             elemsLen = newLen;

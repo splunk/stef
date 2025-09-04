@@ -12,7 +12,6 @@ import java.io.IOException;
 class ExemplarDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Exemplar lastVal;
     private int fieldCount;
 
     
@@ -40,8 +39,6 @@ class ExemplarDecoder {
             fieldCount = state.getStructFieldCounts().getExemplarFieldCount();
 
             column = columns.getColumn();
-            
-            lastVal = new Exemplar(null, 0);
             
             if (this.fieldCount <= 0) {
                 return; // Timestamp and subsequent fields are skipped.

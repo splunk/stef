@@ -14,7 +14,6 @@ class Int64ArrayDecoder {
     private ReadableColumn column;
     private Int64Decoder elemDecoder;
     private boolean isRecursive = false;
-    private long prevLen = 0;
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
@@ -39,30 +38,22 @@ class Int64ArrayDecoder {
         if (!isRecursive) {
             elemDecoder.reset();
         }
-        prevLen = 0;
     }
 
     public Int64Array decode(Int64Array dst) throws IOException {
-        
-            long lenDelta = buf.readVarintCompact();
-            long newLen = prevLen + lenDelta;
-            prevLen = newLen;
+        long newLen = buf.readUvarintCompact();
+        if (newLen < 0) {
+            throw new IllegalStateException("Invalid array length: " + newLen);
+        }
+        if (newLen > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Array length exceeds maximum: " + newLen);
+        }
 
-            if (newLen < 0) {
-                throw new IllegalStateException("Invalid array length: " + newLen);
-            }
-            if (newLen > Integer.MAX_VALUE) {
-                throw new IllegalStateException("Array length exceeds maximum: " + newLen);
-            }
-
-            dst.ensureLen((int)newLen);
-            for (int i = 0; i < newLen; i++) {
-                
-                dst.elems[i] = elemDecoder.decode();
-                
-            }
+        dst.ensureLen((int)newLen);
+        for (int i = 0; i < newLen; i++) {
+            dst.elems[i] = elemDecoder.decode();
+        }
 
         return dst;
     }
 }
-
