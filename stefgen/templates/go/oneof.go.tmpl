@@ -62,19 +62,19 @@ func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, par
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
     s.typ = {{$.StructName }}TypeNone
-    {{ range .Fields }}
-	{{- if .Type.IsPrimitive }}
-	{{if .Type.InitVal}}s.{{.name}} = {{.Type.InitVal}};{{end}}
-	{{- else}}
-	{{- if .Type.Flags.StoreByPtr}}
-    if s.{{.name}} != nil {
-        s.{{.name}}.reset()
-    }
-    {{- else}}
-    s.{{.name}}.reset()
-    {{- end -}}
-    {{- end -}}
-    {{- end -}}
+{{/*    {{ range .Fields }}*/}}
+{{/*	{{- if .Type.IsPrimitive }}*/}}
+{{/*	{{if .Type.InitVal}}s.{{.name}} = {{.Type.InitVal}};{{end}}*/}}
+{{/*	{{- else}}*/}}
+{{/*	{{- if .Type.Flags.StoreByPtr}}*/}}
+{{/*    if s.{{.name}} != nil {*/}}
+{{/*        s.{{.name}}.reset()*/}}
+{{/*    }*/}}
+{{/*    {{- else}}*/}}
+{{/*    s.{{.name}}.reset()*/}}
+{{/*    {{- end -}}*/}}
+{{/*    {{- end -}}*/}}
+{{/*    {{- end -}}*/}}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

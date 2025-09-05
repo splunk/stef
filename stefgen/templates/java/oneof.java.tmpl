@@ -39,15 +39,15 @@ public class {{ .StructName }} {
 
     void reset() {
         typ = Type.TypeNone;
-        {{ range .Fields }}
-        {{- if .Type.IsPrimitive }}
-        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
-        {{- else}}
-        if ({{.name}} != null) {
-            {{.name}}.reset();
-        }
-        {{- end }}
-        {{- end }}
+{{/*        {{ range .Fields }}*/}}
+{{/*        {{- if .Type.IsPrimitive }}*/}}
+{{/*        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}*/}}
+{{/*        {{- else}}*/}}
+{{/*        if ({{.name}} != null) {*/}}
+{{/*            {{.name}}.reset();*/}}
+{{/*        }*/}}
+{{/*        {{- end }}*/}}
+{{/*        {{- end }}*/}}
     }
 
     // Type enum for oneof

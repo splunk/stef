@@ -41,18 +41,15 @@ public class PointValue {
 
     void reset() {
         typ = Type.TypeNone;
-        
-        int64 = 0;
-        float64 = 0.0;
-        if (histogram != null) {
-            histogram.reset();
-        }
-        if (expHistogram != null) {
-            expHistogram.reset();
-        }
-        if (summary != null) {
-            summary.reset();
-        }
+
+
+
+
+
+
+
+
+
     }
 
     // Type enum for oneof

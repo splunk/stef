@@ -53,8 +53,6 @@ func (s *LabelValue) initAlloc(parentModifiedFields *modifiedFields, parentModif
 func (s *LabelValue) reset() {
 	s.typ = LabelValueTypeNone
 
-	s.str = ""
-	s.num.reset()
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

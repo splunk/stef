@@ -46,18 +46,15 @@ public class AnyValue {
 
     void reset() {
         typ = Type.TypeNone;
-        
-        string = StringValue.empty;
-        bool = false;
-        int64 = 0;
-        float64 = 0.0;
-        if (array != null) {
-            array.reset();
-        }
-        if (kVList != null) {
-            kVList.reset();
-        }
-        bytes = Types.emptyBytes;
+
+
+
+
+
+
+
+
+
     }
 
     // Type enum for oneof

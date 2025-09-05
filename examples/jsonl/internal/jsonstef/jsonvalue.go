@@ -58,11 +58,6 @@ func (s *JsonValue) initAlloc(parentModifiedFields *modifiedFields, parentModifi
 func (s *JsonValue) reset() {
 	s.typ = JsonValueTypeNone
 
-	s.object.reset()
-	s.array.reset()
-	s.string = ""
-	s.number = 0.0
-	s.bool = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

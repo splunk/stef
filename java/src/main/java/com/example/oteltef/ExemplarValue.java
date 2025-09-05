@@ -38,9 +38,15 @@ public class ExemplarValue {
 
     void reset() {
         typ = Type.TypeNone;
-        
-        int64 = 0;
-        float64 = 0.0;
+
+
+
+
+
+
+
+
+
     }
 
     // Type enum for oneof
