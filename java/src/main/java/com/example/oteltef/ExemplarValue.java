@@ -74,7 +74,7 @@ public class ExemplarValue {
 
     // resetContained resets the currently contained value, if any.
     // Normally used after switching to a different type to make sure
-    // the value contained is in black state.
+    // the value contained is in blank state.
     void resetContained() {
         switch (typ) {
         }
