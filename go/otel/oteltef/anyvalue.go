@@ -227,7 +227,6 @@ func (s *AnyValue) byteSize() uint {
 		s.array.byteSize() + s.kVList.byteSize() + 0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyAnyValue(dst *AnyValue, src *AnyValue) {
 	switch src.typ {
 	case AnyValueTypeString:

@@ -136,7 +136,6 @@ func (s *LabelValue) byteSize() uint {
 		s.num.byteSize() + 0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyLabelValue(dst *LabelValue, src *LabelValue) {
 	switch src.typ {
 	case LabelValueTypeStr:

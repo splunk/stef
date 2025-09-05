@@ -189,7 +189,6 @@ func (s *JsonValue) byteSize() uint {
 		s.object.byteSize() + s.array.byteSize() + 0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	switch src.typ {
 	case JsonValueTypeObject:

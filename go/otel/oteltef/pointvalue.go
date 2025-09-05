@@ -185,7 +185,6 @@ func (s *PointValue) byteSize() uint {
 		s.histogram.byteSize() + s.expHistogram.byteSize() + s.summary.byteSize() + 0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyPointValue(dst *PointValue, src *PointValue) {
 	switch src.typ {
 	case PointValueTypeInt64:

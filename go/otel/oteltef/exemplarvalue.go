@@ -140,7 +140,6 @@ func (s *ExemplarValue) byteSize() uint {
 		0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 	switch src.typ {
 	case ExemplarValueTypeInt64:
