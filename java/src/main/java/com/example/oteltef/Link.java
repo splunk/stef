@@ -51,9 +51,9 @@ public class Link {
         traceID = Types.emptyBytes;
         spanID = Types.emptyBytes;
         traceState = StringValue.empty;
-        
+        flags = 0;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
-        
+        droppedAttributesCount = 0;
     }
 
     void reset() {
@@ -61,9 +61,11 @@ public class Link {
         traceID = Types.emptyBytes;
         spanID = Types.emptyBytes;
         traceState = StringValue.empty;
-        
-        attributes.reset();
-        
+        flags = 0;
+        if (attributes != null) {
+            attributes.reset();
+        }
+        droppedAttributesCount = 0;
     }
 
     

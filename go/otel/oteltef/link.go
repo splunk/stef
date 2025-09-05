@@ -71,7 +71,12 @@ func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Link) reset() {
 
+	s.traceID = pkg.EmptyBytes
+	s.spanID = pkg.EmptyBytes
+	s.traceState = ""
+	s.flags = 0
 	s.attributes.reset()
+	s.droppedAttributesCount = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

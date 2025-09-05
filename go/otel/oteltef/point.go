@@ -69,6 +69,8 @@ func (s *Point) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Point) reset() {
 
+	s.startTimestamp = 0
+	s.timestamp = 0
 	s.value.reset()
 	s.exemplars.reset()
 }

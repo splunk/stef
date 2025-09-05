@@ -50,6 +50,7 @@ func (s *ExemplarValue) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExemplarValue) reset() {
 	s.typ = ExemplarValueTypeNone
+
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -74,10 +75,19 @@ func (s *ExemplarValue) Type() ExemplarValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in blank state.
+func (s *ExemplarValue) resetContained() {
+	switch s.typ {
+	}
+}
+
 // SetType sets the type of the value currently contained in ExemplarValue.
 func (s *ExemplarValue) SetType(typ ExemplarValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -128,7 +138,6 @@ func (s *ExemplarValue) byteSize() uint {
 		0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 	switch src.typ {
 	case ExemplarValueTypeInt64:
@@ -472,7 +481,10 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = ExemplarValueType(typ)
+	if dst.typ != ExemplarValueType(typ) {
+		dst.typ = ExemplarValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = ExemplarValueType(dst.typ)
 
 	// Decode selected field

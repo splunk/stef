@@ -58,12 +58,24 @@ public class Metrics {
 
     void reset() {
         
-        envelope.reset();
-        metric.reset();
-        resource.reset();
-        scope.reset();
-        attributes.reset();
-        point.reset();
+        if (envelope != null) {
+            envelope.reset();
+        }
+        if (metric != null) {
+            metric.reset();
+        }
+        if (resource != null) {
+            resource.reset();
+        }
+        if (scope != null) {
+            scope.reset();
+        }
+        if (attributes != null) {
+            attributes.reset();
+        }
+        if (point != null) {
+            point.reset();
+        }
     }
 
     

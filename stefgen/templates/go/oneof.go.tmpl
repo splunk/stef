@@ -62,11 +62,19 @@ func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, par
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
     s.typ = {{$.StructName }}TypeNone
-    {{ range .Fields }}
-	{{- if not .Type.IsPrimitive }}
-    s.{{.name}}.reset()
-    {{- end -}}
-    {{- end -}}
+{{/*    {{ range .Fields }}*/}}
+{{/*	{{- if .Type.IsPrimitive }}*/}}
+{{/*	{{if .Type.InitVal}}s.{{.name}} = {{.Type.InitVal}};{{end}}*/}}
+{{/*	{{- else}}*/}}
+{{/*	{{- if .Type.Flags.StoreByPtr}}*/}}
+{{/*    if s.{{.name}} != nil {*/}}
+{{/*        s.{{.name}}.reset()*/}}
+{{/*    }*/}}
+{{/*    {{- else}}*/}}
+{{/*    s.{{.name}}.reset()*/}}
+{{/*    {{- end -}}*/}}
+{{/*    {{- end -}}*/}}
+{{/*    {{- end -}}*/}}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -96,10 +104,31 @@ func (s *{{ $.StructName }}) Type() {{$.StructName }}Type {
     return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in blank state.
+func (s *{{ $.StructName }}) resetContained() {
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.Flags.StoreByPtr}}
+        if s.{{.name}} != nil {
+            s.{{.name}}.reset()
+        }
+        {{- else}}
+        s.{{.name}}.reset()
+        {{- end -}}
+    {{- end -}}
+    {{- end }}
+    }
+}
+
 // SetType sets the type of the value currently contained in {{ $.StructName }}.
 func (s *{{ $.StructName }}) SetType(typ {{$.StructName }}Type) {
-	if s.typ!=typ {
-        s.typ=typ
+	if s.typ != typ {
+        s.typ = typ
+        s.resetContained()
         switch typ {
         {{- range .Fields }}
         {{- if .Type.Flags.StoreByPtr}}
@@ -154,7 +183,6 @@ func (s *{{ .StructName }}) byteSize() uint {
        {{- end }}0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
 	switch src.typ {
     {{- range .Fields}}
@@ -588,7 +616,10 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     }
 
 	dst := dstPtr
-	dst.typ = {{.StructName}}Type(typ)
+	if dst.typ != {{.StructName}}Type(typ) {
+	    dst.typ = {{.StructName}}Type(typ)
+	    dst.resetContained()
+	}
     d.prevType = {{.StructName}}Type(dst.typ)
 
 	// Decode selected field

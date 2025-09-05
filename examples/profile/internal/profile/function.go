@@ -66,6 +66,11 @@ func (s *Function) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Function) reset() {
+
+	s.name = ""
+	s.systemName = ""
+	s.filename = ""
+	s.startLine = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

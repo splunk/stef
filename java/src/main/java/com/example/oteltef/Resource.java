@@ -44,14 +44,16 @@ public class Resource {
         
         schemaURL = StringValue.empty;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
-        
+        droppedAttributesCount = 0;
     }
 
     void reset() {
         
         schemaURL = StringValue.empty;
-        attributes.reset();
-        
+        if (attributes != null) {
+            attributes.reset();
+        }
+        droppedAttributesCount = 0;
     }
 
     

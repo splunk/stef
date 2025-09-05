@@ -182,9 +182,33 @@ func (r *genPrimitiveTypeRef) Storage() string {
 func (r *genPrimitiveTypeRef) InitVal() string {
 	switch r.Lang {
 	case LangGo:
-		return "" // Go does not need initial values for primitive types.
+		//return "" // Go does not need initial values for primitive types.
+		switch r.Type {
+		case schema.PrimitiveTypeInt64:
+			return "0"
+		case schema.PrimitiveTypeUint64:
+			return "0"
+		case schema.PrimitiveTypeFloat64:
+			return "0.0"
+		case schema.PrimitiveTypeBool:
+			return "false"
+		case schema.PrimitiveTypeString:
+			return `""`
+		case schema.PrimitiveTypeBytes:
+			return "pkg.EmptyBytes"
+		default:
+			panic("unknown type")
+		}
 	case LangJava:
 		switch r.Type {
+		case schema.PrimitiveTypeInt64:
+			return "0"
+		case schema.PrimitiveTypeUint64:
+			return "0"
+		case schema.PrimitiveTypeFloat64:
+			return "0.0"
+		case schema.PrimitiveTypeBool:
+			return "false"
 		case schema.PrimitiveTypeString:
 			return "StringValue.empty"
 		case schema.PrimitiveTypeBytes:

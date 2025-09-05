@@ -63,6 +63,7 @@ func (s *ExpHistogramBuckets) initAlloc(parentModifiedFields *modifiedFields, pa
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramBuckets) reset() {
 
+	s.offset = 0
 	s.bucketCounts.reset()
 }
 

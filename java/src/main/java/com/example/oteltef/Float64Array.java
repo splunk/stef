@@ -153,7 +153,7 @@ public class Float64Array {
             markModified();
             // Initialize newly added elements.
             for (int i = oldLen; i < newLen; i++) {
-                
+                elems[i] = 0.0;
             }
         } else if (oldLen > newLen) {
             // Shrink it

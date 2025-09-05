@@ -78,8 +78,12 @@ func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 func (s *Spans) reset() {
 
 	s.envelope.reset()
-	s.resource.reset()
-	s.scope.reset()
+	if s.resource != nil {
+		s.resource.reset()
+	}
+	if s.scope != nil {
+		s.scope.reset()
+	}
 	s.span.reset()
 }
 

@@ -73,8 +73,12 @@ func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Location) reset() {
 
-	s.mapping.reset()
+	if s.mapping != nil {
+		s.mapping.reset()
+	}
+	s.address = 0
 	s.lines.reset()
+	s.isFolded = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

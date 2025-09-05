@@ -60,8 +60,6 @@ func (s *AnyValue) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 func (s *AnyValue) reset() {
 	s.typ = AnyValueTypeNone
 
-	s.array.reset()
-	s.kVList.reset()
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -93,10 +91,23 @@ func (s *AnyValue) Type() AnyValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in blank state.
+func (s *AnyValue) resetContained() {
+	switch s.typ {
+	case AnyValueTypeArray:
+		s.array.reset()
+	case AnyValueTypeKVList:
+		s.kVList.reset()
+	}
+}
+
 // SetType sets the type of the value currently contained in AnyValue.
 func (s *AnyValue) SetType(typ AnyValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -209,7 +220,6 @@ func (s *AnyValue) byteSize() uint {
 		s.array.byteSize() + s.kVList.byteSize() + 0
 }
 
-// Copy from src to dst, overwriting existing data in dst.
 func copyAnyValue(dst *AnyValue, src *AnyValue) {
 	switch src.typ {
 	case AnyValueTypeString:
@@ -910,7 +920,10 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = AnyValueType(typ)
+	if dst.typ != AnyValueType(typ) {
+		dst.typ = AnyValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = AnyValueType(dst.typ)
 
 	// Decode selected field

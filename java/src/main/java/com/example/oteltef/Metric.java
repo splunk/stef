@@ -55,11 +55,11 @@ public class Metric {
         name = StringValue.empty;
         description = StringValue.empty;
         unit = StringValue.empty;
-        
+        type_ = 0;
         metadata = new Attributes(modifiedFields, fieldModifiedMetadata);
         histogramBounds = new Float64Array(modifiedFields, fieldModifiedHistogramBounds);
-        
-        
+        aggregationTemporality = 0;
+        monotonic = false;
     }
 
     void reset() {
@@ -67,11 +67,15 @@ public class Metric {
         name = StringValue.empty;
         description = StringValue.empty;
         unit = StringValue.empty;
-        
-        metadata.reset();
-        histogramBounds.reset();
-        
-        
+        type_ = 0;
+        if (metadata != null) {
+            metadata.reset();
+        }
+        if (histogramBounds != null) {
+            histogramBounds.reset();
+        }
+        aggregationTemporality = 0;
+        monotonic = false;
     }
 
     
