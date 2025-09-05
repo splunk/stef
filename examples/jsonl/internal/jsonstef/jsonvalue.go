@@ -45,6 +45,14 @@ func (s *JsonValue) init(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.array.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (s *JsonValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.object.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.array.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *JsonValue) reset() {
@@ -148,10 +156,10 @@ func (s *JsonValue) SetBool(v bool) {
 	}
 }
 
-func (s *JsonValue) Clone() *JsonValue {
+func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
 	return &JsonValue{
-		object: s.object.Clone(),
-		array:  s.array.Clone(),
+		object: s.object.Clone(allocators),
+		array:  s.array.Clone(allocators),
 		string: s.string,
 		number: s.number,
 		bool:   s.bool,
@@ -165,6 +173,7 @@ func (s *JsonValue) byteSize() uint {
 		s.object.byteSize() + s.array.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	switch src.typ {
 	case JsonValueTypeObject:
@@ -181,6 +190,26 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 		dst.SetBool(src.bool)
 	case JsonValueTypeNone:
 		dst.SetType(src.typ)
+	default:
+		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewJsonValue(dst *JsonValue, src *JsonValue, allocators *Allocators) {
+	dst.typ = src.typ
+	switch src.typ {
+	case JsonValueTypeObject:
+		copyToNewJsonObject(&dst.object, &src.object, allocators)
+	case JsonValueTypeArray:
+		copyToNewJsonValueArray(&dst.array, &src.array, allocators)
+	case JsonValueTypeString:
+		dst.string = src.string
+	case JsonValueTypeNumber:
+		dst.number = src.number
+	case JsonValueTypeBool:
+		dst.bool = src.bool
+	case JsonValueTypeNone:
 	default:
 		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -564,6 +593,8 @@ type JsonValueDecoder struct {
 	numberDecoder encoders.Float64Decoder
 
 	boolDecoder encoders.BoolDecoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -574,6 +605,8 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	}
 	state.JsonValueDecoder = d
 	defer func() { state.JsonValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.JsonValueFieldCount()
@@ -760,4 +793,35 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 		}
 	}
 	return nil
+}
+
+// JsonValueAllocator implements a custom allocator for JsonValue.
+// It maintains a pool of pre-allocated JsonValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type JsonValueAllocator struct {
+	pool []JsonValue
+	ofs  int
+}
+
+// Alloc returns the next available JsonValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *JsonValueAllocator) Alloc() *JsonValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available JsonValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *JsonValueAllocator) prealloc() *JsonValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]JsonValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

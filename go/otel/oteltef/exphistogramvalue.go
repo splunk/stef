@@ -78,6 +78,14 @@ func (s *ExpHistogramValue) init(parentModifiedFields *modifiedFields, parentMod
 	s.negativeBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets)
 }
 
+func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.positiveBuckets.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets, allocators)
+	s.negativeBuckets.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramValue) reset() {
@@ -390,18 +398,21 @@ func (s *ExpHistogramValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *ExpHistogramValue) Clone() ExpHistogramValue {
-	return ExpHistogramValue{
+func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
+
+	c := ExpHistogramValue{
+
 		count:           s.count,
 		sum:             s.sum,
 		min:             s.min,
 		max:             s.max,
 		scale:           s.scale,
 		zeroCount:       s.zeroCount,
-		positiveBuckets: s.positiveBuckets.Clone(),
-		negativeBuckets: s.negativeBuckets.Clone(),
+		positiveBuckets: s.positiveBuckets.Clone(allocators),
+		negativeBuckets: s.negativeBuckets.Clone(allocators),
 		zeroThreshold:   s.zeroThreshold,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -411,6 +422,7 @@ func (s *ExpHistogramValue) byteSize() uint {
 		s.positiveBuckets.byteSize() + s.negativeBuckets.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -436,6 +448,29 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	copyExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets)
 	copyExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
+	dst.optionalFieldsPresent = src.optionalFieldsPresent
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, allocators *Allocators) {
+	dst.count = src.count
+	if src.HasSum() {
+		dst.SetSum(src.sum)
+	}
+
+	if src.HasMin() {
+		dst.SetMin(src.min)
+	}
+
+	if src.HasMax() {
+		dst.SetMax(src.max)
+	}
+
+	dst.scale = src.scale
+	dst.zeroCount = src.zeroCount
+	copyToNewExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets, allocators)
+	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets, allocators)
+	dst.zeroThreshold = src.zeroThreshold
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
@@ -713,6 +748,8 @@ type ExpHistogramValueEncoder struct {
 
 	zeroThresholdEncoder encoders.Float64Encoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -726,6 +763,7 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 	defer func() { state.ExpHistogramValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -1082,6 +1120,8 @@ type ExpHistogramValueDecoder struct {
 	isNegativeBucketsRecursive bool
 
 	zeroThresholdDecoder encoders.Float64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1092,6 +1132,8 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	}
 	state.ExpHistogramValueDecoder = d
 	defer func() { state.ExpHistogramValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1372,4 +1414,35 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 	}
 
 	return nil
+}
+
+// ExpHistogramValueAllocator implements a custom allocator for ExpHistogramValue.
+// It maintains a pool of pre-allocated ExpHistogramValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type ExpHistogramValueAllocator struct {
+	pool []ExpHistogramValue
+	ofs  int
+}
+
+// Alloc returns the next available ExpHistogramValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *ExpHistogramValueAllocator) Alloc() *ExpHistogramValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available ExpHistogramValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ExpHistogramValueAllocator) prealloc() *ExpHistogramValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]ExpHistogramValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

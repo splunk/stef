@@ -41,6 +41,13 @@ func (s *LabelValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.num.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (s *LabelValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.num.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *LabelValue) reset() {
@@ -103,10 +110,10 @@ func (s *LabelValue) Num() *NumValue {
 	return &s.num
 }
 
-func (s *LabelValue) Clone() LabelValue {
+func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 	return LabelValue{
 		str: s.str,
-		num: s.num.Clone(),
+		num: s.num.Clone(allocators),
 	}
 }
 
@@ -117,6 +124,7 @@ func (s *LabelValue) byteSize() uint {
 		s.num.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLabelValue(dst *LabelValue, src *LabelValue) {
 	switch src.typ {
 	case LabelValueTypeStr:
@@ -126,6 +134,20 @@ func copyLabelValue(dst *LabelValue, src *LabelValue) {
 		copyNumValue(&dst.num, &src.num)
 	case LabelValueTypeNone:
 		dst.SetType(src.typ)
+	default:
+		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
+	dst.typ = src.typ
+	switch src.typ {
+	case LabelValueTypeStr:
+		dst.str = src.str
+	case LabelValueTypeNum:
+		copyToNewNumValue(&dst.num, &src.num, allocators)
+	case LabelValueTypeNone:
 	default:
 		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -377,6 +399,8 @@ type LabelValueDecoder struct {
 
 	numDecoder     *NumValueDecoder
 	isNumRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -387,6 +411,8 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	}
 	state.LabelValueDecoder = d
 	defer func() { state.LabelValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.LabelValueFieldCount()
@@ -493,4 +519,35 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 		}
 	}
 	return nil
+}
+
+// LabelValueAllocator implements a custom allocator for LabelValue.
+// It maintains a pool of pre-allocated LabelValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type LabelValueAllocator struct {
+	pool []LabelValue
+	ofs  int
+}
+
+// Alloc returns the next available LabelValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *LabelValueAllocator) Alloc() *LabelValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available LabelValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LabelValueAllocator) prealloc() *LabelValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]LabelValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -53,6 +53,12 @@ func (s *SampleValueType) init(parentModifiedFields *modifiedFields, parentModif
 
 }
 
+func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValueType) reset() {
@@ -132,11 +138,15 @@ func (s *SampleValueType) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *SampleValueType) Clone() *SampleValueType {
-	return &SampleValueType{
+func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
+
+	c := allocators.SampleValueType.Alloc()
+	*c = SampleValueType{
+
 		type_: s.type_,
 		unit:  s.unit,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -146,9 +156,16 @@ func (s *SampleValueType) byteSize() uint {
 		0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 	dst.SetType(src.type_)
 	dst.SetUnit(src.unit)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
+	dst.type_ = src.type_
+	dst.unit = src.unit
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -249,7 +266,8 @@ type SampleValueTypeEncoder struct {
 
 	unitEncoder encoders.StringEncoder
 
-	dict *SampleValueTypeEncoderDict
+	dict       *SampleValueTypeEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -287,6 +305,7 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 
 	e.limiter = &state.limiter
 	e.dict = &state.SampleValueType
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -357,7 +376,7 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	}
 
 	// The SampleValueType does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = SampleValueTypeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -437,6 +456,8 @@ type SampleValueTypeDecoder struct {
 	unitDecoder encoders.StringDecoder
 
 	dict *SampleValueTypeDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -447,6 +468,8 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 	state.SampleValueTypeDecoder = d
 	defer func() { state.SampleValueTypeDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -520,7 +543,7 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -563,4 +586,35 @@ func (d *SampleValueTypeDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *SampleValueTypeDecoderDict) Reset() {
 	d.Init()
+}
+
+// SampleValueTypeAllocator implements a custom allocator for SampleValueType.
+// It maintains a pool of pre-allocated SampleValueType and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type SampleValueTypeAllocator struct {
+	pool []SampleValueType
+	ofs  int
+}
+
+// Alloc returns the next available SampleValueType from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *SampleValueTypeAllocator) Alloc() *SampleValueType {
+	if a.ofs < len(a.pool) {
+		// Get the next available SampleValueType from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SampleValueTypeAllocator) prealloc() *SampleValueType {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]SampleValueType, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

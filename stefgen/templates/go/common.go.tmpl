@@ -71,3 +71,9 @@ func (s* StructFieldCounts) {{$name}}FieldCount() (uint, error) {
 func (s *StructFieldCounts) AllFetched() bool {
     return s.overrideSchema == false || s.overrideSchemaIter.Done()
 }
+
+type Allocators struct {
+    {{range $name, $val := .Structs -}}
+    {{$name}} {{$name}}Allocator
+    {{end}}
+}

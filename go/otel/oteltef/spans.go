@@ -61,6 +61,18 @@ func (s *Spans) init(parentModifiedFields *modifiedFields, parentModifiedBit uin
 	s.span.init(&s.modifiedFields, fieldModifiedSpansSpan)
 }
 
+func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.envelope.initAlloc(&s.modifiedFields, fieldModifiedSpansEnvelope, allocators)
+	s.resource = allocators.Resource.Alloc()
+	s.resource.initAlloc(&s.modifiedFields, fieldModifiedSpansResource, allocators)
+	s.scope = allocators.Scope.Alloc()
+	s.scope.initAlloc(&s.modifiedFields, fieldModifiedSpansScope, allocators)
+	s.span.initAlloc(&s.modifiedFields, fieldModifiedSpansSpan, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Spans) reset() {
@@ -185,13 +197,16 @@ func (s *Spans) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Spans) Clone() Spans {
-	return Spans{
-		envelope: s.envelope.Clone(),
-		resource: s.resource.Clone(),
-		scope:    s.scope.Clone(),
-		span:     s.span.Clone(),
+func (s *Spans) Clone(allocators *Allocators) Spans {
+
+	c := Spans{
+
+		envelope: s.envelope.Clone(allocators),
+		resource: s.resource.Clone(allocators),
+		scope:    s.scope.Clone(allocators),
+		span:     s.span.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -201,6 +216,7 @@ func (s *Spans) byteSize() uint {
 		s.envelope.byteSize() + s.resource.byteSize() + s.scope.byteSize() + s.span.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copySpans(dst *Spans, src *Spans) {
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.resource != nil {
@@ -218,6 +234,22 @@ func copySpans(dst *Spans, src *Spans) {
 		copyScope(dst.scope, src.scope)
 	}
 	copySpan(&dst.span, &src.span)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
+	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
+	if src.resource != nil {
+		dst.resource = allocators.Resource.Alloc()
+		dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+		copyToNewResource(dst.resource, src.resource, allocators)
+	}
+	if src.scope != nil {
+		dst.scope = allocators.Scope.Alloc()
+		dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+		copyToNewScope(dst.scope, src.scope, allocators)
+	}
+	copyToNewSpan(&dst.span, &src.span, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -358,6 +390,8 @@ type SpansEncoder struct {
 	spanEncoder     *SpanEncoder
 	isSpanRecursive bool // Indicates Span field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -371,6 +405,7 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.SpansEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -601,6 +636,8 @@ type SpansDecoder struct {
 
 	spanDecoder     *SpanDecoder
 	isSpanRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -611,6 +648,8 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	}
 	state.SpansDecoder = d
 	defer func() { state.SpansDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -778,7 +817,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 {
 		// Field is changed and is present, decode it.
 		if val.resource == nil {
-			val.resource = &Resource{}
+			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
 		}
 
@@ -791,7 +830,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 {
 		// Field is changed and is present, decode it.
 		if val.scope == nil {
-			val.scope = &Scope{}
+			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
 		}
 
@@ -810,6 +849,37 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	}
 
 	return nil
+}
+
+// SpansAllocator implements a custom allocator for Spans.
+// It maintains a pool of pre-allocated Spans and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type SpansAllocator struct {
+	pool []Spans
+	ofs  int
+}
+
+// Alloc returns the next available Spans from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *SpansAllocator) Alloc() *Spans {
+	if a.ofs < len(a.pool) {
+		// Get the next available Spans from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SpansAllocator) prealloc() *Spans {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Spans, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
 
 var wireSchemaSpans = []byte{0x09, 0x04, 0x01, 0x03, 0x07, 0x05, 0x0E, 0x04, 0x06, 0x02}

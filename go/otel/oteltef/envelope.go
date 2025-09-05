@@ -50,6 +50,13 @@ func (s *Envelope) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.attributes.init(&s.modifiedFields, fieldModifiedEnvelopeAttributes)
 }
 
+func (s *Envelope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedEnvelopeAttributes, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Envelope) reset() {
@@ -99,10 +106,13 @@ func (s *Envelope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Envelope) Clone() Envelope {
-	return Envelope{
-		attributes: s.attributes.Clone(),
+func (s *Envelope) Clone(allocators *Allocators) Envelope {
+
+	c := Envelope{
+
+		attributes: s.attributes.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -112,8 +122,14 @@ func (s *Envelope) byteSize() uint {
 		s.attributes.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyEnvelope(dst *Envelope, src *Envelope) {
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewEnvelope(dst *Envelope, src *Envelope, allocators *Allocators) {
+	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -197,6 +213,8 @@ type EnvelopeEncoder struct {
 	attributesEncoder     *EnvelopeAttributesEncoder
 	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -210,6 +228,7 @@ func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.EnvelopeEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -314,6 +333,8 @@ type EnvelopeDecoder struct {
 
 	attributesDecoder     *EnvelopeAttributesDecoder
 	isAttributesRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -324,6 +345,8 @@ func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.EnvelopeDecoder = d
 	defer func() { state.EnvelopeDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -399,4 +422,35 @@ func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
 	}
 
 	return nil
+}
+
+// EnvelopeAllocator implements a custom allocator for Envelope.
+// It maintains a pool of pre-allocated Envelope and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type EnvelopeAllocator struct {
+	pool []Envelope
+	ofs  int
+}
+
+// Alloc returns the next available Envelope from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *EnvelopeAllocator) Alloc() *Envelope {
+	if a.ofs < len(a.pool) {
+		// Get the next available Envelope from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *EnvelopeAllocator) prealloc() *Envelope {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Envelope, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

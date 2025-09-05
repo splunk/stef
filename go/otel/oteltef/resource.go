@@ -56,6 +56,13 @@ func (s *Resource) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.attributes.init(&s.modifiedFields, fieldModifiedResourceAttributes)
 }
 
+func (s *Resource) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedResourceAttributes, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Resource) reset() {
@@ -161,12 +168,16 @@ func (s *Resource) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Resource) Clone() *Resource {
-	return &Resource{
+func (s *Resource) Clone(allocators *Allocators) *Resource {
+
+	c := allocators.Resource.Alloc()
+	*c = Resource{
+
 		schemaURL:              s.schemaURL,
-		attributes:             s.attributes.Clone(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -176,10 +187,18 @@ func (s *Resource) byteSize() uint {
 		s.attributes.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyResource(dst *Resource, src *Resource) {
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewResource(dst *Resource, src *Resource, allocators *Allocators) {
+	dst.schemaURL = src.schemaURL
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -299,7 +318,8 @@ type ResourceEncoder struct {
 
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
-	dict *ResourceEncoderDict
+	dict       *ResourceEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -337,6 +357,7 @@ func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Resource
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -431,7 +452,7 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	}
 
 	// The Resource does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = ResourceEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -529,6 +550,8 @@ type ResourceDecoder struct {
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	dict *ResourceDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -539,6 +562,8 @@ func (d *ResourceDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.ResourceDecoder = d
 	defer func() { state.ResourceDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -642,7 +667,7 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -693,4 +718,35 @@ func (d *ResourceDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *ResourceDecoderDict) Reset() {
 	d.Init()
+}
+
+// ResourceAllocator implements a custom allocator for Resource.
+// It maintains a pool of pre-allocated Resource and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type ResourceAllocator struct {
+	pool []Resource
+	ofs  int
+}
+
+// Alloc returns the next available Resource from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *ResourceAllocator) Alloc() *Resource {
+	if a.ofs < len(a.pool) {
+		// Get the next available Resource from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ResourceAllocator) prealloc() *Resource {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Resource, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

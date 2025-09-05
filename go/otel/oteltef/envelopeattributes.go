@@ -37,6 +37,10 @@ func (m *EnvelopeAttributes) init(parentModifiedFields *modifiedFields, parentMo
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *EnvelopeAttributes) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *EnvelopeAttributes) reset() {
@@ -51,9 +55,9 @@ func (m *EnvelopeAttributes) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of EnvelopeAttributes
-func (m *EnvelopeAttributes) Clone() EnvelopeAttributes {
+func (m *EnvelopeAttributes) Clone(allocators *Allocators) EnvelopeAttributes {
 	clone := EnvelopeAttributes{}
-	copyEnvelopeAttributes(&clone, m)
+	copyToNewEnvelopeAttributes(&clone, m, allocators)
 	return clone
 }
 
@@ -134,6 +138,7 @@ func (m *EnvelopeAttributes) byteSize() uint {
 	return uint(unsafe.Sizeof(EnvelopeAttributesElem{}))*uint(len(m.elems)) + uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -151,6 +156,17 @@ func copyEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes) {
 		}
 
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.EnsureLen(len(src.elems))
+	copy(dst.elems, src.elems)
+
 }
 
 func (m *EnvelopeAttributes) CopyFrom(src *EnvelopeAttributes) {

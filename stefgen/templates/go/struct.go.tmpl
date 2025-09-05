@@ -84,6 +84,24 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     {{- end -}}
 }
 
+func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+    s.modifiedFields.parent = parentModifiedFields
+    s.modifiedFields.parentBit = parentModifiedBit
+
+    {{ range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    {{- if .Type.Flags.StoreByPtr}}
+    {{- if not .Optional}}
+    s.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+    s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
+    {{- end}}
+    {{- else }}
+    s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
+    {{- end }}
+    {{- end -}}
+    {{- end -}}
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
@@ -186,11 +204,17 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     s.modifiedFields.mask = 0
 }
 
-func (s *{{ .StructName }}) Clone() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
-        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
+func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+{{if .Type.Flags.StoreByPtr}}
+    c := allocators.{{.StructName}}.Alloc()
+    *c = {{.StructName}}{
+{{else}}
+    c := {{.StructName}}{
+{{end}}
+        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(allocators){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
+    return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -202,6 +226,7 @@ func (s *{{ .StructName }}) byteSize() uint {
        {{- end }}0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- range .Fields -}}
     {{- if .Type.MustClone}}
@@ -232,6 +257,41 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
 	}
 	{{else}}
     dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+    {{- end}}
+    {{- end}}
+    {{- end}}
+    {{- if .OptionalFieldCount}}
+    dst.optionalFieldsPresent = src.optionalFieldsPresent
+    {{- end}}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+    {{- range .Fields -}}
+    {{- if .Type.MustClone}}
+    {{- if .Optional}}
+    if src.Has{{.Name}}() {
+        dst.mark{{.Name}}Modified()
+    }
+    {{- end}}
+    {{- if .Type.Flags.StoreByPtr}}
+    if src.{{.name}} != nil {
+        dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+        dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end}}
+        copyToNew{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+    {{- if .Type.Flags.StoreByPtr}}
+    }
+    {{- end}}
+    {{- else}}
+	{{- if .Optional}}
+	if src.Has{{.Name}}() {
+		dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+	}
+	{{else}}
+    dst.{{.name}} = src.{{.name}}
     {{- end}}
     {{- end}}
     {{- end}}
@@ -375,6 +435,7 @@ type {{ .StructName }}Encoder struct {
     {{- end }}
     {{if .DictName}}
 	dict *{{ .StructName }}EncoderDict{{end}}
+    allocators *Allocators
 
     keepFieldMask uint64
     fieldCount uint
@@ -416,6 +477,7 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
     {{- if .DictName}}
 	e.dict = &state.{{.DictName}}
     {{- end}}
+    e.allocators = &state.Allocators
 
     // Number of fields in the output data schema.
     var err error
@@ -495,7 +557,7 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 	}
 
 	// The {{ .StructName }} does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = {{ .StructName }}Entry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
     e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -585,6 +647,7 @@ type {{ .StructName }}Decoder struct {
     {{if .DictName}}
     dict *{{ .StructName }}DecoderDict
     {{end}}
+    allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -595,6 +658,8 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     }
     state.{{.StructName}}Decoder = d
     defer func() { state.{{.StructName}}Decoder = nil }()
+
+    d.allocators = &state.Allocators
 
     // Number of fields in the input data schema.
     var err error
@@ -687,7 +752,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
     *dstPtr = val
 	{{- else}}
     val := dstPtr
@@ -712,7 +777,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 		// Field is changed and is present, decode it.
         {{- if .Type.Flags.StoreByPtr}}
         if val.{{.name}} == nil {
-            val.{{.name}} = &{{ .Type.Storage }}{}
+            val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
             val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
         }
         {{end}}
@@ -747,6 +812,37 @@ func (d* {{ .StructName }}DecoderDict) Reset() {
     d.Init()
 }
 {{end}}
+
+// {{.StructName}}Allocator implements a custom allocator for {{.StructName}}.
+// It maintains a pool of pre-allocated {{.StructName}} and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type {{.StructName}}Allocator struct {
+    pool []{{.StructName}}
+    ofs int
+}
+
+// Alloc returns the next available {{.StructName}} from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *{{.StructName}}Allocator) Alloc() *{{.StructName}} {
+    if a.ofs < len(a.pool) {
+        // Get the next available {{.StructName}} from the pool
+        a.ofs++
+        return &a.pool[a.ofs-1]
+    }
+    // We've exhausted the current pool, prealloc a new pool.
+    return a.prealloc()
+}
+
+//go:noinline
+func (a *{{.StructName}}Allocator) prealloc() *{{.StructName}} {
+    // prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+    // If the pool is empty, it starts with 1 element.
+    newLen := min(max(len(a.pool)*2, 1), 64)
+    a.pool = make([]{{.StructName}}, newLen)
+    a.ofs = 1
+    return &a.pool[0]
+}
 
 {{if .IsMainStruct}}
 var wireSchema{{.StructName}} = []byte{ {{printf .Schema}} }

@@ -51,6 +51,12 @@ func (s *NumValue) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 
 }
 
+func (s *NumValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *NumValue) reset() {
@@ -130,11 +136,14 @@ func (s *NumValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *NumValue) Clone() NumValue {
-	return NumValue{
+func (s *NumValue) Clone(allocators *Allocators) NumValue {
+
+	c := NumValue{
+
 		val:  s.val,
 		unit: s.unit,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -144,9 +153,16 @@ func (s *NumValue) byteSize() uint {
 		0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyNumValue(dst *NumValue, src *NumValue) {
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) {
+	dst.val = src.val
+	dst.unit = src.unit
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -247,6 +263,8 @@ type NumValueEncoder struct {
 
 	unitEncoder encoders.StringEncoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -260,6 +278,7 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.NumValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -380,6 +399,8 @@ type NumValueDecoder struct {
 	valDecoder encoders.Int64Decoder
 
 	unitDecoder encoders.StringDecoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -390,6 +411,8 @@ func (d *NumValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.NumValueDecoder = d
 	defer func() { state.NumValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -473,4 +496,35 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 	}
 
 	return nil
+}
+
+// NumValueAllocator implements a custom allocator for NumValue.
+// It maintains a pool of pre-allocated NumValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type NumValueAllocator struct {
+	pool []NumValue
+	ofs  int
+}
+
+// Alloc returns the next available NumValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *NumValueAllocator) Alloc() *NumValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available NumValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *NumValueAllocator) prealloc() *NumValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]NumValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

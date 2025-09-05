@@ -60,6 +60,15 @@ func (s *Location) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 	s.lines.init(&s.modifiedFields, fieldModifiedLocationLines)
 }
 
+func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.mapping = allocators.Mapping.Alloc()
+	s.mapping.initAlloc(&s.modifiedFields, fieldModifiedLocationMapping, allocators)
+	s.lines.initAlloc(&s.modifiedFields, fieldModifiedLocationLines, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Location) reset() {
@@ -190,13 +199,17 @@ func (s *Location) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Location) Clone() *Location {
-	return &Location{
-		mapping:  s.mapping.Clone(),
+func (s *Location) Clone(allocators *Allocators) *Location {
+
+	c := allocators.Location.Alloc()
+	*c = Location{
+
+		mapping:  s.mapping.Clone(allocators),
 		address:  s.address,
-		lines:    s.lines.Clone(),
+		lines:    s.lines.Clone(allocators),
 		isFolded: s.isFolded,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -206,6 +219,7 @@ func (s *Location) byteSize() uint {
 		s.mapping.byteSize() + s.lines.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLocation(dst *Location, src *Location) {
 	if src.mapping != nil {
 		if dst.mapping == nil {
@@ -217,6 +231,18 @@ func copyLocation(dst *Location, src *Location) {
 	dst.SetAddress(src.address)
 	copyLineArray(&dst.lines, &src.lines)
 	dst.SetIsFolded(src.isFolded)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) {
+	if src.mapping != nil {
+		dst.mapping = allocators.Mapping.Alloc()
+		dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+		copyToNewMapping(dst.mapping, src.mapping, allocators)
+	}
+	dst.address = src.address
+	copyToNewLineArray(&dst.lines, &src.lines, allocators)
+	dst.isFolded = src.isFolded
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -355,7 +381,8 @@ type LocationEncoder struct {
 
 	isFoldedEncoder encoders.BoolEncoder
 
-	dict *LocationEncoderDict
+	dict       *LocationEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -393,6 +420,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Location
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -511,7 +539,7 @@ func (e *LocationEncoder) Encode(val *Location) {
 	}
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = LocationEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -627,6 +655,8 @@ type LocationDecoder struct {
 	isFoldedDecoder encoders.BoolDecoder
 
 	dict *LocationDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -637,6 +667,8 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.LocationDecoder = d
 	defer func() { state.LocationDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -770,7 +802,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -781,7 +813,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 {
 		// Field is changed and is present, decode it.
 		if val.mapping == nil {
-			val.mapping = &Mapping{}
+			val.mapping = d.allocators.Mapping.Alloc()
 			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
 		}
 
@@ -834,4 +866,35 @@ func (d *LocationDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *LocationDecoderDict) Reset() {
 	d.Init()
+}
+
+// LocationAllocator implements a custom allocator for Location.
+// It maintains a pool of pre-allocated Location and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type LocationAllocator struct {
+	pool []Location
+	ofs  int
+}
+
+// Alloc returns the next available Location from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *LocationAllocator) Alloc() *Location {
+	if a.ofs < len(a.pool) {
+		// Get the next available Location from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LocationAllocator) prealloc() *Location {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Location, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

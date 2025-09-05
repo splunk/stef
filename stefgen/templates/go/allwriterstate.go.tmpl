@@ -21,6 +21,8 @@ type WriterState struct {
     {{range $name, $val := .Encoders -}}
     {{$name}}Encoder *{{$name}}Encoder
     {{end}}
+
+    Allocators Allocators
 }
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {

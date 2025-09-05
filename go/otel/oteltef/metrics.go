@@ -68,6 +68,21 @@ func (s *Metrics) init(parentModifiedFields *modifiedFields, parentModifiedBit u
 	s.point.init(&s.modifiedFields, fieldModifiedMetricsPoint)
 }
 
+func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.envelope.initAlloc(&s.modifiedFields, fieldModifiedMetricsEnvelope, allocators)
+	s.metric = allocators.Metric.Alloc()
+	s.metric.initAlloc(&s.modifiedFields, fieldModifiedMetricsMetric, allocators)
+	s.resource = allocators.Resource.Alloc()
+	s.resource.initAlloc(&s.modifiedFields, fieldModifiedMetricsResource, allocators)
+	s.scope = allocators.Scope.Alloc()
+	s.scope.initAlloc(&s.modifiedFields, fieldModifiedMetricsScope, allocators)
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedMetricsAttributes, allocators)
+	s.point.initAlloc(&s.modifiedFields, fieldModifiedMetricsPoint, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metrics) reset() {
@@ -242,15 +257,18 @@ func (s *Metrics) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Metrics) Clone() Metrics {
-	return Metrics{
-		envelope:   s.envelope.Clone(),
-		metric:     s.metric.Clone(),
-		resource:   s.resource.Clone(),
-		scope:      s.scope.Clone(),
-		attributes: s.attributes.Clone(),
-		point:      s.point.Clone(),
+func (s *Metrics) Clone(allocators *Allocators) Metrics {
+
+	c := Metrics{
+
+		envelope:   s.envelope.Clone(allocators),
+		metric:     s.metric.Clone(allocators),
+		resource:   s.resource.Clone(allocators),
+		scope:      s.scope.Clone(allocators),
+		attributes: s.attributes.Clone(allocators),
+		point:      s.point.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -260,6 +278,7 @@ func (s *Metrics) byteSize() uint {
 		s.envelope.byteSize() + s.metric.byteSize() + s.resource.byteSize() + s.scope.byteSize() + s.attributes.byteSize() + s.point.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyMetrics(dst *Metrics, src *Metrics) {
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.metric != nil {
@@ -285,6 +304,28 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
 	copyPoint(&dst.point, &src.point)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
+	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
+	if src.metric != nil {
+		dst.metric = allocators.Metric.Alloc()
+		dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
+		copyToNewMetric(dst.metric, src.metric, allocators)
+	}
+	if src.resource != nil {
+		dst.resource = allocators.Resource.Alloc()
+		dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
+		copyToNewResource(dst.resource, src.resource, allocators)
+	}
+	if src.scope != nil {
+		dst.scope = allocators.Scope.Alloc()
+		dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
+		copyToNewScope(dst.scope, src.scope, allocators)
+	}
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	copyToNewPoint(&dst.point, &src.point, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -463,6 +504,8 @@ type MetricsEncoder struct {
 	pointEncoder     *PointEncoder
 	isPointRecursive bool // Indicates Point field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -476,6 +519,7 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 	defer func() { state.MetricsEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -790,6 +834,8 @@ type MetricsDecoder struct {
 
 	pointDecoder     *PointDecoder
 	isPointRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -800,6 +846,8 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	}
 	state.MetricsDecoder = d
 	defer func() { state.MetricsDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1027,7 +1075,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 {
 		// Field is changed and is present, decode it.
 		if val.metric == nil {
-			val.metric = &Metric{}
+			val.metric = d.allocators.Metric.Alloc()
 			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
 		}
 
@@ -1040,7 +1088,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 {
 		// Field is changed and is present, decode it.
 		if val.resource == nil {
-			val.resource = &Resource{}
+			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
 		}
 
@@ -1053,7 +1101,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 {
 		// Field is changed and is present, decode it.
 		if val.scope == nil {
-			val.scope = &Scope{}
+			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
 		}
 
@@ -1080,6 +1128,37 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	}
 
 	return nil
+}
+
+// MetricsAllocator implements a custom allocator for Metrics.
+// It maintains a pool of pre-allocated Metrics and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type MetricsAllocator struct {
+	pool []Metrics
+	ofs  int
+}
+
+// Alloc returns the next available Metrics from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *MetricsAllocator) Alloc() *Metrics {
+	if a.ofs < len(a.pool) {
+		// Get the next available Metrics from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *MetricsAllocator) prealloc() *Metrics {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Metrics, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }
 
 var wireSchemaMetrics = []byte{0x0F, 0x06, 0x01, 0x08, 0x07, 0x03, 0x05, 0x04, 0x05, 0x05, 0x09, 0x02, 0x03, 0x02, 0x05, 0x02}

@@ -37,6 +37,10 @@ func (m *KeyValueList) init(parentModifiedFields *modifiedFields, parentModified
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *KeyValueList) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *KeyValueList) reset() {
@@ -51,9 +55,9 @@ func (m *KeyValueList) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of KeyValueList
-func (m *KeyValueList) Clone() KeyValueList {
+func (m *KeyValueList) Clone(allocators *Allocators) KeyValueList {
 	clone := KeyValueList{}
-	copyKeyValueList(&clone, m)
+	copyToNewKeyValueList(&clone, m, allocators)
 	return clone
 }
 
@@ -126,6 +130,7 @@ func (m *KeyValueList) byteSize() uint {
 	return uint(unsafe.Sizeof(KeyValueListElem{}))*uint(len(m.elems)) + uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyKeyValueList(dst *KeyValueList, src *KeyValueList) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -142,6 +147,21 @@ func copyKeyValueList(dst *KeyValueList, src *KeyValueList) {
 			dst.modifiedElems.markValModified(i)
 		}
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewKeyValueList(dst *KeyValueList, src *KeyValueList, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.EnsureLen(len(src.elems))
+	for i := 0; i < len(src.elems); i++ {
+		dst.elems[i].key = src.elems[i].key
+
+		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+	}
+
 }
 
 func (m *KeyValueList) CopyFrom(src *KeyValueList) {

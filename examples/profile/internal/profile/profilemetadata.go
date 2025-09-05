@@ -68,6 +68,17 @@ func (s *ProfileMetadata) init(parentModifiedFields *modifiedFields, parentModif
 	s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 }
 
+func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.periodType = allocators.SampleValueType.Alloc()
+	s.periodType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
+	s.comments.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataComments, allocators)
+	s.defaultSampleType = allocators.SampleValueType.Alloc()
+	s.defaultSampleType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ProfileMetadata) reset() {
@@ -307,17 +318,20 @@ func (s *ProfileMetadata) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *ProfileMetadata) Clone() ProfileMetadata {
-	return ProfileMetadata{
+func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
+
+	c := ProfileMetadata{
+
 		dropFrames:        s.dropFrames,
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.Clone(),
+		periodType:        s.periodType.Clone(allocators),
 		period:            s.period,
-		comments:          s.comments.Clone(),
-		defaultSampleType: s.defaultSampleType.Clone(),
+		comments:          s.comments.Clone(allocators),
+		defaultSampleType: s.defaultSampleType.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -327,6 +341,7 @@ func (s *ProfileMetadata) byteSize() uint {
 		s.periodType.byteSize() + s.comments.byteSize() + s.defaultSampleType.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 	dst.SetDropFrames(src.dropFrames)
 	dst.SetKeepFrames(src.keepFrames)
@@ -347,6 +362,26 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		}
 		copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
+	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) {
+	dst.dropFrames = src.dropFrames
+	dst.keepFrames = src.keepFrames
+	dst.timeNanos = src.timeNanos
+	dst.durationNanos = src.durationNanos
+	if src.periodType != nil {
+		dst.periodType = allocators.SampleValueType.Alloc()
+		dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
+	}
+	dst.period = src.period
+	copyToNewStringArray(&dst.comments, &src.comments, allocators)
+	if src.defaultSampleType != nil {
+		dst.defaultSampleType = allocators.SampleValueType.Alloc()
+		dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 	}
 }
 
@@ -559,6 +594,8 @@ type ProfileMetadataEncoder struct {
 	defaultSampleTypeEncoder     *SampleValueTypeEncoder
 	isDefaultSampleTypeRecursive bool // Indicates DefaultSampleType field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -572,6 +609,7 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	defer func() { state.ProfileMetadataEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -905,6 +943,8 @@ type ProfileMetadataDecoder struct {
 
 	defaultSampleTypeDecoder     *SampleValueTypeDecoder
 	isDefaultSampleTypeRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -915,6 +955,8 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	}
 	state.ProfileMetadataDecoder = d
 	defer func() { state.ProfileMetadataDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1151,7 +1193,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 {
 		// Field is changed and is present, decode it.
 		if val.periodType == nil {
-			val.periodType = &SampleValueType{}
+			val.periodType = d.allocators.SampleValueType.Alloc()
 			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 		}
 
@@ -1180,7 +1222,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 {
 		// Field is changed and is present, decode it.
 		if val.defaultSampleType == nil {
-			val.defaultSampleType = &SampleValueType{}
+			val.defaultSampleType = d.allocators.SampleValueType.Alloc()
 			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		}
 
@@ -1191,4 +1233,35 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	}
 
 	return nil
+}
+
+// ProfileMetadataAllocator implements a custom allocator for ProfileMetadata.
+// It maintains a pool of pre-allocated ProfileMetadata and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type ProfileMetadataAllocator struct {
+	pool []ProfileMetadata
+	ofs  int
+}
+
+// Alloc returns the next available ProfileMetadata from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *ProfileMetadataAllocator) Alloc() *ProfileMetadata {
+	if a.ofs < len(a.pool) {
+		// Get the next available ProfileMetadata from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *ProfileMetadataAllocator) prealloc() *ProfileMetadata {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]ProfileMetadata, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

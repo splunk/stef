@@ -54,6 +54,13 @@ func (s *SummaryValue) init(parentModifiedFields *modifiedFields, parentModified
 	s.quantileValues.init(&s.modifiedFields, fieldModifiedSummaryValueQuantileValues)
 }
 
+func (s *SummaryValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.quantileValues.initAlloc(&s.modifiedFields, fieldModifiedSummaryValueQuantileValues, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SummaryValue) reset() {
@@ -159,12 +166,15 @@ func (s *SummaryValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *SummaryValue) Clone() SummaryValue {
-	return SummaryValue{
+func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
+
+	c := SummaryValue{
+
 		count:          s.count,
 		sum:            s.sum,
-		quantileValues: s.quantileValues.Clone(),
+		quantileValues: s.quantileValues.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -174,10 +184,18 @@ func (s *SummaryValue) byteSize() uint {
 		s.quantileValues.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyQuantileValueArray(&dst.quantileValues, &src.quantileValues)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue, allocators *Allocators) {
+	dst.count = src.count
+	dst.sum = src.sum
+	copyToNewQuantileValueArray(&dst.quantileValues, &src.quantileValues, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -297,6 +315,8 @@ type SummaryValueEncoder struct {
 	quantileValuesEncoder     *QuantileValueArrayEncoder
 	isQuantileValuesRecursive bool // Indicates QuantileValues field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -310,6 +330,7 @@ func (e *SummaryValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 	defer func() { state.SummaryValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -472,6 +493,8 @@ type SummaryValueDecoder struct {
 
 	quantileValuesDecoder     *QuantileValueArrayDecoder
 	isQuantileValuesRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -482,6 +505,8 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	}
 	state.SummaryValueDecoder = d
 	defer func() { state.SummaryValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -603,4 +628,35 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 	}
 
 	return nil
+}
+
+// SummaryValueAllocator implements a custom allocator for SummaryValue.
+// It maintains a pool of pre-allocated SummaryValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type SummaryValueAllocator struct {
+	pool []SummaryValue
+	ofs  int
+}
+
+// Alloc returns the next available SummaryValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *SummaryValueAllocator) Alloc() *SummaryValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available SummaryValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SummaryValueAllocator) prealloc() *SummaryValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]SummaryValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

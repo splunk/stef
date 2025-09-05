@@ -251,8 +251,8 @@ func generateData(rootStruct, outFileName string, randSeed uint64, recordCount u
 
 		if randSeed == 0 {
 			randSeed = uint64(time.Now().UnixNano())
-			fmt.Printf("Using random seed: %d\n", randSeed)
 		}
+		fmt.Printf("Using random seed: %d\n", randSeed)
 		random := rand.New(rand.NewPCG(randSeed, 0))
 
 		opts := pkg.WriterOptions{}

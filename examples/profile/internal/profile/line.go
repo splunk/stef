@@ -55,6 +55,14 @@ func (s *Line) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
 }
 
+func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.function = allocators.Function.Alloc()
+	s.function.initAlloc(&s.modifiedFields, fieldModifiedLineFunction, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Line) reset() {
@@ -160,12 +168,15 @@ func (s *Line) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Line) Clone() Line {
-	return Line{
-		function: s.function.Clone(),
+func (s *Line) Clone(allocators *Allocators) Line {
+
+	c := Line{
+
+		function: s.function.Clone(allocators),
 		line:     s.line,
 		column:   s.column,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -175,6 +186,7 @@ func (s *Line) byteSize() uint {
 		s.function.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLine(dst *Line, src *Line) {
 	if src.function != nil {
 		if dst.function == nil {
@@ -185,6 +197,17 @@ func copyLine(dst *Line, src *Line) {
 	}
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
+	if src.function != nil {
+		dst.function = allocators.Function.Alloc()
+		dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		copyToNewFunction(dst.function, src.function, allocators)
+	}
+	dst.line = src.line
+	dst.column = src.column
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -304,6 +327,8 @@ type LineEncoder struct {
 
 	columnEncoder encoders.Uint64Encoder
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -317,6 +342,7 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.LineEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -479,6 +505,8 @@ type LineDecoder struct {
 	lineDecoder encoders.Uint64Decoder
 
 	columnDecoder encoders.Uint64Decoder
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -489,6 +517,8 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 	state.LineDecoder = d
 	defer func() { state.LineDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -588,7 +618,7 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 {
 		// Field is changed and is present, decode it.
 		if val.function == nil {
-			val.function = &Function{}
+			val.function = d.allocators.Function.Alloc()
 			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
 		}
 
@@ -615,4 +645,35 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	}
 
 	return nil
+}
+
+// LineAllocator implements a custom allocator for Line.
+// It maintains a pool of pre-allocated Line and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type LineAllocator struct {
+	pool []Line
+	ofs  int
+}
+
+// Alloc returns the next available Line from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *LineAllocator) Alloc() *Line {
+	if a.ofs < len(a.pool) {
+		// Get the next available Line from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *LineAllocator) prealloc() *Line {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Line, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

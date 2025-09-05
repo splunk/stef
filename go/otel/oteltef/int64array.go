@@ -30,6 +30,10 @@ func (e *Int64Array) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *Int64Array) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *Int64Array) reset() {
@@ -44,9 +48,9 @@ func (e *Int64Array) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of Int64Array
-func (e *Int64Array) Clone() Int64Array {
+func (e *Int64Array) Clone(allocators *Allocators) Int64Array {
 	var clone Int64Array
-	copyInt64Array(&clone, e)
+	copyToNewInt64Array(&clone, e, allocators)
 	return clone
 }
 
@@ -91,6 +95,7 @@ func (e *Int64Array) markUnmodifiedRecursively() {
 
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyInt64Array(dst *Int64Array, src *Int64Array) {
 	isModified := false
 
@@ -120,6 +125,18 @@ func copyInt64Array(dst *Int64Array, src *Int64Array) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewInt64Array(dst *Int64Array, src *Int64Array, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	for i := 0; i < len(dst.elems); i++ {
+		dst.elems[i] = src.elems[i]
+	}
+}
+
 // Len returns the number of elements in the array.
 func (e *Int64Array) Len() int {
 	return len(e.elems)
@@ -133,6 +150,21 @@ func (m *Int64Array) At(i int) int64 {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *Int64Array) EnsureLen(newLen int) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]int64, newLen-oldLen)...)
+		e.markModified()
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *Int64Array) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Grow the array
@@ -256,6 +288,7 @@ type Int64ArrayDecoder struct {
 	column      *pkg.ReadableColumn
 	elemDecoder *encoders.Int64Decoder
 	isRecursive bool
+	allocators  *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -266,6 +299,8 @@ func (d *Int64ArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if err != nil {
 		return err
 	}
+
+	d.allocators = &state.Allocators
 
 	return nil
 }
@@ -291,7 +326,7 @@ func (d *Int64ArrayDecoder) Reset() {
 func (d *Int64ArrayDecoder) Decode(dst *Int64Array) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])

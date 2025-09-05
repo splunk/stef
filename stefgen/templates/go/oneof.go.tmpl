@@ -47,6 +47,17 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     {{- end -}}
 }
 
+func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+    s.parentModifiedFields = parentModifiedFields
+    s.parentModifiedBit = parentModifiedBit
+
+    {{ range .Fields }}
+	{{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr) }}
+    s.{{.name}}.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+    {{- end -}}
+    {{- end -}}
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
@@ -127,9 +138,9 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type
 {{end}}
 {{ end }}
 
-func (s *{{ .StructName }}) Clone() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
-        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(){{else}}s.{{.name}}{{end}},
+        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(allocators){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
 }
@@ -143,6 +154,7 @@ func (s *{{ .StructName }}) byteSize() uint {
        {{- end }}0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
 	switch src.typ {
     {{- range .Fields}}
@@ -157,6 +169,29 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
         {{- end}}
     {{- end}}
     case {{ $.StructName }}TypeNone: dst.SetType(src.typ)
+    default: panic("copy{{.StructName}}: unexpected type: " + fmt.Sprint(src.typ))
+    }
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+    dst.typ = src.typ
+	switch src.typ {
+    {{- range .Fields}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.MustClone}}
+        {{- if .Type.Flags.StoreByPtr}}
+        dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+        dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
+        {{- end}}
+        copyToNew{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+        {{- else}}
+        dst.{{.name}} = src.{{.name}}
+        {{- end}}
+    {{- end}}
+    case {{ $.StructName }}TypeNone:
     default: panic("copy{{.StructName}}: unexpected type: " + fmt.Sprint(src.typ))
     }
 }
@@ -445,6 +480,7 @@ type {{ .StructName }}Decoder struct {
     {{if .DictName}}
     dict *{{ .StructName }}DecoderDict
     {{end}}
+    allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -455,6 +491,8 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     }
     state.{{.StructName}}Decoder = d
     defer func() { state.{{.StructName}}Decoder = nil }()
+
+    d.allocators = &state.Allocators
 
     var err error
     d.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
@@ -560,7 +598,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         // Decode {{.Name}}
         {{- if .Type.Flags.StoreByPtr}}
         if dst.{{.name}} == nil {
-            dst.{{.name}} = &{{ .Type.Storage }}{}
+            dst.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
             dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
         }
         {{end}}
@@ -584,3 +622,34 @@ func (d* {{ .StructName }}DecoderDict) Init() {
     d.dict = append(d.dict, nil) // nil {{.StructName}} is RefNum 0
 }
 {{end}}
+
+// {{.StructName}}Allocator implements a custom allocator for {{.StructName}}.
+// It maintains a pool of pre-allocated {{.StructName}} and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type {{.StructName}}Allocator struct {
+    pool []{{.StructName}}
+    ofs int
+}
+
+// Alloc returns the next available {{.StructName}} from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *{{.StructName}}Allocator) Alloc() *{{.StructName}} {
+    if a.ofs < len(a.pool) {
+        // Get the next available {{.StructName}} from the pool
+        a.ofs++
+        return &a.pool[a.ofs-1]
+    }
+    // We've exhausted the current pool, prealloc a new pool.
+    return a.prealloc()
+}
+
+//go:noinline
+func (a *{{.StructName}}Allocator) prealloc() *{{.StructName}} {
+    // prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+    // If the pool is empty, it starts with 1 element.
+    newLen := min(max(len(a.pool)*2, 1), 64)
+    a.pool = make([]{{.StructName}}, newLen)
+    a.ofs = 1
+    return &a.pool[0]
+}

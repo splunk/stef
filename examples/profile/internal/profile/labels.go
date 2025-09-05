@@ -37,6 +37,10 @@ func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *Labels) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *Labels) reset() {
@@ -51,9 +55,9 @@ func (m *Labels) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of Labels
-func (m *Labels) Clone() Labels {
+func (m *Labels) Clone(allocators *Allocators) Labels {
 	clone := Labels{}
-	copyLabels(&clone, m)
+	copyToNewLabels(&clone, m, allocators)
 	return clone
 }
 
@@ -126,6 +130,7 @@ func (m *Labels) byteSize() uint {
 	return uint(unsafe.Sizeof(LabelsElem{}))*uint(len(m.elems)) + uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyLabels(dst *Labels, src *Labels) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -142,6 +147,21 @@ func copyLabels(dst *Labels, src *Labels) {
 			dst.modifiedElems.markValModified(i)
 		}
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewLabels(dst *Labels, src *Labels, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.EnsureLen(len(src.elems))
+	for i := 0; i < len(src.elems); i++ {
+		dst.elems[i].key = src.elems[i].key
+
+		copyToNewLabelValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+	}
+
 }
 
 func (m *Labels) CopyFrom(src *Labels) {

@@ -79,6 +79,16 @@ func (s *Span) init(parentModifiedFields *modifiedFields, parentModifiedBit uint
 	s.status.init(&s.modifiedFields, fieldModifiedSpanStatus)
 }
 
+func (s *Span) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedSpanAttributes, allocators)
+	s.events.initAlloc(&s.modifiedFields, fieldModifiedSpanEvents, allocators)
+	s.links.initAlloc(&s.modifiedFields, fieldModifiedSpanLinks, allocators)
+	s.status.initAlloc(&s.modifiedFields, fieldModifiedSpanStatus, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Span) reset() {
@@ -483,8 +493,10 @@ func (s *Span) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Span) Clone() Span {
-	return Span{
+func (s *Span) Clone(allocators *Allocators) Span {
+
+	c := Span{
+
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
@@ -494,12 +506,13 @@ func (s *Span) Clone() Span {
 		kind:                   s.kind,
 		startTimeUnixNano:      s.startTimeUnixNano,
 		endTimeUnixNano:        s.endTimeUnixNano,
-		attributes:             s.attributes.Clone(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
-		events:                 s.events.Clone(),
-		links:                  s.links.Clone(),
-		status:                 s.status.Clone(),
+		events:                 s.events.Clone(allocators),
+		links:                  s.links.Clone(allocators),
+		status:                 s.status.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -509,6 +522,7 @@ func (s *Span) byteSize() uint {
 		s.attributes.byteSize() + s.events.byteSize() + s.links.byteSize() + s.status.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copySpan(dst *Span, src *Span) {
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -524,6 +538,24 @@ func copySpan(dst *Span, src *Span) {
 	copyEventArray(&dst.events, &src.events)
 	copyLinkArray(&dst.links, &src.links)
 	copySpanStatus(&dst.status, &src.status)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
+	dst.traceID = src.traceID
+	dst.spanID = src.spanID
+	dst.traceState = src.traceState
+	dst.parentSpanID = src.parentSpanID
+	dst.flags = src.flags
+	dst.name = src.name
+	dst.kind = src.kind
+	dst.startTimeUnixNano = src.startTimeUnixNano
+	dst.endTimeUnixNano = src.endTimeUnixNano
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
+	copyToNewEventArray(&dst.events, &src.events, allocators)
+	copyToNewLinkArray(&dst.links, &src.links, allocators)
+	copyToNewSpanStatus(&dst.status, &src.status, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -844,6 +876,8 @@ type SpanEncoder struct {
 	statusEncoder     *SpanStatusEncoder
 	isStatusRecursive bool // Indicates Status field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -857,6 +891,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	defer func() { state.SpanEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -1377,6 +1412,8 @@ type SpanDecoder struct {
 
 	statusDecoder     *SpanStatusDecoder
 	isStatusRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -1387,6 +1424,8 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	}
 	state.SpanDecoder = d
 	defer func() { state.SpanDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1806,4 +1845,35 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 	}
 
 	return nil
+}
+
+// SpanAllocator implements a custom allocator for Span.
+// It maintains a pool of pre-allocated Span and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type SpanAllocator struct {
+	pool []Span
+	ofs  int
+}
+
+// Alloc returns the next available Span from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *SpanAllocator) Alloc() *Span {
+	if a.ofs < len(a.pool) {
+		// Get the next available Span from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *SpanAllocator) prealloc() *Span {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Span, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

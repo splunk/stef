@@ -60,6 +60,8 @@ type WriterState struct {
 	SpansEncoder               *SpansEncoder
 	SummaryValueEncoder        *SummaryValueEncoder
 	Uint64ArrayEncoder         *Uint64ArrayEncoder
+
+	Allocators Allocators
 }
 
 func (d *WriterState) Init(opts *pkg.WriterOptions) {

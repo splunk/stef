@@ -37,6 +37,10 @@ func (m *Attributes) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *Attributes) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *Attributes) reset() {
@@ -51,9 +55,9 @@ func (m *Attributes) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of Attributes
-func (m *Attributes) Clone() Attributes {
+func (m *Attributes) Clone(allocators *Allocators) Attributes {
 	clone := Attributes{}
-	copyAttributes(&clone, m)
+	copyToNewAttributes(&clone, m, allocators)
 	return clone
 }
 
@@ -126,6 +130,7 @@ func (m *Attributes) byteSize() uint {
 	return uint(unsafe.Sizeof(AttributesElem{}))*uint(len(m.elems)) + uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyAttributes(dst *Attributes, src *Attributes) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -142,6 +147,21 @@ func copyAttributes(dst *Attributes, src *Attributes) {
 			dst.modifiedElems.markValModified(i)
 		}
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewAttributes(dst *Attributes, src *Attributes, allocators *Allocators) {
+	if len(src.elems) == 0 {
+		return
+	}
+
+	dst.EnsureLen(len(src.elems))
+	for i := 0; i < len(src.elems); i++ {
+		dst.elems[i].key = src.elems[i].key
+
+		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+	}
+
 }
 
 func (m *Attributes) CopyFrom(src *Attributes) {

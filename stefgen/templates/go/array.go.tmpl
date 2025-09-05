@@ -29,6 +29,10 @@ func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifi
 	e.parentModifiedBit = parentModifiedBit
 }
 
+func (e *{{.ArrayName}}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the array to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (e *{{.ArrayName}}) reset() {
@@ -43,9 +47,9 @@ func (e *{{.ArrayName}}) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of {{ .ArrayName }}
-func (e *{{.ArrayName}}) Clone() {{ .ArrayName }} {
+func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
     var clone {{ .ArrayName }}
-    copy{{.ArrayName}}(&clone, e)
+    copyToNew{{.ArrayName}}(&clone, e, allocators)
     return clone
 }
 
@@ -104,6 +108,7 @@ func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 {{end}}
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	isModified := false
 
@@ -158,6 +163,32 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	}
 }
 
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) {
+    if len(src.elems)==0 {
+        return
+    }
+
+	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+
+	{{- if .ElemType.MustClone}}
+    // Need to allocate new elements for the part of the array that has grown.
+    for j := 0; j<len(dst.elems); j++ {
+        {{if not .ElemType.IsPrimitive -}}
+        // Alloc and init the element.
+        dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
+        dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+        {{- end}}
+        // Copy the element.
+        copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+    }
+	{{- else}}
+	for i:=0; i < len(dst.elems); i++ {
+		dst.elems[i] = src.elems[i]
+	}
+	{{- end}}
+}
+
 // Len returns the number of elements in the array.
 func (e *{{.ArrayName}}) Len() int {
 	return len(e.elems)
@@ -181,6 +212,28 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
 		for ; oldLen<newLen; oldLen++ {
 			e.elems[oldLen] = new({{.ElemType.Storage}})
 			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+		}
+		{{- end}}
+	} else if oldLen > newLen {
+		// Shrink it
+		e.elems = e.elems[:newLen]
+		e.markModified()
+	}
+}
+
+// EnsureLen ensures the length of the array is equal to newLen.
+// It will grow or shrink the array if needed.
+func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
+	oldLen := len(e.elems)
+	if newLen > oldLen {
+		// Grow the array
+		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
+		e.markModified()
+		{{- if .IsStructType}}
+		// Initialize newly added elements.
+		for ; oldLen<newLen; oldLen++ {
+			e.elems[oldLen] = allocators.{{.ElemType.Storage}}.Alloc()
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 		{{- end}}
 	} else if oldLen > newLen {
@@ -331,6 +384,7 @@ type {{ .ArrayName }}Decoder struct {
 	column *pkg.ReadableColumn
 	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -368,6 +422,8 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 	}
 {{- end}}
 
+    d.allocators = &state.Allocators
+
 	return nil
 }
 
@@ -392,7 +448,7 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.EnsureLen(newLen)
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
