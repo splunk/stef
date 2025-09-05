@@ -109,8 +109,7 @@ var metricsDataVariations = []struct {
 }{
 	{
 		generator: &generators.File{
-			FilePath:      "testdata/astronomy-otelmetrics.zst",
-			MultipartFile: true,
+			FilePath: "testdata/astronomy-otelmetrics.zst",
 		},
 	},
 	{
@@ -126,15 +125,13 @@ var metricsDataVariations = []struct {
 	},
 	{
 		generator: &generators.File{
-			FilePath:      "testdata/hostandcollector-otelmetrics.zst",
-			MultipartFile: true,
+			FilePath: "testdata/hostandcollector-otelmetrics.zst",
 		},
 	},
 	{
 		generator: &generators.File{
-			FilePath:      "testdata/hostandcollector-otelmetrics.zst",
-			MultipartFile: true,
-			BatchSize:     1,
+			FilePath:  "testdata/hostandcollector-otelmetrics.zst",
+			BatchSize: 1,
 		},
 	},
 }
@@ -321,7 +318,7 @@ func TestMetricsMultipart(t *testing.T) {
 }
 
 func TestSTEFVeryShortFrames(t *testing.T) {
-	input, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst", false)
+	input, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst")
 	require.NoError(t, err)
 
 	compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}

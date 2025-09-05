@@ -19,7 +19,7 @@ all: build test benchmark
 build:
 	go build -o bin/stefstats cmd/stats/main.go
 	go build -o bin/stefbench cmd/stefbench/main.go
-	go build -o bin/otlp2tef cmd/otlp2tef/main.go
+	go build -o bin/otlp2stef cmd/otlp2stef/main.go
 
 .PHONY: test
 test:
@@ -50,3 +50,8 @@ bench-stat: bench-stat-cli
 .PHONY: update-charts
 update-charts:
 	UPDATE_BENCH_HTML=1 go test -run TestMetricsSize\|TestMetricsMultipart -bench \(alizeNative\|Pdata\)
+
+regen-testdata: build
+	bin/otlp2stef --compression zstd --input testdata/astronomy-otelmetrics.zst
+	bin/otlp2stef --compression zstd --input testdata/hipstershop-otelmetrics.zst
+	bin/otlp2stef --compression zstd --input testdata/hostandcollector-otelmetrics.zst
