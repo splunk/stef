@@ -82,21 +82,15 @@ stefgen -lang=java -outdir=./src/main/java -testoutdir=./src/test/java schema.st
     <pre><code class="language-bash"># Generate Java code with tests in same directory
 stefgen -lang=java -outdir=./java-gen schema.stef</code></pre>
 
-    <h2>Supported Languages</h2>
-    <ul>
-      <li><strong>Go</strong> - Generates Go structs with serialization methods</li>
-      <li><strong>Java</strong> - Generates Java classes with serialization support</li>
-    </ul>
-
     <h2>Generated Code Structure</h2>
 
     <p>stefgen creates:</p>
     <ul>
       <li>Struct, oneof and multimap definitions matching your STEF schema</li>
       <li>Type-safe accessors for all fields</li>
-      <li>Reader for deserialization</li>
-      <li>Writer for serialization</li>
-      <li>Read/write unit tests with randomized inputs, matching the schema</li>
+      <li>Reader for deserialization for every root struct</li>
+      <li>Writer for serialization for every root struct</li>
+      <li>Read/write unit tests with randomized inputs</li>
     </ul>
 
     <h2>Example Workflow</h2>
@@ -134,7 +128,7 @@ writer.Write()
 // Flush the stream to the buffer.
 writer.Flush()</code></pre>
 
-    <p class="footer-note">For more information about STEF schema syntax and features, see the <a href="https://github.com/splunk/stef/blob/main/stef-spec/specification.md">STEF Specification</a>.</p>
+    <p class="footer-note">For more information about STEF schema syntax and features, see the <a href="sdl.html">STEF Schema Definition Language</a>.</p>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-go.min.js"></script>
