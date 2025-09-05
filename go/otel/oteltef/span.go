@@ -93,7 +93,17 @@ func (s *Span) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Span) reset() {
 
+	s.traceID = pkg.EmptyBytes
+	s.spanID = pkg.EmptyBytes
+	s.traceState = ""
+	s.parentSpanID = pkg.EmptyBytes
+	s.flags = 0
+	s.name = ""
+	s.kind = 0
+	s.startTimeUnixNano = 0
+	s.endTimeUnixNano = 0
 	s.attributes.reset()
+	s.droppedAttributesCount = 0
 	s.events.reset()
 	s.links.reset()
 	s.status.reset()

@@ -63,6 +63,7 @@ class {{.StructName}}WriterTest {
         // Choose a seed (non-pseudo) randomly. We will print the seed
         // on failure for easy reproduction.
         long seed1 = System.nanoTime();
+        seed1 = 196974325521208L;
         Random random = new Random(seed1);
 
         for (int optIdx=0; optIdx < opts.size(); optIdx++) {

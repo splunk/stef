@@ -32,15 +32,15 @@ public class ExemplarValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
-        
-        
+        int64 = 0;
+        float64 = 0.0;
     }
 
     void reset() {
         typ = Type.TypeNone;
         
-        
-        
+        int64 = 0;
+        float64 = 0.0;
     }
 
     // Type enum for oneof
@@ -66,10 +66,19 @@ public class ExemplarValue {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in black state.
+    void resetContained() {
+        switch (typ) {
+        }
+    }
+
     // setType sets the type of the value currently contained in ExemplarValue.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             }
             this.markParentModified();

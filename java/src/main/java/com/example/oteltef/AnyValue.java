@@ -38,9 +38,9 @@ public class AnyValue {
         this.parentModifiedBit = parentModifiedBit;
         
         string = StringValue.empty;
-        
-        
-        
+        bool = false;
+        int64 = 0;
+        float64 = 0.0;
         bytes = Types.emptyBytes;
     }
 
@@ -48,9 +48,9 @@ public class AnyValue {
         typ = Type.TypeNone;
         
         string = StringValue.empty;
-        
-        
-        
+        bool = false;
+        int64 = 0;
+        float64 = 0.0;
         if (array != null) {
             array.reset();
         }
@@ -88,10 +88,29 @@ public class AnyValue {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in black state.
+    void resetContained() {
+        switch (typ) {
+        case TypeArray:
+            if (array != null) {
+                array.reset();
+            }
+            break;
+        case TypeKVList:
+            if (kVList != null) {
+                kVList.reset();
+            }
+            break;
+        }
+    }
+
     // setType sets the type of the value currently contained in AnyValue.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             case TypeArray:
                 if (array == null) {

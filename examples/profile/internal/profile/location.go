@@ -76,7 +76,9 @@ func (s *Location) reset() {
 	if s.mapping != nil {
 		s.mapping.reset()
 	}
+	s.address = 0
 	s.lines.reset()
+	s.isFolded = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

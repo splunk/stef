@@ -67,7 +67,10 @@ func (s *Event) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Event) reset() {
 
+	s.name = ""
+	s.timeUnixNano = 0
 	s.attributes.reset()
+	s.droppedAttributesCount = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

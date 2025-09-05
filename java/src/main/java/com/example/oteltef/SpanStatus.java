@@ -41,13 +41,13 @@ public class SpanStatus {
         modifiedFields.parentBit = parentModifiedBit;
         
         message = StringValue.empty;
-        
+        code = 0;
     }
 
     void reset() {
         
         message = StringValue.empty;
-        
+        code = 0;
     }
 
     

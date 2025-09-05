@@ -60,8 +60,13 @@ func (s *AnyValue) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 func (s *AnyValue) reset() {
 	s.typ = AnyValueTypeNone
 
+	s.string = ""
+	s.bool = false
+	s.int64 = 0
+	s.float64 = 0.0
 	s.array.reset()
 	s.kVList.reset()
+	s.bytes = pkg.EmptyBytes
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

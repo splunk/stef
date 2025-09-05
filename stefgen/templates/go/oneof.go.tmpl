@@ -63,7 +63,9 @@ func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, par
 func (s *{{ $.StructName }}) reset() {
     s.typ = {{$.StructName }}TypeNone
     {{ range .Fields }}
-	{{- if not .Type.IsPrimitive }}
+	{{- if .Type.IsPrimitive }}
+	{{if .Type.InitVal}}s.{{.name}} = {{.Type.InitVal}};{{end}}
+	{{- else}}
 	{{- if .Type.Flags.StoreByPtr}}
     if s.{{.name}} != nil {
         s.{{.name}}.reset()

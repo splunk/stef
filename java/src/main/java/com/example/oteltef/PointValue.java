@@ -35,15 +35,15 @@ public class PointValue {
         this.parentModifiedFields = parentModifiedFields;
         this.parentModifiedBit = parentModifiedBit;
         
-        
-        
+        int64 = 0;
+        float64 = 0.0;
     }
 
     void reset() {
         typ = Type.TypeNone;
         
-        
-        
+        int64 = 0;
+        float64 = 0.0;
         if (histogram != null) {
             histogram.reset();
         }
@@ -81,10 +81,34 @@ public class PointValue {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in black state.
+    void resetContained() {
+        switch (typ) {
+        case TypeHistogram:
+            if (histogram != null) {
+                histogram.reset();
+            }
+            break;
+        case TypeExpHistogram:
+            if (expHistogram != null) {
+                expHistogram.reset();
+            }
+            break;
+        case TypeSummary:
+            if (summary != null) {
+                summary.reset();
+            }
+            break;
+        }
+    }
+
     // setType sets the type of the value currently contained in PointValue.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             case TypeHistogram:
                 if (histogram == null) {

@@ -62,6 +62,9 @@ func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parent
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValueType) reset() {
+
+	s.type_ = ""
+	s.unit = ""
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

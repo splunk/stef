@@ -176,7 +176,11 @@ class PointValueDecoder {
         if (typ < 0 || typ >= PointValue.Type.values().length) {
             throw new IOException("Invalid oneof type");
         }
-        dst.typ = PointValue.Type.values()[(int)typ];
+        PointValue.Type newType = PointValue.Type.values()[(int)typ];
+        if (dst.typ != newType) {
+            dst.typ = newType;
+            dst.resetContained();
+        }
         prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field

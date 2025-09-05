@@ -74,10 +74,28 @@ public class {{ .StructName }} {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in black state.
+    void resetContained() {
+        switch (typ) {
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        case Type{{.Name}}:
+            if ({{.name}} != null) {
+                {{.name}}.reset();
+            }
+            break;
+        {{- end -}}
+        {{- end }}
+        }
+    }
+
     // setType sets the type of the value currently contained in {{ $.StructName }}.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             {{- range .Fields }}
             {{- if not .Type.IsPrimitive}}

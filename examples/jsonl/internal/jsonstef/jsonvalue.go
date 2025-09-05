@@ -60,6 +60,9 @@ func (s *JsonValue) reset() {
 
 	s.object.reset()
 	s.array.reset()
+	s.string = ""
+	s.number = 0.0
+	s.bool = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

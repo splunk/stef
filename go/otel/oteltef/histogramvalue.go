@@ -80,6 +80,10 @@ func (s *HistogramValue) initAlloc(parentModifiedFields *modifiedFields, parentM
 // Will not reset internal fields such as parentModifiedFields.
 func (s *HistogramValue) reset() {
 
+	s.count = 0
+	s.sum = 0.0
+	s.min = 0.0
+	s.max = 0.0
 	s.bucketCounts.reset()
 }
 

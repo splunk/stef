@@ -60,6 +60,9 @@ func (s *QuantileValue) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *QuantileValue) reset() {
+
+	s.quantile = 0.0
+	s.value = 0.0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

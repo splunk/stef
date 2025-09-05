@@ -65,6 +65,8 @@ func (s *SummaryValue) initAlloc(parentModifiedFields *modifiedFields, parentMod
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SummaryValue) reset() {
 
+	s.count = 0
+	s.sum = 0.0
 	s.quantileValues.reset()
 }
 

@@ -55,20 +55,22 @@ public class HistogramValue {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
-        
-        
+        count = 0;
+        sum = 0.0;
+        min = 0.0;
+        max = 0.0;
         bucketCounts = new Int64Array(modifiedFields, fieldModifiedBucketCounts);
     }
 
     void reset() {
         
-        
-        
-        
-        
-        bucketCounts.reset();
+        count = 0;
+        sum = 0.0;
+        min = 0.0;
+        max = 0.0;
+        if (bucketCounts != null) {
+            bucketCounts.reset();
+        }
     }
 
     

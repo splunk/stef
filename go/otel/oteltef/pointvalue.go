@@ -60,6 +60,8 @@ func (s *PointValue) initAlloc(parentModifiedFields *modifiedFields, parentModif
 func (s *PointValue) reset() {
 	s.typ = PointValueTypeNone
 
+	s.int64 = 0
+	s.float64 = 0.0
 	s.histogram.reset()
 	s.expHistogram.reset()
 	s.summary.reset()

@@ -50,6 +50,9 @@ func (s *ExemplarValue) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExemplarValue) reset() {
 	s.typ = ExemplarValueTypeNone
+
+	s.int64 = 0
+	s.float64 = 0.0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

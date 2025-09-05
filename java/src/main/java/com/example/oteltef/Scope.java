@@ -50,7 +50,7 @@ public class Scope {
         version = StringValue.empty;
         schemaURL = StringValue.empty;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
-        
+        droppedAttributesCount = 0;
     }
 
     void reset() {
@@ -58,8 +58,10 @@ public class Scope {
         name = StringValue.empty;
         version = StringValue.empty;
         schemaURL = StringValue.empty;
-        attributes.reset();
-        
+        if (attributes != null) {
+            attributes.reset();
+        }
+        droppedAttributesCount = 0;
     }
 
     
