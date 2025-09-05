@@ -79,10 +79,21 @@ func (s *LabelValue) Type() LabelValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in black state.
+func (s *LabelValue) resetContained() {
+	switch s.typ {
+	case LabelValueTypeNum:
+		s.num.reset()
+	}
+}
+
 // SetType sets the type of the value currently contained in LabelValue.
 func (s *LabelValue) SetType(typ LabelValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -500,7 +511,10 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = LabelValueType(typ)
+	if dst.typ != LabelValueType(typ) {
+		dst.typ = LabelValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = LabelValueType(dst.typ)
 
 	// Decode selected field

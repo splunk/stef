@@ -67,7 +67,9 @@ func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Line) reset() {
 
-	s.function.reset()
+	if s.function != nil {
+		s.function.reset()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

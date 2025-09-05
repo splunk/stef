@@ -65,7 +65,9 @@ func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModi
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValue) reset() {
 
-	s.type_.reset()
+	if s.type_ != nil {
+		s.type_.reset()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

@@ -93,10 +93,25 @@ func (s *PointValue) Type() PointValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in black state.
+func (s *PointValue) resetContained() {
+	switch s.typ {
+	case PointValueTypeHistogram:
+		s.histogram.reset()
+	case PointValueTypeExpHistogram:
+		s.expHistogram.reset()
+	case PointValueTypeSummary:
+		s.summary.reset()
+	}
+}
+
 // SetType sets the type of the value currently contained in PointValue.
 func (s *PointValue) SetType(typ PointValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -783,7 +798,10 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = PointValueType(typ)
+	if dst.typ != PointValueType(typ) {
+		dst.typ = PointValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = PointValueType(dst.typ)
 
 	// Decode selected field

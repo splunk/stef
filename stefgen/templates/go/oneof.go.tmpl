@@ -64,7 +64,13 @@ func (s *{{ $.StructName }}) reset() {
     s.typ = {{$.StructName }}TypeNone
     {{ range .Fields }}
 	{{- if not .Type.IsPrimitive }}
+	{{- if .Type.Flags.StoreByPtr}}
+    if s.{{.name}} != nil {
+        s.{{.name}}.reset()
+    }
+    {{- else}}
     s.{{.name}}.reset()
+    {{- end -}}
     {{- end -}}
     {{- end -}}
 }
@@ -96,10 +102,31 @@ func (s *{{ $.StructName }}) Type() {{$.StructName }}Type {
     return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in black state.
+func (s *{{ $.StructName }}) resetContained() {
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.Flags.StoreByPtr}}
+        if s.{{.name}} != nil {
+            s.{{.name}}.reset()
+        }
+        {{- else}}
+        s.{{.name}}.reset()
+        {{- end -}}
+    {{- end -}}
+    {{- end }}
+    }
+}
+
 // SetType sets the type of the value currently contained in {{ $.StructName }}.
 func (s *{{ $.StructName }}) SetType(typ {{$.StructName }}Type) {
-	if s.typ!=typ {
-        s.typ=typ
+	if s.typ != typ {
+        s.typ = typ
+        s.resetContained()
         switch typ {
         {{- range .Fields }}
         {{- if .Type.Flags.StoreByPtr}}
@@ -587,7 +614,10 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     }
 
 	dst := dstPtr
-	dst.typ = {{.StructName}}Type(typ)
+	if dst.typ != {{.StructName}}Type(typ) {
+	    dst.typ = {{.StructName}}Type(typ)
+	    dst.resetContained()
+	}
     d.prevType = {{.StructName}}Type(dst.typ)
 
 	// Decode selected field

@@ -83,9 +83,13 @@ func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parent
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ProfileMetadata) reset() {
 
-	s.periodType.reset()
+	if s.periodType != nil {
+		s.periodType.reset()
+	}
 	s.comments.reset()
-	s.defaultSampleType.reset()
+	if s.defaultSampleType != nil {
+		s.defaultSampleType.reset()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

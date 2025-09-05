@@ -74,10 +74,19 @@ func (s *ExemplarValue) Type() ExemplarValueType {
 	return s.typ
 }
 
+// resetContained resets the currently contained value, if any.
+// Normally used after switching to a different type to make sure
+// the value contained is in black state.
+func (s *ExemplarValue) resetContained() {
+	switch s.typ {
+	}
+}
+
 // SetType sets the type of the value currently contained in ExemplarValue.
 func (s *ExemplarValue) SetType(typ ExemplarValueType) {
 	if s.typ != typ {
 		s.typ = typ
+		s.resetContained()
 		switch typ {
 		}
 		s.markParentModified()
@@ -472,7 +481,10 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	}
 
 	dst := dstPtr
-	dst.typ = ExemplarValueType(typ)
+	if dst.typ != ExemplarValueType(typ) {
+		dst.typ = ExemplarValueType(typ)
+		dst.resetContained()
+	}
 	d.prevType = ExemplarValueType(dst.typ)
 
 	// Decode selected field
