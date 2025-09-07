@@ -80,19 +80,22 @@ func TestRandWriteReadBits(t *testing.T) {
 }
 
 func BenchmarkBstreamWriteBit(b *testing.B) {
-	bw := NewBitsWriter(1000000)
+	const recCount = 1000000
+	bw := NewBitsWriter(recCount)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bw.Reset()
-		for j := 0; j < 1000000; j++ {
+		for j := 0; j < recCount; j++ {
 			bw.WriteBit(uint(j % 2))
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamReadBit(b *testing.B) {
+	const recCount = 1000000
 	bw := NewBitsWriter(0)
-	for j := 0; j < 1000000; j++ {
+	for j := 0; j < recCount; j++ {
 		bw.WriteBit(uint(j % 2))
 	}
 	bw.Close()
@@ -102,20 +105,23 @@ func BenchmarkBstreamReadBit(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		br.Reset(byts)
-		for j := 0; j < 1000000; j++ {
+		for j := 0; j < recCount; j++ {
 			v := br.ReadBit()
 			if v != uint64(j%2) {
 				panic("invalid value")
 			}
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamReadBits(b *testing.B) {
+	const recCount = 63
+
 	bw := NewBitsWriter(0)
 
 	val := uint64(1)
-	for j := uint(1); j < 64; j++ {
+	for j := uint(1); j <= recCount; j++ {
 		bw.WriteBits(val, j)
 		val *= 2
 	}
@@ -127,7 +133,7 @@ func BenchmarkBstreamReadBits(b *testing.B) {
 		br.Reset(bw.Bytes())
 
 		val = 1
-		for j := uint(1); j < 64; j++ {
+		for j := uint(1); j <= recCount; j++ {
 			v := br.ReadBits(j)
 			if v != val {
 				panic("mismatch")
@@ -135,22 +141,28 @@ func BenchmarkBstreamReadBits(b *testing.B) {
 			val *= 2
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamWriteUvarintCompactSmall(b *testing.B) {
+	const recCount = 47
+
 	bw := NewBitsWriter(1000)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bw.Reset()
-		for j := 0; j < 47; j++ {
+		for j := 0; j < recCount; j++ {
 			bw.WriteUvarintCompact(uint64(j))
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamReadUvarintCompactSmall(b *testing.B) {
+	const recCount = 47
+
 	bw := NewBitsWriter(0)
-	for j := 0; j < 47; j++ {
+	for j := 0; j < recCount; j++ {
 		bw.WriteUvarintCompact(uint64(j))
 	}
 	bw.Close()
@@ -160,29 +172,35 @@ func BenchmarkBstreamReadUvarintCompactSmall(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		br.Reset(byts)
-		for j := 0; j < 47; j++ {
+		for j := 0; j < recCount; j++ {
 			v := br.ReadUvarintCompact()
 			if v != uint64(j) {
 				panic("invalid value")
 			}
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamWriteUvarintCompact(b *testing.B) {
+	const recCount = 47
+
 	bw := NewBitsWriter(1000)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		bw.Reset()
-		for j := 0; j < 47; j++ {
+		for j := 0; j < recCount; j++ {
 			bw.WriteUvarintCompact(uint64(1 << j))
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
 
 func BenchmarkBstreamReadUvarintCompact(b *testing.B) {
+	const recCount = 47
+
 	bw := NewBitsWriter(0)
-	for j := 0; j < 47; j++ {
+	for j := 0; j < recCount; j++ {
 		bw.WriteUvarintCompact(uint64(1 << j))
 	}
 	bw.Close()
@@ -192,11 +210,12 @@ func BenchmarkBstreamReadUvarintCompact(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		br.Reset(byts)
-		for j := 0; j < 47; j++ {
+		for j := 0; j < recCount; j++ {
 			v := br.ReadUvarintCompact()
 			if v != uint64(1<<j) {
 				panic("invalid value")
 			}
 		}
 	}
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/op")
 }
