@@ -129,3 +129,90 @@ func BenchmarkDeserialization(b *testing.B) {
 		)
 	}
 }
+
+func BenchmarkSerialization(b *testing.B) {
+	dir := "testdata"
+	files, err := ioutil.ReadDir(dir)
+	require.NoError(b, err, "failed to read testdata dir")
+	for _, file := range files {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".prof" {
+			continue
+		}
+		path := filepath.Join(dir, file.Name())
+		freader, err := os.Open(path)
+		require.NoError(b, err)
+		defer func() { freader.Close() }()
+
+		gz, err := gzip.NewReader(freader)
+		pprofData, err := io.ReadAll(gz)
+		require.NoError(b, err)
+
+		// Parse the profile using profile.Parse
+		prof, err := pprof.ParseUncompressed(pprofData)
+		require.NoError(b, err)
+		require.NotNil(b, prof)
+
+		buf := bytes.NewBuffer(nil)
+		err = convertPprofToStef(prof, buf)
+		require.NoError(b, err)
+		stefData := buf.Bytes()
+
+		b.Run(
+			"file="+file.Name()+"/format=pprof", func(b *testing.B) {
+				tempBuf := bytes.NewBuffer(nil)
+				for i := 0; i < b.N; i++ {
+					tempBuf.Reset()
+					err := prof.WriteUncompressed(tempBuf)
+					if err != nil {
+						b.Fatalf("failed to serialize pprof data: %v", err)
+					}
+
+					recCount := len(prof.Sample)
+					b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
+				}
+			},
+		)
+
+		b.Run(
+			"file="+file.Name()+"/format=stef", func(b *testing.B) {
+				// Count records
+				r := bytes.NewReader(stefData)
+				reader, err := stefprofile.NewSampleReader(r)
+				if err != nil {
+					b.Fatalf("failed to create STEF reader: %v", err)
+				}
+				records := make([]stefprofile.Sample, len(prof.Sample))
+				recCount := 0
+				for {
+					if err := reader.Read(pkg.ReadOptions{}); err != nil {
+						break
+					}
+					records[recCount].CopyFrom(&reader.Record)
+					recCount++
+				}
+
+				b.ResetTimer()
+				tempBuf := bytes.NewBuffer(nil)
+				for i := 0; i < b.N; i++ {
+					tempBuf.Reset()
+					chunkWriter := pkg.NewWrapChunkWriter(tempBuf)
+					writer, err := stefprofile.NewSampleWriter(chunkWriter, pkg.WriterOptions{})
+					if err != nil {
+						b.Fatalf("failed to create STEF reader: %v", err)
+					}
+					for j := 0; j < recCount; j++ {
+						writer.Record.CopyFrom(&records[j])
+						if err := writer.Write(); err != nil {
+							b.Fatalf("failed to write STEF data: %v", err)
+						}
+					}
+					if err := writer.Flush(); err != nil {
+						b.Fatalf("failed to flush STEF data: %v", err)
+					}
+
+					b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
+				}
+			},
+		)
+	}
+}

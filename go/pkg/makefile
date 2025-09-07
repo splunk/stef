@@ -8,7 +8,8 @@ all: test
 test:
 	go test -v ./... -bench . -benchtime 1ms
 
+# make generate re-generates the lookup tables.
 .PHONY: generate
 generate:
-	cd pkg/tablegen && go install .
-	cd pkg && go generate
+	cd tablegen && go install .
+	go generate
