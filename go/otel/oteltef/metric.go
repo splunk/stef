@@ -67,6 +67,14 @@ func (s *Metric) init(parentModifiedFields *modifiedFields, parentModifiedBit ui
 	s.histogramBounds.init(&s.modifiedFields, fieldModifiedMetricHistogramBounds)
 }
 
+func (s *Metric) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.metadata.initAlloc(&s.modifiedFields, fieldModifiedMetricMetadata, allocators)
+	s.histogramBounds.initAlloc(&s.modifiedFields, fieldModifiedMetricHistogramBounds, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metric) reset() {
@@ -309,17 +317,21 @@ func (s *Metric) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Metric) Clone() *Metric {
-	return &Metric{
+func (s *Metric) Clone(allocators *Allocators) *Metric {
+
+	c := allocators.Metric.Alloc()
+	*c = Metric{
+
 		name:                   s.name,
 		description:            s.description,
 		unit:                   s.unit,
 		type_:                  s.type_,
-		metadata:               s.metadata.Clone(),
-		histogramBounds:        s.histogramBounds.Clone(),
+		metadata:               s.metadata.Clone(allocators),
+		histogramBounds:        s.histogramBounds.Clone(allocators),
 		aggregationTemporality: s.aggregationTemporality,
 		monotonic:              s.monotonic,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -329,6 +341,7 @@ func (s *Metric) byteSize() uint {
 		s.metadata.byteSize() + s.histogramBounds.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyMetric(dst *Metric, src *Metric) {
 	dst.SetName(src.name)
 	dst.SetDescription(src.description)
@@ -338,6 +351,18 @@ func copyMetric(dst *Metric, src *Metric) {
 	copyFloat64Array(&dst.histogramBounds, &src.histogramBounds)
 	dst.SetAggregationTemporality(src.aggregationTemporality)
 	dst.SetMonotonic(src.monotonic)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewMetric(dst *Metric, src *Metric, allocators *Allocators) {
+	dst.name = src.name
+	dst.description = src.description
+	dst.unit = src.unit
+	dst.type_ = src.type_
+	copyToNewAttributes(&dst.metadata, &src.metadata, allocators)
+	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds, allocators)
+	dst.aggregationTemporality = src.aggregationTemporality
+	dst.monotonic = src.monotonic
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -548,7 +573,8 @@ type MetricEncoder struct {
 
 	monotonicEncoder encoders.BoolEncoder
 
-	dict *MetricEncoderDict
+	dict       *MetricEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -586,6 +612,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 
 	e.limiter = &state.limiter
 	e.dict = &state.Metric
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -756,7 +783,7 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	}
 
 	// The Metric does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = MetricEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -936,6 +963,8 @@ type MetricDecoder struct {
 	monotonicDecoder encoders.BoolDecoder
 
 	dict *MetricDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -946,6 +975,8 @@ func (d *MetricDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 	}
 	state.MetricDecoder = d
 	defer func() { state.MetricDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -1139,7 +1170,7 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -1230,4 +1261,35 @@ func (d *MetricDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *MetricDecoderDict) Reset() {
 	d.Init()
+}
+
+// MetricAllocator implements a custom allocator for Metric.
+// It maintains a pool of pre-allocated Metric and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type MetricAllocator struct {
+	pool []Metric
+	ofs  int
+}
+
+// Alloc returns the next available Metric from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *MetricAllocator) Alloc() *Metric {
+	if a.ofs < len(a.pool) {
+		// Get the next available Metric from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *MetricAllocator) prealloc() *Metric {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Metric, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -58,6 +58,8 @@ type ReaderState struct {
 	SpansDecoder               *SpansDecoder
 	SummaryValueDecoder        *SummaryValueDecoder
 	Uint64ArrayDecoder         *Uint64ArrayDecoder
+
+	Allocators Allocators
 }
 
 func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {

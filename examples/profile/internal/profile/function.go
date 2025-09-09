@@ -57,6 +57,12 @@ func (s *Function) init(parentModifiedFields *modifiedFields, parentModifiedBit 
 
 }
 
+func (s *Function) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Function) reset() {
@@ -192,13 +198,17 @@ func (s *Function) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Function) Clone() *Function {
-	return &Function{
+func (s *Function) Clone(allocators *Allocators) *Function {
+
+	c := allocators.Function.Alloc()
+	*c = Function{
+
 		name:       s.name,
 		systemName: s.systemName,
 		filename:   s.filename,
 		startLine:  s.startLine,
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -208,11 +218,20 @@ func (s *Function) byteSize() uint {
 		0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyFunction(dst *Function, src *Function) {
 	dst.SetName(src.name)
 	dst.SetSystemName(src.systemName)
 	dst.SetFilename(src.filename)
 	dst.SetStartLine(src.startLine)
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) {
+	dst.name = src.name
+	dst.systemName = src.systemName
+	dst.filename = src.filename
+	dst.startLine = src.startLine
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -349,7 +368,8 @@ type FunctionEncoder struct {
 
 	startLineEncoder encoders.Uint64Encoder
 
-	dict *FunctionEncoderDict
+	dict       *FunctionEncoderDict
+	allocators *Allocators
 
 	keepFieldMask uint64
 	fieldCount    uint
@@ -387,6 +407,7 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 
 	e.limiter = &state.limiter
 	e.dict = &state.Function
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -483,7 +504,7 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	}
 
 	// The Function does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone()
+	valInDict := val.Clone(e.allocators)
 	entry = FunctionEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
 	e.dict.dict.Set(valInDict, entry)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
@@ -595,6 +616,8 @@ type FunctionDecoder struct {
 	startLineDecoder encoders.Uint64Decoder
 
 	dict *FunctionDecoderDict
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -605,6 +628,8 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	}
 	state.FunctionDecoder = d
 	defer func() { state.FunctionDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -708,7 +733,7 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -767,4 +792,35 @@ func (d *FunctionDecoderDict) Init() {
 // started with RestartDictionaries flag.
 func (d *FunctionDecoderDict) Reset() {
 	d.Init()
+}
+
+// FunctionAllocator implements a custom allocator for Function.
+// It maintains a pool of pre-allocated Function and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type FunctionAllocator struct {
+	pool []Function
+	ofs  int
+}
+
+// Alloc returns the next available Function from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *FunctionAllocator) Alloc() *Function {
+	if a.ofs < len(a.pool) {
+		// Get the next available Function from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *FunctionAllocator) prealloc() *Function {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]Function, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

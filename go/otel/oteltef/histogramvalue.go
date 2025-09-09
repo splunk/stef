@@ -69,6 +69,13 @@ func (s *HistogramValue) init(parentModifiedFields *modifiedFields, parentModifi
 	s.bucketCounts.init(&s.modifiedFields, fieldModifiedHistogramValueBucketCounts)
 }
 
+func (s *HistogramValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.bucketCounts.initAlloc(&s.modifiedFields, fieldModifiedHistogramValueBucketCounts, allocators)
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *HistogramValue) reset() {
@@ -272,14 +279,17 @@ func (s *HistogramValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *HistogramValue) Clone() HistogramValue {
-	return HistogramValue{
+func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
+
+	c := HistogramValue{
+
 		count:        s.count,
 		sum:          s.sum,
 		min:          s.min,
 		max:          s.max,
-		bucketCounts: s.bucketCounts.Clone(),
+		bucketCounts: s.bucketCounts.Clone(allocators),
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -289,6 +299,7 @@ func (s *HistogramValue) byteSize() uint {
 		s.bucketCounts.byteSize() + 0
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -310,6 +321,25 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 	}
 
 	copyInt64Array(&dst.bucketCounts, &src.bucketCounts)
+	dst.optionalFieldsPresent = src.optionalFieldsPresent
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocators *Allocators) {
+	dst.count = src.count
+	if src.HasSum() {
+		dst.SetSum(src.sum)
+	}
+
+	if src.HasMin() {
+		dst.SetMin(src.min)
+	}
+
+	if src.HasMax() {
+		dst.SetMax(src.max)
+	}
+
+	copyToNewInt64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
@@ -514,6 +544,8 @@ type HistogramValueEncoder struct {
 	bucketCountsEncoder     *Int64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
+	allocators *Allocators
+
 	keepFieldMask uint64
 	fieldCount    uint
 }
@@ -527,6 +559,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 	defer func() { state.HistogramValueEncoder = nil }()
 
 	e.limiter = &state.limiter
+	e.allocators = &state.Allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -754,6 +787,8 @@ type HistogramValueDecoder struct {
 
 	bucketCountsDecoder     *Int64ArrayDecoder
 	isBucketCountsRecursive bool
+
+	allocators *Allocators
 }
 
 // Init is called once in the lifetime of the stream.
@@ -764,6 +799,8 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	}
 	state.HistogramValueDecoder = d
 	defer func() { state.HistogramValueDecoder = nil }()
+
+	d.allocators = &state.Allocators
 
 	// Number of fields in the input data schema.
 	var err error
@@ -937,4 +974,35 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 	}
 
 	return nil
+}
+
+// HistogramValueAllocator implements a custom allocator for HistogramValue.
+// It maintains a pool of pre-allocated HistogramValue and grows the pool
+// dynamically as needed, up to a maximum size of 64 elements.
+type HistogramValueAllocator struct {
+	pool []HistogramValue
+	ofs  int
+}
+
+// Alloc returns the next available HistogramValue from the pool.
+// If the pool is exhausted, it grows the pool by doubling its size
+// up to a maximum of 64 elements.
+func (a *HistogramValueAllocator) Alloc() *HistogramValue {
+	if a.ofs < len(a.pool) {
+		// Get the next available HistogramValue from the pool
+		a.ofs++
+		return &a.pool[a.ofs-1]
+	}
+	// We've exhausted the current pool, prealloc a new pool.
+	return a.prealloc()
+}
+
+//go:noinline
+func (a *HistogramValueAllocator) prealloc() *HistogramValue {
+	// prealloc expands the pool by doubling its size, up to a maximum of 64 elements.
+	// If the pool is empty, it starts with 1 element.
+	newLen := min(max(len(a.pool)*2, 1), 64)
+	a.pool = make([]HistogramValue, newLen)
+	a.ofs = 1
+	return &a.pool[0]
 }

@@ -37,6 +37,10 @@ func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentMod
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
 
+func (m *{{.MultimapName}}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
+}
+
 // reset the multimap to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (m *{{.MultimapName}}) reset() {
@@ -51,9 +55,9 @@ func (m *{{.MultimapName}}) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of {{.MultimapName}}
-func (m *{{.MultimapName}}) Clone() {{.MultimapName}} {
+func (m *{{.MultimapName}}) Clone(allocators *Allocators) {{.MultimapName}} {
 	clone := {{.MultimapName}}{}
-	copy{{.MultimapName}}(&clone, m)
+	copyToNew{{.MultimapName}}(&clone, m, allocators)
 	return clone
 }
 
@@ -172,6 +176,7 @@ func (m *{{.MultimapName}}) byteSize() uint {
 	return uint(unsafe.Sizeof({{.MultimapName}}Elem{}))*uint(len(m.elems))+uint(unsafe.Sizeof(m.elems))
 }
 
+// Copy from src to dst, overwriting existing data in dst.
 func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 	if len(dst.elems)!=len(src.elems) {
 		dst.EnsureLen(len(src.elems))
@@ -202,6 +207,33 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 		}
 		{{- end}}
 	}
+}
+
+// Copy from src to dst. dst is assumed to be just inited.
+func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, allocators *Allocators) {
+	if len(src.elems) == 0 {
+        return
+	}
+
+	dst.EnsureLen(len(src.elems))
+
+	{{- if and .Key.Type.IsPrimitive .Value.Type.IsPrimitive}}
+	copy(dst.elems, src.elems)
+	{{else}}
+	for i:=0; i < len(src.elems); i++ {
+		{{- if .Key.Type.IsPrimitive}}
+		dst.elems[i].key = src.elems[i].key
+		{{else}}
+		copyToNew{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
+		{{end}}
+
+		{{- if .Value.Type.IsPrimitive}}
+		dst.elems[i].value = src.elems[i].value
+		{{else}}
+		copyToNew{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
+		{{- end}}
+	}
+	{{end}}
 }
 
 func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}) {

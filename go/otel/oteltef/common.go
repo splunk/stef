@@ -180,3 +180,26 @@ func (s *StructFieldCounts) SummaryValueFieldCount() (uint, error) {
 func (s *StructFieldCounts) AllFetched() bool {
 	return s.overrideSchema == false || s.overrideSchemaIter.Done()
 }
+
+type Allocators struct {
+	AnyValue            AnyValueAllocator
+	Envelope            EnvelopeAllocator
+	Event               EventAllocator
+	Exemplar            ExemplarAllocator
+	ExemplarValue       ExemplarValueAllocator
+	ExpHistogramBuckets ExpHistogramBucketsAllocator
+	ExpHistogramValue   ExpHistogramValueAllocator
+	HistogramValue      HistogramValueAllocator
+	Link                LinkAllocator
+	Metric              MetricAllocator
+	Metrics             MetricsAllocator
+	Point               PointAllocator
+	PointValue          PointValueAllocator
+	QuantileValue       QuantileValueAllocator
+	Resource            ResourceAllocator
+	Scope               ScopeAllocator
+	Span                SpanAllocator
+	SpanStatus          SpanStatusAllocator
+	Spans               SpansAllocator
+	SummaryValue        SummaryValueAllocator
+}
