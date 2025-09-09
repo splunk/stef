@@ -262,6 +262,18 @@ func (e *{{ .ArrayName }}) IsEqual(val *{{ .ArrayName }}) bool {
 	return true
 }
 
+func (e *{{ .ArrayName }}) Hash() uint64 {
+	hash := uint64(len(e.elems)) + {{.RandSeed}}
+	for i := range e.elems {
+		{{- if .ElemType.IsPrimitive }}
+		hash ^= {{ .ElemType.HashFunc }}(e.elems[i])
+		{{- else }}
+		hash ^= e.elems[i].Hash()
+		{{- end}}
+	}
+	return hash
+}
+
 // Cmp{{.ArrayName}} performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {

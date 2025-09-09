@@ -207,6 +207,14 @@ func (e *LineArray) IsEqual(val *LineArray) bool {
 	return true
 }
 
+func (e *LineArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 1687021722535056341
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpLineArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLineArray(left, right *LineArray) int {

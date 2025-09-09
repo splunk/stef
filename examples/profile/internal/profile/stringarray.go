@@ -190,6 +190,14 @@ func (e *StringArray) IsEqual(val *StringArray) bool {
 	return true
 }
 
+func (e *StringArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 2857549331103478230
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i])
+	}
+	return hash
+}
+
 // CmpStringArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpStringArray(left, right *StringArray) int {

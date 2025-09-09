@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -149,6 +147,7 @@ func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
 		type_: s.type_,
 		unit:  s.unit,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -163,12 +162,16 @@ func (s *SampleValueType) byteSize() uint {
 func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 	dst.SetType(src.type_)
 	dst.SetUnit(src.unit)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
 	dst.type_ = src.type_
 	dst.unit = src.unit
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -212,6 +215,14 @@ func (s *SampleValueType) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SampleValueType) IsEqual(right *SampleValueType) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Type field.
 	if !pkg.StringEqual(s.type_, right.type_) {
 		return false
@@ -226,6 +237,22 @@ func (s *SampleValueType) IsEqual(right *SampleValueType) bool {
 
 func SampleValueTypeEqual(left, right *SampleValueType) bool {
 	return left.IsEqual(right)
+}
+
+func (s *SampleValueType) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(9319824792222868129)
+	hash ^= pkg.StringHash(s.type_)
+	hash ^= pkg.StringHash(s.unit)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSampleValueType performs deep comparison and returns an integer that
@@ -276,26 +303,21 @@ type SampleValueTypeEncoder struct {
 	fieldCount    uint
 }
 
-type SampleValueTypeEntry struct {
-	refNum uint64
-	val    *SampleValueType
-}
-
 // SampleValueTypeEncoderDict is the dictionary used by SampleValueTypeEncoder
 type SampleValueTypeEncoderDict struct {
-	dict    b.Tree[*SampleValueType, SampleValueTypeEntry]
+	dict    *pkg.HashMap[*SampleValueType, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *SampleValueTypeEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*SampleValueType, SampleValueTypeEntry](CmpSampleValueType)
-	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
+	d.dict = pkg.NewHashMap[*SampleValueType, uint64]((*SampleValueType).Hash, SampleValueTypeEqual)
+	d.dict.Set(nil, 0) // nil SampleValueType is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *SampleValueTypeEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
+	d.dict.Set(nil, 0) // nil SampleValueType is RefNum 0
 }
 
 func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -361,13 +383,13 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	var bitCount uint
 
 	// Check if the SampleValueType exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The SampleValueType exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -380,8 +402,8 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 
 	// The SampleValueType does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = SampleValueTypeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded SampleValueType follows.

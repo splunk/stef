@@ -1,5 +1,7 @@
 package generator
 
+import "math/rand/v2"
+
 func (g *Generator) oMultimaps() error {
 	var multimaps []*genStructFieldDef
 	for _, struc := range g.compiledSchema.Structs {
@@ -38,6 +40,7 @@ func (g *Generator) oMultimap(multimap *genMapDef) error {
 		"MultimapName": mapType.Name,
 		"Key":          mapType.Key,
 		"Value":        mapType.Value,
+		"RandSeed":     rand.Uint64(),
 	}
 
 	return g.oTemplates("multimap", g.stefSymbol2FileName(multimap.Name), data)

@@ -187,6 +187,15 @@ func LabelsEqual(left, right *Labels) bool {
 	return left.IsEqual(right)
 }
 
+func (e *Labels) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 8477268367707951955
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i].key)
+		hash ^= e.elems[i].value.Hash()
+	}
+	return hash
+}
+
 func CmpLabels(left, right *Labels) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

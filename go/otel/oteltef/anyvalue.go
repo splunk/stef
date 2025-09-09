@@ -337,6 +337,27 @@ func AnyValueEqual(left, right *AnyValue) bool {
 	return left.IsEqual(right)
 }
 
+func (s *AnyValue) Hash() uint64 {
+	hash := uint64(s.typ) + 7455778758929879164
+	switch s.typ {
+	case AnyValueTypeString:
+		hash ^= pkg.StringHash(s.string)
+	case AnyValueTypeBool:
+		hash ^= pkg.BoolHash(s.bool)
+	case AnyValueTypeInt64:
+		hash ^= pkg.Int64Hash(s.int64)
+	case AnyValueTypeFloat64:
+		hash ^= pkg.Float64Hash(s.float64)
+	case AnyValueTypeArray:
+		hash ^= s.array.Hash()
+	case AnyValueTypeKVList:
+		hash ^= s.kVList.Hash()
+	case AnyValueTypeBytes:
+		hash ^= pkg.BytesHash(s.bytes)
+	}
+	return hash
+}
+
 // CmpAnyValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpAnyValue(left, right *AnyValue) int {

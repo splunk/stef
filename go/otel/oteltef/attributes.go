@@ -187,6 +187,15 @@ func AttributesEqual(left, right *Attributes) bool {
 	return left.IsEqual(right)
 }
 
+func (e *Attributes) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 5592819086177780603
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i].key)
+		hash ^= e.elems[i].value.Hash()
+	}
+	return hash
+}
+
 func CmpAttributes(left, right *Attributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

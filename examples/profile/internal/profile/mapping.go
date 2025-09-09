@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -373,6 +371,7 @@ func (s *Mapping) Clone(allocators *Allocators) *Mapping {
 		hasLineNumbers:  s.hasLineNumbers,
 		hasInlineFrames: s.hasInlineFrames,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -394,6 +393,9 @@ func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetHasFilenames(src.hasFilenames)
 	dst.SetHasLineNumbers(src.hasLineNumbers)
 	dst.SetHasInlineFrames(src.hasInlineFrames)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -407,6 +409,7 @@ func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
 	dst.hasFilenames = src.hasFilenames
 	dst.hasLineNumbers = src.hasLineNumbers
 	dst.hasInlineFrames = src.hasInlineFrames
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -499,6 +502,14 @@ func (s *Mapping) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Mapping) IsEqual(right *Mapping) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare MemoryStart field.
 	if !pkg.Uint64Equal(s.memoryStart, right.memoryStart) {
 		return false
@@ -541,6 +552,29 @@ func (s *Mapping) IsEqual(right *Mapping) bool {
 
 func MappingEqual(left, right *Mapping) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Mapping) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(3910164869883838901)
+	hash ^= pkg.Uint64Hash(s.memoryStart)
+	hash ^= pkg.Uint64Hash(s.memoryLimit)
+	hash ^= pkg.Uint64Hash(s.fileOffset)
+	hash ^= pkg.StringHash(s.filename)
+	hash ^= pkg.StringHash(s.buildId)
+	hash ^= pkg.BoolHash(s.hasFunctions)
+	hash ^= pkg.BoolHash(s.hasFilenames)
+	hash ^= pkg.BoolHash(s.hasLineNumbers)
+	hash ^= pkg.BoolHash(s.hasInlineFrames)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpMapping performs deep comparison and returns an integer that
@@ -640,26 +674,21 @@ type MappingEncoder struct {
 	fieldCount    uint
 }
 
-type MappingEntry struct {
-	refNum uint64
-	val    *Mapping
-}
-
 // MappingEncoderDict is the dictionary used by MappingEncoder
 type MappingEncoderDict struct {
-	dict    b.Tree[*Mapping, MappingEntry]
+	dict    *pkg.HashMap[*Mapping, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *MappingEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Mapping, MappingEntry](CmpMapping)
-	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
+	d.dict = pkg.NewHashMap[*Mapping, uint64]((*Mapping).Hash, MappingEqual)
+	d.dict.Set(nil, 0) // nil Mapping is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *MappingEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
+	d.dict.Set(nil, 0) // nil Mapping is RefNum 0
 }
 
 func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -816,13 +845,13 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	var bitCount uint
 
 	// Check if the Mapping exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The Mapping exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -835,8 +864,8 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = MappingEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Mapping follows.

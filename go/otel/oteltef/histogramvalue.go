@@ -293,6 +293,7 @@ func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
 		max:          s.max,
 		bucketCounts: s.bucketCounts.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -326,6 +327,9 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 
 	copyInt64Array(&dst.bucketCounts, &src.bucketCounts)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -345,6 +349,7 @@ func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocator
 
 	copyToNewInt64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -409,6 +414,14 @@ func (s *HistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Count field.
 	if !pkg.Int64Equal(s.count, right.count) {
 		return false
@@ -459,6 +472,35 @@ func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 
 func HistogramValueEqual(left, right *HistogramValue) bool {
 	return left.IsEqual(right)
+}
+
+func (s *HistogramValue) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(7875118306091276573)
+	hash ^= pkg.Int64Hash(s.count)
+	if s.optionalFieldsPresent&fieldPresentHistogramValueSum != 0 {
+		hash ^= pkg.Float64Hash(s.sum)
+	}
+
+	if s.optionalFieldsPresent&fieldPresentHistogramValueMin != 0 {
+		hash ^= pkg.Float64Hash(s.min)
+	}
+
+	if s.optionalFieldsPresent&fieldPresentHistogramValueMax != 0 {
+		hash ^= pkg.Float64Hash(s.max)
+	}
+
+	hash ^= s.bucketCounts.Hash()
+	hash ^= s.optionalFieldsPresent
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpHistogramValue performs deep comparison and returns an integer that

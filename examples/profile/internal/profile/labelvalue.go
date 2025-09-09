@@ -208,6 +208,17 @@ func LabelValueEqual(left, right *LabelValue) bool {
 	return left.IsEqual(right)
 }
 
+func (s *LabelValue) Hash() uint64 {
+	hash := uint64(s.typ) + 3566428235311312337
+	switch s.typ {
+	case LabelValueTypeStr:
+		hash ^= pkg.StringHash(s.str)
+	case LabelValueTypeNum:
+		hash ^= s.num.Hash()
+	}
+	return hash
+}
+
 // CmpLabelValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLabelValue(left, right *LabelValue) int {

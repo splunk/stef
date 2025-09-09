@@ -207,6 +207,14 @@ func (e *AnyValueArray) IsEqual(val *AnyValueArray) bool {
 	return true
 }
 
+func (e *AnyValueArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 12673873192858385112
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpAnyValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpAnyValueArray(left, right *AnyValueArray) int {

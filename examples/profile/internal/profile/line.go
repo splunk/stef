@@ -180,6 +180,7 @@ func (s *Line) Clone(allocators *Allocators) Line {
 		line:     s.line,
 		column:   s.column,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -201,6 +202,9 @@ func copyLine(dst *Line, src *Line) {
 	}
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -212,6 +216,7 @@ func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
 	}
 	dst.line = src.line
 	dst.column = src.column
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -262,6 +267,14 @@ func (s *Line) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Line) IsEqual(right *Line) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Function field.
 	if !s.function.IsEqual(right.function) {
 		return false
@@ -280,6 +293,23 @@ func (s *Line) IsEqual(right *Line) bool {
 
 func LineEqual(left, right *Line) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Line) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(7146710972877272751)
+	hash ^= s.function.Hash()
+	hash ^= pkg.Uint64Hash(s.line)
+	hash ^= pkg.Uint64Hash(s.column)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpLine performs deep comparison and returns an integer that

@@ -187,6 +187,15 @@ func JsonObjectEqual(left, right *JsonObject) bool {
 	return left.IsEqual(right)
 }
 
+func (e *JsonObject) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 11764483323871705143
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i].key)
+		hash ^= e.elems[i].value.Hash()
+	}
+	return hash
+}
+
 func CmpJsonObject(left, right *JsonObject) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

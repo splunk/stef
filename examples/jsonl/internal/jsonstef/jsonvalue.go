@@ -285,6 +285,23 @@ func JsonValueEqual(left, right *JsonValue) bool {
 	return left.IsEqual(right)
 }
 
+func (s *JsonValue) Hash() uint64 {
+	hash := uint64(s.typ) + 4449424576139903557
+	switch s.typ {
+	case JsonValueTypeObject:
+		hash ^= s.object.Hash()
+	case JsonValueTypeArray:
+		hash ^= s.array.Hash()
+	case JsonValueTypeString:
+		hash ^= pkg.StringHash(s.string)
+	case JsonValueTypeNumber:
+		hash ^= pkg.Float64Hash(s.number)
+	case JsonValueTypeBool:
+		hash ^= pkg.BoolHash(s.bool)
+	}
+	return hash
+}
+
 // CmpJsonValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpJsonValue(left, right *JsonValue) int {

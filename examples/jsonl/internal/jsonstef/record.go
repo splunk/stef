@@ -116,6 +116,7 @@ func (s *Record) Clone(allocators *Allocators) Record {
 
 		value: s.value.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -135,6 +136,9 @@ func copyRecord(dst *Record, src *Record) {
 		}
 		copyJsonValue(dst.value, src.value)
 	}
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -144,6 +148,7 @@ func copyToNewRecord(dst *Record, src *Record, allocators *Allocators) {
 		dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
 		copyToNewJsonValue(dst.value, src.value, allocators)
 	}
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -180,6 +185,14 @@ func (s *Record) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Record) IsEqual(right *Record) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Value field.
 	if !s.value.IsEqual(right.value) {
 		return false
@@ -190,6 +203,21 @@ func (s *Record) IsEqual(right *Record) bool {
 
 func RecordEqual(left, right *Record) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Record) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(2700343522989694210)
+	hash ^= s.value.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpRecord performs deep comparison and returns an integer that

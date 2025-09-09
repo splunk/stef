@@ -207,6 +207,14 @@ func (e *LocationArray) IsEqual(val *LocationArray) bool {
 	return true
 }
 
+func (e *LocationArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 5375121766107712409
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpLocationArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLocationArray(left, right *LocationArray) int {

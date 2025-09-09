@@ -148,6 +148,7 @@ func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
 		val:   s.val,
 		type_: s.type_.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -168,6 +169,9 @@ func copySampleValue(dst *SampleValue, src *SampleValue) {
 		}
 		copySampleValueType(dst.type_, src.type_)
 	}
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -178,6 +182,7 @@ func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Alloca
 		dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
 		copyToNewSampleValueType(dst.type_, src.type_, allocators)
 	}
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -221,6 +226,14 @@ func (s *SampleValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SampleValue) IsEqual(right *SampleValue) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Val field.
 	if !pkg.Int64Equal(s.val, right.val) {
 		return false
@@ -235,6 +248,22 @@ func (s *SampleValue) IsEqual(right *SampleValue) bool {
 
 func SampleValueEqual(left, right *SampleValue) bool {
 	return left.IsEqual(right)
+}
+
+func (s *SampleValue) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(4981464641959789226)
+	hash ^= pkg.Int64Hash(s.val)
+	hash ^= s.type_.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSampleValue performs deep comparison and returns an integer that

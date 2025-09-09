@@ -144,6 +144,7 @@ func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets 
 		offset:       s.offset,
 		bucketCounts: s.bucketCounts.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -158,12 +159,16 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets, allocators *Allocators) {
 	dst.offset = src.offset
 	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -207,6 +212,14 @@ func (s *ExpHistogramBuckets) mutateRandom(random *rand.Rand, schem *schema.Sche
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *ExpHistogramBuckets) IsEqual(right *ExpHistogramBuckets) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Offset field.
 	if !pkg.Int64Equal(s.offset, right.offset) {
 		return false
@@ -221,6 +234,22 @@ func (s *ExpHistogramBuckets) IsEqual(right *ExpHistogramBuckets) bool {
 
 func ExpHistogramBucketsEqual(left, right *ExpHistogramBuckets) bool {
 	return left.IsEqual(right)
+}
+
+func (s *ExpHistogramBuckets) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(13895929518022443237)
+	hash ^= pkg.Int64Hash(s.offset)
+	hash ^= s.bucketCounts.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpExpHistogramBuckets performs deep comparison and returns an integer that

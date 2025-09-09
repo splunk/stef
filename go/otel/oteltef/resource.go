@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -179,6 +177,7 @@ func (s *Resource) Clone(allocators *Allocators) *Resource {
 		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -194,6 +193,9 @@ func copyResource(dst *Resource, src *Resource) {
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -201,6 +203,7 @@ func copyToNewResource(dst *Resource, src *Resource, allocators *Allocators) {
 	dst.schemaURL = src.schemaURL
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -251,6 +254,14 @@ func (s *Resource) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Resource) IsEqual(right *Resource) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare SchemaURL field.
 	if !pkg.StringEqual(s.schemaURL, right.schemaURL) {
 		return false
@@ -269,6 +280,23 @@ func (s *Resource) IsEqual(right *Resource) bool {
 
 func ResourceEqual(left, right *Resource) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Resource) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(9711680188614416469)
+	hash ^= pkg.StringHash(s.schemaURL)
+	hash ^= s.attributes.Hash()
+	hash ^= pkg.Uint64Hash(s.droppedAttributesCount)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpResource performs deep comparison and returns an integer that
@@ -327,26 +355,21 @@ type ResourceEncoder struct {
 	fieldCount    uint
 }
 
-type ResourceEntry struct {
-	refNum uint64
-	val    *Resource
-}
-
 // ResourceEncoderDict is the dictionary used by ResourceEncoder
 type ResourceEncoderDict struct {
-	dict    b.Tree[*Resource, ResourceEntry]
+	dict    *pkg.HashMap[*Resource, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *ResourceEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Resource, ResourceEntry](CmpResource)
-	d.dict.Set(nil, ResourceEntry{}) // nil Resource is RefNum 0
+	d.dict = pkg.NewHashMap[*Resource, uint64]((*Resource).Hash, ResourceEqual)
+	d.dict.Set(nil, 0) // nil Resource is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *ResourceEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, ResourceEntry{}) // nil Resource is RefNum 0
+	d.dict.Set(nil, 0) // nil Resource is RefNum 0
 }
 
 func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -436,13 +459,13 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	var bitCount uint
 
 	// Check if the Resource exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The Resource exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -455,8 +478,8 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 
 	// The Resource does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = ResourceEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Resource follows.

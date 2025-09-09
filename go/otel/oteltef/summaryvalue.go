@@ -176,6 +176,7 @@ func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
 		sum:            s.sum,
 		quantileValues: s.quantileValues.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -191,6 +192,9 @@ func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyQuantileValueArray(&dst.quantileValues, &src.quantileValues)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -198,6 +202,7 @@ func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue, allocators *All
 	dst.count = src.count
 	dst.sum = src.sum
 	copyToNewQuantileValueArray(&dst.quantileValues, &src.quantileValues, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -248,6 +253,14 @@ func (s *SummaryValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SummaryValue) IsEqual(right *SummaryValue) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Count field.
 	if !pkg.Uint64Equal(s.count, right.count) {
 		return false
@@ -266,6 +279,23 @@ func (s *SummaryValue) IsEqual(right *SummaryValue) bool {
 
 func SummaryValueEqual(left, right *SummaryValue) bool {
 	return left.IsEqual(right)
+}
+
+func (s *SummaryValue) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(17233574908219120218)
+	hash ^= pkg.Uint64Hash(s.count)
+	hash ^= pkg.Float64Hash(s.sum)
+	hash ^= s.quantileValues.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSummaryValue performs deep comparison and returns an integer that

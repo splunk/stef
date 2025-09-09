@@ -15,6 +15,8 @@ type modifiedFields struct {
 
 	// the bit that corresponds to this struct's field in the parent struct
 	parentBit uint64
+
+	hash uint64 // cached hash of the struct, 0 if not computed
 }
 
 func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -38,12 +40,14 @@ func (m *modifiedFields) markParentModified() {
 }
 
 func (m *modifiedFields) markModifiedSlow(fieldBit uint64) {
+	m.hash = 0
 	m.mask |= fieldBit
 	child := m
 	parent := m.parent
 	for parent != nil {
 		if parent.mask&child.parentBit == 0 {
 			parent.mask |= child.parentBit
+			parent.hash = 0
 			child = parent
 			parent = parent.parent
 		} else {

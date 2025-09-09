@@ -187,6 +187,15 @@ func KeyValueListEqual(left, right *KeyValueList) bool {
 	return left.IsEqual(right)
 }
 
+func (e *KeyValueList) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 12765705977385953351
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i].key)
+		hash ^= e.elems[i].value.Hash()
+	}
+	return hash
+}
+
 func CmpKeyValueList(left, right *KeyValueList) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

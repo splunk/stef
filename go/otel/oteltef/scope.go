@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -243,6 +241,7 @@ func (s *Scope) Clone(allocators *Allocators) *Scope {
 		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -260,6 +259,9 @@ func copyScope(dst *Scope, src *Scope) {
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -269,6 +271,7 @@ func copyToNewScope(dst *Scope, src *Scope, allocators *Allocators) {
 	dst.schemaURL = src.schemaURL
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -333,6 +336,14 @@ func (s *Scope) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Scope) IsEqual(right *Scope) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Name field.
 	if !pkg.StringEqual(s.name, right.name) {
 		return false
@@ -359,6 +370,25 @@ func (s *Scope) IsEqual(right *Scope) bool {
 
 func ScopeEqual(left, right *Scope) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Scope) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(8338679244301533358)
+	hash ^= pkg.StringHash(s.name)
+	hash ^= pkg.StringHash(s.version)
+	hash ^= pkg.StringHash(s.schemaURL)
+	hash ^= s.attributes.Hash()
+	hash ^= pkg.Uint64Hash(s.droppedAttributesCount)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpScope performs deep comparison and returns an integer that
@@ -431,26 +461,21 @@ type ScopeEncoder struct {
 	fieldCount    uint
 }
 
-type ScopeEntry struct {
-	refNum uint64
-	val    *Scope
-}
-
 // ScopeEncoderDict is the dictionary used by ScopeEncoder
 type ScopeEncoderDict struct {
-	dict    b.Tree[*Scope, ScopeEntry]
+	dict    *pkg.HashMap[*Scope, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *ScopeEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Scope, ScopeEntry](CmpScope)
-	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
+	d.dict = pkg.NewHashMap[*Scope, uint64]((*Scope).Hash, ScopeEqual)
+	d.dict.Set(nil, 0) // nil Scope is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *ScopeEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
+	d.dict.Set(nil, 0) // nil Scope is RefNum 0
 }
 
 func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -566,13 +591,13 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	var bitCount uint
 
 	// Check if the Scope exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The Scope exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -585,8 +610,8 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 
 	// The Scope does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = ScopeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Scope follows.

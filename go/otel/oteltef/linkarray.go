@@ -207,6 +207,14 @@ func (e *LinkArray) IsEqual(val *LinkArray) bool {
 	return true
 }
 
+func (e *LinkArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 12789334442213519220
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpLinkArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLinkArray(left, right *LinkArray) int {

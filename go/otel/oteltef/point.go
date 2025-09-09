@@ -206,6 +206,7 @@ func (s *Point) Clone(allocators *Allocators) Point {
 		value:          s.value.Clone(allocators),
 		exemplars:      s.exemplars.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -222,6 +223,9 @@ func copyPoint(dst *Point, src *Point) {
 	dst.SetTimestamp(src.timestamp)
 	copyPointValue(&dst.value, &src.value)
 	copyExemplarArray(&dst.exemplars, &src.exemplars)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -230,6 +234,7 @@ func copyToNewPoint(dst *Point, src *Point, allocators *Allocators) {
 	dst.timestamp = src.timestamp
 	copyToNewPointValue(&dst.value, &src.value, allocators)
 	copyToNewExemplarArray(&dst.exemplars, &src.exemplars, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -287,6 +292,14 @@ func (s *Point) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Point) IsEqual(right *Point) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare StartTimestamp field.
 	if !pkg.Uint64Equal(s.startTimestamp, right.startTimestamp) {
 		return false
@@ -309,6 +322,24 @@ func (s *Point) IsEqual(right *Point) bool {
 
 func PointEqual(left, right *Point) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Point) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(15530645482203505416)
+	hash ^= pkg.Uint64Hash(s.startTimestamp)
+	hash ^= pkg.Uint64Hash(s.timestamp)
+	hash ^= s.value.Hash()
+	hash ^= s.exemplars.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpPoint performs deep comparison and returns an integer that

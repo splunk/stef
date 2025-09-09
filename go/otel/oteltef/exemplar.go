@@ -238,6 +238,7 @@ func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
 		traceID:            s.traceID,
 		filteredAttributes: s.filteredAttributes.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -255,6 +256,9 @@ func copyExemplar(dst *Exemplar, src *Exemplar) {
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceID(src.traceID)
 	copyAttributes(&dst.filteredAttributes, &src.filteredAttributes)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -264,6 +268,7 @@ func copyToNewExemplar(dst *Exemplar, src *Exemplar, allocators *Allocators) {
 	dst.spanID = src.spanID
 	dst.traceID = src.traceID
 	copyToNewAttributes(&dst.filteredAttributes, &src.filteredAttributes, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -328,6 +333,14 @@ func (s *Exemplar) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Exemplar) IsEqual(right *Exemplar) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Timestamp field.
 	if !pkg.Uint64Equal(s.timestamp, right.timestamp) {
 		return false
@@ -354,6 +367,25 @@ func (s *Exemplar) IsEqual(right *Exemplar) bool {
 
 func ExemplarEqual(left, right *Exemplar) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Exemplar) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(3444437000683370562)
+	hash ^= pkg.Uint64Hash(s.timestamp)
+	hash ^= s.value.Hash()
+	hash ^= pkg.BytesHash(s.spanID)
+	hash ^= pkg.BytesHash(s.traceID)
+	hash ^= s.filteredAttributes.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpExemplar performs deep comparison and returns an integer that

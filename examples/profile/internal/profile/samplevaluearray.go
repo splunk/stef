@@ -207,6 +207,14 @@ func (e *SampleValueArray) IsEqual(val *SampleValueArray) bool {
 	return true
 }
 
+func (e *SampleValueArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 8247310775765267558
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpSampleValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSampleValueArray(left, right *SampleValueArray) int {

@@ -8,6 +8,11 @@ import (
 	b2 "modernc.org/b/v2"
 )
 
+// Obj struct for benchmarking
+type Obj struct {
+	name string
+}
+
 // Hash functions for testing
 func stringHash(s string) uint64 {
 	h := fnv.New64a()
@@ -17,6 +22,16 @@ func stringHash(s string) uint64 {
 
 func stringEqual(a, b string) bool {
 	return a == b
+}
+
+func objHash(obj Obj) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(obj.name))
+	return h.Sum64()
+}
+
+func objEqual(a, b Obj) bool {
+	return a.name == b.name
 }
 
 func uint64Hash(n uint64) uint64 {
@@ -35,7 +50,7 @@ func TestHashMapBasicOperations(t *testing.T) {
 	if !hm.IsEmpty() {
 		t.Error("New map should be empty")
 	}
-	if hm.Size() != 0 {
+	if hm.Len() != 0 {
 		t.Error("New map size should be 0")
 	}
 
@@ -44,8 +59,8 @@ func TestHashMapBasicOperations(t *testing.T) {
 	hm.Set("key2", 200)
 	hm.Set("key3", 300)
 
-	if hm.Size() != 3 {
-		t.Errorf("Expected size 3, got %d", hm.Size())
+	if hm.Len() != 3 {
+		t.Errorf("Expected size 3, got %d", hm.Len())
 	}
 
 	if val, ok := hm.Get("key1"); !ok || val != 100 {
@@ -81,45 +96,9 @@ func TestHashMapUpdate(t *testing.T) {
 		t.Errorf("Expected (500, true), got (%d, %t)", val, ok)
 	}
 
-	// Size should remain same after update
-	if hm.Size() != 1 {
-		t.Errorf("Expected size 1 after update, got %d", hm.Size())
-	}
-}
-
-func TestHashMapDelete(t *testing.T) {
-	hm := NewHashMap[string, int](stringHash, stringEqual)
-
-	// Add some entries
-	hm.Set("key1", 100)
-	hm.Set("key2", 200)
-	hm.Set("key3", 300)
-
-	// Delete existing key
-	if !hm.Delete("key2") {
-		t.Error("Delete should return true for existing key")
-	}
-
-	if hm.Size() != 2 {
-		t.Errorf("Expected size 2 after delete, got %d", hm.Size())
-	}
-
-	// Try to get deleted key
-	if val, ok := hm.Get("key2"); ok {
-		t.Errorf("Expected (0, false) for deleted key, got (%d, %t)", val, ok)
-	}
-
-	// Delete non-existent key
-	if hm.Delete("nonexistent") {
-		t.Error("Delete should return false for non-existent key")
-	}
-
-	// Other keys should still exist
-	if val, ok := hm.Get("key1"); !ok || val != 100 {
-		t.Errorf("Expected (100, true), got (%d, %t)", val, ok)
-	}
-	if val, ok := hm.Get("key3"); !ok || val != 300 {
-		t.Errorf("Expected (300, true), got (%d, %t)", val, ok)
+	// Len should remain same after update
+	if hm.Len() != 1 {
+		t.Errorf("Expected size 1 after update, got %d", hm.Len())
 	}
 }
 
@@ -131,8 +110,8 @@ func TestHashMapClear(t *testing.T) {
 	hm.Set("key2", 200)
 	hm.Set("key3", 300)
 
-	if hm.Size() != 3 {
-		t.Errorf("Expected size 3, got %d", hm.Size())
+	if hm.Len() != 3 {
+		t.Errorf("Expected size 3, got %d", hm.Len())
 	}
 
 	// Clear the map
@@ -141,8 +120,8 @@ func TestHashMapClear(t *testing.T) {
 	if !hm.IsEmpty() {
 		t.Error("Map should be empty after clear")
 	}
-	if hm.Size() != 0 {
-		t.Errorf("Expected size 0 after clear, got %d", hm.Size())
+	if hm.Len() != 0 {
+		t.Errorf("Expected size 0 after clear, got %d", hm.Len())
 	}
 
 	// All keys should be gone
@@ -168,8 +147,8 @@ func TestHashMapResize(t *testing.T) {
 		}
 	}
 
-	if hm.Size() != 10 {
-		t.Errorf("Expected size 10, got %d", hm.Size())
+	if hm.Len() != 10 {
+		t.Errorf("Expected size 10, got %d", hm.Len())
 	}
 }
 
@@ -481,6 +460,211 @@ func benchmarkTreeSetWithSize(b *testing.B, size int) {
 
 	for i := 0; i < size; i++ {
 		keys[i] = "key" + strconv.Itoa(i)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%size]
+		tree.Set(key, uint64(i))
+	}
+}
+
+func TestHashMapObjBasicOperations(t *testing.T) {
+	hm := NewHashMap[Obj, uint64](objHash, objEqual)
+
+	// Test empty map
+	if !hm.IsEmpty() {
+		t.Error("New map should be empty")
+	}
+	if hm.Len() != 0 {
+		t.Error("New map size should be 0")
+	}
+
+	// Test Set and Get
+	hm.Set(Obj{"key1"}, 100)
+	hm.Set(Obj{"key2"}, 200)
+	hm.Set(Obj{"key3"}, 300)
+
+	if hm.Len() != 3 {
+		t.Errorf("Expected size 3, got %d", hm.Len())
+	}
+
+	if val, ok := hm.Get(Obj{"key1"}); !ok || val != 100 {
+		t.Errorf("Expected (100, true), got (%d, %t)", val, ok)
+	}
+
+	if val, ok := hm.Get(Obj{"key2"}); !ok || val != 200 {
+		t.Errorf("Expected (200, true), got (%d, %t)", val, ok)
+	}
+
+	if val, ok := hm.Get(Obj{"key3"}); !ok || val != 300 {
+		t.Errorf("Expected (300, true), got (%d, %t)", val, ok)
+	}
+
+	// Test non-existent key
+	if val, ok := hm.Get(Obj{"nonexistent"}); ok {
+		t.Errorf("Expected (0, false) for non-existent key, got (%d, %t)", val, ok)
+	}
+}
+
+func BenchmarkHashMapSetObj(b *testing.B) {
+	hm := NewHashMap[Obj, uint64](objHash, objEqual)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare keys
+	for i := 0; i < benchmarkSize; i++ {
+		keys[i] = Obj{"key" + strconv.Itoa(i)}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		hm.Set(key, uint64(i))
+	}
+}
+
+func BenchmarkHashMapGetObj(b *testing.B) {
+	hm := NewHashMap[Obj, uint64](objHash, objEqual)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare data
+	for i := 0; i < benchmarkSize; i++ {
+		key := Obj{"key" + strconv.Itoa(i)}
+		keys[i] = key
+		hm.Set(key, uint64(i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		_, _ = hm.Get(key)
+	}
+}
+
+func BenchmarkHashMapSetGetObj(b *testing.B) {
+	hm := NewHashMap[Obj, uint64](objHash, objEqual)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare keys
+	for i := 0; i < benchmarkSize; i++ {
+		keys[i] = Obj{"key" + strconv.Itoa(i)}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		hm.Set(key, uint64(i))
+		_, _ = hm.Get(key)
+	}
+}
+
+// Tree benchmarks using modernc.org/b/v2 with Obj keys
+func BenchmarkTreeSetObj(b *testing.B) {
+	tree := b2.TreeNew[Obj, uint64](
+		func(a, b Obj) int {
+			if a.name < b.name {
+				return -1
+			} else if a.name > b.name {
+				return 1
+			}
+			return 0
+		},
+	)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare keys
+	for i := 0; i < benchmarkSize; i++ {
+		keys[i] = Obj{"key" + strconv.Itoa(i)}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		tree.Set(key, uint64(i))
+	}
+}
+
+func BenchmarkTreeGetObj(b *testing.B) {
+	tree := b2.TreeNew[Obj, uint64](
+		func(a, b Obj) int {
+			if a.name < b.name {
+				return -1
+			} else if a.name > b.name {
+				return 1
+			}
+			return 0
+		},
+	)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare data
+	for i := 0; i < benchmarkSize; i++ {
+		key := Obj{"key" + strconv.Itoa(i)}
+		keys[i] = key
+		tree.Set(key, uint64(i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		_, _ = tree.Get(key)
+	}
+}
+
+func BenchmarkTreeSetGetObj(b *testing.B) {
+	tree := b2.TreeNew[Obj, uint64](
+		func(a, b Obj) int {
+			if a.name < b.name {
+				return -1
+			} else if a.name > b.name {
+				return 1
+			}
+			return 0
+		},
+	)
+	keys := make([]Obj, benchmarkSize)
+
+	// Prepare keys
+	for i := 0; i < benchmarkSize; i++ {
+		keys[i] = Obj{"key" + strconv.Itoa(i)}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := keys[i%benchmarkSize]
+		tree.Set(key, uint64(i))
+		_, _ = tree.Get(key)
+	}
+}
+
+// Tree benchmarks with different sizes using Obj keys
+func BenchmarkTreeSetSmallObj(b *testing.B) {
+	benchmarkTreeSetWithSizeObj(b, 100)
+}
+
+func BenchmarkTreeSetMediumObj(b *testing.B) {
+	benchmarkTreeSetWithSizeObj(b, 1000)
+}
+
+func BenchmarkTreeSetLargeObj(b *testing.B) {
+	benchmarkTreeSetWithSizeObj(b, 100000)
+}
+
+func benchmarkTreeSetWithSizeObj(b *testing.B, size int) {
+	tree := b2.TreeNew[Obj, uint64](
+		func(a, b Obj) int {
+			if a.name < b.name {
+				return -1
+			} else if a.name > b.name {
+				return 1
+			}
+			return 0
+		},
+	)
+	keys := make([]Obj, size)
+
+	for i := 0; i < size; i++ {
+		keys[i] = Obj{"key" + strconv.Itoa(i)}
 	}
 
 	b.ResetTimer()

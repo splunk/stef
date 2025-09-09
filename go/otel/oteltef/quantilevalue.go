@@ -146,6 +146,7 @@ func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
 		quantile: s.quantile,
 		value:    s.value,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -160,12 +161,16 @@ func (s *QuantileValue) byteSize() uint {
 func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue, allocators *Allocators) {
 	dst.quantile = src.quantile
 	dst.value = src.value
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -209,6 +214,14 @@ func (s *QuantileValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *QuantileValue) IsEqual(right *QuantileValue) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Quantile field.
 	if !pkg.Float64Equal(s.quantile, right.quantile) {
 		return false
@@ -223,6 +236,22 @@ func (s *QuantileValue) IsEqual(right *QuantileValue) bool {
 
 func QuantileValueEqual(left, right *QuantileValue) bool {
 	return left.IsEqual(right)
+}
+
+func (s *QuantileValue) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(13977128694438912211)
+	hash ^= pkg.Float64Hash(s.quantile)
+	hash ^= pkg.Float64Hash(s.value)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpQuantileValue performs deep comparison and returns an integer that

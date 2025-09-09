@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/token"
+	"math/rand"
 	"strings"
 
 	"github.com/splunk/stef/go/pkg/schema"
@@ -80,6 +81,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		"Type":               str,
 		"IsMainStruct":       str.IsRoot,
 		"OptionalFieldCount": optionalFieldIndex,
+		"RandSeed":           rand.Uint64(),
 	}
 
 	if str.IsRoot {
