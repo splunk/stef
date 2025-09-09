@@ -340,6 +340,7 @@ func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
 		comments:          s.comments.Clone(allocators),
 		defaultSampleType: s.defaultSampleType.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -372,6 +373,9 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 		}
 		copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
 	}
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -392,6 +396,7 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 		dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 	}
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -477,6 +482,14 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare DropFrames field.
 	if !pkg.StringEqual(s.dropFrames, right.dropFrames) {
 		return false
@@ -515,6 +528,28 @@ func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
 
 func ProfileMetadataEqual(left, right *ProfileMetadata) bool {
 	return left.IsEqual(right)
+}
+
+func (s *ProfileMetadata) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(7059156302186354415)
+	hash ^= pkg.StringHash(s.dropFrames)
+	hash ^= pkg.StringHash(s.keepFrames)
+	hash ^= pkg.Int64Hash(s.timeNanos)
+	hash ^= pkg.Int64Hash(s.durationNanos)
+	hash ^= s.periodType.Hash()
+	hash ^= pkg.Int64Hash(s.period)
+	hash ^= s.comments.Hash()
+	hash ^= s.defaultSampleType.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpProfileMetadata performs deep comparison and returns an integer that

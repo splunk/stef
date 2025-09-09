@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"math/rand/v2"
 )
 
 func (g *Generator) oArrays() error {
@@ -47,6 +48,7 @@ func (g *Generator) oArray(array *genStructFieldDef) error {
 		"PassByPtr":    passByPointer,
 		"IsStructType": isStructType,
 		"Recursive":    array.Recursive,
+		"RandSeed":     rand.Uint64(),
 	}
 
 	return g.oTemplates("array", g.stefSymbol2FileName(array.Type.IDLMangledName()), data)

@@ -274,6 +274,7 @@ func (s *Metrics) Clone(allocators *Allocators) Metrics {
 		attributes: s.attributes.Clone(allocators),
 		point:      s.point.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -310,6 +311,9 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
 	copyPoint(&dst.point, &src.point)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -332,6 +336,7 @@ func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 	}
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	copyToNewPoint(&dst.point, &src.point, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -403,6 +408,14 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Metrics) IsEqual(right *Metrics) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Envelope field.
 	if !s.envelope.IsEqual(&right.envelope) {
 		return false
@@ -433,6 +446,26 @@ func (s *Metrics) IsEqual(right *Metrics) bool {
 
 func MetricsEqual(left, right *Metrics) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Metrics) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(16254027184312681576)
+	hash ^= s.envelope.Hash()
+	hash ^= s.metric.Hash()
+	hash ^= s.resource.Hash()
+	hash ^= s.scope.Hash()
+	hash ^= s.attributes.Hash()
+	hash ^= s.point.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpMetrics performs deep comparison and returns an integer that

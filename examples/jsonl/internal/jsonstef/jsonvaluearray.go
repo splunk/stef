@@ -207,6 +207,14 @@ func (e *JsonValueArray) IsEqual(val *JsonValueArray) bool {
 	return true
 }
 
+func (e *JsonValueArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 13513301636268796987
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpJsonValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpJsonValueArray(left, right *JsonValueArray) int {

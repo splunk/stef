@@ -208,6 +208,7 @@ func (s *Event) Clone(allocators *Allocators) Event {
 		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -224,6 +225,9 @@ func copyEvent(dst *Event, src *Event) {
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -232,6 +236,7 @@ func copyToNewEvent(dst *Event, src *Event, allocators *Allocators) {
 	dst.timeUnixNano = src.timeUnixNano
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -289,6 +294,14 @@ func (s *Event) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Event) IsEqual(right *Event) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Name field.
 	if !pkg.StringEqual(s.name, right.name) {
 		return false
@@ -311,6 +324,24 @@ func (s *Event) IsEqual(right *Event) bool {
 
 func EventEqual(left, right *Event) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Event) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(17310661541448650871)
+	hash ^= pkg.StringHash(s.name)
+	hash ^= pkg.Uint64Hash(s.timeUnixNano)
+	hash ^= s.attributes.Hash()
+	hash ^= pkg.Uint64Hash(s.droppedAttributesCount)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpEvent performs deep comparison and returns an integer that

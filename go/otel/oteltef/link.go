@@ -272,6 +272,7 @@ func (s *Link) Clone(allocators *Allocators) Link {
 		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -290,6 +291,9 @@ func copyLink(dst *Link, src *Link) {
 	dst.SetFlags(src.flags)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -300,6 +304,7 @@ func copyToNewLink(dst *Link, src *Link, allocators *Allocators) {
 	dst.flags = src.flags
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -371,6 +376,14 @@ func (s *Link) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Link) IsEqual(right *Link) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare TraceID field.
 	if !pkg.BytesEqual(s.traceID, right.traceID) {
 		return false
@@ -401,6 +414,26 @@ func (s *Link) IsEqual(right *Link) bool {
 
 func LinkEqual(left, right *Link) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Link) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(9603210046320885876)
+	hash ^= pkg.BytesHash(s.traceID)
+	hash ^= pkg.BytesHash(s.spanID)
+	hash ^= pkg.StringHash(s.traceState)
+	hash ^= pkg.Uint64Hash(s.flags)
+	hash ^= s.attributes.Hash()
+	hash ^= pkg.Uint64Hash(s.droppedAttributesCount)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpLink performs deep comparison and returns an integer that

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -337,6 +335,7 @@ func (s *Metric) Clone(allocators *Allocators) *Metric {
 		aggregationTemporality: s.aggregationTemporality,
 		monotonic:              s.monotonic,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -357,6 +356,9 @@ func copyMetric(dst *Metric, src *Metric) {
 	copyFloat64Array(&dst.histogramBounds, &src.histogramBounds)
 	dst.SetAggregationTemporality(src.aggregationTemporality)
 	dst.SetMonotonic(src.monotonic)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -369,6 +371,7 @@ func copyToNewMetric(dst *Metric, src *Metric, allocators *Allocators) {
 	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds, allocators)
 	dst.aggregationTemporality = src.aggregationTemporality
 	dst.monotonic = src.monotonic
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -454,6 +457,14 @@ func (s *Metric) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Metric) IsEqual(right *Metric) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Name field.
 	if !pkg.StringEqual(s.name, right.name) {
 		return false
@@ -492,6 +503,28 @@ func (s *Metric) IsEqual(right *Metric) bool {
 
 func MetricEqual(left, right *Metric) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Metric) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(14769267913979121676)
+	hash ^= pkg.StringHash(s.name)
+	hash ^= pkg.StringHash(s.description)
+	hash ^= pkg.StringHash(s.unit)
+	hash ^= pkg.Uint64Hash(s.type_)
+	hash ^= s.metadata.Hash()
+	hash ^= s.histogramBounds.Hash()
+	hash ^= pkg.Uint64Hash(s.aggregationTemporality)
+	hash ^= pkg.BoolHash(s.monotonic)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpMetric performs deep comparison and returns an integer that
@@ -586,26 +619,21 @@ type MetricEncoder struct {
 	fieldCount    uint
 }
 
-type MetricEntry struct {
-	refNum uint64
-	val    *Metric
-}
-
 // MetricEncoderDict is the dictionary used by MetricEncoder
 type MetricEncoderDict struct {
-	dict    b.Tree[*Metric, MetricEntry]
+	dict    *pkg.HashMap[*Metric, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *MetricEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Metric, MetricEntry](CmpMetric)
-	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
+	d.dict = pkg.NewHashMap[*Metric, uint64]((*Metric).Hash, MetricEqual)
+	d.dict.Set(nil, 0) // nil Metric is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *MetricEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
+	d.dict.Set(nil, 0) // nil Metric is RefNum 0
 }
 
 func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -771,13 +799,13 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	var bitCount uint
 
 	// Check if the Metric exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The Metric exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -790,8 +818,8 @@ func (e *MetricEncoder) Encode(val *Metric) {
 
 	// The Metric does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = MetricEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Metric follows.

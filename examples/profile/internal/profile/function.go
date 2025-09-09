@@ -8,8 +8,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"modernc.org/b/v2"
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
 	"github.com/splunk/stef/go/pkg/schema"
@@ -213,6 +211,7 @@ func (s *Function) Clone(allocators *Allocators) *Function {
 		filename:   s.filename,
 		startLine:  s.startLine,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -229,6 +228,9 @@ func copyFunction(dst *Function, src *Function) {
 	dst.SetSystemName(src.systemName)
 	dst.SetFilename(src.filename)
 	dst.SetStartLine(src.startLine)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -237,6 +239,7 @@ func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) {
 	dst.systemName = src.systemName
 	dst.filename = src.filename
 	dst.startLine = src.startLine
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -294,6 +297,14 @@ func (s *Function) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Function) IsEqual(right *Function) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Name field.
 	if !pkg.StringEqual(s.name, right.name) {
 		return false
@@ -316,6 +327,24 @@ func (s *Function) IsEqual(right *Function) bool {
 
 func FunctionEqual(left, right *Function) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Function) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(6569521567055644807)
+	hash ^= pkg.StringHash(s.name)
+	hash ^= pkg.StringHash(s.systemName)
+	hash ^= pkg.StringHash(s.filename)
+	hash ^= pkg.Uint64Hash(s.startLine)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpFunction performs deep comparison and returns an integer that
@@ -380,26 +409,21 @@ type FunctionEncoder struct {
 	fieldCount    uint
 }
 
-type FunctionEntry struct {
-	refNum uint64
-	val    *Function
-}
-
 // FunctionEncoderDict is the dictionary used by FunctionEncoder
 type FunctionEncoderDict struct {
-	dict    b.Tree[*Function, FunctionEntry]
+	dict    *pkg.HashMap[*Function, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *FunctionEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Function, FunctionEntry](CmpFunction)
-	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
+	d.dict = pkg.NewHashMap[*Function, uint64]((*Function).Hash, FunctionEqual)
+	d.dict.Set(nil, 0) // nil Function is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *FunctionEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
+	d.dict.Set(nil, 0) // nil Function is RefNum 0
 }
 
 func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -491,13 +515,13 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	var bitCount uint
 
 	// Check if the Function exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
 		// The Function exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -510,8 +534,8 @@ func (e *FunctionEncoder) Encode(val *Function) {
 
 	// The Function does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = FunctionEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
 	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Function follows.

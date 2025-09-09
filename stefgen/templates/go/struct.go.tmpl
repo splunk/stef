@@ -7,9 +7,6 @@ import (
     "strings"
 	"unsafe"
 
-    {{if .DictName}}
-	"modernc.org/b/v2"{{end}}
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
     "github.com/splunk/stef/go/pkg/schema"
@@ -222,6 +219,7 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(allocators){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
     return c
 }
 
@@ -271,6 +269,9 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- if .OptionalFieldCount}}
     dst.optionalFieldsPresent = src.optionalFieldsPresent
     {{- end}}
+    if src.modifiedFields.hash != 0 {
+        dst.modifiedFields.hash = src.modifiedFields.hash
+    }
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -306,6 +307,7 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
     {{- if .OptionalFieldCount}}
     dst.optionalFieldsPresent = src.optionalFieldsPresent
     {{- end}}
+    dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -361,6 +363,15 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *{{ .StructName }}) IsEqual(right *{{ .StructName }}) bool {
+    if s == nil {
+        return right == nil
+    }
+    if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+        if s.modifiedFields.hash != right.modifiedFields.hash {
+            return false
+        }
+    }
+
     {{- range .Fields }}
     // Compare {{.Name}} field.
     {{- if .Optional}}
@@ -390,6 +401,36 @@ func (s *{{ .StructName }}) IsEqual(right *{{ .StructName }}) bool {
 
 func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
     return left.IsEqual(right)
+}
+
+func (s* {{.StructName}}) Hash() uint64 {
+    if s == nil {
+        return 0
+    }
+    if s.modifiedFields.hash != 0 {
+        return s.modifiedFields.hash
+    }
+
+    hash := uint64({{.RandSeed}})
+    {{- range .Fields }}
+    {{- if .Optional}}
+    if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
+    {{- end}}
+    {{- if .Type.IsPrimitive }}
+    hash ^= {{ .Type.HashFunc }}(s.{{.name}})
+    {{- else }}
+    hash ^= s.{{.name}}.Hash()
+    {{- end }}
+    {{- if .Optional}}
+    }
+    {{end}}
+    {{- end }}
+    {{- if .OptionalFieldCount}}
+    hash ^= s.optionalFieldsPresent
+    {{- end}}
+    hash |= 1 // Make sure it is never 0
+    s.modifiedFields.hash = hash
+    return hash
 }
 
 // Cmp{{.StructName}} performs deep comparison and returns an integer that
@@ -450,26 +491,25 @@ type {{ .StructName }}Encoder struct {
 }
 
 {{if .DictName}}
-type {{ .StructName }}Entry struct {
-	refNum uint64
-	val  *{{ .StructName }}
-}
+{{/*type {{ .StructName }}Entry struct {*/}}
+{{/*	refNum uint64*/}}
+{{/*}*/}}
 
 // {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
 type {{ .StructName }}EncoderDict struct {
-	dict b.Tree[*{{ .StructName }}, {{ .StructName }}Entry]
+	dict *pkg.HashMap[*{{ .StructName }}, uint64]
 	limiter *pkg.SizeLimiter
 }
 
 func (d* {{ .StructName }}EncoderDict) Init(limiter *pkg.SizeLimiter) {
-    d.dict = *b.TreeNew[*{{ .StructName }}, {{ .StructName }}Entry](Cmp{{.StructName}})
-    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+    d.dict = pkg.NewHashMap[*{{ .StructName }}, uint64]((*{{.StructName}}).Hash, {{.StructName}}Equal)
+    d.dict.Set(nil, 0) // nil {{ .StructName }} is RefNum 0
     d.limiter = limiter
 }
 
 func (d* {{ .StructName }}EncoderDict) Reset() {
     d.dict.Clear()
-    d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+    d.dict.Set(nil, 0) // nil {{ .StructName }} is RefNum 0
 }
 {{end}}
 
@@ -547,13 +587,13 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
     var bitCount uint
 
     {{if .DictName}}// Check if the {{ .StructName }} exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
+	refNum, exists := e.dict.dict.Get(val)
 	if exists {
         // The {{ .StructName }} exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1+bitCount)
@@ -566,8 +606,8 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 
 	// The {{ .StructName }} does not exist in the dictionary. Add it to the dictionary.
 	valInDict := val.Clone(e.allocators)
-	entry = {{ .StructName }}Entry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
+	refNum = uint64(e.dict.dict.Len())
+	e.dict.dict.Set(valInDict, refNum)
     e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded {{ .StructName }} follows.

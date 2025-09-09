@@ -207,6 +207,14 @@ func (e *EventArray) IsEqual(val *EventArray) bool {
 	return true
 }
 
+func (e *EventArray) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 9997742904897713368
+	for i := range e.elems {
+		hash ^= e.elems[i].Hash()
+	}
+	return hash
+}
+
 // CmpEventArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpEventArray(left, right *EventArray) int {

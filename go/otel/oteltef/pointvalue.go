@@ -284,6 +284,23 @@ func PointValueEqual(left, right *PointValue) bool {
 	return left.IsEqual(right)
 }
 
+func (s *PointValue) Hash() uint64 {
+	hash := uint64(s.typ) + 15991416287551564118
+	switch s.typ {
+	case PointValueTypeInt64:
+		hash ^= pkg.Int64Hash(s.int64)
+	case PointValueTypeFloat64:
+		hash ^= pkg.Float64Hash(s.float64)
+	case PointValueTypeHistogram:
+		hash ^= s.histogram.Hash()
+	case PointValueTypeExpHistogram:
+		hash ^= s.expHistogram.Hash()
+	case PointValueTypeSummary:
+		hash ^= s.summary.Hash()
+	}
+	return hash
+}
+
 // CmpPointValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpPointValue(left, right *PointValue) int {

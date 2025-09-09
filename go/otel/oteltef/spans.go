@@ -210,6 +210,7 @@ func (s *Spans) Clone(allocators *Allocators) Spans {
 		scope:    s.scope.Clone(allocators),
 		span:     s.span.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -238,6 +239,9 @@ func copySpans(dst *Spans, src *Spans) {
 		copyScope(dst.scope, src.scope)
 	}
 	copySpan(&dst.span, &src.span)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -254,6 +258,7 @@ func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
 		copyToNewScope(dst.scope, src.scope, allocators)
 	}
 	copyToNewSpan(&dst.span, &src.span, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -311,6 +316,14 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Spans) IsEqual(right *Spans) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Envelope field.
 	if !s.envelope.IsEqual(&right.envelope) {
 		return false
@@ -333,6 +346,24 @@ func (s *Spans) IsEqual(right *Spans) bool {
 
 func SpansEqual(left, right *Spans) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Spans) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(590778638556837075)
+	hash ^= s.envelope.Hash()
+	hash ^= s.resource.Hash()
+	hash ^= s.scope.Hash()
+	hash ^= s.span.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSpans performs deep comparison and returns an integer that

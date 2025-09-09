@@ -202,6 +202,7 @@ func (s *Sample) Clone(allocators *Allocators) Sample {
 		values:    s.values.Clone(allocators),
 		labels:    s.labels.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -218,6 +219,9 @@ func copySample(dst *Sample, src *Sample) {
 	copyLocationArray(&dst.locations, &src.locations)
 	copySampleValueArray(&dst.values, &src.values)
 	copyLabels(&dst.labels, &src.labels)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -226,6 +230,7 @@ func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) {
 	copyToNewLocationArray(&dst.locations, &src.locations, allocators)
 	copyToNewSampleValueArray(&dst.values, &src.values, allocators)
 	copyToNewLabels(&dst.labels, &src.labels, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -283,6 +288,14 @@ func (s *Sample) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Sample) IsEqual(right *Sample) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Metadata field.
 	if !s.metadata.IsEqual(&right.metadata) {
 		return false
@@ -305,6 +318,24 @@ func (s *Sample) IsEqual(right *Sample) bool {
 
 func SampleEqual(left, right *Sample) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Sample) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(15154815476071985647)
+	hash ^= s.metadata.Hash()
+	hash ^= s.locations.Hash()
+	hash ^= s.values.Hash()
+	hash ^= s.labels.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSample performs deep comparison and returns an integer that

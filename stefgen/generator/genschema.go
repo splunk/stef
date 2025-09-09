@@ -100,6 +100,7 @@ type genFieldTypeRef interface {
 
 	EncoderType() string
 	EqualFunc() string
+	HashFunc() string
 	CompareFunc() string
 	MustClone() bool
 	DictName() string
@@ -373,6 +374,16 @@ func (r *genPrimitiveTypeRef) EqualFunc() string {
 	panic(fmt.Sprintf("unknown type %v", r.Type))
 }
 
+func (r *genPrimitiveTypeRef) HashFunc() string {
+	prefix := r.pkgPrefix()
+
+	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
+		return prefix + s + "Hash" // e.g. Uint64Equal
+	}
+
+	panic(fmt.Sprintf("unknown type %v", r.Type))
+}
+
 func (r *genPrimitiveTypeRef) RandomFunc() string {
 	prefix := r.pkgPrefix()
 
@@ -546,6 +557,17 @@ func (r *genStructTypeRef) EqualFunc() string {
 	}
 }
 
+func (r *genStructTypeRef) HashFunc() string {
+	switch r.Lang {
+	case LangGo:
+		return r.Name + ".Hash"
+	case LangJava:
+		return r.Name + ".hash"
+	default:
+		panic(fmt.Sprintf("unknown language %v", r.Lang))
+	}
+}
+
 func (r *genStructTypeRef) CompareFunc() string {
 	switch r.Lang {
 	case LangGo:
@@ -636,6 +658,10 @@ func (r *genArrayTypeRef) EqualFunc() string {
 	return r.TypeName() + "Equal"
 }
 
+func (r *genArrayTypeRef) HashFunc() string {
+	return r.TypeName() + "Hash"
+}
+
 func (r *genArrayTypeRef) CompareFunc() string {
 	switch r.Lang {
 	case LangGo:
@@ -712,6 +738,10 @@ func (r *genMultimapTypeRef) EncoderType() string {
 
 func (r *genMultimapTypeRef) EqualFunc() string {
 	return r.TypeName() + "Equal"
+}
+
+func (r *genMultimapTypeRef) HashFunc() string {
+	return r.TypeName() + "Hash"
 }
 
 func (r *genMultimapTypeRef) CompareFunc() string {

@@ -271,6 +271,23 @@ func {{.MultimapName}}Equal(left, right *{{.MultimapName}}) bool {
 	return left.IsEqual(right)
 }
 
+func (e *{{.MultimapName}}) Hash() uint64 {
+	hash := uint64(len(e.elems)) + {{.RandSeed}}
+	for i := range e.elems {
+		{{- if .Key.Type.IsPrimitive }}
+		hash ^= {{ .Key.Type.HashFunc }}(e.elems[i].key)
+		{{- else }}
+		hash ^= e.lems[i].Hash()
+		{{- end}}
+		{{- if .Value.Type.IsPrimitive }}
+		hash ^= {{ .Value.Type.HashFunc }}(e.elems[i].value)
+		{{- else }}
+		hash ^= e.elems[i].value.Hash()
+		{{- end}}
+	}
+	return hash
+}
+
 func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
     l := min(len(left.elems), len(right.elems))
     for i := 0; i < l; i++ {

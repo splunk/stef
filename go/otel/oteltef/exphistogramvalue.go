@@ -419,6 +419,7 @@ func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
 		negativeBuckets: s.negativeBuckets.Clone(allocators),
 		zeroThreshold:   s.zeroThreshold,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -456,6 +457,9 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	copyExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -479,6 +483,7 @@ func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, 
 	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets, allocators)
 	dst.zeroThreshold = src.zeroThreshold
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -571,6 +576,14 @@ func (s *ExpHistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *ExpHistogramValue) IsEqual(right *ExpHistogramValue) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Count field.
 	if !pkg.Uint64Equal(s.count, right.count) {
 		return false
@@ -637,6 +650,39 @@ func (s *ExpHistogramValue) IsEqual(right *ExpHistogramValue) bool {
 
 func ExpHistogramValueEqual(left, right *ExpHistogramValue) bool {
 	return left.IsEqual(right)
+}
+
+func (s *ExpHistogramValue) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(15208650832821535427)
+	hash ^= pkg.Uint64Hash(s.count)
+	if s.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 {
+		hash ^= pkg.Float64Hash(s.sum)
+	}
+
+	if s.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 {
+		hash ^= pkg.Float64Hash(s.min)
+	}
+
+	if s.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 {
+		hash ^= pkg.Float64Hash(s.max)
+	}
+
+	hash ^= pkg.Int64Hash(s.scale)
+	hash ^= pkg.Uint64Hash(s.zeroCount)
+	hash ^= s.positiveBuckets.Hash()
+	hash ^= s.negativeBuckets.Hash()
+	hash ^= pkg.Float64Hash(s.zeroThreshold)
+	hash ^= s.optionalFieldsPresent
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpExpHistogramValue performs deep comparison and returns an integer that

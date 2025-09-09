@@ -6,9 +6,6 @@ import (
     "strings"
 	"unsafe"
 
-    {{if .DictName}}
-	"modernc.org/b/v2"{{end}}
-
 	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/encoders"
     "github.com/splunk/stef/go/pkg/schema"
@@ -267,6 +264,22 @@ func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
 func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
     return left.IsEqual(right)
 }
+
+func (s* {{.StructName}}) Hash() uint64 {
+    hash := uint64(s.typ) + {{.RandSeed}}
+    switch s.typ {
+    {{- range .Fields}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.IsPrimitive }}
+        hash ^= {{ .Type.HashFunc }}(s.{{.name}})
+        {{- else }}
+        hash ^= s.{{.name}}.Hash()
+        {{- end }}
+    {{- end}}
+    }
+    return hash
+}
+
 
 // Cmp{{.StructName}} performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.

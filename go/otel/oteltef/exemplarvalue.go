@@ -209,6 +209,17 @@ func ExemplarValueEqual(left, right *ExemplarValue) bool {
 	return left.IsEqual(right)
 }
 
+func (s *ExemplarValue) Hash() uint64 {
+	hash := uint64(s.typ) + 592097857766154441
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+		hash ^= pkg.Int64Hash(s.int64)
+	case ExemplarValueTypeFloat64:
+		hash ^= pkg.Float64Hash(s.float64)
+	}
+	return hash
+}
+
 // CmpExemplarValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExemplarValue(left, right *ExemplarValue) int {

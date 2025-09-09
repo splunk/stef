@@ -192,6 +192,15 @@ func EnvelopeAttributesEqual(left, right *EnvelopeAttributes) bool {
 	return left.IsEqual(right)
 }
 
+func (e *EnvelopeAttributes) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 768583985188495969
+	for i := range e.elems {
+		hash ^= pkg.StringHash(e.elems[i].key)
+		hash ^= pkg.BytesHash(e.elems[i].value)
+	}
+	return hash
+}
+
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

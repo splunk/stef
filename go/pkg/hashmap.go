@@ -10,28 +10,27 @@ type HashFunc[K any] func(K) uint64
 // EqualFunc is a function type that checks equality between two keys
 type EqualFunc[K any] func(K, K) bool
 
-// entry represents a slot in the hash table
-type entry[K any, V any] struct {
-	key     K
-	value   V
-	deleted bool
-	empty   bool
+// entryType represents a slot in the hash table
+type entryType[K any, V any] struct {
+	key    K
+	value  V
+	exists bool
 }
 
 // HashMap implements a generic hash map using open addressing with linear probing
 type HashMap[K any, V any] struct {
-	buckets    []entry[K, V]
-	size       int
-	capacity   int
-	hashFunc   HashFunc[K]
-	equalFunc  EqualFunc[K]
-	loadFactor float64
+	buckets      []entryType[K, V]
+	size         int
+	capacity     int
+	hashFunc     HashFunc[K]
+	equalFunc    EqualFunc[K]
+	maxElemCount int
+	//loadFactor float64
 }
 
 const (
 	defaultCapacity   = 16
 	defaultLoadFactor = 0.75
-	maxLoadFactor     = 0.9
 )
 
 // NewHashMap creates a new HashMap with the given hash and equality functions
@@ -48,18 +47,15 @@ func NewHashMapWithCapacity[K any, V any](capacity int, hashFunc HashFunc[K], eq
 	// Ensure capacity is power of 2 for better performance
 	capacity = nextPowerOfTwo(capacity)
 
-	buckets := make([]entry[K, V], capacity)
-	for i := range buckets {
-		buckets[i].empty = true
-	}
+	buckets := make([]entryType[K, V], capacity)
 
 	return &HashMap[K, V]{
-		buckets:    buckets,
-		size:       0,
-		capacity:   capacity,
-		hashFunc:   hashFunc,
-		equalFunc:  equalFunc,
-		loadFactor: defaultLoadFactor,
+		buckets:      buckets,
+		size:         0,
+		capacity:     capacity,
+		hashFunc:     hashFunc,
+		equalFunc:    equalFunc,
+		maxElemCount: int(float64(capacity) * defaultLoadFactor),
 	}
 }
 
@@ -80,74 +76,60 @@ func nextPowerOfTwo(n int) int {
 }
 
 // hash computes the hash index for a key
-func (hm *HashMap[K, V]) hash(key K) uint64 {
-	return hm.hashFunc(key) & uint64(hm.capacity-1)
+func (m *HashMap[K, V]) hash(key K) uint64 {
+	return m.hashFunc(key) & uint64(m.capacity-1)
 }
 
 // findSlot finds the slot for a given key using linear probing
-func (hm *HashMap[K, V]) findSlot(key K) (int, bool) {
-	index := int(hm.hash(key))
-	startIndex := index
+func (m *HashMap[K, V]) findSlot(key K) (int, bool) {
+	index := int(m.hash(key))
 
 	for {
-		entry := &hm.buckets[index]
+		entry := &m.buckets[index]
 
-		// Found empty slot (never used)
-		if entry.empty {
+		if !entry.exists {
+			// Found empty slot (never used)
 			return index, false
 		}
 
-		// Found deleted slot or matching key
-		if entry.deleted || hm.equalFunc(entry.key, key) {
-			return index, !entry.deleted && hm.equalFunc(entry.key, key)
+		if m.equalFunc(entry.key, key) {
+			return index, true
 		}
 
 		// Linear probing
-		index = (index + 1) % hm.capacity
-
-		// Full circle - should not happen if load factor is maintained
-		if index == startIndex {
-			break
-		}
+		index = (index + 1) & (m.capacity - 1)
 	}
-
-	return -1, false
 }
 
 // resize grows the hash map when load factor exceeds threshold
-func (hm *HashMap[K, V]) resize() {
-	oldBuckets := hm.buckets
-	oldCapacity := hm.capacity
+func (m *HashMap[K, V]) resize() {
+	oldBuckets := m.buckets
+	oldCapacity := m.capacity
 
-	hm.capacity = hm.capacity * 2
-	hm.buckets = make([]entry[K, V], hm.capacity)
-	for i := range hm.buckets {
-		hm.buckets[i].empty = true
-	}
-	hm.size = 0
+	m.capacity = m.capacity * 2
+	m.buckets = make([]entryType[K, V], m.capacity)
+	m.size = 0
+	m.maxElemCount = int(float64(m.capacity) * defaultLoadFactor)
 
 	// Rehash all existing entries
 	for i := 0; i < oldCapacity; i++ {
 		entry := &oldBuckets[i]
-		if !entry.empty && !entry.deleted {
-			hm.Set(entry.key, entry.value)
+		if entry.exists {
+			m.Set(entry.key, entry.value)
 		}
 	}
 }
 
 // Set inserts or updates a key-value pair
-func (hm *HashMap[K, V]) Set(key K, value V) {
+func (m *HashMap[K, V]) Set(key K, value V) {
 	// Check if resize is needed
-	if float64(hm.size+1)/float64(hm.capacity) > hm.loadFactor {
-		hm.resize()
+	if m.size+1 > m.maxElemCount {
+		m.resize()
 	}
 
-	index, found := hm.findSlot(key)
-	if index == -1 {
-		panic("HashMap is full - this should not happen")
-	}
+	index, found := m.findSlot(key)
 
-	entry := &hm.buckets[index]
+	entry := &m.buckets[index]
 
 	if found {
 		// Update existing key
@@ -156,61 +138,45 @@ func (hm *HashMap[K, V]) Set(key K, value V) {
 		// Insert new key
 		entry.key = key
 		entry.value = value
-		entry.deleted = false
-		entry.empty = false
-		hm.size++
+		entry.exists = true
+		m.size++
 	}
 }
 
 // Get retrieves the value for a given key
-func (hm *HashMap[K, V]) Get(key K) (V, bool) {
+func (m *HashMap[K, V]) Get(key K) (V, bool) {
 	var zero V
 
-	index, found := hm.findSlot(key)
-	if index == -1 || !found {
+	index, found := m.findSlot(key)
+	if !found {
 		return zero, false
 	}
 
-	entry := &hm.buckets[index]
-	return entry.value, true
-}
-
-// Delete removes a key-value pair
-func (hm *HashMap[K, V]) Delete(key K) bool {
-	index, found := hm.findSlot(key)
-	if index == -1 || !found {
-		return false
-	}
-
-	entry := &hm.buckets[index]
-	entry.deleted = true
-	hm.size--
-	return true
+	return m.buckets[index].value, true
 }
 
 // Clear removes all key-value pairs
-func (hm *HashMap[K, V]) Clear() {
-	for i := range hm.buckets {
-		hm.buckets[i].empty = true
-		hm.buckets[i].deleted = false
+func (m *HashMap[K, V]) Clear() {
+	for i := range m.buckets {
+		m.buckets[i].exists = false
 	}
-	hm.size = 0
+	m.size = 0
 }
 
-// Size returns the number of key-value pairs
-func (hm *HashMap[K, V]) Size() int {
-	return hm.size
+// Len returns the number of key-value pairs
+func (m *HashMap[K, V]) Len() int {
+	return m.size
 }
 
 // IsEmpty returns true if the map is empty
-func (hm *HashMap[K, V]) IsEmpty() bool {
-	return hm.size == 0
+func (m *HashMap[K, V]) IsEmpty() bool {
+	return m.size == 0
 }
 
 // String returns a string representation of the HashMap
-func (hm *HashMap[K, V]) String() string {
+func (m *HashMap[K, V]) String() string {
 	return fmt.Sprintf(
 		"HashMap{size: %d, capacity: %d, loadFactor: %.2f}",
-		hm.size, hm.capacity, float64(hm.size)/float64(hm.capacity),
+		m.size, m.capacity, float64(m.size)/float64(m.capacity),
 	)
 }

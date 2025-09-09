@@ -190,6 +190,14 @@ func (e *Int64Array) IsEqual(val *Int64Array) bool {
 	return true
 }
 
+func (e *Int64Array) Hash() uint64 {
+	hash := uint64(len(e.elems)) + 4994098918071519993
+	for i := range e.elems {
+		hash ^= pkg.Int64Hash(e.elems[i])
+	}
+	return hash
+}
+
 // CmpInt64Array performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpInt64Array(left, right *Int64Array) int {

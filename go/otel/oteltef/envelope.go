@@ -112,6 +112,7 @@ func (s *Envelope) Clone(allocators *Allocators) Envelope {
 
 		attributes: s.attributes.Clone(allocators),
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -125,11 +126,15 @@ func (s *Envelope) byteSize() uint {
 // Copy from src to dst, overwriting existing data in dst.
 func copyEnvelope(dst *Envelope, src *Envelope) {
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewEnvelope(dst *Envelope, src *Envelope, allocators *Allocators) {
 	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -166,6 +171,14 @@ func (s *Envelope) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Envelope) IsEqual(right *Envelope) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Attributes field.
 	if !s.attributes.IsEqual(&right.attributes) {
 		return false
@@ -176,6 +189,21 @@ func (s *Envelope) IsEqual(right *Envelope) bool {
 
 func EnvelopeEqual(left, right *Envelope) bool {
 	return left.IsEqual(right)
+}
+
+func (s *Envelope) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(6336671268008515340)
+	hash ^= s.attributes.Hash()
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpEnvelope performs deep comparison and returns an integer that

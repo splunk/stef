@@ -15,6 +15,8 @@ import (
 )
 
 func TestGenerate(t *testing.T) {
+	//t.Skip()
+
 	// Get the list of files in "testdata" directory
 	files, err := filepath.Glob("testdata/*.stef")
 	require.NoError(t, err)

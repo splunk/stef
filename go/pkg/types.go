@@ -1,6 +1,8 @@
 package pkg
 
 import (
+	"hash/fnv"
+	"math"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -105,4 +107,36 @@ func StringRandom(random *rand.Rand) string {
 
 func BytesRandom(random *rand.Rand) Bytes {
 	return Bytes(StringRandom(random))
+}
+
+func StringHash(s string) uint64 {
+	//return xxhash.Sum64String(s)
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return h.Sum64()
+}
+
+func Uint64Hash(v uint64) uint64 {
+	return v
+}
+
+func Int64Hash(v int64) uint64 {
+	return uint64(v)
+}
+
+func BoolHash(v bool) uint64 {
+	if v {
+		return ^uint64(0)
+	}
+	return 0
+}
+
+func Float64Hash(f float64) uint64 {
+	return math.Float64bits(f)
+}
+
+func BytesHash(b Bytes) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(b))
+	return h.Sum64()
 }

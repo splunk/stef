@@ -146,6 +146,7 @@ func (s *SpanStatus) Clone(allocators *Allocators) SpanStatus {
 		message: s.message,
 		code:    s.code,
 	}
+	c.modifiedFields.hash = s.modifiedFields.hash
 	return c
 }
 
@@ -160,12 +161,16 @@ func (s *SpanStatus) byteSize() uint {
 func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
+	if src.modifiedFields.hash != 0 {
+		dst.modifiedFields.hash = src.modifiedFields.hash
+	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus, allocators *Allocators) {
 	dst.message = src.message
 	dst.code = src.code
+	dst.modifiedFields.hash = src.modifiedFields.hash
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -209,6 +214,14 @@ func (s *SpanStatus) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SpanStatus) IsEqual(right *SpanStatus) bool {
+	if s == nil {
+		return right == nil
+	}
+	if s.modifiedFields.hash != 0 && right.modifiedFields.hash != 0 {
+		if s.modifiedFields.hash != right.modifiedFields.hash {
+			return false
+		}
+	}
 	// Compare Message field.
 	if !pkg.StringEqual(s.message, right.message) {
 		return false
@@ -223,6 +236,22 @@ func (s *SpanStatus) IsEqual(right *SpanStatus) bool {
 
 func SpanStatusEqual(left, right *SpanStatus) bool {
 	return left.IsEqual(right)
+}
+
+func (s *SpanStatus) Hash() uint64 {
+	if s == nil {
+		return 0
+	}
+	if s.modifiedFields.hash != 0 {
+		return s.modifiedFields.hash
+	}
+
+	hash := uint64(8611303134738507371)
+	hash ^= pkg.StringHash(s.message)
+	hash ^= pkg.Uint64Hash(s.code)
+	hash |= 1 // Make sure it is never 0
+	s.modifiedFields.hash = hash
+	return hash
 }
 
 // CmpSpanStatus performs deep comparison and returns an integer that
