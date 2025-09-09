@@ -37,17 +37,12 @@ public class {{ .StructName }} {
         {{- end }}
     }
 
+    // reset the struct to its initial state, as if init() was just called.
+    // Will not reset internal fields such as parentModifiedFields.
     void reset() {
         typ = Type.TypeNone;
-        {{ range .Fields }}
-        {{- if .Type.IsPrimitive }}
-        {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
-        {{- else}}
-        if ({{.name}} != null) {
-            {{.name}}.reset();
-        }
-        {{- end }}
-        {{- end }}
+        // We don't need to reset the state of the field since that will be done
+        // when the type is changed, see SetType().
     }
 
     // Type enum for oneof
@@ -74,10 +69,28 @@ public class {{ .StructName }} {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in blank state.
+    void resetContained() {
+        switch (typ) {
+        {{- range .Fields }}
+        {{- if not .Type.IsPrimitive}}
+        case Type{{.Name}}:
+            if ({{.name}} != null) {
+                {{.name}}.reset();
+            }
+            break;
+        {{- end -}}
+        {{- end }}
+        }
+    }
+
     // setType sets the type of the value currently contained in {{ $.StructName }}.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             {{- range .Fields }}
             {{- if not .Type.IsPrimitive}}

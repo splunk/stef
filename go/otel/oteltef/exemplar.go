@@ -71,7 +71,10 @@ func (s *Exemplar) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Exemplar) reset() {
 
+	s.timestamp = 0
 	s.value.reset()
+	s.spanID = pkg.EmptyBytes
+	s.traceID = pkg.EmptyBytes
 	s.filteredAttributes.reset()
 }
 

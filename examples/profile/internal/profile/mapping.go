@@ -76,6 +76,16 @@ func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModified
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Mapping) reset() {
+
+	s.memoryStart = 0
+	s.memoryLimit = 0
+	s.fileOffset = 0
+	s.filename = ""
+	s.buildId = ""
+	s.hasFunctions = false
+	s.hasFilenames = false
+	s.hasLineNumbers = false
+	s.hasInlineFrames = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

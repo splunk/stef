@@ -79,8 +79,14 @@ func (s *Metric) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metric) reset() {
 
+	s.name = ""
+	s.description = ""
+	s.unit = ""
+	s.type_ = 0
 	s.metadata.reset()
 	s.histogramBounds.reset()
+	s.aggregationTemporality = 0
+	s.monotonic = false
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

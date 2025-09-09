@@ -68,13 +68,13 @@ public class Span {
         spanID = Types.emptyBytes;
         traceState = StringValue.empty;
         parentSpanID = Types.emptyBytes;
-        
+        flags = 0;
         name = StringValue.empty;
-        
-        
-        
+        kind = 0;
+        startTimeUnixNano = 0;
+        endTimeUnixNano = 0;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
-        
+        droppedAttributesCount = 0;
         events = new EventArray(modifiedFields, fieldModifiedEvents);
         links = new LinkArray(modifiedFields, fieldModifiedLinks);
         status = new SpanStatus(modifiedFields, fieldModifiedStatus);
@@ -86,16 +86,24 @@ public class Span {
         spanID = Types.emptyBytes;
         traceState = StringValue.empty;
         parentSpanID = Types.emptyBytes;
-        
+        flags = 0;
         name = StringValue.empty;
-        
-        
-        
-        attributes.reset();
-        
-        events.reset();
-        links.reset();
-        status.reset();
+        kind = 0;
+        startTimeUnixNano = 0;
+        endTimeUnixNano = 0;
+        if (attributes != null) {
+            attributes.reset();
+        }
+        droppedAttributesCount = 0;
+        if (events != null) {
+            events.reset();
+        }
+        if (links != null) {
+            links.reset();
+        }
+        if (status != null) {
+            status.reset();
+        }
     }
 
     

@@ -63,28 +63,32 @@ public class ExpHistogramValue {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
-        
-        
-        
-        
+        count = 0;
+        sum = 0.0;
+        min = 0.0;
+        max = 0.0;
+        scale = 0;
+        zeroCount = 0;
         positiveBuckets = new ExpHistogramBuckets(modifiedFields, fieldModifiedPositiveBuckets);
         negativeBuckets = new ExpHistogramBuckets(modifiedFields, fieldModifiedNegativeBuckets);
-        
+        zeroThreshold = 0.0;
     }
 
     void reset() {
         
-        
-        
-        
-        
-        
-        
-        positiveBuckets.reset();
-        negativeBuckets.reset();
-        
+        count = 0;
+        sum = 0.0;
+        min = 0.0;
+        max = 0.0;
+        scale = 0;
+        zeroCount = 0;
+        if (positiveBuckets != null) {
+            positiveBuckets.reset();
+        }
+        if (negativeBuckets != null) {
+            negativeBuckets.reset();
+        }
+        zeroThreshold = 0.0;
     }
 
     

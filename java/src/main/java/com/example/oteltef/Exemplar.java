@@ -46,7 +46,7 @@ public class Exemplar {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
+        timestamp = 0;
         value = new ExemplarValue(modifiedFields, fieldModifiedValue);
         spanID = Types.emptyBytes;
         traceID = Types.emptyBytes;
@@ -55,11 +55,15 @@ public class Exemplar {
 
     void reset() {
         
-        
-        value.reset();
+        timestamp = 0;
+        if (value != null) {
+            value.reset();
+        }
         spanID = Types.emptyBytes;
         traceID = Types.emptyBytes;
-        filteredAttributes.reset();
+        if (filteredAttributes != null) {
+            filteredAttributes.reset();
+        }
     }
 
     

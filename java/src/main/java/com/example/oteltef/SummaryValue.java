@@ -42,16 +42,18 @@ public class SummaryValue {
         modifiedFields.parent = parentModifiedFields;
         modifiedFields.parentBit = parentModifiedBit;
         
-        
-        
+        count = 0;
+        sum = 0.0;
         quantileValues = new QuantileValueArray(modifiedFields, fieldModifiedQuantileValues);
     }
 
     void reset() {
         
-        
-        
-        quantileValues.reset();
+        count = 0;
+        sum = 0.0;
+        if (quantileValues != null) {
+            quantileValues.reset();
+        }
     }
 
     

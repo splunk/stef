@@ -115,7 +115,11 @@ class {{ .StructName }}Decoder {
         if (typ < 0 || typ >= {{.StructName}}.Type.values().length) {
             throw new IOException("Invalid oneof type");
         }
-        dst.typ = {{.StructName}}.Type.values()[(int)typ];
+        {{.StructName}}.Type newType = {{.StructName}}.Type.values()[(int)typ];
+        if (dst.typ != newType) {
+            dst.typ = newType;
+            dst.resetContained();
+        }
         prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field

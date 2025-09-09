@@ -95,7 +95,11 @@ class ExemplarValueDecoder {
         if (typ < 0 || typ >= ExemplarValue.Type.values().length) {
             throw new IOException("Invalid oneof type");
         }
-        dst.typ = ExemplarValue.Type.values()[(int)typ];
+        ExemplarValue.Type newType = ExemplarValue.Type.values()[(int)typ];
+        if (dst.typ != newType) {
+            dst.typ = newType;
+            dst.resetContained();
+        }
         prevType = dst.typ;
         this.lastValPtr = dst;
         // Decode selected field

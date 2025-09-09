@@ -52,10 +52,18 @@ public class Spans {
 
     void reset() {
         
-        envelope.reset();
-        resource.reset();
-        scope.reset();
-        span.reset();
+        if (envelope != null) {
+            envelope.reset();
+        }
+        if (resource != null) {
+            resource.reset();
+        }
+        if (scope != null) {
+            scope.reset();
+        }
+        if (span != null) {
+            span.reset();
+        }
     }
 
     

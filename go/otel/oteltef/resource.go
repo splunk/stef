@@ -67,7 +67,9 @@ func (s *Resource) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Resource) reset() {
 
+	s.schemaURL = ""
 	s.attributes.reset()
+	s.droppedAttributesCount = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

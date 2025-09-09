@@ -60,6 +60,9 @@ func (s *SpanStatus) initAlloc(parentModifiedFields *modifiedFields, parentModif
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SpanStatus) reset() {
+
+	s.message = ""
+	s.code = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

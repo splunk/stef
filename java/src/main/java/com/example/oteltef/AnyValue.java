@@ -38,26 +38,18 @@ public class AnyValue {
         this.parentModifiedBit = parentModifiedBit;
         
         string = StringValue.empty;
-        
-        
-        
+        bool = false;
+        int64 = 0;
+        float64 = 0.0;
         bytes = Types.emptyBytes;
     }
 
+    // reset the struct to its initial state, as if init() was just called.
+    // Will not reset internal fields such as parentModifiedFields.
     void reset() {
         typ = Type.TypeNone;
-        
-        string = StringValue.empty;
-        
-        
-        
-        if (array != null) {
-            array.reset();
-        }
-        if (kVList != null) {
-            kVList.reset();
-        }
-        bytes = Types.emptyBytes;
+        // We don't need to reset the state of the field since that will be done
+        // when the type is changed, see SetType().
     }
 
     // Type enum for oneof
@@ -88,10 +80,29 @@ public class AnyValue {
         return typ;
     }
 
+    // resetContained resets the currently contained value, if any.
+    // Normally used after switching to a different type to make sure
+    // the value contained is in blank state.
+    void resetContained() {
+        switch (typ) {
+        case TypeArray:
+            if (array != null) {
+                array.reset();
+            }
+            break;
+        case TypeKVList:
+            if (kVList != null) {
+                kVList.reset();
+            }
+            break;
+        }
+    }
+
     // setType sets the type of the value currently contained in AnyValue.
     public void setType(Type typ) {
         if (this.typ != typ) {
             this.typ = typ;
+            resetContained();
             switch (typ) {
             case TypeArray:
                 if (array == null) {

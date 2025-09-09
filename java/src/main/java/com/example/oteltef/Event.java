@@ -45,17 +45,19 @@ public class Event {
         modifiedFields.parentBit = parentModifiedBit;
         
         name = StringValue.empty;
-        
+        timeUnixNano = 0;
         attributes = new Attributes(modifiedFields, fieldModifiedAttributes);
-        
+        droppedAttributesCount = 0;
     }
 
     void reset() {
         
         name = StringValue.empty;
-        
-        attributes.reset();
-        
+        timeUnixNano = 0;
+        if (attributes != null) {
+            attributes.reset();
+        }
+        droppedAttributesCount = 0;
     }
 
     
