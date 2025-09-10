@@ -1,0 +1,16 @@
+package com.example.gentest.struct_recurse_reuse
+
+struct Root root {
+  Rec Rec1
+  // AnotherRec.Rec2 field was previously incorrectly assigned the same column as Rec.Rec2.
+  // This verifies that the reuse of Rec1 struct in Root does not cause a problem.
+  AnotherRec Rec1
+}
+
+struct Rec1 {
+  Rec2 []Rec2
+}
+
+struct Rec2 {
+  Rec1 []Rec1
+}
