@@ -2,6 +2,7 @@ package {{ .PackageName }}
 
 import (
     "fmt"
+	"math/bits"
     "math/rand/v2"
     "strings"
 	"unsafe"
@@ -384,8 +385,11 @@ typeChanged := false
 type {{ .StructName }}Encoder struct {
     buf pkg.BitsWriter
 	limiter *pkg.SizeLimiter
-    prevType {{.StructName}}Type
+
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
     fieldCount uint
+    // Number of bits needed to encode the type (including None type).
+    typeBitCount uint
 
     // Field encoders.
     {{- range .Fields }}
@@ -440,6 +444,7 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
     if err != nil {
         return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
     }
+    e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount)+1))
 
     {{ range $i, $e := .Fields }}
     // Init encoder for {{.Name}} field.
@@ -471,7 +476,6 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
 }
 
 func (e *{{ .StructName }}Encoder) Reset() {
-    e.prevType = 0
     {{ range $i, $e := .Fields }}
     if e.fieldCount <= {{$i}} {
         return // {{.Name}} and all subsequent fields are skipped.
@@ -492,13 +496,10 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
         typ = {{ $.StructName }}TypeNone
     }
 
-	// Compute type delta. 0 means the type is the same as the last time.
-	typDelta := int(typ) - int(e.prevType)
-    e.prevType = typ
-	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
+	e.buf.WriteBits(uint64(typ), e.typeBitCount)
 
     // Account written bits in the limiter.
-    e.limiter.AddFrameBits(bitCount)
+    e.limiter.AddFrameBits(e.typeBitCount)
 
     // Encode currently selected field.
 	switch typ {
@@ -537,9 +538,11 @@ type {{ .StructName }}Decoder struct {
     column *pkg.ReadableColumn
     lastValPtr *{{.StructName}}
     lastVal {{.StructName}}
-    fieldCount uint
 
-    prevType {{.StructName}}Type
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
+    fieldCount uint
+    // Number of bits needed to encode the type (including None type).
+    typeBitCount uint
 
     // Field decoders.
     {{range .Fields}}
@@ -578,6 +581,8 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     d.lastVal.init(nil,0)
     {{- end}}
     d.lastValPtr = &d.lastVal
+
+    d.typeBitCount = uint(bits.Len64(uint64(d.fieldCount)+1))
 
     {{- range $i,$e := .Fields }}
     if d.fieldCount <= {{$i}} {
@@ -632,7 +637,6 @@ func (d *{{ .StructName }}Decoder) Continue() {
 }
 
 func (d *{{ .StructName }}Decoder) Reset() {
-    d.prevType = 0
     {{ range $i, $e := .Fields }}
     if d.fieldCount <= {{$i}} {
         return // {{.Name}} and all subsequent fields are skipped.
@@ -646,21 +650,20 @@ func (d *{{ .StructName }}Decoder) Reset() {
 }
 
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
-	// Read Type delta
-    typeDelta := d.buf.ReadVarintCompact()
-
-	// Calculate and validate the new Type
-	typ := int(d.prevType) + int(typeDelta)
-	if typ < 0 || typ >= int({{.StructName}}TypeCount) {
+	// Read the type and validate it
+	typ := uint(d.buf.ReadBits(d.typeBitCount))
+	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
     }
 
 	dst := dstPtr
 	if dst.typ != {{.StructName}}Type(typ) {
 	    dst.typ = {{.StructName}}Type(typ)
+	    // The type changed, we need to reset the contained value so that
+	    // it does not contain carry-over data from a previous record that
+	    // was of this same type.
 	    dst.resetContained()
 	}
-    d.prevType = {{.StructName}}Type(dst.typ)
 
 	// Decode selected field
 	switch dst.typ {

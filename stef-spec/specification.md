@@ -732,7 +732,7 @@ follows. `RefNum` will be set to the number of the found entry in the dictionary
 
 ```
 OneOf {
-    ChoiceDelta: SC
+    Choice: 1..6
 }
 ```
 
@@ -740,14 +740,12 @@ Fields declared in oneof are numbered, starting from number 1 and assigned
 incrementing numbers in the order of declaration. This assigned number is called the 
 "oneof choice number". Choice number 0 corresponds to "None" choice.
 
-OneOf codec encodes choice number in the column in delta encoding:
-- If this is the first oneof value since encoder was started ChoiceDelta is equal to the 
-  choice number.
-- For subsequent oneof values ChoiceDelta is the delta between this oneof instance's 
-  choice number and the previous oneof instance's choice number.
+OneOf codec encodes choice number in the column using as many bits as are necessary to
+encode the highest field number (at least one bit is always used, even if the oneof
+has no fields, so that a value of 0 can be encoded to represent the "None" choice).
 
 The chosen field's value is encoded in the child column using field's codec.
-After the ChoiceDelta is encoded the OneOf encoder will call the encoders for the 
+After the Choice is encoded the OneOf encoder will call the encoders for the 
 currently chosen field, that will then encode the chosen field's values in its 
 corresponding column. Note that all other fields of the oneof (other than the current 
 chosen field) will have nothing appended to their columns.
@@ -756,7 +754,7 @@ chosen field) will have nothing appended to their columns.
 
 ```
 Array {
-    Length: SC
+    Length: UC
 }
 ```
 

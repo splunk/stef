@@ -85,7 +85,7 @@ jobs:
           HEAD=$(git rev-parse HEAD)
           git reset --hard ${{ github.event.pull_request.base.sha }}
           export REF_NAME=main
-          cd benchmarks && make bench-run bench-stat
+          cd benchmarks && make gentestfiles bench-run bench-stat
           git reset --hard $HEAD
 
       - name: Benchmark stats
