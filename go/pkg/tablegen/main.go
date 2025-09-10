@@ -493,14 +493,14 @@ func generateUvar64x2() {
 
 	// Generate all 256 possible control byte combinations
 	for controlByte := 0; controlByte < 256; controlByte++ {
-		// Extract 2-bit length codes for each of the 2 values
-		code0 := controlByte & 0x3
-		code1 := (controlByte >> 2) & 0x3
+		// Extract 4-bit length codes for each of the 2 values
+		code0 := controlByte & 0xF        // bits 0-3 (first value byte length 0-8)
+		code1 := (controlByte >> 4) & 0xF // bits 4-7 (second value byte length 0-8)
 
-		// Convert codes to byte lengths: 0->1, 1->2, 2->4, 3->8
+		// Convert codes to byte lengths: 0->0, 1->1, 2->2, ..., 8->8
 		lengths := [2]int{
-			1 << code0,
-			1 << code1,
+			int(code0),
+			int(code1),
 		}
 
 		// Calculate offsets for each value in the 16-byte input
@@ -513,9 +513,9 @@ func generateUvar64x2() {
 		// Layout: [value0:8bytes][value1:8bytes]
 		var permutation [16]byte
 
-		// Initialize permutation with 0 (will be zero-extended for unused bytes)
+		// Initialize permutation with 0x80 (will write zeros for unused bytes)
 		for i := range permutation {
-			permutation[i] = 0
+			permutation[i] = 0x80
 		}
 
 		// Set up permutation indices for the 2 values (8 bytes each)
@@ -528,9 +528,12 @@ func generateUvar64x2() {
 			for byteIdx := 0; byteIdx < length && byteIdx < 8; byteIdx++ {
 				if srcOffset+byteIdx < 16 {
 					permutation[dstOffset+byteIdx] = byte(srcOffset + byteIdx)
+				} else {
+					// Source index exceeds 16-byte input, use zero-write
+					permutation[dstOffset+byteIdx] = 0x80
 				}
 			}
-			// Remaining bytes in the 8-byte slot stay as 0 (zero-extension)
+			// Remaining bytes in the 8-byte slot use zero-write (already set to 0x80)
 		}
 
 		// Output the permutation table entry
@@ -553,12 +556,12 @@ func generateUvar64x2() {
 	fmt.Fprintln(file, "var uvar64x2ReadLen128 = [256]int{")
 
 	for controlByte := 0; controlByte < 256; controlByte++ {
-		code0 := controlByte & 0x3
-		code1 := (controlByte >> 2) & 0x3
+		code0 := controlByte & 0xF        // bits 0-3
+		code1 := (controlByte >> 4) & 0xF // bits 4-7
 
 		lengths := [2]int{
-			1 << code0,
-			1 << code1,
+			int(code0),
+			int(code1),
 		}
 
 		totalLength := lengths[0] + lengths[1]

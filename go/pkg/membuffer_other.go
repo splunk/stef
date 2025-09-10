@@ -21,7 +21,7 @@ func (w *BytesWriter) WriteUvar32x4(values [4]uint32) {
 	w.writeUvar32x4Scalar(values)
 }
 
-// WriteUvar64x2 reads 2 variable length integers using SIMD operations when available
-func (r *BytesWriter) WriteUvar64x2(values [2]uint64) {
-	r.writeUvar64x2Scalar(values)
+// WriteUvar64x2 writes 2 variable length integers using SIMD operations when available
+func (w *BytesWriter) WriteUvar64x2(values [2]uint64) {
+	w.writeUvar64x2Scalar(values)
 }

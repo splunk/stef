@@ -3,6 +3,7 @@
 package pkg
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/bits"
 	"simd"
@@ -16,6 +17,8 @@ var cpuSupportsAVX512 bool
 var readUvar64x4Func func(*BytesReader) ([4]uint64, error)
 var readUvar32x4Func func(*BytesReader) ([4]uint32, error)
 var writeUvar32x4Func func(*BytesWriter, [4]uint32)
+var readUvar64x2Func func(*BytesReader) ([2]uint64, error)
+var writeUvar64x2Func func(*BytesWriter, [2]uint64)
 
 func init() {
 	// Check for AVX2 support using SIMD package capabilities
@@ -37,9 +40,13 @@ func init() {
 	if cpuSupportsAVX2 {
 		readUvar32x4Func = (*BytesReader).readUvar32x4_AVX2
 		writeUvar32x4Func = (*BytesWriter).writeUvar32x4_AVX2
+		readUvar64x2Func = (*BytesReader).readUvar64x2_AVX2
+		writeUvar64x2Func = (*BytesWriter).writeUvar64x2_AVX2
 	} else {
 		readUvar32x4Func = (*BytesReader).readUvar32x4Scalar
 		writeUvar32x4Func = (*BytesWriter).writeUvar32x4Scalar
+		readUvar64x2Func = (*BytesReader).readUvar64x2Scalar
+		writeUvar64x2Func = (*BytesWriter).writeUvar64x2Scalar
 	}
 }
 
@@ -48,9 +55,9 @@ func (r *BytesReader) ReadUvar64x4() ([4]uint64, error) {
 	return readUvar64x4Func(r)
 }
 
-// ReadUvar64x2 reads 2 variable length integers using scalar implementation (no SIMD optimization yet)
+// ReadUvar64x2 reads 2 variable length integers using the optimal implementation
 func (r *BytesReader) ReadUvar64x2() ([2]uint64, error) {
-	return r.readUvar64x2Scalar()
+	return readUvar64x2Func(r)
 }
 
 // readUvar64x4_AVX512 handles SIMD-optimized reading with buffer size checks
@@ -227,5 +234,112 @@ func (w *BytesWriter) writeUvar32x4_AVX2(values [4]uint32) {
 	// Store the extracted bytes to the output buffer
 	extractedBytes.Store((*[16]uint8)(unsafe.Pointer(&w.buf[startIdx+1])))
 
+	w.buf = w.buf[:startIdx+totalSize]
+}
+
+// WriteUvar64x2 writes 2 variable length integers using the optimal implementation
+func (w *BytesWriter) WriteUvar64x2(values [2]uint64) {
+	writeUvar64x2Func(w, values)
+}
+
+// readUvar64x2_AVX2 handles SIMD-optimized reading for 2 uint64 values using 128-bit operations
+func (r *BytesReader) readUvar64x2_AVX2() ([2]uint64, error) {
+	if len(r.buf[r.byteIndex:]) >= 16 {
+		// SIMD-optimized path: we have at least 16 bytes available for SIMD loads
+
+		// Read control byte from r.buf
+		controlByte := r.buf[r.byteIndex]
+		r.byteIndex++
+
+		// Get total length for this control byte pattern
+		totalBytes := uvar64x2ReadLen128[controlByte]
+
+		// Read next 16 bytes from r.buf using 128-bit SIMD
+		bufPtr := unsafe.Pointer(&r.buf[r.byteIndex])
+		next16Bytes := simd.LoadUint8x16((*[16]uint8)(bufPtr))
+
+		// Load shuffle indices into 128-bit SIMD register
+		shuffleVec := simd.LoadUint8x16(&uvar64x2ReadPermute128[controlByte])
+
+		// Perform 128-bit SIMD permute operation: values = next16Bytes.Permute(shuffleIndices)
+		permutedVec := next16Bytes.Permute(shuffleVec)
+
+		// Store the permuted result - this gives us 2 uint64 values perfectly aligned
+		var permutedValues [2]uint64
+		permutedVec.Store((*[16]uint8)(unsafe.Pointer(&permutedValues)))
+
+		r.byteIndex += totalBytes
+
+		return permutedValues, nil
+	}
+
+	return r.readUvar64x2Scalar()
+}
+
+// writeUvar64x2_AVX2 handles SIMD-optimized writing for 2 uint64 values using 128-bit operations
+func (w *BytesWriter) writeUvar64x2_AVX2(values [2]uint64) {
+	// Lookup table for converting leading zeros to byte length (0-8 for 0,1,2,3,4,5,6,7,8 bytes)
+	var lengthLookup = [65]byte{
+		8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, // 0-15
+		8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, // 16-31
+		8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 7, 7, // 32-47
+		6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, // 48-63
+		0, // 64 (for zero value)
+	}
+
+	// Calculate lengths for both values
+	val0, val1 := values[0], values[1]
+
+	// Get length codes using lookup table (branchless)
+	var code0, code1 byte
+	code0 = lengthLookup[bits.LeadingZeros64(val0)]
+	code1 = lengthLookup[bits.LeadingZeros64(val1)]
+
+	// Pack control byte (4 bits per value)
+	controlByte := code0 | code1<<4
+
+	// Calculate total size needed
+	totalSize := 1 + int(code0) + int(code1)
+
+	// Calculate maximum space needed for SIMD operations (worst case: both 8-byte values + control byte)
+	maxSpaceNeeded := 1 + 8 + 8
+
+	// Pre-allocate buffer space
+	startIdx := len(w.buf)
+	w.buf = EnsureLen(w.buf, len(w.buf)+maxSpaceNeeded)
+
+	// Write control byte
+	w.buf[startIdx] = controlByte
+
+	// Use SIMD to pack the values efficiently
+	// Load both values into a 128-bit register
+	packedValues := simd.LoadUint8x16((*[16]uint8)(unsafe.Pointer(&values[0])))
+
+	// For now, we'll use a simple approach and extract bytes manually
+	// A full SIMD implementation would use lookup tables like the x4 version
+	offset0 := startIdx + 1
+	offset1 := offset0 + int(code0)
+
+	// Write values using PutUint64 only when length > 0
+	if code0 > 0 {
+		// Extract and store first value
+		var temp [2]uint64
+		packedValues.Store((*[16]uint8)(unsafe.Pointer(&temp)))
+		switch code0 {
+		case 1, 2, 3, 4, 5, 6, 7, 8:
+			binary.LittleEndian.PutUint64(w.buf[offset0:], temp[0])
+		}
+	}
+	if code1 > 0 {
+		// Extract and store second value
+		var temp [2]uint64
+		packedValues.Store((*[16]uint8)(unsafe.Pointer(&temp)))
+		switch code1 {
+		case 1, 2, 3, 4, 5, 6, 7, 8:
+			binary.LittleEndian.PutUint64(w.buf[offset1:], temp[1])
+		}
+	}
+
+	// Resize buffer to actual needed size
 	w.buf = w.buf[:startIdx+totalSize]
 }
