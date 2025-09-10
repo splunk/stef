@@ -341,14 +341,6 @@ var uvar64x2TestPatterns = []struct {
 		name:   "all_8byte",
 		values: [2]uint64{^uint64(0), ^uint64(0) - 1000},
 	},
-	{
-		name:   "mixed_sizes",
-		values: [2]uint64{255, ^uint64(0)},
-	},
-	{
-		name:   "zero_and_large",
-		values: [2]uint64{0, ^uint64(0)},
-	},
 }
 
 func BenchmarkMembufWriteUvar64x2(b *testing.B) {

@@ -255,39 +255,33 @@ func (r *BytesReader) readUvar32x4Scalar() ([4]uint32, error) {
 	}
 
 	// Value 1 - read exactly len1 bytes (or 0 if len1 is 0)
-	if len1 > 0 {
-		switch len1 {
-		case 1:
-			val1 = uint32(r.buf[offset1])
-		case 2:
-			val1 = uint32(binary.LittleEndian.Uint16(r.buf[offset1 : offset1+2]))
-		case 4:
-			val1 = binary.LittleEndian.Uint32(r.buf[offset1 : offset1+4])
-		}
+	switch len1 {
+	case 1:
+		val1 = uint32(r.buf[offset1])
+	case 2:
+		val1 = uint32(binary.LittleEndian.Uint16(r.buf[offset1 : offset1+2]))
+	case 4:
+		val1 = binary.LittleEndian.Uint32(r.buf[offset1 : offset1+4])
 	}
 
 	// Value 2 - read exactly len2 bytes (or 0 if len2 is 0)
-	if len2 > 0 {
-		switch len2 {
-		case 1:
-			val2 = uint32(r.buf[offset2])
-		case 2:
-			val2 = uint32(binary.LittleEndian.Uint16(r.buf[offset2 : offset2+2]))
-		case 4:
-			val2 = binary.LittleEndian.Uint32(r.buf[offset2 : offset2+4])
-		}
+	switch len2 {
+	case 1:
+		val2 = uint32(r.buf[offset2])
+	case 2:
+		val2 = uint32(binary.LittleEndian.Uint16(r.buf[offset2 : offset2+2]))
+	case 4:
+		val2 = binary.LittleEndian.Uint32(r.buf[offset2 : offset2+4])
 	}
 
 	// Value 3 - read exactly len3 bytes (or 0 if len3 is 0)
-	if len3 > 0 {
-		switch len3 {
-		case 1:
-			val3 = uint32(r.buf[offset3])
-		case 2:
-			val3 = uint32(binary.LittleEndian.Uint16(r.buf[offset3 : offset3+2]))
-		case 4:
-			val3 = binary.LittleEndian.Uint32(r.buf[offset3 : offset3+4])
-		}
+	switch len3 {
+	case 1:
+		val3 = uint32(r.buf[offset3])
+	case 2:
+		val3 = uint32(binary.LittleEndian.Uint16(r.buf[offset3 : offset3+2]))
+	case 4:
+		val3 = binary.LittleEndian.Uint32(r.buf[offset3 : offset3+4])
 	}
 
 	r.byteIndex += totalBytes
@@ -340,62 +334,48 @@ func (r *BytesReader) readUvar64x2Scalar() ([2]uint64, error) {
 		return [2]uint64{val0, val1}, nil
 	}
 
+	// Slow path: read exact bytes
+
 	var val0, val1 uint64
 
 	// Read value 0
-	if len0 == 0 {
-		val0 = 0
-	} else if len0 <= 8 && len(r.buf) >= offset0+8 {
-		// Fast path: use direct Uint64 read with masking
-		val0 = binary.LittleEndian.Uint64(r.buf[offset0:]) & masks[code0]
-	} else {
-		// Slow path: read exact bytes
-		switch len0 {
-		case 1:
-			val0 = uint64(r.buf[offset0])
-		case 2:
-			val0 = uint64(binary.LittleEndian.Uint16(r.buf[offset0 : offset0+2]))
-		case 3:
-			val0 = uint64(r.buf[offset0]) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+1:offset0+3]))<<8
-		case 4:
-			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0 : offset0+4]))
-		case 5:
-			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(r.buf[offset0+4])<<32
-		case 6:
-			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32
-		case 7:
-			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32 | uint64(r.buf[offset0+6])<<48
-		case 8:
-			val0 = binary.LittleEndian.Uint64(r.buf[offset0 : offset0+8])
-		}
+	switch len0 {
+	case 1:
+		val0 = uint64(r.buf[offset0])
+	case 2:
+		val0 = uint64(binary.LittleEndian.Uint16(r.buf[offset0 : offset0+2]))
+	case 3:
+		val0 = uint64(r.buf[offset0]) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+1:offset0+3]))<<8
+	case 4:
+		val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0 : offset0+4]))
+	case 5:
+		val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(r.buf[offset0+4])<<32
+	case 6:
+		val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32
+	case 7:
+		val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32 | uint64(r.buf[offset0+6])<<48
+	case 8:
+		val0 = binary.LittleEndian.Uint64(r.buf[offset0 : offset0+8])
 	}
 
 	// Read value 1
-	if len1 == 0 {
-		val1 = 0
-	} else if len1 <= 8 && len(r.buf) >= offset1+8 {
-		// Fast path: use direct Uint64 read with masking
-		val1 = binary.LittleEndian.Uint64(r.buf[offset1:]) & masks[code1]
-	} else {
-		// Slow path: read exact bytes
-		switch len1 {
-		case 1:
-			val1 = uint64(r.buf[offset1])
-		case 2:
-			val1 = uint64(binary.LittleEndian.Uint16(r.buf[offset1 : offset1+2]))
-		case 3:
-			val1 = uint64(r.buf[offset1]) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+1:offset1+3]))<<8
-		case 4:
-			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1 : offset1+4]))
-		case 5:
-			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(r.buf[offset1+4])<<32
-		case 6:
-			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32
-		case 7:
-			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32 | uint64(r.buf[offset1+6])<<48
-		case 8:
-			val1 = binary.LittleEndian.Uint64(r.buf[offset1 : offset1+8])
-		}
+	switch len1 {
+	case 1:
+		val1 = uint64(r.buf[offset1])
+	case 2:
+		val1 = uint64(binary.LittleEndian.Uint16(r.buf[offset1 : offset1+2]))
+	case 3:
+		val1 = uint64(r.buf[offset1]) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+1:offset1+3]))<<8
+	case 4:
+		val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1 : offset1+4]))
+	case 5:
+		val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(r.buf[offset1+4])<<32
+	case 6:
+		val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32
+	case 7:
+		val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32 | uint64(r.buf[offset1+6])<<48
+	case 8:
+		val1 = binary.LittleEndian.Uint64(r.buf[offset1 : offset1+8])
 	}
 
 	r.byteIndex += totalBytes
@@ -628,7 +608,6 @@ func (w *BytesWriter) writeUvar64x2Scalar(values [2]uint64) {
 	offset0 := startIdx + 1
 	offset1 := offset0 + int(len0)
 
-	// Write values using PutUint64 only when length > 0
 	binary.LittleEndian.PutUint64(w.buf[offset0:], val0)
 	binary.LittleEndian.PutUint64(w.buf[offset1:], val1)
 
