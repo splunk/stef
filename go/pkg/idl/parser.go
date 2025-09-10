@@ -390,25 +390,26 @@ func (p *Parser) parseMultimapField(field *schema.MultimapField) error {
 }
 
 func (p *Parser) parsePackage() error {
-	if p.lexer.Token() == tPackage {
-		p.lexer.Next() // skip "package"
-
-		// Package name is a sequence of identifiers separated by dots.
-		packageComponents := []string{}
-		for {
-			if p.lexer.Token() != tIdent {
-				return p.error("identifier expected")
-			}
-			packageComponents = append(packageComponents, p.lexer.Ident())
-			p.lexer.Next()
-
-			if p.lexer.Token() != tDot {
-				break
-			}
-			p.lexer.Next()
-		}
-		p.schema.PackageName = packageComponents
+	if err := p.eat(tPackage); err != nil {
+		return err
 	}
+
+	// Package name is a sequence of identifiers separated by dots.
+	packageComponents := []string{}
+	for {
+		if p.lexer.Token() != tIdent {
+			return p.error("identifier expected")
+		}
+		packageComponents = append(packageComponents, p.lexer.Ident())
+		p.lexer.Next()
+
+		if p.lexer.Token() != tDot {
+			break
+		}
+		p.lexer.Next()
+	}
+	p.schema.PackageName = packageComponents
+
 	return nil
 }
 

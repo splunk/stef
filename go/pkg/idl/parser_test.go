@@ -61,6 +61,10 @@ func TestParserErrors(t *testing.T) {
 			input: "package abc enum Enum { Value = }",
 			err:   "test.stef:1:33: enum field value expected",
 		},
+		{
+			input: "struct Root root {}",
+			err:   "test.stef:1:2: expected package but got struct",
+		},
 	}
 
 	for _, test := range tests {

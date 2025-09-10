@@ -1,3 +1,5 @@
+package test
+
 struct TestStruct root {
     F1 uint64
     F2 string
