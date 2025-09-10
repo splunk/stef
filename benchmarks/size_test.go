@@ -230,13 +230,17 @@ func TestMetricsSize(t *testing.T) {
 			)
 
 			if wantChart {
-				chart.Record(nil, encoding.LongName(), float64(zstdedSize))
+				chart.Record(
+					nil, encoding.LongName(),
+					"Compressed size in bytes (zstd)",
+					float64(zstdedSize),
+				)
 			}
 		}
 
 		if wantChart {
 			chart.EndChart(
-				"Bytes", "Compressed size in bytes (zstd)",
+				"Bytes",
 				charts.WithColorsOpts(opts.Colors{"#92C5F9"}),
 			)
 		}
@@ -306,11 +310,14 @@ func TestMetricsMultipart(t *testing.T) {
 					firstSize = curSize
 				}
 
-				chart.Record(nil, encoding.LongName(), float64(curSize))
+				chart.Record(
+					nil, encoding.LongName(), "Size in bytes, compression="+compression,
+					float64(curSize),
+				)
 			}
 
 			chart.EndChart(
-				"Bytes", "Size in bytes, compression="+compression,
+				"Bytes",
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
 		}

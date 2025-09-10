@@ -11,8 +11,9 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
-	"github.com/splunk/stef/go/pkg"
 	"github.com/stretchr/testify/require"
+
+	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/examples/jsonl/internal/jsonpb"
 	"github.com/splunk/stef/examples/jsonl/internal/jsonstef"
@@ -23,8 +24,8 @@ func TestConvertToJsonValue(t *testing.T) {
 	files, err := ioutil.ReadDir(dir)
 	require.NoError(t, err, "failed to read testdata dir")
 	fmt.Printf(
-		"%-30s | %-6s | %-14s | %-16s\n",
-		"File --> Size in bytes", "JSON", "Protobuf", "STEF",
+		"%-30s | %-6s | %-14s | %-14s | %-6s | %-6s | %-6s\n",
+		"File --> Size in bytes", "JSON", "Protobuf", "STEF", "JSONZ", "ProtoZ", "stefz",
 	)
 
 	enc, err := zstd.NewWriter(nil)
@@ -46,6 +47,12 @@ func TestConvertToJsonValue(t *testing.T) {
 		require.NoErrorf(t, err, "failed to create writer for %s", path)
 		protoData, err := convertJSONLToProto(jsonData)
 		require.NoErrorf(t, err, "failed to convert to proto for %s", path)
+
+		// Compress with zstd
+		jsonCompressed := enc.EncodeAll(jsonData, nil)
+		protoCompressed := enc.EncodeAll(protoData, nil)
+		stefCompressed := enc.EncodeAll(stefData, nil)
+
 		var improvementProto, improvementStef float64
 		if len(protoData) > 0 {
 			improvementProto = float64(len(protoData)) / float64(len(jsonData))
@@ -54,9 +61,10 @@ func TestConvertToJsonValue(t *testing.T) {
 			improvementStef = float64(len(stefData)) / float64(len(jsonData))
 		}
 		fmt.Printf(
-			"%-30s | %6d | %6d (%4.2fx) | %6d (%4.2fx)\n",
+			"%-30s | %6d | %6d (%4.2fx) | %6d (%4.2fx) | %6d | %6d | %6d\n",
 			file.Name()[:len(file.Name())-len(filepath.Ext(file.Name()))], len(jsonData), len(protoData),
-			improvementProto, len(stefData), improvementStef,
+			improvementProto, len(stefData), improvementStef, len(jsonCompressed), len(protoCompressed),
+			len(stefCompressed),
 		)
 	}
 }
