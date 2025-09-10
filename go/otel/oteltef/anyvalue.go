@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand/v2"
 	"strings"
 	"unsafe"
@@ -426,10 +427,13 @@ func (s *AnyValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // AnyValueEncoder implements encoding of AnyValue
 type AnyValueEncoder struct {
-	buf        pkg.BitsWriter
-	limiter    *pkg.SizeLimiter
-	prevType   AnyValueType
+	buf     pkg.BitsWriter
+	limiter *pkg.SizeLimiter
+
+	// fieldCount is the number of fields, i.e. the number of types in this oneof.
 	fieldCount uint
+	// Number of bits needed to encode the type (including None type).
+	typeBitCount uint
 
 	// Field encoders.
 
@@ -465,6 +469,7 @@ func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %v", "AnyValue", err)
 	}
+	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
 	// Init encoder for String field.
 	if e.fieldCount <= 0 {
@@ -554,7 +559,6 @@ func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 }
 
 func (e *AnyValueEncoder) Reset() {
-	e.prevType = 0
 
 	if e.fieldCount <= 0 {
 		return // String and all subsequent fields are skipped.
@@ -602,13 +606,10 @@ func (e *AnyValueEncoder) Encode(val *AnyValue) {
 		typ = AnyValueTypeNone
 	}
 
-	// Compute type delta. 0 means the type is the same as the last time.
-	typDelta := int(typ) - int(e.prevType)
-	e.prevType = typ
-	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
+	e.buf.WriteBits(uint64(typ), e.typeBitCount)
 
 	// Account written bits in the limiter.
-	e.limiter.AddFrameBits(bitCount)
+	e.limiter.AddFrameBits(e.typeBitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -706,9 +707,11 @@ type AnyValueDecoder struct {
 	column     *pkg.ReadableColumn
 	lastValPtr *AnyValue
 	lastVal    AnyValue
-	fieldCount uint
 
-	prevType AnyValueType
+	// fieldCount is the number of fields, i.e. the number of types in this oneof.
+	fieldCount uint
+	// Number of bits needed to encode the type (including None type).
+	typeBitCount uint
 
 	// Field decoders.
 
@@ -752,6 +755,8 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
+
+	d.typeBitCount = uint(bits.Len64(uint64(d.fieldCount) + 1))
 	if d.fieldCount <= 0 {
 		return nil // String and subsequent fields are skipped.
 	}
@@ -871,7 +876,6 @@ func (d *AnyValueDecoder) Continue() {
 }
 
 func (d *AnyValueDecoder) Reset() {
-	d.prevType = 0
 
 	if d.fieldCount <= 0 {
 		return // String and all subsequent fields are skipped.
@@ -912,21 +916,20 @@ func (d *AnyValueDecoder) Reset() {
 }
 
 func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
-	// Read Type delta
-	typeDelta := d.buf.ReadVarintCompact()
-
-	// Calculate and validate the new Type
-	typ := int(d.prevType) + int(typeDelta)
-	if typ < 0 || typ >= int(AnyValueTypeCount) {
+	// Read the type and validate it
+	typ := uint(d.buf.ReadBits(d.typeBitCount))
+	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
 
 	dst := dstPtr
 	if dst.typ != AnyValueType(typ) {
 		dst.typ = AnyValueType(typ)
+		// The type changed, we need to reset the contained value so that
+		// it does not contain carry-over data form a previous record that
+		// was of this same type.
 		dst.resetContained()
 	}
-	d.prevType = AnyValueType(dst.typ)
 
 	// Decode selected field
 	switch dst.typ {
