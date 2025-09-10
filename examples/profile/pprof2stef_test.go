@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	pprof "github.com/google/pprof/profile"
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
 	stefprofile "github.com/splunk/stef/examples/profile/internal/profile"
@@ -36,8 +37,13 @@ func TestConvertToStef(t *testing.T) {
 		}
 	}
 
-	fmt.Println("Uncompressed bytes sizes")
-	fmt.Printf("%-20s | %-6s | %-6s\n", "File", "pprof", "stef")
+	fmt.Println("Uncompressed and zstd-compressed bytes sizes")
+	fmt.Printf("%-20s | %-6s | %-6s | %-6s | %-6s\n", "File", "pprof", "stef", "pprofz", "stefz")
+
+	// Create zstd encoder
+	encoder, err := zstd.NewWriter(nil)
+	require.NoError(t, err)
+	defer encoder.Close()
 
 	// Test each .prof file
 	for _, fileName := range profFiles {
@@ -60,9 +66,18 @@ func TestConvertToStef(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 		err = convertPprofToStef(prof, buf)
 		require.NoError(t, err)
+		stefData := buf.Bytes()
 
-		improv := float64(buf.Len()) / float64(len(pprofData))
-		fmt.Printf("%-20s | %6d | %6d (%5.3fx)\n", fileName, len(pprofData), buf.Len(), improv)
+		// Compress both formats with zstd
+		pprofCompressed := encoder.EncodeAll(pprofData, nil)
+		stefCompressed := encoder.EncodeAll(stefData, nil)
+
+		improv := float64(len(stefData)) / float64(len(pprofData))
+		compImprov := float64(len(stefCompressed)) / float64(len(pprofCompressed))
+		fmt.Printf(
+			"%-20s | %6d | %6d | %6d | %6d (%5.3fx/%5.3fx)\n",
+			fileName, len(pprofData), len(stefData), len(pprofCompressed), len(stefCompressed), improv, compImprov,
+		)
 	}
 }
 

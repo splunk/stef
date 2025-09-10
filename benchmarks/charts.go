@@ -17,17 +17,17 @@ type BarOutput struct {
 	t       testing.TB
 	title   string
 	file    *os.File
-	results map[string]float64
+	results map[string]map[string]float64
 	enabled bool
 }
 
 func (c *BarOutput) BeginChart(title string, t testing.TB) {
 	c.t = t
 	c.title = title
-	c.results = map[string]float64{}
+	c.results = map[string]map[string]float64{}
 }
 
-func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...charts.GlobalOpts) {
+func (c *BarOutput) EndChart(unit string, globalopts ...charts.GlobalOpts) {
 	if !c.enabled {
 		return
 	}
@@ -38,10 +38,14 @@ func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...chart
 	}
 	slices.Sort(xAxis)
 
-	var items []opts.BarData
+	itemsBySeries := map[string][]opts.BarData{}
 	for _, label := range xAxis {
-		value := c.results[label]
-		items = append(items, opts.BarData{Value: value, Label: &opts.Label{Show: opts.Bool(true)}})
+		values := c.results[label]
+		for series, value := range values {
+			itemsBySeries[series] = append(
+				itemsBySeries[series], opts.BarData{Value: value, Label: &opts.Label{Show: opts.Bool(true)}},
+			)
+		}
 	}
 
 	// create a new bar instance
@@ -64,8 +68,20 @@ func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...chart
 	bar.SetGlobalOptions(globalopts...)
 
 	// Put data into instance
+	bars := bar.SetXAxis(xAxis)
 
-	bar.SetXAxis(xAxis).AddSeries(seriesName, items)
+	var seriesNames []string
+	for seriesName := range itemsBySeries {
+		seriesNames = append(seriesNames, seriesName)
+	}
+	slices.Sort(seriesNames)
+	for _, seriesName := range seriesNames {
+		bars = bars.AddSeries(
+			seriesName,
+			itemsBySeries[seriesName],
+			charts.WithBarChartOpts(opts.BarChart{Stack: "stack"}),
+		)
+	}
 
 	chartSnippet := bar.RenderSnippet()
 
@@ -90,11 +106,21 @@ func (c *BarOutput) EndChart(unit string, seriesName string, globalopts ...chart
 	require.NoError(c.t, err)
 }
 
-func (c *BarOutput) Record(b *testing.B, encoding string, val float64) {
+func (c *BarOutput) Record(b *testing.B, encoding string, series string, val float64) {
 	if b != nil {
 		b.ReportMetric(val, "ns/point")
 	}
-	c.results[encoding] = math.Round(val)
+	c.results[encoding] = map[string]float64{series: math.Round(val)}
+}
+
+func (c *BarOutput) RecordStacked(b *testing.B, encoding string, series string, val float64) {
+	if b != nil {
+		b.ReportMetric(val, "ns/point")
+	}
+	if c.results[encoding] == nil {
+		c.results[encoding] = map[string]float64{}
+	}
+	c.results[encoding][series] = math.Round(val)
 }
 
 func (c *BarOutput) Begin() {
