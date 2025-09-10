@@ -296,8 +296,7 @@ func (w *BytesWriter) writeUvar64x2_AVX2(values [2]uint64) {
 	// Pack control byte (4 bits per value)
 	controlByte := code0 | code1<<4
 
-	// Get total size needed using lookup table instead of calculating
-	totalSize := uvar64x2WriteLenByControl128[controlByte]
+	totalSize := 1 + int(code0+code1)
 
 	// Calculate maximum space needed for SIMD operations (worst case: both 8-byte values + control byte)
 	maxSpaceNeeded := 1 + 8 + 8

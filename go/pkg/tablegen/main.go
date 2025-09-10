@@ -897,24 +897,4 @@ func generateUvar64x2WriteLUT() {
 
 	fmt.Fprintln(file, "}")
 	fmt.Fprintln(file, "")
-	fmt.Fprintln(file, "// uvar64x2WriteLenByControl128 contains the total byte length for each control byte")
-	fmt.Fprintln(file, "var uvar64x2WriteLenByControl128 = [256]int{")
-
-	for controlByte := 0; controlByte < 256; controlByte++ {
-		code0 := controlByte & 0xF        // bits 0-3
-		code1 := (controlByte >> 4) & 0xF // bits 4-7
-
-		lengths := [2]int{
-			int(code0),
-			int(code1),
-		}
-
-		totalLength := 1 + lengths[0] + lengths[1] // +1 for control byte
-		if controlByte%16 == 0 {
-			fmt.Fprintf(file, "\n\t")
-		}
-		fmt.Fprintf(file, "%d, ", totalLength)
-	}
-
-	fmt.Fprintln(file, "\n}")
 }
