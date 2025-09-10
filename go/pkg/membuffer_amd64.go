@@ -3,7 +3,6 @@
 package pkg
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math/bits"
 	"simd"
@@ -291,15 +290,14 @@ func (w *BytesWriter) writeUvar64x2_AVX2(values [2]uint64) {
 	val0, val1 := values[0], values[1]
 
 	// Get length codes using lookup table (branchless)
-	var code0, code1 byte
-	code0 = lengthLookup[bits.LeadingZeros64(val0)]
-	code1 = lengthLookup[bits.LeadingZeros64(val1)]
+	code0 := lengthLookup[bits.LeadingZeros64(val0)]
+	code1 := lengthLookup[bits.LeadingZeros64(val1)]
 
 	// Pack control byte (4 bits per value)
 	controlByte := code0 | code1<<4
 
-	// Calculate total size needed
-	totalSize := 1 + int(code0) + int(code1)
+	// Get total size needed using lookup table instead of calculating
+	totalSize := uvar64x2WriteLenByControl128[controlByte]
 
 	// Calculate maximum space needed for SIMD operations (worst case: both 8-byte values + control byte)
 	maxSpaceNeeded := 1 + 8 + 8
@@ -311,34 +309,18 @@ func (w *BytesWriter) writeUvar64x2_AVX2(values [2]uint64) {
 	// Write control byte
 	w.buf[startIdx] = controlByte
 
-	// Use SIMD to pack the values efficiently
-	// Load both values into a 128-bit register
+	// Load the packed values into SIMD register
 	packedValues := simd.LoadUint8x16((*[16]uint8)(unsafe.Pointer(&values[0])))
 
-	// For now, we'll use a simple approach and extract bytes manually
-	// A full SIMD implementation would use lookup tables like the x4 version
-	offset0 := startIdx + 1
-	offset1 := offset0 + int(code0)
+	// Load the write permutation pattern for this control byte
+	// This determines which bytes to extract from our packed 16-byte values
+	shuffleVec := simd.LoadUint8x16(&uvar64x2WritePermute128[controlByte])
 
-	// Write values using PutUint64 only when length > 0
-	if code0 > 0 {
-		// Extract and store first value
-		var temp [2]uint64
-		packedValues.Store((*[16]uint8)(unsafe.Pointer(&temp)))
-		switch code0 {
-		case 1, 2, 3, 4, 5, 6, 7, 8:
-			binary.LittleEndian.PutUint64(w.buf[offset0:], temp[0])
-		}
-	}
-	if code1 > 0 {
-		// Extract and store second value
-		var temp [2]uint64
-		packedValues.Store((*[16]uint8)(unsafe.Pointer(&temp)))
-		switch code1 {
-		case 1, 2, 3, 4, 5, 6, 7, 8:
-			binary.LittleEndian.PutUint64(w.buf[offset1:], temp[1])
-		}
-	}
+	// Use SIMD permute to extract only the needed bytes in the correct order
+	extractedBytes := packedValues.Permute(shuffleVec)
+
+	// Store the extracted bytes to the output buffer
+	extractedBytes.Store((*[16]uint8)(unsafe.Pointer(&w.buf[startIdx+1])))
 
 	// Resize buffer to actual needed size
 	w.buf = w.buf[:startIdx+totalSize]

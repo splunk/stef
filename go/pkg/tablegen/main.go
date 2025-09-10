@@ -51,6 +51,7 @@ func main() {
 	generateUvar32x4ReadLUT()
 
 	generateUvar32x4WriteLUT()
+	generateUvar64x2WriteLUT()
 }
 
 func generateBitstreamLUT() {
@@ -503,7 +504,7 @@ func generateUvar64x2() {
 			int(code1),
 		}
 
-		// Calculate offsets for each value in the 16-byte input
+		// Calculate offsets for each value in the 16-byte input (sequential packed format)
 		offsets := [2]int{
 			0,          // value0 starts at byte 0
 			lengths[0], // value1 starts after value0
@@ -805,6 +806,110 @@ func generateUvar32x4WriteLUT() {
 		}
 
 		totalLength := 1 + lengths[0] + lengths[1] + lengths[2] + lengths[3] // +1 for control byte
+		if controlByte%16 == 0 {
+			fmt.Fprintf(file, "\n\t")
+		}
+		fmt.Fprintf(file, "%d, ", totalLength)
+	}
+
+	fmt.Fprintln(file, "\n}")
+}
+
+// generateUvar64x2WriteLUT generates a lookup table for SIMD permutation operations
+// for packing 2 variable-length uint64 values
+func generateUvar64x2WriteLUT() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	filePath := path.Join(dir, "uvar64x2_lut.go")
+	fmt.Printf("Writing file %s...\n", filePath)
+
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	fmt.Fprintln(file, "")
+	fmt.Fprintln(
+		file,
+		"// uvar64x2WritePermute128 contains SIMD permutation indices for packing 2 variable-length uint64 values",
+	)
+	fmt.Fprintln(file, "// The table maps control byte values (0-255) to 16-byte permutation patterns")
+	fmt.Fprintln(
+		file, "// Each entry describes how to extract bytes from fixed 8-byte slots and pack them sequentially",
+	)
+	fmt.Fprintln(
+		file, "// Input layout: [value0:8bytes][value1:8bytes] (16 bytes total)",
+	)
+	fmt.Fprintln(file, "var uvar64x2WritePermute128 = [256][16]byte{")
+
+	// Generate all 256 possible control byte combinations
+	for controlByte := 0; controlByte < 256; controlByte++ {
+		// Extract 4-bit length codes for each of the 2 values
+		code0 := controlByte & 0xF        // bits 0-3 (first value byte length 0-8)
+		code1 := (controlByte >> 4) & 0xF // bits 4-7 (second value byte length 0-8)
+
+		// Convert codes to byte lengths: 0->0, 1->1, 2->2, ..., 8->8
+		lengths := [2]int{
+			int(code0),
+			int(code1),
+		}
+
+		// Create permutation pattern for 16-byte output
+		// We'll pack the needed bytes sequentially at the beginning
+		var permutation [16]byte
+
+		// Initialize all indices to 0x80 (top bit set = zero write)
+		for i := range permutation {
+			permutation[i] = 0x80
+		}
+
+		// Pack bytes sequentially from the 2 fixed input slots
+		outputIdx := 0
+		for valueIdx := 0; valueIdx < 2; valueIdx++ {
+			inputOffset := valueIdx * 8 // Each input value occupies 8 bytes
+			length := lengths[valueIdx]
+
+			// Extract the needed bytes from this value
+			for byteIdx := 0; byteIdx < length; byteIdx++ {
+				if outputIdx < 16 {
+					permutation[outputIdx] = byte(inputOffset + byteIdx)
+					outputIdx++
+				}
+			}
+		}
+
+		// Output the permutation table entry
+		fmt.Fprintf(file, "\t{")
+		for i, idx := range permutation {
+			if i > 0 {
+				fmt.Fprintf(file, ", ")
+			}
+			fmt.Fprintf(file, "%d", idx)
+		}
+		fmt.Fprintf(
+			file, "}, // controlByte=0x%02X codes=[%d,%d] lengths=[%d,%d]\n",
+			controlByte, code0, code1, lengths[0], lengths[1],
+		)
+	}
+
+	fmt.Fprintln(file, "}")
+	fmt.Fprintln(file, "")
+	fmt.Fprintln(file, "// uvar64x2WriteLenByControl128 contains the total byte length for each control byte")
+	fmt.Fprintln(file, "var uvar64x2WriteLenByControl128 = [256]int{")
+
+	for controlByte := 0; controlByte < 256; controlByte++ {
+		code0 := controlByte & 0xF        // bits 0-3
+		code1 := (controlByte >> 4) & 0xF // bits 4-7
+
+		lengths := [2]int{
+			int(code0),
+			int(code1),
+		}
+
+		totalLength := 1 + lengths[0] + lengths[1] // +1 for control byte
 		if controlByte%16 == 0 {
 			fmt.Fprintf(file, "\n\t")
 		}
