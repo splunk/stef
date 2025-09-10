@@ -17,6 +17,7 @@ import (
 
 	"github.com/splunk/stef/examples/jsonl/internal/jsonpb"
 	"github.com/splunk/stef/examples/jsonl/internal/jsonstef"
+	"github.com/splunk/stef/go/pkg"
 )
 
 func TestConvertToJsonValue(t *testing.T) {
