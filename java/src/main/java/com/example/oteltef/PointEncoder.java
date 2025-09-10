@@ -51,13 +51,13 @@ class PointEncoder {
                 return; // StartTimestamp and subsequent fields are skipped.
             }
             startTimestampEncoder = new Uint64Encoder();
-            this.startTimestampEncoder.init(this.limiter, columns.addSubColumn());
+            startTimestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Timestamp field.
             if (this.fieldCount <= 1) {
                 return; // Timestamp and subsequent fields are skipped.
             }
             timestampEncoder = new Uint64Encoder();
-            this.timestampEncoder.init(this.limiter, columns.addSubColumn());
+            timestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
             if (this.fieldCount <= 2) {
                 return; // Value and subsequent fields are skipped.

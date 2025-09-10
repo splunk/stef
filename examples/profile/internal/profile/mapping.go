@@ -621,9 +621,9 @@ type MappingEncoder struct {
 
 	fileOffsetEncoder encoders.Uint64Encoder
 
-	filenameEncoder encoders.StringEncoder
+	filenameEncoder encoders.StringDictEncoder
 
-	buildIdEncoder encoders.StringEncoder
+	buildIdEncoder encoders.StringDictEncoder
 
 	hasFunctionsEncoder encoders.BoolEncoder
 
@@ -1013,9 +1013,9 @@ type MappingDecoder struct {
 
 	fileOffsetDecoder encoders.Uint64Decoder
 
-	filenameDecoder encoders.StringDecoder
+	filenameDecoder encoders.StringDictDecoder
 
-	buildIdDecoder encoders.StringDecoder
+	buildIdDecoder encoders.StringDictDecoder
 
 	hasFunctionsDecoder encoders.BoolDecoder
 

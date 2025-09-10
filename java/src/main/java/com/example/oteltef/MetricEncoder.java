@@ -20,11 +20,11 @@ class MetricEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder nameEncoder;
+    private StringDictEncoder nameEncoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private StringEncoder descriptionEncoder;
+    private StringDictEncoder descriptionEncoder;
     private boolean isDescriptionRecursive = false; // Indicates Description field's type is recursive.
-    private StringEncoder unitEncoder;
+    private StringDictEncoder unitEncoder;
     private boolean isUnitRecursive = false; // Indicates Unit field's type is recursive.
     private Uint64Encoder type_Encoder;
     private boolean isTypeRecursive = false; // Indicates Type field's type is recursive.
@@ -61,26 +61,26 @@ class MetricEncoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameEncoder = new StringEncoder();
-            this.nameEncoder.init(state.MetricName, this.limiter, columns.addSubColumn());
+            nameEncoder = new StringDictEncoder();
+            nameEncoder.init(state.MetricName, limiter, columns.addSubColumn());
             // Init encoder for Description field.
             if (this.fieldCount <= 1) {
                 return; // Description and subsequent fields are skipped.
             }
-            descriptionEncoder = new StringEncoder();
-            this.descriptionEncoder.init(state.MetricDescription, this.limiter, columns.addSubColumn());
+            descriptionEncoder = new StringDictEncoder();
+            descriptionEncoder.init(state.MetricDescription, limiter, columns.addSubColumn());
             // Init encoder for Unit field.
             if (this.fieldCount <= 2) {
                 return; // Unit and subsequent fields are skipped.
             }
-            unitEncoder = new StringEncoder();
-            this.unitEncoder.init(state.MetricUnit, this.limiter, columns.addSubColumn());
+            unitEncoder = new StringDictEncoder();
+            unitEncoder.init(state.MetricUnit, limiter, columns.addSubColumn());
             // Init encoder for Type field.
             if (this.fieldCount <= 3) {
                 return; // Type and subsequent fields are skipped.
             }
             type_Encoder = new Uint64Encoder();
-            this.type_Encoder.init(this.limiter, columns.addSubColumn());
+            type_Encoder.init(limiter, columns.addSubColumn());
             // Init encoder for Metadata field.
             if (this.fieldCount <= 4) {
                 return; // Metadata and subsequent fields are skipped.
@@ -110,13 +110,13 @@ class MetricEncoder {
                 return; // AggregationTemporality and subsequent fields are skipped.
             }
             aggregationTemporalityEncoder = new Uint64Encoder();
-            this.aggregationTemporalityEncoder.init(this.limiter, columns.addSubColumn());
+            aggregationTemporalityEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Monotonic field.
             if (this.fieldCount <= 7) {
                 return; // Monotonic and subsequent fields are skipped.
             }
             monotonicEncoder = new BoolEncoder();
-            this.monotonicEncoder.init(this.limiter, columns.addSubColumn());
+            monotonicEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.MetricEncoder = null;
         }

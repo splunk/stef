@@ -29,7 +29,7 @@ class KeyValueListDecoder {
         state.KeyValueListDecoder = this;
         try {
             keyDecoder = new StringDecoder();
-            keyDecoder.init(null, columns.addSubColumn());
+            keyDecoder.init(columns.addSubColumn());
             if (state.AnyValueDecoder != null) {
                 // Recursion detected, use the existing encoder.
                 valueDecoder = state.AnyValueDecoder;

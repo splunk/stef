@@ -15,11 +15,11 @@ class MetricDecoder {
     private int fieldCount;
 
     
-    private StringDecoder nameDecoder;
+    private StringDictDecoder nameDecoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private StringDecoder descriptionDecoder;
+    private StringDictDecoder descriptionDecoder;
     private boolean isDescriptionRecursive = false; // Indicates Description field's type is recursive.
-    private StringDecoder unitDecoder;
+    private StringDictDecoder unitDecoder;
     private boolean isUnitRecursive = false; // Indicates Unit field's type is recursive.
     private Uint64Decoder type_Decoder;
     private boolean isTypeRecursive = false; // Indicates Type field's type is recursive.
@@ -52,17 +52,17 @@ class MetricDecoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameDecoder = new StringDecoder();
+            nameDecoder = new StringDictDecoder();
             nameDecoder.init(state.MetricName, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Description and subsequent fields are skipped.
             }
-            descriptionDecoder = new StringDecoder();
+            descriptionDecoder = new StringDictDecoder();
             descriptionDecoder.init(state.MetricDescription, columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Unit and subsequent fields are skipped.
             }
-            unitDecoder = new StringDecoder();
+            unitDecoder = new StringDictDecoder();
             unitDecoder.init(state.MetricUnit, columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Type and subsequent fields are skipped.

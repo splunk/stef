@@ -297,7 +297,7 @@ func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	if e.fieldCount <= 0 {
 		return nil // Message and all subsequent fields are skipped.
 	}
-	err = e.messageEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.messageEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -429,7 +429,7 @@ func (d *SpanStatusDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if d.fieldCount <= 0 {
 		return nil // Message and subsequent fields are skipped.
 	}
-	err = d.messageDecoder.Init(nil, columns.AddSubColumn())
+	err = d.messageDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

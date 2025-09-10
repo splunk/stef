@@ -5,7 +5,12 @@ import net.stef.SizeLimiter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class BytesEncoderDict {
+/**
+ * A dictionary for encoding byte arrays to integer IDs.
+ * Uses a HashMap to store the mapping from byte arrays to integer IDs.
+ * TODO: must supply custom hashCode/equals for byte[] key of HashMap.
+ */
+public class BytesDictEncoderDict {
     private Map<byte[], Integer> m;
 
     public void init(SizeLimiter limiter) {

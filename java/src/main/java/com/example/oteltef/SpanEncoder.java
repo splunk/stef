@@ -30,7 +30,7 @@ class SpanEncoder {
     private boolean isParentSpanIDRecursive = false; // Indicates ParentSpanID field's type is recursive.
     private Uint64Encoder flagsEncoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
-    private StringEncoder nameEncoder;
+    private StringDictEncoder nameEncoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
     private Uint64Encoder kindEncoder;
     private boolean isKindRecursive = false; // Indicates Kind field's type is recursive.
@@ -71,55 +71,55 @@ class SpanEncoder {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDEncoder = new BytesEncoder();
-            this.traceIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            traceIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for SpanID field.
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDEncoder = new BytesEncoder();
-            this.spanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            spanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for TraceState field.
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
             traceStateEncoder = new StringEncoder();
-            this.traceStateEncoder.init(null, this.limiter, columns.addSubColumn());
+            traceStateEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for ParentSpanID field.
             if (this.fieldCount <= 3) {
                 return; // ParentSpanID and subsequent fields are skipped.
             }
             parentSpanIDEncoder = new BytesEncoder();
-            this.parentSpanIDEncoder.init(null, this.limiter, columns.addSubColumn());
+            parentSpanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Flags field.
             if (this.fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
             flagsEncoder = new Uint64Encoder();
-            this.flagsEncoder.init(this.limiter, columns.addSubColumn());
+            flagsEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Name field.
             if (this.fieldCount <= 5) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameEncoder = new StringEncoder();
-            this.nameEncoder.init(state.SpanName, this.limiter, columns.addSubColumn());
+            nameEncoder = new StringDictEncoder();
+            nameEncoder.init(state.SpanName, limiter, columns.addSubColumn());
             // Init encoder for Kind field.
             if (this.fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
             }
             kindEncoder = new Uint64Encoder();
-            this.kindEncoder.init(this.limiter, columns.addSubColumn());
+            kindEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for StartTimeUnixNano field.
             if (this.fieldCount <= 7) {
                 return; // StartTimeUnixNano and subsequent fields are skipped.
             }
             startTimeUnixNanoEncoder = new Uint64Encoder();
-            this.startTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+            startTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for EndTimeUnixNano field.
             if (this.fieldCount <= 8) {
                 return; // EndTimeUnixNano and subsequent fields are skipped.
             }
             endTimeUnixNanoEncoder = new Uint64Encoder();
-            this.endTimeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+            endTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 9) {
                 return; // Attributes and subsequent fields are skipped.
@@ -137,7 +137,7 @@ class SpanEncoder {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+            droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Events field.
             if (this.fieldCount <= 11) {
                 return; // Events and subsequent fields are skipped.

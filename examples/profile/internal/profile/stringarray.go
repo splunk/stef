@@ -236,7 +236,7 @@ func (a *StringArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 type StringArrayEncoder struct {
 	buf         pkg.BitsWriter
 	limiter     *pkg.SizeLimiter
-	elemEncoder *encoders.StringEncoder
+	elemEncoder *encoders.StringDictEncoder
 	isRecursive bool
 	state       *WriterState
 }
@@ -245,7 +245,7 @@ func (e *StringArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	e.state = state
 	e.limiter = &state.limiter
 
-	e.elemEncoder = new(encoders.StringEncoder)
+	e.elemEncoder = new(encoders.StringDictEncoder)
 	if err := e.elemEncoder.Init(&e.state.Comment, e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (e *StringArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type StringArrayDecoder struct {
 	buf         pkg.BitsReader
 	column      *pkg.ReadableColumn
-	elemDecoder *encoders.StringDecoder
+	elemDecoder *encoders.StringDictDecoder
 	isRecursive bool
 	allocators  *Allocators
 }
@@ -294,7 +294,7 @@ type StringArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *StringArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.elemDecoder = new(encoders.StringDecoder)
+	d.elemDecoder = new(encoders.StringDictDecoder)
 	err := d.elemDecoder.Init(&state.Comment, columns.AddSubColumn())
 	if err != nil {
 		return err

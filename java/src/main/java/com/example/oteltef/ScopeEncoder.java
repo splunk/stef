@@ -20,11 +20,11 @@ class ScopeEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder nameEncoder;
+    private StringDictEncoder nameEncoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private StringEncoder versionEncoder;
+    private StringDictEncoder versionEncoder;
     private boolean isVersionRecursive = false; // Indicates Version field's type is recursive.
-    private StringEncoder schemaURLEncoder;
+    private StringDictEncoder schemaURLEncoder;
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesEncoder attributesEncoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
@@ -55,20 +55,20 @@ class ScopeEncoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameEncoder = new StringEncoder();
-            this.nameEncoder.init(state.ScopeName, this.limiter, columns.addSubColumn());
+            nameEncoder = new StringDictEncoder();
+            nameEncoder.init(state.ScopeName, limiter, columns.addSubColumn());
             // Init encoder for Version field.
             if (this.fieldCount <= 1) {
                 return; // Version and subsequent fields are skipped.
             }
-            versionEncoder = new StringEncoder();
-            this.versionEncoder.init(state.ScopeVersion, this.limiter, columns.addSubColumn());
+            versionEncoder = new StringDictEncoder();
+            versionEncoder.init(state.ScopeVersion, limiter, columns.addSubColumn());
             // Init encoder for SchemaURL field.
             if (this.fieldCount <= 2) {
                 return; // SchemaURL and subsequent fields are skipped.
             }
-            schemaURLEncoder = new StringEncoder();
-            this.schemaURLEncoder.init(state.SchemaURL, this.limiter, columns.addSubColumn());
+            schemaURLEncoder = new StringDictEncoder();
+            schemaURLEncoder.init(state.SchemaURL, limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 3) {
                 return; // Attributes and subsequent fields are skipped.
@@ -86,7 +86,7 @@ class ScopeEncoder {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+            droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.ScopeEncoder = null;
         }

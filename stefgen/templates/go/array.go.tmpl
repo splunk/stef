@@ -395,8 +395,6 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 	d.elemDecoder = new({{.ElemType.EncoderType}}Decoder)
 {{- if .ElemType.DictName}}
 	err := d.elemDecoder.Init(&state.{{.ElemType.DictName}}, columns.AddSubColumn())
-{{- else if .ElemType.IsDictPossible}}
-	err := d.elemDecoder.Init(nil, columns.AddSubColumn())
 {{- else}}
 	err := d.elemDecoder.Init(columns.AddSubColumn())
 {{- end}}

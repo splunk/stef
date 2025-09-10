@@ -49,13 +49,13 @@ class SummaryValueEncoder {
                 return; // Count and subsequent fields are skipped.
             }
             countEncoder = new Uint64Encoder();
-            this.countEncoder.init(this.limiter, columns.addSubColumn());
+            countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
             sumEncoder = new Float64Encoder();
-            this.sumEncoder.init(this.limiter, columns.addSubColumn());
+            sumEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for QuantileValues field.
             if (this.fieldCount <= 2) {
                 return; // QuantileValues and subsequent fields are skipped.

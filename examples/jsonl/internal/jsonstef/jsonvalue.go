@@ -437,7 +437,7 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 		// String and all subsequent fields are skipped.
 		return nil
 	}
-	err = e.stringEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.stringEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -661,7 +661,7 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	if d.fieldCount <= 2 {
 		return nil // String and subsequent fields are skipped.
 	}
-	err = d.stringDecoder.Init(nil, columns.AddSubColumn())
+	err = d.stringDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

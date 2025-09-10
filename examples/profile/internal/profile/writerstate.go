@@ -14,18 +14,18 @@ type WriterState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	BuildID         encoders.StringEncoderDict
-	Comment         encoders.StringEncoderDict
-	Filename        encoders.StringEncoderDict
+	BuildID         encoders.StringDictEncoderDict
+	Comment         encoders.StringDictEncoderDict
+	Filename        encoders.StringDictEncoderDict
 	Function        FunctionEncoderDict
-	FunctionName    encoders.StringEncoderDict
-	LabelKey        encoders.StringEncoderDict
-	LabelValue      encoders.StringEncoderDict
+	FunctionName    encoders.StringDictEncoderDict
+	LabelKey        encoders.StringDictEncoderDict
+	LabelValue      encoders.StringDictEncoderDict
 	Location        LocationEncoderDict
 	Mapping         MappingEncoderDict
-	NumValueUnit    encoders.StringEncoderDict
+	NumValueUnit    encoders.StringDictEncoderDict
 	SampleValueType SampleValueTypeEncoderDict
-	SystemName      encoders.StringEncoderDict
+	SystemName      encoders.StringDictEncoderDict
 
 	// Encoders that are being Init-ed, to detect recursion.
 	FunctionEncoder         *FunctionEncoder

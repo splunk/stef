@@ -1,54 +1,25 @@
 package encoders
 
 import (
-	"errors"
-	"unsafe"
-
 	"github.com/splunk/stef/go/pkg"
 )
 
+// StringEncoder implements a basic string encoder.
+// It encodes strings by writing their length followed by their bytes.
+// For dictionary-based encoding, see StringDictEncoder.
 type StringEncoder struct {
 	buf     pkg.BytesWriter
-	dict    *StringEncoderDict
 	limiter *pkg.SizeLimiter
 }
 
-type StringEncoderDict struct {
-	m       map[string]int
-	limiter *pkg.SizeLimiter
-}
-
-func (e *StringEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	e.m = make(map[string]int)
-	e.limiter = limiter
-}
-
-func (e *StringEncoderDict) Reset() {
-	e.m = make(map[string]int)
-}
-
-func (e *StringEncoder) Init(dict *StringEncoderDict, limiter *pkg.SizeLimiter, columns *pkg.WriteColumnSet) error {
-	e.dict = dict
+func (e *StringEncoder) Init(limiter *pkg.SizeLimiter, columns *pkg.WriteColumnSet) error {
 	e.limiter = limiter
 	return nil
 }
 
 func (e *StringEncoder) Encode(val string) {
 	oldLen := len(e.buf.Bytes())
-	if e.dict != nil {
-		if refNum, exists := e.dict.m[val]; exists {
-			e.buf.WriteVarint(int64(-refNum - 1))
-			newLen := len(e.buf.Bytes())
-			e.dict.limiter.AddFrameBytes(uint(newLen - oldLen))
-			return
-		}
-	}
 	strLen := len(val)
-	if e.dict != nil && strLen > 1 {
-		refNum := len(e.dict.m)
-		e.dict.m[val] = refNum
-		e.dict.limiter.AddDictElemSize(uint(strLen) + uint(unsafe.Sizeof(val)))
-	}
 	e.buf.WriteVarint(int64(strLen))
 	e.buf.WriteStringBytes(val)
 	newLen := len(e.buf.Bytes())
@@ -66,27 +37,17 @@ func (e *StringEncoder) WriteTo(buf *pkg.BytesWriter) {
 func (e *StringEncoder) Reset() {
 }
 
+// StringDecoder implements a basic string decoder.
 type StringDecoder struct {
 	buf    pkg.BytesReader
 	column *pkg.ReadableColumn
-	dict   *StringDecoderDict
 }
-
-type StringDecoderDict struct {
-	dict []string
-}
-
-func (d *StringDecoderDict) Init() {
-}
-
-func (d *StringDecoderDict) Reset() {
-	d.dict = d.dict[:0]
-}
-
-var ErrInvalidRefNum = errors.New("invalid RefNum, out of dictionary range")
 
 func (d *StringDecoder) Continue() {
-	d.buf.Reset(d.column.Data())
+	// Borrow data from the column for exclusive ownership.
+	// This allows using ReadStringMapped to avoid copying
+	// during decoding.
+	d.buf.Reset(d.column.BorrowData())
 }
 
 func (d *StringDecoder) Reset() {}
@@ -99,28 +60,17 @@ func (d *StringDecoder) Decode(dst *string) error {
 
 	if varint >= 0 {
 		strLen := int(varint)
-		*dst, err = d.buf.ReadStringBytes(strLen)
+		// Use ReadStringMapped to avoid copying.
+		*dst, err = d.buf.ReadStringMapped(strLen)
 		if err != nil {
 			return err
 		}
-		if strLen > 1 && d.dict != nil {
-			d.dict.dict = append(d.dict.dict, *dst)
-		}
 		return nil
 	}
-	if d.dict == nil {
-		return ErrInvalidRefNum
-	}
-	refNum := int(-varint - 1)
-	if refNum >= len(d.dict.dict) {
-		return ErrInvalidRefNum
-	}
-	*dst = d.dict.dict[refNum]
-	return nil
+	return ErrInvalidRefNum
 }
 
-func (d *StringDecoder) Init(dict *StringDecoderDict, columns *pkg.ReadColumnSet) error {
-	d.dict = dict
+func (d *StringDecoder) Init(columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
 	return nil
 }

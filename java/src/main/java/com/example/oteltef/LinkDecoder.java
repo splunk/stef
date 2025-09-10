@@ -46,17 +46,17 @@ class LinkDecoder {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDDecoder = new BytesDecoder();
-            traceIDDecoder.init(null, columns.addSubColumn());
+            traceIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDDecoder = new BytesDecoder();
-            spanIDDecoder.init(null, columns.addSubColumn());
+            spanIDDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
             traceStateDecoder = new StringDecoder();
-            traceStateDecoder.init(null, columns.addSubColumn());
+            traceStateDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }

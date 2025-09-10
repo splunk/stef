@@ -5,32 +5,16 @@ import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 
 public class BytesEncoder {
-    private final BytesWriter buf = new BytesWriter(0);
-    private BytesEncoderDict dict;
-    private SizeLimiter limiter;
+    protected final BytesWriter buf = new BytesWriter(0);
+    protected SizeLimiter limiter;
 
-    public void init(BytesEncoderDict dict, SizeLimiter limiter, WriteColumnSet columns) {
-        this.dict = dict;
+    public void init(SizeLimiter limiter, WriteColumnSet columns) {
         this.limiter = limiter;
     }
 
     public void encode(byte[] val) {
         int oldLen = buf.size();
-        if (dict != null) {
-            Integer refNum = dict.get(val);
-            if (refNum != null) {
-                buf.writeVarint(-refNum - 1);
-                int newLen = buf.size();
-                limiter.addFrameBytes(newLen - oldLen);
-                return;
-            }
-        }
         int bytesLen = val==null ? 0 : val.length;
-        if (dict != null && bytesLen > 1) {
-            int refNum = dict.size();
-            dict.put(val, refNum);
-            limiter.addDictElemSize((long) bytesLen + 24);
-        }
         buf.writeVarint(bytesLen);
         if (val!=null) {
             buf.writeBytes(val, 0, bytesLen);

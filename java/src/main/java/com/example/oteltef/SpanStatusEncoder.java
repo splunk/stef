@@ -47,13 +47,13 @@ class SpanStatusEncoder {
                 return; // Message and subsequent fields are skipped.
             }
             messageEncoder = new StringEncoder();
-            this.messageEncoder.init(null, this.limiter, columns.addSubColumn());
+            messageEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Code field.
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
             codeEncoder = new Uint64Encoder();
-            this.codeEncoder.init(this.limiter, columns.addSubColumn());
+            codeEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.SpanStatusEncoder = null;
         }

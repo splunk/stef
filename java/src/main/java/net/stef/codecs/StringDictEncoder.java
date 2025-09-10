@@ -4,13 +4,11 @@ import net.stef.StringValue;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 
-public class StringEncoder {
-    private BytesEncoder encoder = new BytesEncoder();
+public class StringDictEncoder {
+    private BytesDictEncoder encoder = new BytesDictEncoder();
 
-    public StringEncoder() {}
-
-    public void init(SizeLimiter limiter, WriteColumnSet columns) {
-        encoder.init(limiter, columns);
+    public void init(BytesDictEncoderDict dict, SizeLimiter limiter, WriteColumnSet columns) {
+        encoder.init(dict, limiter, columns);
     }
 
     public void encode(StringValue value) {

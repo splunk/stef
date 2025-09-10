@@ -42,13 +42,7 @@ class {{ .StructName }}Decoder {
             }
             {{- if .Type.IsPrimitive}}
             {{.name}}Decoder = new {{.Type.EncoderType}}Decoder();
-            {{- if .Type.DictName}}
-            {{.name}}Decoder.init(state.{{.Type.DictName}}, columns.addSubColumn());
-            {{- else if .Type.IsDictPossible}}
-            {{.name}}Decoder.init(null, columns.addSubColumn());
-            {{- else}}
-            {{.name}}Decoder.init(columns.addSubColumn());
-            {{- end}}
+            {{.name}}Decoder.init({{if .Type.DictName}}state.{{.Type.DictName}}, {{end}}columns.addSubColumn());
             {{- else}}
             if (state.{{.Type.EncoderType}}Decoder != null) {
                 // Recursion detected, use the existing decoder.

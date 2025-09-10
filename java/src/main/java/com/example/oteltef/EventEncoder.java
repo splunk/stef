@@ -20,7 +20,7 @@ class EventEncoder {
     private boolean forceModifiedFields;
 
     
-    private StringEncoder nameEncoder;
+    private StringDictEncoder nameEncoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
     private Uint64Encoder timeUnixNanoEncoder;
     private boolean isTimeUnixNanoRecursive = false; // Indicates TimeUnixNano field's type is recursive.
@@ -50,14 +50,14 @@ class EventEncoder {
             if (this.fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
-            nameEncoder = new StringEncoder();
-            this.nameEncoder.init(state.SpanEventName, this.limiter, columns.addSubColumn());
+            nameEncoder = new StringDictEncoder();
+            nameEncoder.init(state.SpanEventName, limiter, columns.addSubColumn());
             // Init encoder for TimeUnixNano field.
             if (this.fieldCount <= 1) {
                 return; // TimeUnixNano and subsequent fields are skipped.
             }
             timeUnixNanoEncoder = new Uint64Encoder();
-            this.timeUnixNanoEncoder.init(this.limiter, columns.addSubColumn());
+            timeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 2) {
                 return; // Attributes and subsequent fields are skipped.
@@ -75,7 +75,7 @@ class EventEncoder {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
-            this.droppedAttributesCountEncoder.init(this.limiter, columns.addSubColumn());
+            droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.EventEncoder = null;
         }

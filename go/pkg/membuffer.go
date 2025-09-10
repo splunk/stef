@@ -3,6 +3,7 @@ package pkg
 import (
 	"encoding/binary"
 	"io"
+	"unsafe"
 )
 
 type BytesReader struct {
@@ -61,6 +62,22 @@ func (r *BytesReader) ReadBytesMapped(byteSize int) ([]byte, error) {
 	r.byteIndex += byteSize
 
 	return mappedBuf, nil
+}
+
+func (r *BytesReader) ReadStringMapped(byteSize int) (string, error) {
+	if byteSize == 0 {
+		return "", nil
+	}
+
+	if r.byteIndex+byteSize > len(r.buf) {
+		return "", io.EOF
+	}
+
+	// Map instead of copying.
+	str := unsafe.String(&r.buf[r.byteIndex], byteSize)
+	r.byteIndex += byteSize
+
+	return str, nil
 }
 
 func (r *BytesReader) MapBytesFromMemBuf(src *BytesReader, byteSize int) error {

@@ -264,7 +264,7 @@ type NumValueEncoder struct {
 
 	valEncoder encoders.Int64Encoder
 
-	unitEncoder encoders.StringEncoder
+	unitEncoder encoders.StringDictEncoder
 
 	allocators *Allocators
 
@@ -401,7 +401,7 @@ type NumValueDecoder struct {
 
 	valDecoder encoders.Int64Decoder
 
-	unitDecoder encoders.StringDecoder
+	unitDecoder encoders.StringDictDecoder
 
 	allocators *Allocators
 }

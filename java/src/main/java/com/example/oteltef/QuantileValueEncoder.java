@@ -47,13 +47,13 @@ class QuantileValueEncoder {
                 return; // Quantile and subsequent fields are skipped.
             }
             quantileEncoder = new Float64Encoder();
-            this.quantileEncoder.init(this.limiter, columns.addSubColumn());
+            quantileEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
             if (this.fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.
             }
             valueEncoder = new Float64Encoder();
-            this.valueEncoder.init(this.limiter, columns.addSubColumn());
+            valueEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.QuantileValueEncoder = null;
         }

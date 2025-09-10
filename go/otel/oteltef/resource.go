@@ -313,7 +313,7 @@ type ResourceEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	schemaURLEncoder encoders.StringEncoder
+	schemaURLEncoder encoders.StringDictEncoder
 
 	attributesEncoder     *AttributesEncoder
 	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
@@ -544,7 +544,7 @@ type ResourceDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	schemaURLDecoder encoders.StringDecoder
+	schemaURLDecoder encoders.StringDictDecoder
 
 	attributesDecoder     *AttributesDecoder
 	isAttributesRecursive bool

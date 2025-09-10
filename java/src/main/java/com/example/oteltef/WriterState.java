@@ -12,19 +12,19 @@ public class WriterState {
     private SizeLimiter limiter;
 
     // Dictionaries
-    final StringEncoderDict AnyValueString;
-    final StringEncoderDict AttributeKey;
+    final StringDictEncoderDict AnyValueString;
+    final StringDictEncoderDict AttributeKey;
     final MetricEncoderDict Metric;
-    final StringEncoderDict MetricDescription;
-    final StringEncoderDict MetricName;
-    final StringEncoderDict MetricUnit;
+    final StringDictEncoderDict MetricDescription;
+    final StringDictEncoderDict MetricName;
+    final StringDictEncoderDict MetricUnit;
     final ResourceEncoderDict Resource;
-    final StringEncoderDict SchemaURL;
+    final StringDictEncoderDict SchemaURL;
     final ScopeEncoderDict Scope;
-    final StringEncoderDict ScopeName;
-    final StringEncoderDict ScopeVersion;
-    final StringEncoderDict SpanEventName;
-    final StringEncoderDict SpanName;
+    final StringDictEncoderDict ScopeName;
+    final StringDictEncoderDict ScopeVersion;
+    final StringDictEncoderDict SpanEventName;
+    final StringDictEncoderDict SpanName;
     
 
     // Encoders
@@ -63,19 +63,19 @@ public class WriterState {
 
     public WriterState() {
         limiter = new SizeLimiter();
-        AnyValueString = new StringEncoderDict();
-        AttributeKey = new StringEncoderDict();
+        AnyValueString = new StringDictEncoderDict();
+        AttributeKey = new StringDictEncoderDict();
         Metric = new MetricEncoderDict();
-        MetricDescription = new StringEncoderDict();
-        MetricName = new StringEncoderDict();
-        MetricUnit = new StringEncoderDict();
+        MetricDescription = new StringDictEncoderDict();
+        MetricName = new StringDictEncoderDict();
+        MetricUnit = new StringDictEncoderDict();
         Resource = new ResourceEncoderDict();
-        SchemaURL = new StringEncoderDict();
+        SchemaURL = new StringDictEncoderDict();
         Scope = new ScopeEncoderDict();
-        ScopeName = new StringEncoderDict();
-        ScopeVersion = new StringEncoderDict();
-        SpanEventName = new StringEncoderDict();
-        SpanName = new StringEncoderDict();
+        ScopeName = new StringDictEncoderDict();
+        ScopeVersion = new StringDictEncoderDict();
+        SpanEventName = new StringDictEncoderDict();
+        SpanName = new StringDictEncoderDict();
         
     }
 

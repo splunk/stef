@@ -19,7 +19,7 @@ class AnyValueDecoder {
 
     // Field decoders.
     
-    private StringDecoder stringDecoder;
+    private StringDictDecoder stringDecoder;
     private boolean isStringRecursive = false; // Indicates String field's type is recursive.
     private BoolDecoder boolDecoder;
     private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
@@ -54,23 +54,23 @@ class AnyValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // String and subsequent fields are skipped.
             }
-            stringDecoder = new StringDecoder();
-            this.stringDecoder.init(state.AnyValueString, columns.addSubColumn());
+            stringDecoder = new StringDictDecoder();
+            stringDecoder.init(state.AnyValueString, columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Bool and subsequent fields are skipped.
             }
             boolDecoder = new BoolDecoder();
-            this.boolDecoder.init(columns.addSubColumn());
+            boolDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
             int64Decoder = new Int64Decoder();
-            this.int64Decoder.init(columns.addSubColumn());
+            int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Float64 and subsequent fields are skipped.
             }
             float64Decoder = new Float64Decoder();
-            this.float64Decoder.init(columns.addSubColumn());
+            float64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Array and subsequent fields are skipped.
             }
@@ -97,7 +97,7 @@ class AnyValueDecoder {
                 return; // Bytes and subsequent fields are skipped.
             }
             bytesDecoder = new BytesDecoder();
-            this.bytesDecoder.init(null, columns.addSubColumn());
+            bytesDecoder.init(columns.addSubColumn());
         } finally {
             state.AnyValueDecoder = null;
         }

@@ -38,7 +38,7 @@ class SpanStatusDecoder {
                 return; // Message and subsequent fields are skipped.
             }
             messageDecoder = new StringDecoder();
-            messageDecoder.init(null, columns.addSubColumn());
+            messageDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }

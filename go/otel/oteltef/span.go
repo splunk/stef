@@ -864,7 +864,7 @@ type SpanEncoder struct {
 
 	flagsEncoder encoders.Uint64Encoder
 
-	nameEncoder encoders.StringEncoder
+	nameEncoder encoders.StringDictEncoder
 
 	kindEncoder encoders.Uint64Encoder
 
@@ -917,7 +917,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	if e.fieldCount <= 0 {
 		return nil // TraceID and all subsequent fields are skipped.
 	}
-	err = e.traceIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.traceIDEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -926,7 +926,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	if e.fieldCount <= 1 {
 		return nil // SpanID and all subsequent fields are skipped.
 	}
-	err = e.spanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.spanIDEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -935,7 +935,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	if e.fieldCount <= 2 {
 		return nil // TraceState and all subsequent fields are skipped.
 	}
-	err = e.traceStateEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.traceStateEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -944,7 +944,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	if e.fieldCount <= 3 {
 		return nil // ParentSpanID and all subsequent fields are skipped.
 	}
-	err = e.parentSpanIDEncoder.Init(nil, e.limiter, columns.AddSubColumn())
+	err = e.parentSpanIDEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
@@ -1401,7 +1401,7 @@ type SpanDecoder struct {
 
 	flagsDecoder encoders.Uint64Decoder
 
-	nameDecoder encoders.StringDecoder
+	nameDecoder encoders.StringDictDecoder
 
 	kindDecoder encoders.Uint64Decoder
 
@@ -1449,28 +1449,28 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	if d.fieldCount <= 0 {
 		return nil // TraceID and subsequent fields are skipped.
 	}
-	err = d.traceIDDecoder.Init(nil, columns.AddSubColumn())
+	err = d.traceIDDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 1 {
 		return nil // SpanID and subsequent fields are skipped.
 	}
-	err = d.spanIDDecoder.Init(nil, columns.AddSubColumn())
+	err = d.spanIDDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 2 {
 		return nil // TraceState and subsequent fields are skipped.
 	}
-	err = d.traceStateDecoder.Init(nil, columns.AddSubColumn())
+	err = d.traceStateDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}
 	if d.fieldCount <= 3 {
 		return nil // ParentSpanID and subsequent fields are skipped.
 	}
-	err = d.parentSpanIDDecoder.Init(nil, columns.AddSubColumn())
+	err = d.parentSpanIDDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

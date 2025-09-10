@@ -413,11 +413,11 @@ type ScopeEncoder struct {
 	// from the frame start.
 	forceModifiedFields bool
 
-	nameEncoder encoders.StringEncoder
+	nameEncoder encoders.StringDictEncoder
 
-	versionEncoder encoders.StringEncoder
+	versionEncoder encoders.StringDictEncoder
 
-	schemaURLEncoder encoders.StringEncoder
+	schemaURLEncoder encoders.StringDictEncoder
 
 	attributesEncoder     *AttributesEncoder
 	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
@@ -702,11 +702,11 @@ type ScopeDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDecoder
+	nameDecoder encoders.StringDictDecoder
 
-	versionDecoder encoders.StringDecoder
+	versionDecoder encoders.StringDictDecoder
 
-	schemaURLDecoder encoders.StringDecoder
+	schemaURLDecoder encoders.StringDictDecoder
 
 	attributesDecoder     *AttributesDecoder
 	isAttributesRecursive bool

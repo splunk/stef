@@ -358,7 +358,7 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 	var err error
     {{- if .Key.Type.IsPrimitive}}
 	e.keyEncoder = new({{.Key.Type.EncoderType}}Encoder)
-	err = e.keyEncoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
+	err = e.keyEncoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}, {{end}}e.limiter, columns.AddSubColumn())
     {{- else}}
 	if state.{{.Key.Type.EncoderType}}Encoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -374,7 +374,7 @@ func (e *{{ .MultimapName }}Encoder) Init(state* WriterState, columns *pkg.Write
 	}
     {{- if .Value.Type.IsPrimitive}}
 	e.valueEncoder = new({{.Value.Type.EncoderType}}Encoder)
-	err = e.valueEncoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, e.limiter, columns.AddSubColumn())
+	err = e.valueEncoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}, {{end}}e.limiter, columns.AddSubColumn())
     {{- else}}
 	if state.{{.Value.Type.EncoderType}}Encoder != nil {
 		// Recursion detected, use the existing encoder.
@@ -492,7 +492,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 	var err error
 {{- if .Key.Type.IsPrimitive}}
 	d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
-	err = d.keyDecoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
+	err = d.keyDecoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}, {{end}}columns.AddSubColumn())
 {{- else}}
 	if state.{{.Key.Type.EncoderType}}Decoder != nil {
 		// Recursion detected, use the existing decoder.
@@ -509,7 +509,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 
 {{- if .Value.Type.IsPrimitive}}
 	d.valueDecoder = new({{.Value.Type.EncoderType}}Decoder)
-	err = d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}{{else}}nil{{end}}, columns.AddSubColumn())
+	err = d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}, {{end}}columns.AddSubColumn())
 {{- else}}
 	if state.{{.Value.Type.EncoderType}}Decoder != nil {
 		// Recursion detected, use the existing decoder.

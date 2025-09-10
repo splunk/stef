@@ -274,7 +274,7 @@ type LabelValueEncoder struct {
 
 	// Field encoders.
 
-	strEncoder encoders.StringEncoder
+	strEncoder encoders.StringDictEncoder
 
 	numEncoder     *NumValueEncoder
 	isNumRecursive bool // Indicates Num field's type is recursive.
@@ -406,7 +406,7 @@ type LabelValueDecoder struct {
 
 	// Field decoders.
 
-	strDecoder encoders.StringDecoder
+	strDecoder encoders.StringDictDecoder
 
 	numDecoder     *NumValueDecoder
 	isNumRecursive bool
