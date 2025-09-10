@@ -211,11 +211,13 @@ func (w *BytesWriter) writeUvar32x4_AVX2(values [4]uint32) {
 	totalSize := uvar32x4WriteLenByControl256[controlByte]
 
 	// Calculate maximum space needed for PutUint32 operations (worst case: all 4-byte values + control byte)
-	maxSpaceNeeded := 1 + 4 + 4 + 4 + 4
+	const maxSpaceNeeded = 1 + 4 + 4 + 4 + 4
 
 	// Pre-allocate buffer space in one operation with enough room for PutUint32 writes
 	startIdx := len(w.buf)
 	w.buf = EnsureLen(w.buf, len(w.buf)+maxSpaceNeeded)
+
+	_ = w.buf[startIdx+maxSpaceNeeded-1] // bounds check hint to compiler
 
 	// Write control byte
 	w.buf[startIdx] = controlByte
@@ -299,11 +301,13 @@ func (w *BytesWriter) writeUvar64x2_AVX2(values [2]uint64) {
 	totalSize := 1 + int(code0+code1)
 
 	// Calculate maximum space needed for SIMD operations (worst case: both 8-byte values + control byte)
-	maxSpaceNeeded := 1 + 8 + 8
+	const maxSpaceNeeded = 1 + 8 + 8
 
 	// Pre-allocate buffer space
 	startIdx := len(w.buf)
 	w.buf = EnsureLen(w.buf, len(w.buf)+maxSpaceNeeded)
+
+	_ = w.buf[startIdx+maxSpaceNeeded-1] // bounds check hint to compiler
 
 	// Write control byte
 	w.buf[startIdx] = controlByte
