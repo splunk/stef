@@ -294,6 +294,114 @@ func (r *BytesReader) readUvar32x4Scalar() ([4]uint32, error) {
 	return [4]uint32{val0, val1, val2, val3}, nil
 }
 
+func (r *BytesReader) readUvar64x2Scalar() ([2]uint64, error) {
+	var masks = [9]uint64{
+		0x0, 0xFF, 0xFFFF, 0xFFFFFF, 0xFFFFFFFF, 0xFFFFFFFFFF, 0xFFFFFFFFFFFF, 0xFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+	}
+
+	// Check if we have at least 1 byte for control byte
+	if r.byteIndex >= len(r.buf) {
+		return [2]uint64{}, io.EOF
+	}
+
+	// Read control byte
+	controlByte := r.buf[r.byteIndex]
+	r.byteIndex++
+
+	// Extract 4-bit length codes for each value
+	code0 := controlByte & 0xF        // bits 0-3
+	code1 := (controlByte >> 4) & 0xF // bits 4-7
+
+	// Get actual byte lengths for each value
+	len0 := code0
+	len1 := code1
+
+	// Calculate total bytes needed
+	totalBytes := int(len0 + len1)
+
+	// Check if we have enough bytes remaining
+	if len(r.buf[r.byteIndex:]) < totalBytes {
+		return [2]uint64{}, io.EOF
+	}
+
+	// Calculate offsets for each value
+	offset0 := r.byteIndex
+	offset1 := offset0 + int(len0)
+
+	// Fast path: check if we have at least 8 bytes available after the last value's offset
+	// This allows us to safely use Uint64 reads without bounds checking
+	maxOffset := offset1 + 8
+	if len(r.buf) >= maxOffset {
+		// Fast path: use direct Uint32 reads with masking (no bounds checks needed)
+		val0 := binary.LittleEndian.Uint64(r.buf[offset0:]) & masks[code0]
+		val1 := binary.LittleEndian.Uint64(r.buf[offset1:]) & masks[code1]
+
+		r.byteIndex += totalBytes
+		return [2]uint64{val0, val1}, nil
+	}
+
+	var val0, val1 uint64
+
+	// Read value 0
+	if len0 == 0 {
+		val0 = 0
+	} else if len0 <= 8 && len(r.buf) >= offset0+8 {
+		// Fast path: use direct Uint64 read with masking
+		val0 = binary.LittleEndian.Uint64(r.buf[offset0:]) & masks[code0]
+	} else {
+		// Slow path: read exact bytes
+		switch len0 {
+		case 1:
+			val0 = uint64(r.buf[offset0])
+		case 2:
+			val0 = uint64(binary.LittleEndian.Uint16(r.buf[offset0 : offset0+2]))
+		case 3:
+			val0 = uint64(r.buf[offset0]) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+1:offset0+3]))<<8
+		case 4:
+			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0 : offset0+4]))
+		case 5:
+			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(r.buf[offset0+4])<<32
+		case 6:
+			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32
+		case 7:
+			val0 = uint64(binary.LittleEndian.Uint32(r.buf[offset0:offset0+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset0+4:offset0+6]))<<32 | uint64(r.buf[offset0+6])<<48
+		case 8:
+			val0 = binary.LittleEndian.Uint64(r.buf[offset0 : offset0+8])
+		}
+	}
+
+	// Read value 1
+	if len1 == 0 {
+		val1 = 0
+	} else if len1 <= 8 && len(r.buf) >= offset1+8 {
+		// Fast path: use direct Uint64 read with masking
+		val1 = binary.LittleEndian.Uint64(r.buf[offset1:]) & masks[code1]
+	} else {
+		// Slow path: read exact bytes
+		switch len1 {
+		case 1:
+			val1 = uint64(r.buf[offset1])
+		case 2:
+			val1 = uint64(binary.LittleEndian.Uint16(r.buf[offset1 : offset1+2]))
+		case 3:
+			val1 = uint64(r.buf[offset1]) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+1:offset1+3]))<<8
+		case 4:
+			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1 : offset1+4]))
+		case 5:
+			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(r.buf[offset1+4])<<32
+		case 6:
+			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32
+		case 7:
+			val1 = uint64(binary.LittleEndian.Uint32(r.buf[offset1:offset1+4])) | uint64(binary.LittleEndian.Uint16(r.buf[offset1+4:offset1+6]))<<32 | uint64(r.buf[offset1+6])<<48
+		case 8:
+			val1 = binary.LittleEndian.Uint64(r.buf[offset1 : offset1+8])
+		}
+	}
+
+	r.byteIndex += totalBytes
+	return [2]uint64{val0, val1}, nil
+}
+
 type BytesWriter struct {
 	buf       []byte
 	byteIndex int
@@ -478,6 +586,51 @@ func (w *BytesWriter) writeUvar32x4Scalar(values [4]uint32) {
 	binary.LittleEndian.PutUint32(w.buf[offset1:], val1)
 	binary.LittleEndian.PutUint32(w.buf[offset2:], val2)
 	binary.LittleEndian.PutUint32(w.buf[offset3:], val3)
+
+	// Resize buffer to actual needed size
+	w.buf = w.buf[:startIdx+totalSize]
+}
+
+func (w *BytesWriter) writeUvar64x2Scalar(values [2]uint64) {
+	// Lookup table for converting leading zeros to byte length (0-8 for 0,1,2,3,4,5,6,7,8 bytes)
+	var lengthLookup = [65]byte{
+		8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, // 0-15
+		8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, // 16-31
+		8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 7, 7, // 32-47
+		6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, // 48-63
+		0, // 64 (for zero value)
+	}
+
+	// Calculate lengths for both values
+	val0, val1 := values[0], values[1]
+
+	// Get length codes using lookup table (branchless)
+	len0 := lengthLookup[bits.LeadingZeros64(val0)]
+	len1 := lengthLookup[bits.LeadingZeros64(val1)]
+
+	// Pack control byte (4 bits per value)
+	controlByte := len0 | len1<<4
+
+	// Calculate total size needed: 1 control byte + sum of both value lengths
+	totalSize := 1 + int(len0+len1)
+
+	// Calculate maximum space needed for PutUint64 operations (worst case: both 8-byte values + control byte)
+	maxSpaceNeeded := 1 + 8 + 8
+
+	// Pre-allocate buffer space in one operation with enough room for PutUint64 writes
+	startIdx := len(w.buf)
+	w.buf = EnsureLen(w.buf, len(w.buf)+maxSpaceNeeded)
+
+	// Write control byte
+	w.buf[startIdx] = controlByte
+
+	// Calculate offsets for each value
+	offset0 := startIdx + 1
+	offset1 := offset0 + int(len0)
+
+	// Write values using PutUint64 only when length > 0
+	binary.LittleEndian.PutUint64(w.buf[offset0:], val0)
+	binary.LittleEndian.PutUint64(w.buf[offset1:], val1)
 
 	// Resize buffer to actual needed size
 	w.buf = w.buf[:startIdx+totalSize]

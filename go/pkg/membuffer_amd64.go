@@ -48,6 +48,11 @@ func (r *BytesReader) ReadUvar64x4() ([4]uint64, error) {
 	return readUvar64x4Func(r)
 }
 
+// ReadUvar64x2 reads 2 variable length integers using scalar implementation (no SIMD optimization yet)
+func (r *BytesReader) ReadUvar64x2() ([2]uint64, error) {
+	return r.readUvar64x2Scalar()
+}
+
 // readUvar64x4_AVX512 handles SIMD-optimized reading with buffer size checks
 func (r *BytesReader) readUvar64x4_AVX512() ([4]uint64, error) {
 	if len(r.buf[r.byteIndex:]) >= 32 {

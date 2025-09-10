@@ -7,6 +7,11 @@ func (r *BytesReader) ReadUvar64x4() ([4]uint64, error) {
 	return r.readUvar64x4Scalar()
 }
 
+// ReadUvar64x2 reads 2 variable length integers using SIMD operations when available
+func (r *BytesReader) ReadUvar64x2() ([2]uint64, error) {
+	return r.readUvar64x2Scalar()
+}
+
 // ReadUvar32x4 reads 4 variable length integers using SIMD operations when available
 func (r *BytesReader) ReadUvar32x4() ([4]uint32, error) {
 	return r.readUvar32x4Scalar()
@@ -14,4 +19,9 @@ func (r *BytesReader) ReadUvar32x4() ([4]uint32, error) {
 
 func (w *BytesWriter) WriteUvar32x4(values [4]uint32) {
 	w.writeUvar32x4Scalar(values)
+}
+
+// WriteUvar64x2 reads 2 variable length integers using SIMD operations when available
+func (r *BytesWriter) WriteUvar64x2(values [2]uint64) {
+	r.writeUvar64x2Scalar(values)
 }
