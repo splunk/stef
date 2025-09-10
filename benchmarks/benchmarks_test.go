@@ -7,6 +7,8 @@ import (
 	"log"
 	"testing"
 
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/benchmarks/encodings"
@@ -53,43 +55,104 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func addZstdCompressTime(
+	b *testing.B,
+	encoding encodings.MetricEncoding,
+	bodyBytes []byte,
+	dataPointCount int,
+) {
+	b.Run(
+		fmt.Sprintf("%s/zstd", encoding.Name()),
+		func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				zstdBytes := testutils.CompressZstd(bodyBytes)
+				if zstdBytes == nil {
+					log.Fatal("compression failed")
+				}
+			}
+			chart.RecordStacked(
+				b,
+				encoding.LongName(),
+				"Zstd Compress",
+				float64(b.Elapsed().Nanoseconds())/float64(b.N*dataPointCount),
+			)
+		},
+	)
+}
+
+func addZstdDecompressTime(
+	b *testing.B,
+	encoding encodings.MetricEncoding,
+	bodyBytes []byte,
+	dataPointCount int,
+) {
+	zstdBytes := testutils.CompressZstd(bodyBytes)
+	if zstdBytes == nil {
+		log.Fatal("compression failed")
+	}
+	b.Run(
+		fmt.Sprintf("%s/zstd", encoding.Name()),
+		func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := testutils.DecompressZstd(zstdBytes)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+			chart.RecordStacked(
+				b,
+				encoding.LongName(),
+				"Zstd Decompress",
+				float64(b.Elapsed().Nanoseconds())/float64(b.N*dataPointCount),
+			)
+		},
+	)
+
+}
+
 func BenchmarkSerializeNative(b *testing.B) {
 	chart.BeginSection("Speed Benchmarks")
 
 	chart.BeginChart("Serialization Speed", b)
-	defer chart.EndChart("ns/point", "CPU time to serialize one data point")
+	defer chart.EndChart(
+		"ns/point",
+		charts.WithColorsOpts(opts.Colors{"#92C5F9", "#12C5F9"}),
+	)
 
-	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
-			for _, compression := range compressions {
-				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
-					// Skip Arrow, it does not have native serialization
-					continue
-				}
-				b.Run(
-					fmt.Sprintf("%s/%s", encoding.Name(), compression),
-					func(b *testing.B) {
-						batch := dataVariation.generator.Generate()
-						inmem, err := encoding.FromOTLP(batch)
-						require.NoError(b, err)
-						b.ResetTimer()
-						for i := 0; i < b.N; i++ {
-							bodyBytes, err := encoding.Encode(inmem)
-							require.NotNil(b, bodyBytes)
-							require.NoError(b, err)
-							if compression == "zstd" {
-								testutils.CompressZstd(bodyBytes)
-							}
-						}
-						chart.Record(
-							b,
-							encoding.LongName(),
-							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-						)
-					},
-				)
+			if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
+				// Skip Arrow, it does not have native serialization
+				continue
 			}
+			batch := dataVariation.generator.Generate()
+			inmem, err := encoding.FromOTLP(batch)
+			require.NoError(b, err)
+			b.Run(
+				fmt.Sprintf("%s/serialize", encoding.Name()),
+				func(b *testing.B) {
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						bodyBytes, err := encoding.Encode(inmem)
+						if err != nil || bodyBytes == nil {
+							log.Fatal(err)
+						}
+					}
+					chart.RecordStacked(
+						b,
+						encoding.LongName(),
+						"Serialize",
+						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+					)
+				},
+			)
+			bodyBytes, err := encoding.Encode(inmem)
+			require.NotNil(b, bodyBytes)
+			require.NoError(b, err)
+
+			addZstdCompressTime(b, encoding, bodyBytes, batch.DataPointCount())
 		}
 	}
 	b.ReportAllocs()
@@ -97,50 +160,48 @@ func BenchmarkSerializeNative(b *testing.B) {
 
 func BenchmarkDeserializeNative(b *testing.B) {
 	chart.BeginChart("Deserialization Speed", b)
-	defer chart.EndChart("ns/point", "CPU time to deserialize one data point")
+	defer chart.EndChart(
+		"ns/point",
+		charts.WithColorsOpts(opts.Colors{"#92C5F9", "#12C5F9"}),
+	)
 
-	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
-			for _, compression := range compressions {
-				if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
-					// Skip Arrow, it does not have native serialization
-					continue
-				}
-				b.Run(
-					fmt.Sprintf("%s/%s", encoding.Name(), compression),
-					func(b *testing.B) {
-						batch := dataVariation.generator.Generate()
-						inmem, err := encoding.FromOTLP(batch)
-						require.NoError(b, err)
-						bodyBytes, err := encoding.Encode(inmem)
+			if _, ok := encoding.(*otelarrow.OtelArrowEncoding); ok {
+				// Skip Arrow, it does not have native serialization
+				continue
+			}
+			batch := dataVariation.generator.Generate()
+			inmem, err := encoding.FromOTLP(batch)
+			require.NoError(b, err)
+			b.Run(
+				fmt.Sprintf("%s/deser", encoding.Name()),
+				func(b *testing.B) {
+					bodyBytes, err := encoding.Encode(inmem)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						_, err = encoding.Decode(bodyBytes)
 						if err != nil {
 							log.Fatal(err)
 						}
-						var compressedBytes []byte
-						if compression == "zstd" {
-							compressedBytes = testutils.CompressZstd(bodyBytes)
-						}
-
-						b.ResetTimer()
-						for i := 0; i < b.N; i++ {
-							if compression == "zstd" {
-								bodyBytes, err = testutils.DecompressZstd(compressedBytes)
-								require.NoError(b, err)
-							}
-							_, err = encoding.Decode(bodyBytes)
-							if err != nil {
-								log.Fatal(err)
-							}
-						}
-						chart.Record(
-							b,
-							encoding.LongName(),
-							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-						)
-					},
-				)
+					}
+					chart.RecordStacked(
+						b,
+						encoding.LongName(),
+						"Deserialize",
+						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+					)
+				},
+			)
+			bodyBytes, err := encoding.Encode(inmem)
+			if err != nil {
+				log.Fatal(err)
 			}
+			addZstdDecompressTime(b, encoding, bodyBytes, batch.DataPointCount())
 		}
 	}
 	b.ReportAllocs()
@@ -148,40 +209,44 @@ func BenchmarkDeserializeNative(b *testing.B) {
 
 func BenchmarkSerializeFromPdata(b *testing.B) {
 	chart.BeginChart("Serialization From pdata Speed", b)
-	defer chart.EndChart("ns/point", "CPU time to serialize one data point")
+	defer chart.EndChart(
+		"ns/point",
+		charts.WithColorsOpts(opts.Colors{"#92C5F9", "#12C5F9"}),
+	)
 
-	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
-			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
-					encoding.Name() == "ARROW" {
-					// Skip due to bug in Arrow encoding
-					continue
-				}
-				b.Run(
-					fmt.Sprintf("%s/%s", encoding.Name(), compression),
-					func(b *testing.B) {
-						batch := dataVariation.generator.Generate()
-						b.ResetTimer()
-						for i := 0; i < b.N; i++ {
-							inmem, err := encoding.FromOTLP(batch)
-							require.NoError(b, err)
-							bodyBytes, err := encoding.Encode(inmem)
-							require.NotNil(b, bodyBytes)
-							require.NoError(b, err)
-							if compression == "zstd" {
-								testutils.CompressZstd(bodyBytes)
-							}
-						}
-						chart.Record(
-							b,
-							encoding.LongName(),
-							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-						)
-					},
-				)
+			if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
+				encoding.Name() == "ARROW" {
+				// Skip due to bug in Arrow encoding
+				continue
 			}
+			batch := dataVariation.generator.Generate()
+			b.Run(
+				fmt.Sprintf("%s/serialize", encoding.Name()),
+				func(b *testing.B) {
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						inmem, err := encoding.FromOTLP(batch)
+						require.NoError(b, err)
+						bodyBytes, err := encoding.Encode(inmem)
+						require.NotNil(b, bodyBytes)
+						require.NoError(b, err)
+					}
+					chart.Record(
+						b,
+						encoding.LongName(),
+						"CPU time to serialize one data point",
+						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+					)
+				},
+			)
+			inmem, err := encoding.FromOTLP(batch)
+			require.NoError(b, err)
+			bodyBytes, err := encoding.Encode(inmem)
+			require.NotNil(b, bodyBytes)
+			require.NoError(b, err)
+			addZstdCompressTime(b, encoding, bodyBytes, batch.DataPointCount())
 		}
 	}
 	b.ReportAllocs()
@@ -189,51 +254,46 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 
 func BenchmarkDeserializeToPdata(b *testing.B) {
 	chart.BeginChart("Deserialization To pdata Speed", b)
-	defer chart.EndChart("ns/point", "CPU time to deserialize one data point")
+	defer chart.EndChart(
+		"ns/point",
+		charts.WithColorsOpts(opts.Colors{"#92C5F9", "#12C5F9"}),
+	)
 
-	compressions := []string{"none"}
 	for _, dataVariation := range benchmarkDataVariations {
 		for _, encoding := range speedEncodings {
-			for _, compression := range compressions {
-				if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
-					encoding.Name() == "ARROW" {
-					// Skip due to bug in Arrow encoding
-					continue
-				}
-				b.Run(
-					fmt.Sprintf("%s/%s", encoding.Name(), compression),
-					func(b *testing.B) {
-						batch := dataVariation.generator.Generate()
-						inmem, err := encoding.FromOTLP(batch)
-						require.NoError(b, err)
-						bodyBytes, err := encoding.Encode(inmem)
+			if dataVariation.generator.GetName() == "hostandcollector-otelmetrics.zst" &&
+				encoding.Name() == "ARROW" {
+				// Skip due to bug in Arrow encoding
+				continue
+			}
+			batch := dataVariation.generator.Generate()
+			inmem, err := encoding.FromOTLP(batch)
+			require.NoError(b, err)
+			bodyBytes, err := encoding.Encode(inmem)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			b.Run(
+				fmt.Sprintf("%s/deserialize", encoding.Name()),
+				func(b *testing.B) {
+
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						_, err = encoding.ToOTLP(bodyBytes)
 						if err != nil {
 							log.Fatal(err)
 						}
-						var compressedBytes []byte
-						if compression == "zstd" {
-							compressedBytes = testutils.CompressZstd(bodyBytes)
-						}
-
-						b.ResetTimer()
-						for i := 0; i < b.N; i++ {
-							if compression == "zstd" {
-								bodyBytes, err = testutils.DecompressZstd(compressedBytes)
-								require.NoError(b, err)
-							}
-							_, err = encoding.ToOTLP(bodyBytes)
-							if err != nil {
-								log.Fatal(err)
-							}
-						}
-						chart.Record(
-							b,
-							encoding.LongName(),
-							float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
-						)
-					},
-				)
-			}
+					}
+					chart.Record(
+						b,
+						encoding.LongName(),
+						"CPU time to deserialize one data point",
+						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+					)
+				},
+			)
+			addZstdDecompressTime(b, encoding, bodyBytes, batch.DataPointCount())
 		}
 	}
 	b.ReportAllocs()
