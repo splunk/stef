@@ -147,7 +147,7 @@ func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName }}Type{{.Name}}.
 func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.Exported}}) {
-    if s.typ!={{$.StructName }}Type{{.Name}} || !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}}) {
+    if s.typ!={{$.StructName }}Type{{.Name}} || s.{{.name}} != {{.Type.ToStorage "v"}} {
 		s.{{.name}} = {{.Type.ToStorage "v"}}
 		s.typ = {{$.StructName }}Type{{.Name}}
         s.markParentModified()
@@ -254,7 +254,7 @@ func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.IsPrimitive }}
-        return {{ .Type.EqualFunc }}(e.{{.name}}, val.{{.name}})
+        return e.{{.name}} == val.{{.name}}
         {{- else }}
         return e.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
         {{- end }}

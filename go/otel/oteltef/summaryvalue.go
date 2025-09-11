@@ -85,7 +85,7 @@ func (s *SummaryValue) Count() uint64 {
 
 // SetCount sets the value of Count field.
 func (s *SummaryValue) SetCount(v uint64) {
-	if !pkg.Uint64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
 		s.markCountModified()
 	}
@@ -109,7 +109,7 @@ func (s *SummaryValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *SummaryValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) {
+	if s.sum != v {
 		s.sum = v
 		s.markSumModified()
 	}
@@ -249,11 +249,11 @@ func (s *SummaryValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SummaryValue) IsEqual(right *SummaryValue) bool {
 	// Compare Count field.
-	if !pkg.Uint64Equal(s.count, right.count) {
+	if s.count != right.count {
 		return false
 	}
 	// Compare Sum field.
-	if !pkg.Float64Equal(s.sum, right.sum) {
+	if s.sum != right.sum {
 		return false
 	}
 	// Compare QuantileValues field.

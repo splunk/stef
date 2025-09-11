@@ -108,7 +108,7 @@ func (s *LabelValue) Str() string {
 
 // SetStr sets the value to the specified value and sets the type to LabelValueTypeStr.
 func (s *LabelValue) SetStr(v string) {
-	if s.typ != LabelValueTypeStr || !pkg.StringEqual(s.str, v) {
+	if s.typ != LabelValueTypeStr || s.str != v {
 		s.str = v
 		s.typ = LabelValueTypeStr
 		s.markParentModified()
@@ -196,7 +196,7 @@ func (e *LabelValue) IsEqual(val *LabelValue) bool {
 	}
 	switch e.typ {
 	case LabelValueTypeStr:
-		return pkg.StringEqual(e.str, val.str)
+		return e.str == val.str
 	case LabelValueTypeNum:
 		return e.num.IsEqual(&val.num)
 	}

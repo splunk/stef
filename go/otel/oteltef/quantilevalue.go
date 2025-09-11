@@ -79,7 +79,7 @@ func (s *QuantileValue) Quantile() float64 {
 
 // SetQuantile sets the value of Quantile field.
 func (s *QuantileValue) SetQuantile(v float64) {
-	if !pkg.Float64Equal(s.quantile, v) {
+	if s.quantile != v {
 		s.quantile = v
 		s.markQuantileModified()
 	}
@@ -103,7 +103,7 @@ func (s *QuantileValue) Value() float64 {
 
 // SetValue sets the value of Value field.
 func (s *QuantileValue) SetValue(v float64) {
-	if !pkg.Float64Equal(s.value, v) {
+	if s.value != v {
 		s.value = v
 		s.markValueModified()
 	}
@@ -210,11 +210,11 @@ func (s *QuantileValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *QuantileValue) IsEqual(right *QuantileValue) bool {
 	// Compare Quantile field.
-	if !pkg.Float64Equal(s.quantile, right.quantile) {
+	if s.quantile != right.quantile {
 		return false
 	}
 	// Compare Value field.
-	if !pkg.Float64Equal(s.value, right.value) {
+	if s.value != right.value {
 		return false
 	}
 

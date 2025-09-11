@@ -151,7 +151,7 @@ func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value of {{.Name}} field.
 func (s *{{ $.StructName }}) Set{{.Name}}(v {{.Type.Exported}}) {
-    if !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}})
+    if s.{{.name}} != {{.Type.ToStorage "v"}}
         {{- if .Optional}}|| s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}}==0{{end}} {
 		s.{{.name}} = {{.Type.ToStorage "v"}}
         s.mark{{.Name}}Modified()
@@ -372,7 +372,7 @@ func (s *{{ .StructName }}) IsEqual(right *{{ .StructName }}) bool {
     if s{{.Name}}Present { // Compare only if {{.Name}} field is present
     {{- end}}
     {{- if .Type.IsPrimitive }}
-    if !{{ .Type.EqualFunc }}(s.{{.name}}, right.{{.name}}) {
+    if s.{{.name}} != right.{{.name}} {
         return false
     }
     {{- else }}

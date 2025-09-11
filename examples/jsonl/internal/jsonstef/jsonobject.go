@@ -173,7 +173,7 @@ func (e *JsonObject) IsEqual(val *JsonObject) bool {
 		return false
 	}
 	for i := range e.elems {
-		if !pkg.StringEqual(e.elems[i].key, val.elems[i].key) {
+		if e.elems[i].key != val.elems[i].key {
 			return false
 		}
 		if !e.elems[i].value.IsEqual(&val.elems[i].value) {

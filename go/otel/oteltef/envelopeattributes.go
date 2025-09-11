@@ -126,7 +126,7 @@ func (m *EnvelopeAttributes) SetKey(i int, k string) {
 
 // SetValue sets the value of the element at index i.
 func (m *EnvelopeAttributes) SetValue(i int, v pkg.Bytes) {
-	if !pkg.BytesEqual(m.elems[i].value, v) {
+	if m.elems[i].value != v {
 		m.elems[i].value = v
 		m.modifiedElems.markValModified(i)
 	}
@@ -178,10 +178,10 @@ func (e *EnvelopeAttributes) IsEqual(val *EnvelopeAttributes) bool {
 		return false
 	}
 	for i := range e.elems {
-		if !pkg.StringEqual(e.elems[i].key, val.elems[i].key) {
+		if e.elems[i].key != val.elems[i].key {
 			return false
 		}
-		if !pkg.BytesEqual(e.elems[i].value, val.elems[i].value) {
+		if e.elems[i].value != val.elems[i].value {
 			return false
 		}
 	}

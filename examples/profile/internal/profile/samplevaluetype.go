@@ -81,7 +81,7 @@ func (s *SampleValueType) Type() string {
 
 // SetType sets the value of Type field.
 func (s *SampleValueType) SetType(v string) {
-	if !pkg.StringEqual(s.type_, v) {
+	if s.type_ != v {
 		s.type_ = v
 		s.markTypeModified()
 	}
@@ -105,7 +105,7 @@ func (s *SampleValueType) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *SampleValueType) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
 		s.markUnitModified()
 	}
@@ -213,11 +213,11 @@ func (s *SampleValueType) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SampleValueType) IsEqual(right *SampleValueType) bool {
 	// Compare Type field.
-	if !pkg.StringEqual(s.type_, right.type_) {
+	if s.type_ != right.type_ {
 		return false
 	}
 	// Compare Unit field.
-	if !pkg.StringEqual(s.unit, right.unit) {
+	if s.unit != right.unit {
 		return false
 	}
 

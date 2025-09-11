@@ -91,7 +91,7 @@ func (s *Point) StartTimestamp() uint64 {
 
 // SetStartTimestamp sets the value of StartTimestamp field.
 func (s *Point) SetStartTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.startTimestamp, v) {
+	if s.startTimestamp != v {
 		s.startTimestamp = v
 		s.markStartTimestampModified()
 	}
@@ -115,7 +115,7 @@ func (s *Point) Timestamp() uint64 {
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Point) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
 		s.markTimestampModified()
 	}
@@ -288,11 +288,11 @@ func (s *Point) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Point) IsEqual(right *Point) bool {
 	// Compare StartTimestamp field.
-	if !pkg.Uint64Equal(s.startTimestamp, right.startTimestamp) {
+	if s.startTimestamp != right.startTimestamp {
 		return false
 	}
 	// Compare Timestamp field.
-	if !pkg.Uint64Equal(s.timestamp, right.timestamp) {
+	if s.timestamp != right.timestamp {
 		return false
 	}
 	// Compare Value field.

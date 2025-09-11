@@ -183,7 +183,7 @@ func (e *Uint64Array) IsEqual(val *Uint64Array) bool {
 		return false
 	}
 	for i := range e.elems {
-		if !pkg.Uint64Equal(e.elems[i], val.elems[i]) {
+		if e.elems[i] != val.elems[i] {
 			return false
 		}
 	}

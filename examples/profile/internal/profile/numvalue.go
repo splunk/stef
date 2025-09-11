@@ -79,7 +79,7 @@ func (s *NumValue) Val() int64 {
 
 // SetVal sets the value of Val field.
 func (s *NumValue) SetVal(v int64) {
-	if !pkg.Int64Equal(s.val, v) {
+	if s.val != v {
 		s.val = v
 		s.markValModified()
 	}
@@ -103,7 +103,7 @@ func (s *NumValue) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *NumValue) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
 		s.markUnitModified()
 	}
@@ -210,11 +210,11 @@ func (s *NumValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *NumValue) IsEqual(right *NumValue) bool {
 	// Compare Val field.
-	if !pkg.Int64Equal(s.val, right.val) {
+	if s.val != right.val {
 		return false
 	}
 	// Compare Unit field.
-	if !pkg.StringEqual(s.unit, right.unit) {
+	if s.unit != right.unit {
 		return false
 	}
 

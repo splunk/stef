@@ -102,7 +102,7 @@ func (s *Mapping) MemoryStart() uint64 {
 
 // SetMemoryStart sets the value of MemoryStart field.
 func (s *Mapping) SetMemoryStart(v uint64) {
-	if !pkg.Uint64Equal(s.memoryStart, v) {
+	if s.memoryStart != v {
 		s.memoryStart = v
 		s.markMemoryStartModified()
 	}
@@ -126,7 +126,7 @@ func (s *Mapping) MemoryLimit() uint64 {
 
 // SetMemoryLimit sets the value of MemoryLimit field.
 func (s *Mapping) SetMemoryLimit(v uint64) {
-	if !pkg.Uint64Equal(s.memoryLimit, v) {
+	if s.memoryLimit != v {
 		s.memoryLimit = v
 		s.markMemoryLimitModified()
 	}
@@ -150,7 +150,7 @@ func (s *Mapping) FileOffset() uint64 {
 
 // SetFileOffset sets the value of FileOffset field.
 func (s *Mapping) SetFileOffset(v uint64) {
-	if !pkg.Uint64Equal(s.fileOffset, v) {
+	if s.fileOffset != v {
 		s.fileOffset = v
 		s.markFileOffsetModified()
 	}
@@ -174,7 +174,7 @@ func (s *Mapping) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Mapping) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
 		s.markFilenameModified()
 	}
@@ -198,7 +198,7 @@ func (s *Mapping) BuildId() string {
 
 // SetBuildId sets the value of BuildId field.
 func (s *Mapping) SetBuildId(v string) {
-	if !pkg.StringEqual(s.buildId, v) {
+	if s.buildId != v {
 		s.buildId = v
 		s.markBuildIdModified()
 	}
@@ -222,7 +222,7 @@ func (s *Mapping) HasFunctions() bool {
 
 // SetHasFunctions sets the value of HasFunctions field.
 func (s *Mapping) SetHasFunctions(v bool) {
-	if !pkg.BoolEqual(s.hasFunctions, v) {
+	if s.hasFunctions != v {
 		s.hasFunctions = v
 		s.markHasFunctionsModified()
 	}
@@ -246,7 +246,7 @@ func (s *Mapping) HasFilenames() bool {
 
 // SetHasFilenames sets the value of HasFilenames field.
 func (s *Mapping) SetHasFilenames(v bool) {
-	if !pkg.BoolEqual(s.hasFilenames, v) {
+	if s.hasFilenames != v {
 		s.hasFilenames = v
 		s.markHasFilenamesModified()
 	}
@@ -270,7 +270,7 @@ func (s *Mapping) HasLineNumbers() bool {
 
 // SetHasLineNumbers sets the value of HasLineNumbers field.
 func (s *Mapping) SetHasLineNumbers(v bool) {
-	if !pkg.BoolEqual(s.hasLineNumbers, v) {
+	if s.hasLineNumbers != v {
 		s.hasLineNumbers = v
 		s.markHasLineNumbersModified()
 	}
@@ -294,7 +294,7 @@ func (s *Mapping) HasInlineFrames() bool {
 
 // SetHasInlineFrames sets the value of HasInlineFrames field.
 func (s *Mapping) SetHasInlineFrames(v bool) {
-	if !pkg.BoolEqual(s.hasInlineFrames, v) {
+	if s.hasInlineFrames != v {
 		s.hasInlineFrames = v
 		s.markHasInlineFramesModified()
 	}
@@ -500,39 +500,39 @@ func (s *Mapping) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Mapping) IsEqual(right *Mapping) bool {
 	// Compare MemoryStart field.
-	if !pkg.Uint64Equal(s.memoryStart, right.memoryStart) {
+	if s.memoryStart != right.memoryStart {
 		return false
 	}
 	// Compare MemoryLimit field.
-	if !pkg.Uint64Equal(s.memoryLimit, right.memoryLimit) {
+	if s.memoryLimit != right.memoryLimit {
 		return false
 	}
 	// Compare FileOffset field.
-	if !pkg.Uint64Equal(s.fileOffset, right.fileOffset) {
+	if s.fileOffset != right.fileOffset {
 		return false
 	}
 	// Compare Filename field.
-	if !pkg.StringEqual(s.filename, right.filename) {
+	if s.filename != right.filename {
 		return false
 	}
 	// Compare BuildId field.
-	if !pkg.StringEqual(s.buildId, right.buildId) {
+	if s.buildId != right.buildId {
 		return false
 	}
 	// Compare HasFunctions field.
-	if !pkg.BoolEqual(s.hasFunctions, right.hasFunctions) {
+	if s.hasFunctions != right.hasFunctions {
 		return false
 	}
 	// Compare HasFilenames field.
-	if !pkg.BoolEqual(s.hasFilenames, right.hasFilenames) {
+	if s.hasFilenames != right.hasFilenames {
 		return false
 	}
 	// Compare HasLineNumbers field.
-	if !pkg.BoolEqual(s.hasLineNumbers, right.hasLineNumbers) {
+	if s.hasLineNumbers != right.hasLineNumbers {
 		return false
 	}
 	// Compare HasInlineFrames field.
-	if !pkg.BoolEqual(s.hasInlineFrames, right.hasInlineFrames) {
+	if s.hasInlineFrames != right.hasInlineFrames {
 		return false
 	}
 

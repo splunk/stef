@@ -105,7 +105,7 @@ func (s *Metric) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Metric) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -129,7 +129,7 @@ func (s *Metric) Description() string {
 
 // SetDescription sets the value of Description field.
 func (s *Metric) SetDescription(v string) {
-	if !pkg.StringEqual(s.description, v) {
+	if s.description != v {
 		s.description = v
 		s.markDescriptionModified()
 	}
@@ -153,7 +153,7 @@ func (s *Metric) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *Metric) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
 		s.markUnitModified()
 	}
@@ -177,7 +177,7 @@ func (s *Metric) Type() MetricType {
 
 // SetType sets the value of Type field.
 func (s *Metric) SetType(v MetricType) {
-	if !pkg.Uint64Equal(s.type_, uint64(v)) {
+	if s.type_ != uint64(v) {
 		s.type_ = uint64(v)
 		s.markTypeModified()
 	}
@@ -233,7 +233,7 @@ func (s *Metric) AggregationTemporality() uint64 {
 
 // SetAggregationTemporality sets the value of AggregationTemporality field.
 func (s *Metric) SetAggregationTemporality(v uint64) {
-	if !pkg.Uint64Equal(s.aggregationTemporality, v) {
+	if s.aggregationTemporality != v {
 		s.aggregationTemporality = v
 		s.markAggregationTemporalityModified()
 	}
@@ -257,7 +257,7 @@ func (s *Metric) Monotonic() bool {
 
 // SetMonotonic sets the value of Monotonic field.
 func (s *Metric) SetMonotonic(v bool) {
-	if !pkg.BoolEqual(s.monotonic, v) {
+	if s.monotonic != v {
 		s.monotonic = v
 		s.markMonotonicModified()
 	}
@@ -455,19 +455,19 @@ func (s *Metric) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Metric) IsEqual(right *Metric) bool {
 	// Compare Name field.
-	if !pkg.StringEqual(s.name, right.name) {
+	if s.name != right.name {
 		return false
 	}
 	// Compare Description field.
-	if !pkg.StringEqual(s.description, right.description) {
+	if s.description != right.description {
 		return false
 	}
 	// Compare Unit field.
-	if !pkg.StringEqual(s.unit, right.unit) {
+	if s.unit != right.unit {
 		return false
 	}
 	// Compare Type field.
-	if !pkg.Uint64Equal(s.type_, right.type_) {
+	if s.type_ != right.type_ {
 		return false
 	}
 	// Compare Metadata field.
@@ -479,11 +479,11 @@ func (s *Metric) IsEqual(right *Metric) bool {
 		return false
 	}
 	// Compare AggregationTemporality field.
-	if !pkg.Uint64Equal(s.aggregationTemporality, right.aggregationTemporality) {
+	if s.aggregationTemporality != right.aggregationTemporality {
 		return false
 	}
 	// Compare Monotonic field.
-	if !pkg.BoolEqual(s.monotonic, right.monotonic) {
+	if s.monotonic != right.monotonic {
 		return false
 	}
 

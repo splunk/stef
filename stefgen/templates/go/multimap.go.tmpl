@@ -162,7 +162,7 @@ func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
 {{if .Value.Type.IsPrimitive}}
 // SetValue sets the value of the element at index i.
 func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.Exported}}) {
-	if !{{.Value.Type.EqualFunc}}(m.elems[i].value, {{.Value.Type.ToStorage "v"}}) {
+	if m.elems[i].value != {{.Value.Type.ToStorage "v"}} {
 		m.elems[i].value = {{.Value.Type.ToStorage "v"}}
 		m.modifiedElems.markValModified(i)
 	}
@@ -246,7 +246,7 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 	}
 	for i := range e.elems {
 		{{- if .Key.Type.IsPrimitive }}
-		if !{{ .Key.Type.EqualFunc }}(e.elems[i].key,val.elems[i].key) {
+		if e.elems[i].key != val.elems[i].key {
 			return false
 		}
 		{{- else }}
@@ -255,7 +255,7 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 		}
 		{{- end}}
 		{{- if .Value.Type.IsPrimitive }}
-		if !{{ .Value.Type.EqualFunc }}(e.elems[i].value,val.elems[i].value) {
+		if e.elems[i].value != val.elems[i].value {
 			return false
 		}
 		{{- else }}

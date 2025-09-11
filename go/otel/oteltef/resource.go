@@ -87,7 +87,7 @@ func (s *Resource) SchemaURL() string {
 
 // SetSchemaURL sets the value of SchemaURL field.
 func (s *Resource) SetSchemaURL(v string) {
-	if !pkg.StringEqual(s.schemaURL, v) {
+	if s.schemaURL != v {
 		s.schemaURL = v
 		s.markSchemaURLModified()
 	}
@@ -127,7 +127,7 @@ func (s *Resource) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Resource) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -252,7 +252,7 @@ func (s *Resource) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Resource) IsEqual(right *Resource) bool {
 	// Compare SchemaURL field.
-	if !pkg.StringEqual(s.schemaURL, right.schemaURL) {
+	if s.schemaURL != right.schemaURL {
 		return false
 	}
 	// Compare Attributes field.
@@ -260,7 +260,7 @@ func (s *Resource) IsEqual(right *Resource) bool {
 		return false
 	}
 	// Compare DroppedAttributesCount field.
-	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
+	if s.droppedAttributesCount != right.droppedAttributesCount {
 		return false
 	}
 

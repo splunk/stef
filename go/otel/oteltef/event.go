@@ -88,7 +88,7 @@ func (s *Event) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Event) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -112,7 +112,7 @@ func (s *Event) TimeUnixNano() uint64 {
 
 // SetTimeUnixNano sets the value of TimeUnixNano field.
 func (s *Event) SetTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.timeUnixNano, v) {
+	if s.timeUnixNano != v {
 		s.timeUnixNano = v
 		s.markTimeUnixNanoModified()
 	}
@@ -152,7 +152,7 @@ func (s *Event) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Event) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -290,11 +290,11 @@ func (s *Event) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Event) IsEqual(right *Event) bool {
 	// Compare Name field.
-	if !pkg.StringEqual(s.name, right.name) {
+	if s.name != right.name {
 		return false
 	}
 	// Compare TimeUnixNano field.
-	if !pkg.Uint64Equal(s.timeUnixNano, right.timeUnixNano) {
+	if s.timeUnixNano != right.timeUnixNano {
 		return false
 	}
 	// Compare Attributes field.
@@ -302,7 +302,7 @@ func (s *Event) IsEqual(right *Event) bool {
 		return false
 	}
 	// Compare DroppedAttributesCount field.
-	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
+	if s.droppedAttributesCount != right.droppedAttributesCount {
 		return false
 	}
 

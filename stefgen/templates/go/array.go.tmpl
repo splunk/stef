@@ -250,7 +250,7 @@ func (e *{{ .ArrayName }}) IsEqual(val *{{ .ArrayName }}) bool {
 	}
 	for i := range e.elems {
 		{{- if .ElemType.IsPrimitive }}
-		if !{{ .ElemType.EqualFunc }}(e.elems[i],val.elems[i]) {
+		if e.elems[i] != val.elems[i] {
 			return false
 		}
 		{{- else }}

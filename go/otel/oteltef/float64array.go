@@ -183,7 +183,7 @@ func (e *Float64Array) IsEqual(val *Float64Array) bool {
 		return false
 	}
 	for i := range e.elems {
-		if !pkg.Float64Equal(e.elems[i], val.elems[i]) {
+		if e.elems[i] != val.elems[i] {
 			return false
 		}
 	}

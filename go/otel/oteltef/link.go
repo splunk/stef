@@ -94,7 +94,7 @@ func (s *Link) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Link) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -118,7 +118,7 @@ func (s *Link) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Link) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -142,7 +142,7 @@ func (s *Link) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Link) SetTraceState(v string) {
-	if !pkg.StringEqual(s.traceState, v) {
+	if s.traceState != v {
 		s.traceState = v
 		s.markTraceStateModified()
 	}
@@ -166,7 +166,7 @@ func (s *Link) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Link) SetFlags(v uint64) {
-	if !pkg.Uint64Equal(s.flags, v) {
+	if s.flags != v {
 		s.flags = v
 		s.markFlagsModified()
 	}
@@ -206,7 +206,7 @@ func (s *Link) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Link) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -372,19 +372,19 @@ func (s *Link) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Link) IsEqual(right *Link) bool {
 	// Compare TraceID field.
-	if !pkg.BytesEqual(s.traceID, right.traceID) {
+	if s.traceID != right.traceID {
 		return false
 	}
 	// Compare SpanID field.
-	if !pkg.BytesEqual(s.spanID, right.spanID) {
+	if s.spanID != right.spanID {
 		return false
 	}
 	// Compare TraceState field.
-	if !pkg.StringEqual(s.traceState, right.traceState) {
+	if s.traceState != right.traceState {
 		return false
 	}
 	// Compare Flags field.
-	if !pkg.Uint64Equal(s.flags, right.flags) {
+	if s.flags != right.flags {
 		return false
 	}
 	// Compare Attributes field.
@@ -392,7 +392,7 @@ func (s *Link) IsEqual(right *Link) bool {
 		return false
 	}
 	// Compare DroppedAttributesCount field.
-	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
+	if s.droppedAttributesCount != right.droppedAttributesCount {
 		return false
 	}
 

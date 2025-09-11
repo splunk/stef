@@ -102,7 +102,7 @@ func (s *HistogramValue) Count() int64 {
 
 // SetCount sets the value of Count field.
 func (s *HistogramValue) SetCount(v int64) {
-	if !pkg.Int64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
 		s.markCountModified()
 	}
@@ -126,7 +126,7 @@ func (s *HistogramValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *HistogramValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
+	if s.sum != v || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
 		s.sum = v
 		s.markSumModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueSum
@@ -164,7 +164,7 @@ func (s *HistogramValue) Min() float64 {
 
 // SetMin sets the value of Min field.
 func (s *HistogramValue) SetMin(v float64) {
-	if !pkg.Float64Equal(s.min, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
+	if s.min != v || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
 		s.min = v
 		s.markMinModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMin
@@ -202,7 +202,7 @@ func (s *HistogramValue) Max() float64 {
 
 // SetMax sets the value of Max field.
 func (s *HistogramValue) SetMax(v float64) {
-	if !pkg.Float64Equal(s.max, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
+	if s.max != v || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
 		s.max = v
 		s.markMaxModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMax
@@ -410,7 +410,7 @@ func (s *HistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 	// Compare Count field.
-	if !pkg.Int64Equal(s.count, right.count) {
+	if s.count != right.count {
 		return false
 	}
 	// Compare Sum field.
@@ -420,7 +420,7 @@ func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 		return false
 	}
 	if sSumPresent { // Compare only if Sum field is present
-		if !pkg.Float64Equal(s.sum, right.sum) {
+		if s.sum != right.sum {
 			return false
 		}
 	}
@@ -432,7 +432,7 @@ func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 		return false
 	}
 	if sMinPresent { // Compare only if Min field is present
-		if !pkg.Float64Equal(s.min, right.min) {
+		if s.min != right.min {
 			return false
 		}
 	}
@@ -444,7 +444,7 @@ func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 		return false
 	}
 	if sMaxPresent { // Compare only if Max field is present
-		if !pkg.Float64Equal(s.max, right.max) {
+		if s.max != right.max {
 			return false
 		}
 	}

@@ -87,7 +87,7 @@ func (s *Function) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Function) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -111,7 +111,7 @@ func (s *Function) SystemName() string {
 
 // SetSystemName sets the value of SystemName field.
 func (s *Function) SetSystemName(v string) {
-	if !pkg.StringEqual(s.systemName, v) {
+	if s.systemName != v {
 		s.systemName = v
 		s.markSystemNameModified()
 	}
@@ -135,7 +135,7 @@ func (s *Function) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Function) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
 		s.markFilenameModified()
 	}
@@ -159,7 +159,7 @@ func (s *Function) StartLine() uint64 {
 
 // SetStartLine sets the value of StartLine field.
 func (s *Function) SetStartLine(v uint64) {
-	if !pkg.Uint64Equal(s.startLine, v) {
+	if s.startLine != v {
 		s.startLine = v
 		s.markStartLineModified()
 	}
@@ -295,19 +295,19 @@ func (s *Function) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Function) IsEqual(right *Function) bool {
 	// Compare Name field.
-	if !pkg.StringEqual(s.name, right.name) {
+	if s.name != right.name {
 		return false
 	}
 	// Compare SystemName field.
-	if !pkg.StringEqual(s.systemName, right.systemName) {
+	if s.systemName != right.systemName {
 		return false
 	}
 	// Compare Filename field.
-	if !pkg.StringEqual(s.filename, right.filename) {
+	if s.filename != right.filename {
 		return false
 	}
 	// Compare StartLine field.
-	if !pkg.Uint64Equal(s.startLine, right.startLine) {
+	if s.startLine != right.startLine {
 		return false
 	}
 

@@ -105,7 +105,7 @@ func (s *Line) Line() uint64 {
 
 // SetLine sets the value of Line field.
 func (s *Line) SetLine(v uint64) {
-	if !pkg.Uint64Equal(s.line, v) {
+	if s.line != v {
 		s.line = v
 		s.markLineModified()
 	}
@@ -129,7 +129,7 @@ func (s *Line) Column() uint64 {
 
 // SetColumn sets the value of Column field.
 func (s *Line) SetColumn(v uint64) {
-	if !pkg.Uint64Equal(s.column, v) {
+	if s.column != v {
 		s.column = v
 		s.markColumnModified()
 	}
@@ -267,11 +267,11 @@ func (s *Line) IsEqual(right *Line) bool {
 		return false
 	}
 	// Compare Line field.
-	if !pkg.Uint64Equal(s.line, right.line) {
+	if s.line != right.line {
 		return false
 	}
 	// Compare Column field.
-	if !pkg.Uint64Equal(s.column, right.column) {
+	if s.column != right.column {
 		return false
 	}
 

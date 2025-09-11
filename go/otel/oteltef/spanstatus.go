@@ -79,7 +79,7 @@ func (s *SpanStatus) Message() string {
 
 // SetMessage sets the value of Message field.
 func (s *SpanStatus) SetMessage(v string) {
-	if !pkg.StringEqual(s.message, v) {
+	if s.message != v {
 		s.message = v
 		s.markMessageModified()
 	}
@@ -103,7 +103,7 @@ func (s *SpanStatus) Code() uint64 {
 
 // SetCode sets the value of Code field.
 func (s *SpanStatus) SetCode(v uint64) {
-	if !pkg.Uint64Equal(s.code, v) {
+	if s.code != v {
 		s.code = v
 		s.markCodeModified()
 	}
@@ -210,11 +210,11 @@ func (s *SpanStatus) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SpanStatus) IsEqual(right *SpanStatus) bool {
 	// Compare Message field.
-	if !pkg.StringEqual(s.message, right.message) {
+	if s.message != right.message {
 		return false
 	}
 	// Compare Code field.
-	if !pkg.Uint64Equal(s.code, right.code) {
+	if s.code != right.code {
 		return false
 	}
 

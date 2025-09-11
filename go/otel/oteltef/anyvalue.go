@@ -123,7 +123,7 @@ func (s *AnyValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to AnyValueTypeString.
 func (s *AnyValue) SetString(v string) {
-	if s.typ != AnyValueTypeString || !pkg.StringEqual(s.string, v) {
+	if s.typ != AnyValueTypeString || s.string != v {
 		s.string = v
 		s.typ = AnyValueTypeString
 		s.markParentModified()
@@ -138,7 +138,7 @@ func (s *AnyValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to AnyValueTypeBool.
 func (s *AnyValue) SetBool(v bool) {
-	if s.typ != AnyValueTypeBool || !pkg.BoolEqual(s.bool, v) {
+	if s.typ != AnyValueTypeBool || s.bool != v {
 		s.bool = v
 		s.typ = AnyValueTypeBool
 		s.markParentModified()
@@ -153,7 +153,7 @@ func (s *AnyValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to AnyValueTypeInt64.
 func (s *AnyValue) SetInt64(v int64) {
-	if s.typ != AnyValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
+	if s.typ != AnyValueTypeInt64 || s.int64 != v {
 		s.int64 = v
 		s.typ = AnyValueTypeInt64
 		s.markParentModified()
@@ -168,7 +168,7 @@ func (s *AnyValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to AnyValueTypeFloat64.
 func (s *AnyValue) SetFloat64(v float64) {
-	if s.typ != AnyValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
+	if s.typ != AnyValueTypeFloat64 || s.float64 != v {
 		s.float64 = v
 		s.typ = AnyValueTypeFloat64
 		s.markParentModified()
@@ -195,7 +195,7 @@ func (s *AnyValue) Bytes() pkg.Bytes {
 
 // SetBytes sets the value to the specified value and sets the type to AnyValueTypeBytes.
 func (s *AnyValue) SetBytes(v pkg.Bytes) {
-	if s.typ != AnyValueTypeBytes || !pkg.BytesEqual(s.bytes, v) {
+	if s.typ != AnyValueTypeBytes || s.bytes != v {
 		s.bytes = v
 		s.typ = AnyValueTypeBytes
 		s.markParentModified()
@@ -315,19 +315,19 @@ func (e *AnyValue) IsEqual(val *AnyValue) bool {
 	}
 	switch e.typ {
 	case AnyValueTypeString:
-		return pkg.StringEqual(e.string, val.string)
+		return e.string == val.string
 	case AnyValueTypeBool:
-		return pkg.BoolEqual(e.bool, val.bool)
+		return e.bool == val.bool
 	case AnyValueTypeInt64:
-		return pkg.Int64Equal(e.int64, val.int64)
+		return e.int64 == val.int64
 	case AnyValueTypeFloat64:
-		return pkg.Float64Equal(e.float64, val.float64)
+		return e.float64 == val.float64
 	case AnyValueTypeArray:
 		return e.array.IsEqual(&val.array)
 	case AnyValueTypeKVList:
 		return e.kVList.IsEqual(&val.kVList)
 	case AnyValueTypeBytes:
-		return pkg.BytesEqual(e.bytes, val.bytes)
+		return e.bytes == val.bytes
 	}
 
 	return true

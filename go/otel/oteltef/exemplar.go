@@ -94,7 +94,7 @@ func (s *Exemplar) Timestamp() uint64 {
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Exemplar) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
 		s.markTimestampModified()
 	}
@@ -134,7 +134,7 @@ func (s *Exemplar) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Exemplar) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -158,7 +158,7 @@ func (s *Exemplar) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Exemplar) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -329,7 +329,7 @@ func (s *Exemplar) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Exemplar) IsEqual(right *Exemplar) bool {
 	// Compare Timestamp field.
-	if !pkg.Uint64Equal(s.timestamp, right.timestamp) {
+	if s.timestamp != right.timestamp {
 		return false
 	}
 	// Compare Value field.
@@ -337,11 +337,11 @@ func (s *Exemplar) IsEqual(right *Exemplar) bool {
 		return false
 	}
 	// Compare SpanID field.
-	if !pkg.BytesEqual(s.spanID, right.spanID) {
+	if s.spanID != right.spanID {
 		return false
 	}
 	// Compare TraceID field.
-	if !pkg.BytesEqual(s.traceID, right.traceID) {
+	if s.traceID != right.traceID {
 		return false
 	}
 	// Compare FilteredAttributes field.

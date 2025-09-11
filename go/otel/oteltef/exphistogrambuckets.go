@@ -82,7 +82,7 @@ func (s *ExpHistogramBuckets) Offset() int64 {
 
 // SetOffset sets the value of Offset field.
 func (s *ExpHistogramBuckets) SetOffset(v int64) {
-	if !pkg.Int64Equal(s.offset, v) {
+	if s.offset != v {
 		s.offset = v
 		s.markOffsetModified()
 	}
@@ -208,7 +208,7 @@ func (s *ExpHistogramBuckets) mutateRandom(random *rand.Rand, schem *schema.Sche
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *ExpHistogramBuckets) IsEqual(right *ExpHistogramBuckets) bool {
 	// Compare Offset field.
-	if !pkg.Int64Equal(s.offset, right.offset) {
+	if s.offset != right.offset {
 		return false
 	}
 	// Compare BucketCounts field.

@@ -131,7 +131,7 @@ func (s *JsonValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to JsonValueTypeString.
 func (s *JsonValue) SetString(v string) {
-	if s.typ != JsonValueTypeString || !pkg.StringEqual(s.string, v) {
+	if s.typ != JsonValueTypeString || s.string != v {
 		s.string = v
 		s.typ = JsonValueTypeString
 		s.markParentModified()
@@ -146,7 +146,7 @@ func (s *JsonValue) Number() float64 {
 
 // SetNumber sets the value to the specified value and sets the type to JsonValueTypeNumber.
 func (s *JsonValue) SetNumber(v float64) {
-	if s.typ != JsonValueTypeNumber || !pkg.Float64Equal(s.number, v) {
+	if s.typ != JsonValueTypeNumber || s.number != v {
 		s.number = v
 		s.typ = JsonValueTypeNumber
 		s.markParentModified()
@@ -161,7 +161,7 @@ func (s *JsonValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to JsonValueTypeBool.
 func (s *JsonValue) SetBool(v bool) {
-	if s.typ != JsonValueTypeBool || !pkg.BoolEqual(s.bool, v) {
+	if s.typ != JsonValueTypeBool || s.bool != v {
 		s.bool = v
 		s.typ = JsonValueTypeBool
 		s.markParentModified()
@@ -271,11 +271,11 @@ func (e *JsonValue) IsEqual(val *JsonValue) bool {
 	case JsonValueTypeArray:
 		return e.array.IsEqual(&val.array)
 	case JsonValueTypeString:
-		return pkg.StringEqual(e.string, val.string)
+		return e.string == val.string
 	case JsonValueTypeNumber:
-		return pkg.Float64Equal(e.number, val.number)
+		return e.number == val.number
 	case JsonValueTypeBool:
-		return pkg.BoolEqual(e.bool, val.bool)
+		return e.bool == val.bool
 	}
 
 	return true

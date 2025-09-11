@@ -103,7 +103,7 @@ func (s *ExemplarValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to ExemplarValueTypeInt64.
 func (s *ExemplarValue) SetInt64(v int64) {
-	if s.typ != ExemplarValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
+	if s.typ != ExemplarValueTypeInt64 || s.int64 != v {
 		s.int64 = v
 		s.typ = ExemplarValueTypeInt64
 		s.markParentModified()
@@ -118,7 +118,7 @@ func (s *ExemplarValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to ExemplarValueTypeFloat64.
 func (s *ExemplarValue) SetFloat64(v float64) {
-	if s.typ != ExemplarValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
+	if s.typ != ExemplarValueTypeFloat64 || s.float64 != v {
 		s.float64 = v
 		s.typ = ExemplarValueTypeFloat64
 		s.markParentModified()
@@ -197,9 +197,9 @@ func (e *ExemplarValue) IsEqual(val *ExemplarValue) bool {
 	}
 	switch e.typ {
 	case ExemplarValueTypeInt64:
-		return pkg.Int64Equal(e.int64, val.int64)
+		return e.int64 == val.int64
 	case ExemplarValueTypeFloat64:
-		return pkg.Float64Equal(e.float64, val.float64)
+		return e.float64 == val.float64
 	}
 
 	return true

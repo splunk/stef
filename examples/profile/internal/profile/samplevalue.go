@@ -86,7 +86,7 @@ func (s *SampleValue) Val() int64 {
 
 // SetVal sets the value of Val field.
 func (s *SampleValue) SetVal(v int64) {
-	if !pkg.Int64Equal(s.val, v) {
+	if s.val != v {
 		s.val = v
 		s.markValModified()
 	}
@@ -222,7 +222,7 @@ func (s *SampleValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *SampleValue) IsEqual(right *SampleValue) bool {
 	// Compare Val field.
-	if !pkg.Int64Equal(s.val, right.val) {
+	if s.val != right.val {
 		return false
 	}
 	// Compare Type field.

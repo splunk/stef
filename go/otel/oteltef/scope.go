@@ -93,7 +93,7 @@ func (s *Scope) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Scope) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -117,7 +117,7 @@ func (s *Scope) Version() string {
 
 // SetVersion sets the value of Version field.
 func (s *Scope) SetVersion(v string) {
-	if !pkg.StringEqual(s.version, v) {
+	if s.version != v {
 		s.version = v
 		s.markVersionModified()
 	}
@@ -141,7 +141,7 @@ func (s *Scope) SchemaURL() string {
 
 // SetSchemaURL sets the value of SchemaURL field.
 func (s *Scope) SetSchemaURL(v string) {
-	if !pkg.StringEqual(s.schemaURL, v) {
+	if s.schemaURL != v {
 		s.schemaURL = v
 		s.markSchemaURLModified()
 	}
@@ -181,7 +181,7 @@ func (s *Scope) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Scope) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -334,15 +334,15 @@ func (s *Scope) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Scope) IsEqual(right *Scope) bool {
 	// Compare Name field.
-	if !pkg.StringEqual(s.name, right.name) {
+	if s.name != right.name {
 		return false
 	}
 	// Compare Version field.
-	if !pkg.StringEqual(s.version, right.version) {
+	if s.version != right.version {
 		return false
 	}
 	// Compare SchemaURL field.
-	if !pkg.StringEqual(s.schemaURL, right.schemaURL) {
+	if s.schemaURL != right.schemaURL {
 		return false
 	}
 	// Compare Attributes field.
@@ -350,7 +350,7 @@ func (s *Scope) IsEqual(right *Scope) bool {
 		return false
 	}
 	// Compare DroppedAttributesCount field.
-	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
+	if s.droppedAttributesCount != right.droppedAttributesCount {
 		return false
 	}
 

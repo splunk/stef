@@ -113,7 +113,7 @@ func (s *Location) Address() uint64 {
 
 // SetAddress sets the value of Address field.
 func (s *Location) SetAddress(v uint64) {
-	if !pkg.Uint64Equal(s.address, v) {
+	if s.address != v {
 		s.address = v
 		s.markAddressModified()
 	}
@@ -153,7 +153,7 @@ func (s *Location) IsFolded() bool {
 
 // SetIsFolded sets the value of IsFolded field.
 func (s *Location) SetIsFolded(v bool) {
-	if !pkg.BoolEqual(s.isFolded, v) {
+	if s.isFolded != v {
 		s.isFolded = v
 		s.markIsFoldedModified()
 	}
@@ -309,7 +309,7 @@ func (s *Location) IsEqual(right *Location) bool {
 		return false
 	}
 	// Compare Address field.
-	if !pkg.Uint64Equal(s.address, right.address) {
+	if s.address != right.address {
 		return false
 	}
 	// Compare Lines field.
@@ -317,7 +317,7 @@ func (s *Location) IsEqual(right *Location) bool {
 		return false
 	}
 	// Compare IsFolded field.
-	if !pkg.BoolEqual(s.isFolded, right.isFolded) {
+	if s.isFolded != right.isFolded {
 		return false
 	}
 

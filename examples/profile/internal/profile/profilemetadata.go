@@ -114,7 +114,7 @@ func (s *ProfileMetadata) DropFrames() string {
 
 // SetDropFrames sets the value of DropFrames field.
 func (s *ProfileMetadata) SetDropFrames(v string) {
-	if !pkg.StringEqual(s.dropFrames, v) {
+	if s.dropFrames != v {
 		s.dropFrames = v
 		s.markDropFramesModified()
 	}
@@ -138,7 +138,7 @@ func (s *ProfileMetadata) KeepFrames() string {
 
 // SetKeepFrames sets the value of KeepFrames field.
 func (s *ProfileMetadata) SetKeepFrames(v string) {
-	if !pkg.StringEqual(s.keepFrames, v) {
+	if s.keepFrames != v {
 		s.keepFrames = v
 		s.markKeepFramesModified()
 	}
@@ -162,7 +162,7 @@ func (s *ProfileMetadata) TimeNanos() int64 {
 
 // SetTimeNanos sets the value of TimeNanos field.
 func (s *ProfileMetadata) SetTimeNanos(v int64) {
-	if !pkg.Int64Equal(s.timeNanos, v) {
+	if s.timeNanos != v {
 		s.timeNanos = v
 		s.markTimeNanosModified()
 	}
@@ -186,7 +186,7 @@ func (s *ProfileMetadata) DurationNanos() int64 {
 
 // SetDurationNanos sets the value of DurationNanos field.
 func (s *ProfileMetadata) SetDurationNanos(v int64) {
-	if !pkg.Int64Equal(s.durationNanos, v) {
+	if s.durationNanos != v {
 		s.durationNanos = v
 		s.markDurationNanosModified()
 	}
@@ -226,7 +226,7 @@ func (s *ProfileMetadata) Period() int64 {
 
 // SetPeriod sets the value of Period field.
 func (s *ProfileMetadata) SetPeriod(v int64) {
-	if !pkg.Int64Equal(s.period, v) {
+	if s.period != v {
 		s.period = v
 		s.markPeriodModified()
 	}
@@ -478,19 +478,19 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
 	// Compare DropFrames field.
-	if !pkg.StringEqual(s.dropFrames, right.dropFrames) {
+	if s.dropFrames != right.dropFrames {
 		return false
 	}
 	// Compare KeepFrames field.
-	if !pkg.StringEqual(s.keepFrames, right.keepFrames) {
+	if s.keepFrames != right.keepFrames {
 		return false
 	}
 	// Compare TimeNanos field.
-	if !pkg.Int64Equal(s.timeNanos, right.timeNanos) {
+	if s.timeNanos != right.timeNanos {
 		return false
 	}
 	// Compare DurationNanos field.
-	if !pkg.Int64Equal(s.durationNanos, right.durationNanos) {
+	if s.durationNanos != right.durationNanos {
 		return false
 	}
 	// Compare PeriodType field.
@@ -498,7 +498,7 @@ func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
 		return false
 	}
 	// Compare Period field.
-	if !pkg.Int64Equal(s.period, right.period) {
+	if s.period != right.period {
 		return false
 	}
 	// Compare Comments field.

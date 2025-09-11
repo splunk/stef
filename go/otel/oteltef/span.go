@@ -127,7 +127,7 @@ func (s *Span) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Span) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -151,7 +151,7 @@ func (s *Span) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Span) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -175,7 +175,7 @@ func (s *Span) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Span) SetTraceState(v string) {
-	if !pkg.StringEqual(s.traceState, v) {
+	if s.traceState != v {
 		s.traceState = v
 		s.markTraceStateModified()
 	}
@@ -199,7 +199,7 @@ func (s *Span) ParentSpanID() pkg.Bytes {
 
 // SetParentSpanID sets the value of ParentSpanID field.
 func (s *Span) SetParentSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.parentSpanID, v) {
+	if s.parentSpanID != v {
 		s.parentSpanID = v
 		s.markParentSpanIDModified()
 	}
@@ -223,7 +223,7 @@ func (s *Span) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Span) SetFlags(v uint64) {
-	if !pkg.Uint64Equal(s.flags, v) {
+	if s.flags != v {
 		s.flags = v
 		s.markFlagsModified()
 	}
@@ -247,7 +247,7 @@ func (s *Span) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Span) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -271,7 +271,7 @@ func (s *Span) Kind() uint64 {
 
 // SetKind sets the value of Kind field.
 func (s *Span) SetKind(v uint64) {
-	if !pkg.Uint64Equal(s.kind, v) {
+	if s.kind != v {
 		s.kind = v
 		s.markKindModified()
 	}
@@ -295,7 +295,7 @@ func (s *Span) StartTimeUnixNano() uint64 {
 
 // SetStartTimeUnixNano sets the value of StartTimeUnixNano field.
 func (s *Span) SetStartTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.startTimeUnixNano, v) {
+	if s.startTimeUnixNano != v {
 		s.startTimeUnixNano = v
 		s.markStartTimeUnixNanoModified()
 	}
@@ -319,7 +319,7 @@ func (s *Span) EndTimeUnixNano() uint64 {
 
 // SetEndTimeUnixNano sets the value of EndTimeUnixNano field.
 func (s *Span) SetEndTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.endTimeUnixNano, v) {
+	if s.endTimeUnixNano != v {
 		s.endTimeUnixNano = v
 		s.markEndTimeUnixNanoModified()
 	}
@@ -359,7 +359,7 @@ func (s *Span) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Span) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -694,39 +694,39 @@ func (s *Span) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 // IsEqual performs deep comparison and returns true if struct is equal to right.
 func (s *Span) IsEqual(right *Span) bool {
 	// Compare TraceID field.
-	if !pkg.BytesEqual(s.traceID, right.traceID) {
+	if s.traceID != right.traceID {
 		return false
 	}
 	// Compare SpanID field.
-	if !pkg.BytesEqual(s.spanID, right.spanID) {
+	if s.spanID != right.spanID {
 		return false
 	}
 	// Compare TraceState field.
-	if !pkg.StringEqual(s.traceState, right.traceState) {
+	if s.traceState != right.traceState {
 		return false
 	}
 	// Compare ParentSpanID field.
-	if !pkg.BytesEqual(s.parentSpanID, right.parentSpanID) {
+	if s.parentSpanID != right.parentSpanID {
 		return false
 	}
 	// Compare Flags field.
-	if !pkg.Uint64Equal(s.flags, right.flags) {
+	if s.flags != right.flags {
 		return false
 	}
 	// Compare Name field.
-	if !pkg.StringEqual(s.name, right.name) {
+	if s.name != right.name {
 		return false
 	}
 	// Compare Kind field.
-	if !pkg.Uint64Equal(s.kind, right.kind) {
+	if s.kind != right.kind {
 		return false
 	}
 	// Compare StartTimeUnixNano field.
-	if !pkg.Uint64Equal(s.startTimeUnixNano, right.startTimeUnixNano) {
+	if s.startTimeUnixNano != right.startTimeUnixNano {
 		return false
 	}
 	// Compare EndTimeUnixNano field.
-	if !pkg.Uint64Equal(s.endTimeUnixNano, right.endTimeUnixNano) {
+	if s.endTimeUnixNano != right.endTimeUnixNano {
 		return false
 	}
 	// Compare Attributes field.
@@ -734,7 +734,7 @@ func (s *Span) IsEqual(right *Span) bool {
 		return false
 	}
 	// Compare DroppedAttributesCount field.
-	if !pkg.Uint64Equal(s.droppedAttributesCount, right.droppedAttributesCount) {
+	if s.droppedAttributesCount != right.droppedAttributesCount {
 		return false
 	}
 	// Compare Events field.

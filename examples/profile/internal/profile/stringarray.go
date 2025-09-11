@@ -183,7 +183,7 @@ func (e *StringArray) IsEqual(val *StringArray) bool {
 		return false
 	}
 	for i := range e.elems {
-		if !pkg.StringEqual(e.elems[i], val.elems[i]) {
+		if e.elems[i] != val.elems[i] {
 			return false
 		}
 	}
