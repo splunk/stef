@@ -30,7 +30,6 @@ package pkg
 
 import (
 	"encoding/binary"
-	"math"
 	"math/bits"
 )
 
@@ -138,16 +137,17 @@ func (b *BitsWriter) WriteUvarintCompact(val uint64) uint {
 
 // BitsReader is a reader of bits.
 type BitsReader struct {
-	// Last 64 bits that were read.
+	// Always contains 64 usable bits to serve from.
 	bitBuf uint64
+	// Contains up to 64 bits to be shifted into bitBuf as needed.
+	bitBufNext uint64
+	// Number of usable bits in bitBufNext.
+	availBitCount int
 
 	// Input byte buffer.
 	buf []byte
 	// Position to read next from the buf.
 	byteIndex uint
-
-	// Number of usable bits in bitBuf.
-	availBitCount uint
 
 	// True if attempt to read past buf was detected.
 	isEOF bool
@@ -160,9 +160,36 @@ func NewBitsReader() *BitsReader {
 func (b *BitsReader) Reset(buf []byte) {
 	b.buf = buf
 	b.byteIndex = 0
-	b.availBitCount = 0
-	b.bitBuf = 0
 	b.isEOF = false
+	b.bitBuf = 0
+	b.bitBufNext = 0
+	b.availBitCount = 0
+	b.fillInitial()
+}
+
+// fillInitial fills bitBuf and bitBufNext from the input buffer.
+func (b *BitsReader) fillInitial() {
+	b.bitBuf = b.read64Bits()
+	b.bitBufNext = b.read64Bits()
+	b.availBitCount = 64
+}
+
+// read64Bits reads up to 8 bytes from the buffer and returns as uint64 (big endian, zero-padded).
+func (b *BitsReader) read64Bits() uint64 {
+	var val uint64
+	remaining := uint(len(b.buf)) - b.byteIndex
+	if remaining >= 8 {
+		val = binary.BigEndian.Uint64(b.buf[b.byteIndex:])
+		b.byteIndex += 8
+	} else if remaining > 0 {
+		for i := uint(0); i < remaining; i++ {
+			val |= uint64(b.buf[b.byteIndex+i]) << (56 - 8*i)
+		}
+		b.byteIndex += remaining
+	} else {
+		val = 0
+	}
+	return val
 }
 
 func (b *BitsReader) MapBytesFromMemBuf(src *BytesReader, byteSize int) error {
@@ -173,8 +200,11 @@ func (b *BitsReader) MapBytesFromMemBuf(src *BytesReader, byteSize int) error {
 
 	b.buf = buf
 	b.byteIndex = 0
-	b.availBitCount = 0
+	b.isEOF = false
 	b.bitBuf = 0
+	b.bitBufNext = 0
+	b.availBitCount = 0
+	b.fillInitial()
 	return nil
 }
 
@@ -182,69 +212,37 @@ func (b *BitsReader) IsEOF() bool {
 	return b.isEOF
 }
 
-func (b *BitsReader) refillSlow() uint64 {
-	if b.byteIndex >= uint(len(b.buf)) {
-		b.isEOF = true
-		return 0
-	}
-
-	for b.byteIndex < uint(len(b.buf)) && b.availBitCount < 56 {
-		byt := uint64(b.buf[b.byteIndex])
-		b.bitBuf |= byt << (64 - b.availBitCount - 8)
-		b.byteIndex++
-		b.availBitCount += 8
-	}
-
-	if b.byteIndex >= uint(len(b.buf)) {
-		// Ensure essentially unlimited zero bits are available for consumption
-		// past EOF.
-		b.availBitCount = math.MaxInt
-	}
-
-	return 0
-}
-
-// PeekBits must ensure at least nbits bits become available, i.e. b.availBitCount >= nbits
-// on return. If this means going past EOF then zero bits are appended at the end.
-// Maximum allowed value for nbits is 56.
+// PeekBits always serves from bitBuf, which always has 64 bits.
+// nbits must be <= 56.
 func (b *BitsReader) PeekBits(nbits uint) uint64 {
-	if nbits <= b.availBitCount {
-		// Fast path. Have enough available bits.
-		return b.bitBuf >> (64 - nbits)
+	if nbits > 64 {
+		panic("at most 64 bits can be peeked")
 	}
-	// Slow path. Not enough available bits. Refill, then peek.
-	return b.refillAndPeekBits(nbits)
-}
-
-func (b *BitsReader) refillAndPeekBits(nbits uint) uint64 {
-	if nbits > 56 {
-		panic("at most 56 bits can be peeked")
-	}
-
-	// bitBuf has b.availBitCount filled. Fill bitBuf at least to 56 bits, which is more than nbits.
-
-	if b.byteIndex+8 < uint(len(b.buf)) {
-		// Plenty of room till end of buffer. Read 8 bytes at once.
-		b.bitBuf |= binary.BigEndian.Uint64(b.buf[b.byteIndex:]) >> b.availBitCount
-		// Advance by full bytes.
-		b.byteIndex += (uint(63) - b.availBitCount) >> 3
-		// Update number of available bits. [56..63] of available bits are supported.
-		b.availBitCount |= 56
-	} else {
-		// Close to end of buffer. Read slowly more carefully.
-		b.refillSlow()
-	}
-
-	// Now peek from bitBuf.
 	return b.bitBuf >> (64 - nbits)
 }
 
-// Consume advances the bit pointer by nbits bits. Consume must
-// be preceded by PeekBits() call with at least the same value of nbits.
-// Maximum allowed value for count is 56.
+// Consume advances the bit pointer by nbits bits, shifting in bits from bitBufNext as needed.
+// nbits must be <= 56.
 func (b *BitsReader) Consume(nbits uint) {
-	b.bitBuf <<= nbits
-	b.availBitCount -= nbits
+	if b.availBitCount >= int(nbits) {
+		// Fast path: enough bits in bitBufNext to satisfy the request.
+		b.bitBuf = (b.bitBuf << nbits) | (b.bitBufNext >> (64 - nbits))
+		b.bitBufNext <<= nbits
+		b.availBitCount -= int(nbits)
+		return
+	}
+	b.consumeSlow(nbits)
+}
+
+//go:noinline
+func (b *BitsReader) consumeSlow(nbits uint) {
+	b.bitBuf = (b.bitBuf << b.availBitCount) | (b.bitBufNext >> (64 - b.availBitCount))
+	nbits -= uint(b.availBitCount)
+	b.bitBufNext = b.read64Bits()
+	b.availBitCount = 64
+	b.bitBuf = (b.bitBuf << nbits) | (b.bitBufNext >> (64 - nbits))
+	b.bitBufNext <<= nbits
+	b.availBitCount -= int(nbits)
 }
 
 // ReadBits reads bits. nbits should be in [0..64] range.
@@ -252,41 +250,13 @@ func (b *BitsReader) Consume(nbits uint) {
 // IsEOF condition will be set if ReadBits is called again after
 // consuming all available bits.
 func (b *BitsReader) ReadBits(nbits uint) uint64 {
-	if nbits <= 56 {
-		val := b.PeekBits(nbits)
-		b.Consume(nbits)
-		return val
-	}
-	return b.readBitsMoreThan56(nbits)
-}
-
-func (b *BitsReader) readBitsMoreThan56(nbits uint) uint64 {
-	val := b.PeekBits(56)
-	toConsume := b.availBitCount
-	if toConsume > 56 {
-		toConsume = 56
-	}
-	b.Consume(toConsume)
-	nbits -= toConsume
-	val = (val << nbits) | b.PeekBits(nbits)
+	val := b.PeekBits(nbits)
 	b.Consume(nbits)
 	return val
 }
 
 func (b *BitsReader) ReadBit() uint64 {
-	if b.availBitCount > 0 {
-		v := b.bitBuf >> 63
-		b.bitBuf <<= 1
-		b.availBitCount--
-		return v
-	}
-	return b.readBitSlow()
-}
-
-func (b *BitsReader) readBitSlow() uint64 {
-	val := b.PeekBits(1)
-	b.Consume(1)
-	return val
+	return b.ReadBits(1)
 }
 
 // ReadVarintCompact reads a variable-bit encoded signed value.
