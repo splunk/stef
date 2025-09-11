@@ -215,9 +215,6 @@ func (b *BitsReader) IsEOF() bool {
 // PeekBits always serves from bitBuf, which always has 64 bits.
 // nbits must be <= 56.
 func (b *BitsReader) PeekBits(nbits uint) uint64 {
-	if nbits > 64 {
-		panic("at most 64 bits can be peeked")
-	}
 	return b.bitBuf >> (64 - nbits)
 }
 
@@ -256,7 +253,18 @@ func (b *BitsReader) ReadBits(nbits uint) uint64 {
 }
 
 func (b *BitsReader) ReadBit() uint64 {
-	return b.ReadBits(1)
+	val := b.bitBuf >> (64 - 1)
+
+	if b.availBitCount >= 1 {
+		// Fast path: enough bits in bitBufNext to satisfy the request.
+		b.bitBuf = (b.bitBuf << 1) | (b.bitBufNext >> (64 - 1))
+		b.bitBufNext <<= 1
+		b.availBitCount -= int(1)
+		return val
+	}
+	b.consumeSlow(1)
+
+	return val
 }
 
 // ReadVarintCompact reads a variable-bit encoded signed value.
