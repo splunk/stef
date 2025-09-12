@@ -28,7 +28,7 @@ func TestCopy(t *testing.T) {
 
 	for _, file := range files {
 
-		tefBytes, err := os.ReadFile("testdata/" + file)
+		tefBytes, err := os.ReadFile("testdata/generated/" + file)
 		require.NoError(t, err)
 
 		tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
@@ -77,7 +77,7 @@ func TestCopy(t *testing.T) {
 }
 
 func BenchmarkReadSTEF(b *testing.B) {
-	tefBytes, err := os.ReadFile("testdata/hipstershop-otelmetrics.stefz")
+	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
 	tefSrc, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
@@ -131,7 +131,7 @@ func BenchmarkReadSTEF(b *testing.B) {
 }
 
 func BenchmarkReadSTEFZ(b *testing.B) {
-	tefBytes, err := os.ReadFile("testdata/hipstershop-otelmetrics.stefz")
+	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
 	recCount := 0
@@ -158,7 +158,7 @@ func BenchmarkReadSTEFZ(b *testing.B) {
 }
 
 func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
-	tefBytes, err := os.ReadFile("testdata/hipstershop-otelmetrics.stefz")
+	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
 	recCount := 0

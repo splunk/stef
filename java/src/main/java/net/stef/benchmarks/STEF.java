@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 @Threads(1)
 @State(Scope.Thread)
 public class STEF {
-    public static final String stefRefFile = "../benchmarks/testdata/hipstershop-otelmetrics.stefz";
+    public static final String stefRefFile = "../benchmarks/testdata/generated/hipstershop-otelmetrics.stefz";
     public static long stefRecordCount = 66816; // Number of records in stefRefFile
 
     public ByteBuffer stefData;
