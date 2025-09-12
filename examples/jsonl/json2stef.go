@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/splunk/stef/go/pkg"
-
 	"github.com/splunk/stef/examples/jsonl/internal/jsonstef"
+	"github.com/splunk/stef/go/pkg"
 )
 
 // convertToJsonValue recursively converts a Go value (from json.Unmarshal) to a jsonstef.JsonValue.
