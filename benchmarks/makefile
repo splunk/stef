@@ -21,15 +21,33 @@ build:
 	go build -o bin/stefbench cmd/stefbench/main.go
 	go build -o bin/otlp2stef cmd/otlp2stef/main.go
 
+.PHONY: testcompat
+testcompat: # Test compatibility of current implementation with old format files
+	# Generate old test files
+	cd scripts && ./genoldtestfiles.sh
+	# Run compatibility tests
+	go test -v -run TestCopy
+	# Restore/generate current test files
+	cd scripts && ./gentestfiles.sh
+
+.PHONY: gentestfiles
+gentestfiles:
+	cd scripts && ./gentestfiles.sh
+
 .PHONY: test
-test:
+test: gentestfiles
 	go test -v ./...
 
-benchmark:
+benchmark: gentestfiles
 	go test ./... -run notest -bench . -benchtime 100ms
 
+.PHONY: build-ci
+build-ci:
+	make testcompat
+	make all
+
 .PHONY: benchmark-ci
-benchmark-ci: bench-run bench-stat-diff bench-stat
+benchmark-ci: gentestfiles bench-run bench-stat-diff bench-stat
 
 .PHONY: bench-stat-cli
 bench-stat-cli:
@@ -50,8 +68,3 @@ bench-stat: bench-stat-cli
 .PHONY: update-charts
 update-charts:
 	UPDATE_BENCH_HTML=1 go test -run TestMetricsSize\|TestMetricsMultipart -bench \(alizeNative\|Pdata\)
-
-regen-testdata: build
-	bin/otlp2stef --compression zstd --input testdata/astronomy-otelmetrics.zst
-	bin/otlp2stef --compression zstd --input testdata/hipstershop-otelmetrics.zst
-	bin/otlp2stef --compression zstd --input testdata/hostandcollector-otelmetrics.zst
