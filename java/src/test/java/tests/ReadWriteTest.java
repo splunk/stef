@@ -33,7 +33,7 @@ class ReadWriteTest {
         System.out.printf("%-30s %12s\n", "File", "Uncompressed");
 
         for (String file : files) {
-            Path path = Paths.get("../benchmarks/testdata/" + file);
+            Path path = Paths.get("../benchmarks/testdata/generated/" + file);
             path = path.toAbsolutePath();
             byte[] stefBytes = Files.readAllBytes(path);
             assertNotNull(stefBytes);
