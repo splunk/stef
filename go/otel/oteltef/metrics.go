@@ -1171,7 +1171,7 @@ var wireSchemaMetrics = []byte{0x0F, 0x06, 0x01, 0x08, 0x07, 0x03, 0x05, 0x04, 0
 
 func MetricsWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaMetrics))); err != nil {
+	if err := w.Deserialize(bytes.NewReader(wireSchemaMetrics)); err != nil {
 		return w, err
 	}
 	return w, nil
