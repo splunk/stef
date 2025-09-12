@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/splunk/stef/go/pkg/internal"
 )
@@ -91,7 +92,7 @@ func (w *WireSchema) Serialize(dst *bytes.Buffer) error {
 }
 
 // Deserialize the schema from binary format.
-func (w *WireSchema) Deserialize(src *bytes.Buffer) error {
+func (w *WireSchema) Deserialize(src io.ByteReader) error {
 	count, err := binary.ReadUvarint(src)
 	if err != nil {
 		return err

@@ -890,7 +890,7 @@ var wireSchemaSpans = []byte{0x09, 0x04, 0x01, 0x03, 0x07, 0x05, 0x0E, 0x04, 0x0
 
 func SpansWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaSpans))); err != nil {
+	if err := w.Deserialize(bytes.NewReader(wireSchemaSpans)); err != nil {
 		return w, err
 	}
 	return w, nil

@@ -478,7 +478,7 @@ var wireSchemaRecord = []byte{0x02, 0x01, 0x05}
 
 func RecordWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaRecord))); err != nil {
+	if err := w.Deserialize(bytes.NewReader(wireSchemaRecord)); err != nil {
 		return w, err
 	}
 	return w, nil
