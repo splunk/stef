@@ -3,6 +3,7 @@ package oteltef
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand/v2"
 	"strings"
 	"unsafe"
@@ -361,10 +362,11 @@ func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // PointValueEncoder implements encoding of PointValue
 type PointValueEncoder struct {
-	buf        pkg.BitsWriter
-	limiter    *pkg.SizeLimiter
-	prevType   PointValueType
-	fieldCount uint
+	buf          pkg.BitsWriter
+	limiter      *pkg.SizeLimiter
+	prevType     PointValueType
+	fieldCount   uint
+	typeBitCount uint // Number of bits needed to encode the type.
 
 	// Field encoders.
 
@@ -398,6 +400,7 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %v", "PointValue", err)
 	}
+	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
 	// Init encoder for Int64 field.
 	if e.fieldCount <= 0 {
@@ -519,12 +522,14 @@ func (e *PointValueEncoder) Encode(val *PointValue) {
 	}
 
 	// Compute type delta. 0 means the type is the same as the last time.
-	typDelta := int(typ) - int(e.prevType)
+	//typDelta := int(typ) - int(e.prevType)
 	e.prevType = typ
-	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
+	//bitCount := e.buf.WriteVarintCompact(int64(typDelta))
+	e.buf.WriteBits(uint64(typ), e.typeBitCount)
 
 	// Account written bits in the limiter.
-	e.limiter.AddFrameBits(bitCount)
+	//e.limiter.AddFrameBits(bitCount)
+	e.limiter.AddFrameBits(e.typeBitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -597,11 +602,12 @@ func (e *PointValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // PointValueDecoder implements decoding of PointValue
 type PointValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	lastValPtr *PointValue
-	lastVal    PointValue
-	fieldCount uint
+	buf          pkg.BitsReader
+	column       *pkg.ReadableColumn
+	lastValPtr   *PointValue
+	lastVal      PointValue
+	fieldCount   uint
+	typeBitCount uint // Number of bits needed to encode the type.
 
 	prevType PointValueType
 
@@ -644,6 +650,8 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
+
+	d.typeBitCount = uint(bits.Len64(uint64(d.fieldCount) + 1))
 	if d.fieldCount <= 0 {
 		return nil // Int64 and subsequent fields are skipped.
 	}
@@ -787,11 +795,12 @@ func (d *PointValueDecoder) Reset() {
 
 func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	// Read Type delta
-	typeDelta := d.buf.ReadVarintCompact()
+	//typeDelta := d.buf.ReadVarintCompact()
 
 	// Calculate and validate the new Type
-	typ := int(d.prevType) + int(typeDelta)
-	if typ < 0 || typ >= int(PointValueTypeCount) {
+	//typ := int(d.prevType) + int(typeDelta)
+	typ := uint(d.buf.ReadBits(d.typeBitCount))
+	if typ < 0 || typ >= uint(PointValueTypeCount) {
 		return pkg.ErrInvalidOneOfType
 	}
 
