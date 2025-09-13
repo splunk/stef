@@ -1,11 +1,11 @@
 package com.example.gentest.all_features
 
 struct Root root {
-  AllPrimitives AllPrimitives
+  AllTypes AllTypes
   AllArrays AllArrays
+  AllTypesDicts AllTypesDicts
   RecurseRootViaArray []Root
   RecurseRootViaOptional Root optional
-  RStruct1 RStruct1
 }
 
 struct AllTypes {
@@ -73,12 +73,12 @@ multimap StringStringMultimap {
 }
 
 multimap IntIntMultimap {
-  key int
-  value int
+  key int64
+  value int64
 }
 
 multimap IntStructMultimap {
-  key int
+  key int64
   value StructRecurseSelf
 }
 
@@ -97,7 +97,7 @@ multimap StringStringMultimapDictComplex {
   value OneofDict
 }
 
-struct StructArrayMultimap {
+multimap StructArrayMultimap {
   key StructRecurseSelf
   value []StructWithOptionals
 }
