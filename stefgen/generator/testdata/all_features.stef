@@ -1,0 +1,145 @@
+package com.example.gentest.all_features
+
+struct Root root {
+  AllPrimitives AllPrimitives
+  AllArrays AllArrays
+  RecurseRootViaArray []Root
+  RecurseRootViaOptional Root optional
+  RStruct1 RStruct1
+}
+
+struct AllTypes {
+  B bool
+  I64 int64
+  U64 uint64
+  F64 float64
+  S string
+  B bytes
+  O AllInOneOff
+  So StructWithOptionals
+  Sr StructRecurseSelf
+  Srmo StructRecurseMutualViaOptional1
+  AllMultimaps AllMultimaps
+  E Enum1
+}
+
+struct AllTypesDicts {
+  B bool dict(B)
+  I64 int64 dict(I64)
+  U64 uint64 dict(U64)
+  F64 float64 dict(F64)
+  S string dict(S)
+  B bytes dict(B)
+  StructDict StructDict
+  OneofDict OneofDict
+}
+
+struct StructWithOptionals {
+  B bool optional
+  I64 int64 optional
+  U64 uint64 optional
+  F64 float64 optional
+  S string optional
+  B bytes optional
+  AllMultimaps AllMultimaps optional
+  O AllInOneOff optional
+  AllArrays AllArrays optional
+  E Enum1 optional
+}
+
+struct AllArrays {
+  B []bool
+  I64 []int64
+  U64 []uint64
+  F64 []float64
+  S []string
+  B []bytes
+  M []StringStringMultimap
+}
+
+struct AllMultimaps {
+  SSM StringStringMultimap
+  IIM IntIntMultimap
+  ISM IntStructMultimap
+  SSM2 StructStructMultimap
+  SAM StructArrayMultimap
+  SSMD StringStringMultimapDict
+  SSMDC StringStringMultimapDictComplex
+}
+
+multimap StringStringMultimap {
+  key string
+  value string
+}
+
+multimap IntIntMultimap {
+  key int
+  value int
+}
+
+multimap IntStructMultimap {
+  key int
+  value StructRecurseSelf
+}
+
+multimap StructStructMultimap {
+  key StructRecurseSelf
+  value StructRecurseSelf
+}
+
+multimap StringStringMultimapDict {
+  key string dict(KeyString)
+  value string dict(ValueString)
+}
+
+multimap StringStringMultimapDictComplex {
+  key StructDict
+  value OneofDict
+}
+
+struct StructArrayMultimap {
+  key StructRecurseSelf
+  value []StructWithOptionals
+}
+
+oneof AllInOneOff {
+  B bool
+  I64 int64
+  U64 uint64
+  F64 float64
+  S string
+  B bytes
+  Ba []bool
+  I64a []int64
+  U64a []uint64
+  F64a []float64
+  Sa []string
+  Ba []bytes
+}
+
+struct StructRecurseMutualViaOptional1 {
+  RStruct2 StructRecurseMutualViaOptional2 optional
+}
+
+struct StructRecurseMutualViaOptional2 {
+  RStruct1 StructRecurseMutualViaOptional1 optional
+}
+
+struct StructRecurseSelf {
+  Val int64
+  Struct []StructRecurseSelf
+}
+
+struct StructDict dict(StructDict) {
+  Val string
+}
+
+oneof OneofDict dict(OneofDict) {
+  Val string
+}
+
+enum Enum1 {
+    A = 1
+    B = 2
+    C = 3
+}
