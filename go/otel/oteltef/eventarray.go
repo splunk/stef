@@ -139,7 +139,7 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(Event)
+				dst.elems[i] = &Event{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyEvent(dst.elems[i], src.elems[i])
 			}

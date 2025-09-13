@@ -139,7 +139,7 @@ func copyLineArray(dst *LineArray, src *LineArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(Line)
+				dst.elems[i] = &Line{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyLine(dst.elems[i], src.elems[i])
 			}

@@ -139,7 +139,7 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(Link)
+				dst.elems[i] = &Link{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyLink(dst.elems[i], src.elems[i])
 			}
