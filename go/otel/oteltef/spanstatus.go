@@ -60,7 +60,6 @@ func (s *SpanStatus) initAlloc(parentModifiedFields *modifiedFields, parentModif
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SpanStatus) reset() {
-
 	s.message = ""
 	s.code = 0
 }
@@ -70,7 +69,17 @@ func (s *SpanStatus) reset() {
 // an array element and the array was expanded.
 func (s *SpanStatus) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *SpanStatus) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SpanStatus) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *SpanStatus) Message() string {
@@ -79,9 +88,9 @@ func (s *SpanStatus) Message() string {
 
 // SetMessage sets the value of Message field.
 func (s *SpanStatus) SetMessage(v string) {
-	if !pkg.StringEqual(s.message, v) {
+	if s.message != v {
 		s.message = v
-		s.markMessageModified()
+		s.modifiedFields.markModified(fieldModifiedSpanStatusMessage)
 	}
 }
 
@@ -103,9 +112,9 @@ func (s *SpanStatus) Code() uint64 {
 
 // SetCode sets the value of Code field.
 func (s *SpanStatus) SetCode(v uint64) {
-	if !pkg.Uint64Equal(s.code, v) {
+	if s.code != v {
 		s.code = v
-		s.markCodeModified()
+		s.modifiedFields.markModified(fieldModifiedSpanStatusCode)
 	}
 }
 
@@ -121,28 +130,45 @@ func (s *SpanStatus) IsCodeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatusCode != 0
 }
 
-func (s *SpanStatus) markModifiedRecursively() {
-
+func (s *SpanStatus) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedSpanStatusMessage |
 			fieldModifiedSpanStatusCode | 0
 }
 
-func (s *SpanStatus) markUnmodifiedRecursively() {
-
-	if s.IsMessageModified() {
-	}
-
-	if s.IsCodeModified() {
-	}
-
+func (s *SpanStatus) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *SpanStatus) computeDiff(val *SpanStatus) (ret bool) {
+	// Compare Message field.
+	if s.message != val.message {
+		s.modifiedFields.setModified(fieldModifiedSpanStatusMessage)
+		ret = true
+	}
+	// Compare Code field.
+	if s.code != val.code {
+		s.modifiedFields.setModified(fieldModifiedSpanStatusCode)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *SpanStatus) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SpanStatus) CloneShared(allocators *Allocators) SpanStatus {
+	return s.Clone(allocators)
+}
+
 func (s *SpanStatus) Clone(allocators *Allocators) SpanStatus {
-
 	c := SpanStatus{
-
 		message: s.message,
 		code:    s.code,
 	}
@@ -164,17 +190,13 @@ func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus, allocators *Allocators) {
-	dst.message = src.message
-	dst.code = src.code
+	dst.SetMessage(src.message)
+	dst.SetCode(src.code)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *SpanStatus) CopyFrom(src *SpanStatus) {
 	copySpanStatus(s, src)
-}
-
-func (s *SpanStatus) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -228,26 +250,14 @@ func SpanStatusEqual(left, right *SpanStatus) bool {
 // CmpSpanStatus performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSpanStatus(left, right *SpanStatus) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Message field.
 	if c := strings.Compare(left.message, right.message); c != 0 {
 		return c
 	}
-
 	// Compare Code field.
 	if c := pkg.Uint64Compare(left.code, right.code); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -256,15 +266,13 @@ type SpanStatusEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	messageEncoder encoders.StringEncoder
-
-	codeEncoder encoders.Uint64Encoder
+	codeEncoder    encoders.Uint64Encoder
 
 	allocators *Allocators
 
@@ -317,7 +325,7 @@ func (e *SpanStatusEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 func (e *SpanStatusEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Message and all subsequent fields are skipped.
@@ -338,11 +346,8 @@ func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSpanStatusMessage |
-				fieldModifiedSpanStatusCode | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -375,30 +380,25 @@ func (e *SpanStatusEncoder) Encode(val *SpanStatus) {
 func (e *SpanStatusEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Message field.
 	if e.fieldCount <= 0 {
 		return // Message and subsequent fields are skipped.
 	}
-
 	e.messageEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Code field.
 	if e.fieldCount <= 1 {
 		return // Code and subsequent fields are skipped.
 	}
-
 	e.codeEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // SpanStatusDecoder implements decoding of SpanStatus
 type SpanStatusDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf            pkg.BitsReader
+	column         *pkg.ReadableColumn
+	fieldCount     uint
 	messageDecoder encoders.StringDecoder
 
 	codeDecoder encoders.Uint64Decoder

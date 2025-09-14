@@ -60,7 +60,6 @@ func (s *QuantileValue) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *QuantileValue) reset() {
-
 	s.quantile = 0.0
 	s.value = 0.0
 }
@@ -70,7 +69,17 @@ func (s *QuantileValue) reset() {
 // an array element and the array was expanded.
 func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *QuantileValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *QuantileValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *QuantileValue) Quantile() float64 {
@@ -79,9 +88,9 @@ func (s *QuantileValue) Quantile() float64 {
 
 // SetQuantile sets the value of Quantile field.
 func (s *QuantileValue) SetQuantile(v float64) {
-	if !pkg.Float64Equal(s.quantile, v) {
+	if s.quantile != v {
 		s.quantile = v
-		s.markQuantileModified()
+		s.modifiedFields.markModified(fieldModifiedQuantileValueQuantile)
 	}
 }
 
@@ -103,9 +112,9 @@ func (s *QuantileValue) Value() float64 {
 
 // SetValue sets the value of Value field.
 func (s *QuantileValue) SetValue(v float64) {
-	if !pkg.Float64Equal(s.value, v) {
+	if s.value != v {
 		s.value = v
-		s.markValueModified()
+		s.modifiedFields.markModified(fieldModifiedQuantileValueValue)
 	}
 }
 
@@ -121,28 +130,45 @@ func (s *QuantileValue) IsValueModified() bool {
 	return s.modifiedFields.mask&fieldModifiedQuantileValueValue != 0
 }
 
-func (s *QuantileValue) markModifiedRecursively() {
-
+func (s *QuantileValue) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedQuantileValueQuantile |
 			fieldModifiedQuantileValueValue | 0
 }
 
-func (s *QuantileValue) markUnmodifiedRecursively() {
-
-	if s.IsQuantileModified() {
-	}
-
-	if s.IsValueModified() {
-	}
-
+func (s *QuantileValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *QuantileValue) computeDiff(val *QuantileValue) (ret bool) {
+	// Compare Quantile field.
+	if s.quantile != val.quantile {
+		s.modifiedFields.setModified(fieldModifiedQuantileValueQuantile)
+		ret = true
+	}
+	// Compare Value field.
+	if s.value != val.value {
+		s.modifiedFields.setModified(fieldModifiedQuantileValueValue)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *QuantileValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *QuantileValue) CloneShared(allocators *Allocators) QuantileValue {
+	return s.Clone(allocators)
+}
+
 func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
-
 	c := QuantileValue{
-
 		quantile: s.quantile,
 		value:    s.value,
 	}
@@ -164,17 +190,13 @@ func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue, allocators *Allocators) {
-	dst.quantile = src.quantile
-	dst.value = src.value
+	dst.SetQuantile(src.quantile)
+	dst.SetValue(src.value)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *QuantileValue) CopyFrom(src *QuantileValue) {
 	copyQuantileValue(s, src)
-}
-
-func (s *QuantileValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -228,26 +250,14 @@ func QuantileValueEqual(left, right *QuantileValue) bool {
 // CmpQuantileValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpQuantileValue(left, right *QuantileValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Quantile field.
 	if c := pkg.Float64Compare(left.quantile, right.quantile); c != 0 {
 		return c
 	}
-
 	// Compare Value field.
 	if c := pkg.Float64Compare(left.value, right.value); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -256,15 +266,13 @@ type QuantileValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	quantileEncoder encoders.Float64Encoder
-
-	valueEncoder encoders.Float64Encoder
+	valueEncoder    encoders.Float64Encoder
 
 	allocators *Allocators
 
@@ -317,7 +325,7 @@ func (e *QuantileValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 func (e *QuantileValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Quantile and all subsequent fields are skipped.
@@ -338,11 +346,8 @@ func (e *QuantileValueEncoder) Encode(val *QuantileValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedQuantileValueQuantile |
-				fieldModifiedQuantileValueValue | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -375,30 +380,25 @@ func (e *QuantileValueEncoder) Encode(val *QuantileValue) {
 func (e *QuantileValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Quantile field.
 	if e.fieldCount <= 0 {
 		return // Quantile and subsequent fields are skipped.
 	}
-
 	e.quantileEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Value field.
 	if e.fieldCount <= 1 {
 		return // Value and subsequent fields are skipped.
 	}
-
 	e.valueEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // QuantileValueDecoder implements decoding of QuantileValue
 type QuantileValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf             pkg.BitsReader
+	column          *pkg.ReadableColumn
+	fieldCount      uint
 	quantileDecoder encoders.Float64Decoder
 
 	valueDecoder encoders.Float64Decoder

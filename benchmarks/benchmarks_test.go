@@ -61,6 +61,10 @@ func addZstdCompressTime(
 	bodyBytes []byte,
 	dataPointCount int,
 ) {
+	if !chartsEnabled() {
+		return
+	}
+
 	b.Run(
 		fmt.Sprintf("%s/zstd", encoding.Name()),
 		func(b *testing.B) {
@@ -87,6 +91,10 @@ func addZstdDecompressTime(
 	bodyBytes []byte,
 	dataPointCount int,
 ) {
+	if !chartsEnabled() {
+		return
+	}
+
 	zstdBytes := testutils.CompressZstd(bodyBytes)
 	if zstdBytes == nil {
 		log.Fatal("compression failed")

@@ -27,31 +27,40 @@ func (c *OtlpToSortedTree) FromOtlp(rms pmetric.ResourceMetricsSlice) (*sortedby
 
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
+		resource := oteltef.NewResource()
+		c.Otlp2tef.ResourceSorted(resource, rm.Resource(), rm.SchemaUrl())
+		resource.Freeze()
 
 		for j := 0; j < rm.ScopeMetrics().Len(); j++ {
 			sms := rm.ScopeMetrics().At(j)
+			scope := oteltef.NewScope()
+			c.Otlp2tef.ScopeSorted(scope, sms.Scope(), sms.SchemaUrl())
+			scope.Freeze()
+
 			for k := 0; k < sms.Metrics().Len(); k++ {
 				metric := sms.Metrics().At(k)
 				switch metric.Type() {
 				case pmetric.MetricTypeGauge:
-					c.covertNumberDataPoints(sm, rm, sms, metric, metric.Gauge().DataPoints(), 0)
+					c.covertNumberDataPoints(sm, resource, scope, metric, metric.Gauge().DataPoints(), 0)
 				case pmetric.MetricTypeSum:
 					c.covertNumberDataPoints(
-						sm, rm, sms, metric, metric.Sum().DataPoints(),
+						sm, resource, scope, metric, metric.Sum().DataPoints(),
 						calcMetricFlags(metric.Sum().IsMonotonic(), metric.Sum().AggregationTemporality()),
 					)
 				case pmetric.MetricTypeHistogram:
-					err := c.covertHistogramDataPoints(sm, rm, sms, metric, metric.Histogram())
+					err := c.covertHistogramDataPoints(sm, resource, scope, metric, metric.Histogram())
 					if err != nil {
 						return nil, err
 					}
 				case pmetric.MetricTypeExponentialHistogram:
-					err := c.covertExponentialHistogramDataPoints(sm, rm, sms, metric, metric.ExponentialHistogram())
+					err := c.covertExponentialHistogramDataPoints(
+						sm, resource, scope, metric, metric.ExponentialHistogram(),
+					)
 					if err != nil {
 						return nil, err
 					}
 				case pmetric.MetricTypeSummary:
-					err := c.covertSummaryDataPoints(sm, rm, sms, metric, metric.Summary())
+					err := c.covertSummaryDataPoints(sm, resource, scope, metric, metric.Summary())
 					if err != nil {
 						return nil, err
 					}
@@ -88,8 +97,8 @@ func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality)
 
 func (c *OtlpToSortedTree) covertNumberDataPoints(
 	sm *sortedbymetric.SortedTree,
-	rm pmetric.ResourceMetrics,
-	sms pmetric.ScopeMetrics,
+	rm *oteltef.Resource,
+	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	srcPoints pmetric.NumberDataPointSlice,
 	flags internal.MetricFlags,
@@ -114,8 +123,8 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 		if mt != metricType || byMetric == nil {
 			metricType = mt
 			byMetric = sm.ByMetric(metric, metricType, flags, nil)
-			byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
-			byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+			byResource := byMetric.ByResource(rm)
+			byScope = byResource.ByScope(sms)
 		}
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
@@ -147,8 +156,8 @@ func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
 
 func (c *OtlpToSortedTree) covertHistogramDataPoints(
 	sm *sortedbymetric.SortedTree,
-	rm pmetric.ResourceMetrics,
-	sms pmetric.ScopeMetrics,
+	rm *oteltef.Resource,
+	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.Histogram,
 ) error {
@@ -163,8 +172,8 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeHistogram, flags, srcPoint.ExplicitBounds().AsRaw())
-		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
-		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+		byResource := byMetric.ByResource(rm)
+		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
@@ -184,8 +193,8 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 
 func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 	sm *sortedbymetric.SortedTree,
-	rm pmetric.ResourceMetrics,
-	sms pmetric.ScopeMetrics,
+	rm *oteltef.Resource,
+	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.ExponentialHistogram,
 ) error {
@@ -200,8 +209,8 @@ func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeExpHistogram, flags, nil)
-		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
-		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+		byResource := byMetric.ByResource(rm)
+		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
@@ -221,8 +230,8 @@ func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 
 func (c *OtlpToSortedTree) covertSummaryDataPoints(
 	sm *sortedbymetric.SortedTree,
-	rm pmetric.ResourceMetrics,
-	sms pmetric.ScopeMetrics,
+	rm *oteltef.Resource,
+	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	summary pmetric.Summary,
 ) error {
@@ -236,8 +245,8 @@ func (c *OtlpToSortedTree) covertSummaryDataPoints(
 		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeSummary, flags, nil)
-		byResource := byMetric.ByResource(rm.Resource(), rm.SchemaUrl())
-		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
+		byResource := byMetric.ByResource(rm)
+		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
 		dstPoint := oteltef.NewPoint()

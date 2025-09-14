@@ -86,7 +86,6 @@ func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModified
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metrics) reset() {
-
 	s.envelope.reset()
 	if s.metric != nil {
 		s.metric.reset()
@@ -106,13 +105,23 @@ func (s *Metrics) reset() {
 // an array element and the array was expanded.
 func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.envelope.fixParent(&s.modifiedFields)
 	s.metric.fixParent(&s.modifiedFields)
 	s.resource.fixParent(&s.modifiedFields)
 	s.scope.fixParent(&s.modifiedFields)
 	s.attributes.fixParent(&s.modifiedFields)
 	s.point.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Metrics) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Metrics) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Metrics) Envelope() *Envelope {
@@ -135,6 +144,20 @@ func (s *Metrics) Metric() *Metric {
 	return s.metric
 }
 
+// SetMetric sets the value of Metric field.
+func (s *Metrics) SetMetric(v *Metric) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current metric
+		if v.computeDiff(s.metric) {
+			// It is different. Update to it.
+			s.metric = v
+			s.modifiedFields.markModified(fieldModifiedMetricsMetric)
+		}
+	} else {
+		s.metric.CopyFrom(v)
+	}
+}
+
 func (s *Metrics) markMetricModified() {
 	s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 }
@@ -151,6 +174,20 @@ func (s *Metrics) Resource() *Resource {
 	return s.resource
 }
 
+// SetResource sets the value of Resource field.
+func (s *Metrics) SetResource(v *Resource) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current resource
+		if v.computeDiff(s.resource) {
+			// It is different. Update to it.
+			s.resource = v
+			s.modifiedFields.markModified(fieldModifiedMetricsResource)
+		}
+	} else {
+		s.resource.CopyFrom(v)
+	}
+}
+
 func (s *Metrics) markResourceModified() {
 	s.modifiedFields.markModified(fieldModifiedMetricsResource)
 }
@@ -165,6 +202,20 @@ func (s *Metrics) IsResourceModified() bool {
 
 func (s *Metrics) Scope() *Scope {
 	return s.scope
+}
+
+// SetScope sets the value of Scope field.
+func (s *Metrics) SetScope(v *Scope) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current scope
+		if v.computeDiff(s.scope) {
+			// It is different. Update to it.
+			s.scope = v
+			s.modifiedFields.markModified(fieldModifiedMetricsScope)
+		}
+	} else {
+		s.scope.CopyFrom(v)
+	}
 }
 
 func (s *Metrics) markScopeModified() {
@@ -211,20 +262,13 @@ func (s *Metrics) IsPointModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsPoint != 0
 }
 
-func (s *Metrics) markModifiedRecursively() {
-
-	s.envelope.markModifiedRecursively()
-
-	s.metric.markModifiedRecursively()
-
-	s.resource.markModifiedRecursively()
-
-	s.scope.markModifiedRecursively()
-
-	s.attributes.markModifiedRecursively()
-
-	s.point.markModifiedRecursively()
-
+func (s *Metrics) setModifiedRecursively() {
+	s.envelope.setModifiedRecursively()
+	s.metric.setModifiedRecursively()
+	s.resource.setModifiedRecursively()
+	s.scope.setModifiedRecursively()
+	s.attributes.setModifiedRecursively()
+	s.point.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedMetricsEnvelope |
 			fieldModifiedMetricsMetric |
@@ -234,46 +278,84 @@ func (s *Metrics) markModifiedRecursively() {
 			fieldModifiedMetricsPoint | 0
 }
 
-func (s *Metrics) markUnmodifiedRecursively() {
-
+func (s *Metrics) setUnmodifiedRecursively() {
 	if s.IsEnvelopeModified() {
-		s.envelope.markUnmodifiedRecursively()
+		s.envelope.setUnmodifiedRecursively()
 	}
-
 	if s.IsMetricModified() {
-		s.metric.markUnmodifiedRecursively()
+		s.metric.setUnmodifiedRecursively()
 	}
-
 	if s.IsResourceModified() {
-		s.resource.markUnmodifiedRecursively()
+		s.resource.setUnmodifiedRecursively()
 	}
-
 	if s.IsScopeModified() {
-		s.scope.markUnmodifiedRecursively()
+		s.scope.setUnmodifiedRecursively()
 	}
-
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
 	if s.IsPointModified() {
-		s.point.markUnmodifiedRecursively()
+		s.point.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Metrics) Clone(allocators *Allocators) Metrics {
-
-	c := Metrics{
-
-		envelope:   s.envelope.Clone(allocators),
-		metric:     s.metric.Clone(allocators),
-		resource:   s.resource.Clone(allocators),
-		scope:      s.scope.Clone(allocators),
-		attributes: s.attributes.Clone(allocators),
-		point:      s.point.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Metrics) computeDiff(val *Metrics) (ret bool) {
+	// Compare Envelope field.
+	if s.envelope.computeDiff(&val.envelope) {
+		s.modifiedFields.setModified(fieldModifiedMetricsEnvelope)
+		ret = true
 	}
+	// Compare Metric field.
+	if s.metric.computeDiff(val.metric) {
+		s.modifiedFields.setModified(fieldModifiedMetricsMetric)
+		ret = true
+	}
+	// Compare Resource field.
+	if s.resource.computeDiff(val.resource) {
+		s.modifiedFields.setModified(fieldModifiedMetricsResource)
+		ret = true
+	}
+	// Compare Scope field.
+	if s.scope.computeDiff(val.scope) {
+		s.modifiedFields.setModified(fieldModifiedMetricsScope)
+		ret = true
+	}
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedMetricsAttributes)
+		ret = true
+	}
+	// Compare Point field.
+	if s.point.computeDiff(&val.point) {
+		s.modifiedFields.setModified(fieldModifiedMetricsPoint)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Metrics) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Metrics) CloneShared(allocators *Allocators) Metrics {
+	return s.Clone(allocators)
+}
+
+func (s *Metrics) Clone(allocators *Allocators) Metrics {
+	c := Metrics{
+		metric:   s.metric.CloneShared(allocators),
+		resource: s.resource.CloneShared(allocators),
+		scope:    s.scope.CloneShared(allocators),
+	}
+	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
+	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
+	copyToNewPoint(&c.point, &s.point, allocators)
 	return c
 }
 
@@ -287,25 +369,31 @@ func (s *Metrics) byteSize() uint {
 // Copy from src to dst, overwriting existing data in dst.
 func copyMetrics(dst *Metrics, src *Metrics) {
 	copyEnvelope(&dst.envelope, &src.envelope)
-	if src.metric != nil {
-		if dst.metric == nil {
-			dst.metric = &Metric{}
-			dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
+
+	if src.metric.canBeShared() {
+		if src.metric.computeDiff(dst.metric) {
+			dst.metric = src.metric
+			dst.markMetricModified()
 		}
+	} else {
 		copyMetric(dst.metric, src.metric)
 	}
-	if src.resource != nil {
-		if dst.resource == nil {
-			dst.resource = &Resource{}
-			dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
+
+	if src.resource.canBeShared() {
+		if src.resource.computeDiff(dst.resource) {
+			dst.resource = src.resource
+			dst.markResourceModified()
 		}
+	} else {
 		copyResource(dst.resource, src.resource)
 	}
-	if src.scope != nil {
-		if dst.scope == nil {
-			dst.scope = &Scope{}
-			dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
+
+	if src.scope.canBeShared() {
+		if src.scope.computeDiff(dst.scope) {
+			dst.scope = src.scope
+			dst.markScopeModified()
 		}
+	} else {
 		copyScope(dst.scope, src.scope)
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
@@ -315,21 +403,31 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
-	if src.metric != nil {
+
+	if src.metric.canBeShared() {
+		dst.metric = src.metric
+	} else {
 		dst.metric = allocators.Metric.Alloc()
 		dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
 		copyToNewMetric(dst.metric, src.metric, allocators)
 	}
-	if src.resource != nil {
+
+	if src.resource.canBeShared() {
+		dst.resource = src.resource
+	} else {
 		dst.resource = allocators.Resource.Alloc()
 		dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
 		copyToNewResource(dst.resource, src.resource, allocators)
 	}
-	if src.scope != nil {
+
+	if src.scope.canBeShared() {
+		dst.scope = src.scope
+	} else {
 		dst.scope = allocators.Scope.Alloc()
 		dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
 		copyToNewScope(dst.scope, src.scope, allocators)
 	}
+
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
 	copyToNewPoint(&dst.point, &src.point, allocators)
 }
@@ -337,10 +435,6 @@ func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 // CopyFrom() performs a deep copy from src.
 func (s *Metrics) CopyFrom(src *Metrics) {
 	copyMetrics(s, src)
-}
-
-func (s *Metrics) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -369,6 +463,19 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Metric
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.metric.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.metric = new(Metric)
+				s.metric.init(&s.modifiedFields, fieldModifiedMetricsMetric)
+			} else {
+				s.metric = s.metric.Clone(&Allocators{})
+			}
+		}
+
 		s.metric.mutateRandom(random, schem)
 	}
 	if fieldCount <= 2 {
@@ -376,6 +483,19 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Resource
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.resource.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.resource = new(Resource)
+				s.resource.init(&s.modifiedFields, fieldModifiedMetricsResource)
+			} else {
+				s.resource = s.resource.Clone(&Allocators{})
+			}
+		}
+
 		s.resource.mutateRandom(random, schem)
 	}
 	if fieldCount <= 3 {
@@ -383,6 +503,19 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Scope
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.scope.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.scope = new(Scope)
+				s.scope.init(&s.modifiedFields, fieldModifiedMetricsScope)
+			} else {
+				s.scope = s.scope.Clone(&Allocators{})
+			}
+		}
+
 		s.scope.mutateRandom(random, schem)
 	}
 	if fieldCount <= 4 {
@@ -438,46 +571,30 @@ func MetricsEqual(left, right *Metrics) bool {
 // CmpMetrics performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpMetrics(left, right *Metrics) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Envelope field.
 	if c := CmpEnvelope(&left.envelope, &right.envelope); c != 0 {
 		return c
 	}
-
 	// Compare Metric field.
 	if c := CmpMetric(left.metric, right.metric); c != 0 {
 		return c
 	}
-
 	// Compare Resource field.
 	if c := CmpResource(left.resource, right.resource); c != 0 {
 		return c
 	}
-
 	// Compare Scope field.
 	if c := CmpScope(left.scope, right.scope); c != 0 {
 		return c
 	}
-
 	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	// Compare Point field.
 	if c := CmpPoint(&left.point, &right.point); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -486,29 +603,23 @@ type MetricsEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	envelopeEncoder     *EnvelopeEncoder
-	isEnvelopeRecursive bool // Indicates Envelope field's type is recursive.
-
-	metricEncoder     *MetricEncoder
-	isMetricRecursive bool // Indicates Metric field's type is recursive.
-
-	resourceEncoder     *ResourceEncoder
-	isResourceRecursive bool // Indicates Resource field's type is recursive.
-
-	scopeEncoder     *ScopeEncoder
-	isScopeRecursive bool // Indicates Scope field's type is recursive.
-
+	envelopeEncoder       *EnvelopeEncoder
+	isEnvelopeRecursive   bool // Indicates Envelope field's type is recursive.
+	metricEncoder         *MetricEncoder
+	isMetricRecursive     bool // Indicates Metric field's type is recursive.
+	resourceEncoder       *ResourceEncoder
+	isResourceRecursive   bool // Indicates Resource field's type is recursive.
+	scopeEncoder          *ScopeEncoder
+	isScopeRecursive      bool // Indicates Scope field's type is recursive.
 	attributesEncoder     *AttributesEncoder
 	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
-
-	pointEncoder     *PointEncoder
-	isPointRecursive bool // Indicates Point field's type is recursive.
+	pointEncoder          *PointEncoder
+	isPointRecursive      bool // Indicates Point field's type is recursive.
 
 	allocators *Allocators
 
@@ -639,56 +750,44 @@ func (e *MetricsEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 func (e *MetricsEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Envelope and all subsequent fields are skipped.
 	}
-
 	if !e.isEnvelopeRecursive {
 		e.envelopeEncoder.Reset()
 	}
-
 	if e.fieldCount <= 1 {
 		return // Metric and all subsequent fields are skipped.
 	}
-
 	if !e.isMetricRecursive {
 		e.metricEncoder.Reset()
 	}
-
 	if e.fieldCount <= 2 {
 		return // Resource and all subsequent fields are skipped.
 	}
-
 	if !e.isResourceRecursive {
 		e.resourceEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // Scope and all subsequent fields are skipped.
 	}
-
 	if !e.isScopeRecursive {
 		e.scopeEncoder.Reset()
 	}
-
 	if e.fieldCount <= 4 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 5 {
 		return // Point and all subsequent fields are skipped.
 	}
-
 	if !e.isPointRecursive {
 		e.pointEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -700,15 +799,8 @@ func (e *MetricsEncoder) Encode(val *Metrics) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedMetricsEnvelope |
-				fieldModifiedMetricsMetric |
-				fieldModifiedMetricsResource |
-				fieldModifiedMetricsScope |
-				fieldModifiedMetricsAttributes |
-				fieldModifiedMetricsPoint | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -761,7 +853,6 @@ func (e *MetricsEncoder) Encode(val *Metrics) {
 func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Envelope field.
 	if e.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
@@ -770,7 +861,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.envelopeEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Metric field.
 	if e.fieldCount <= 1 {
 		return // Metric and subsequent fields are skipped.
@@ -779,7 +869,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.metricEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Resource field.
 	if e.fieldCount <= 2 {
 		return // Resource and subsequent fields are skipped.
@@ -788,7 +877,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.resourceEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Scope field.
 	if e.fieldCount <= 3 {
 		return // Scope and subsequent fields are skipped.
@@ -797,7 +885,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.scopeEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Attributes field.
 	if e.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
@@ -806,7 +893,6 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Point field.
 	if e.fieldCount <= 5 {
 		return // Point and subsequent fields are skipped.
@@ -819,29 +905,22 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // MetricsDecoder implements decoding of Metrics
 type MetricsDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
-	envelopeDecoder     *EnvelopeDecoder
-	isEnvelopeRecursive bool
-
-	metricDecoder     *MetricDecoder
-	isMetricRecursive bool
-
-	resourceDecoder     *ResourceDecoder
-	isResourceRecursive bool
-
-	scopeDecoder     *ScopeDecoder
-	isScopeRecursive bool
-
+	buf                   pkg.BitsReader
+	column                *pkg.ReadableColumn
+	fieldCount            uint
+	envelopeDecoder       *EnvelopeDecoder
+	isEnvelopeRecursive   bool
+	metricDecoder         *MetricDecoder
+	isMetricRecursive     bool
+	resourceDecoder       *ResourceDecoder
+	isResourceRecursive   bool
+	scopeDecoder          *ScopeDecoder
+	isScopeRecursive      bool
 	attributesDecoder     *AttributesDecoder
 	isAttributesRecursive bool
-
-	pointDecoder     *PointDecoder
-	isPointRecursive bool
-
-	allocators *Allocators
+	pointDecoder          *PointDecoder
+	isPointRecursive      bool
+	allocators            *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

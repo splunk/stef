@@ -64,7 +64,6 @@ func (s *SummaryValue) initAlloc(parentModifiedFields *modifiedFields, parentMod
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SummaryValue) reset() {
-
 	s.count = 0
 	s.sum = 0.0
 	s.quantileValues.reset()
@@ -75,8 +74,18 @@ func (s *SummaryValue) reset() {
 // an array element and the array was expanded.
 func (s *SummaryValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.quantileValues.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *SummaryValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SummaryValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *SummaryValue) Count() uint64 {
@@ -85,9 +94,9 @@ func (s *SummaryValue) Count() uint64 {
 
 // SetCount sets the value of Count field.
 func (s *SummaryValue) SetCount(v uint64) {
-	if !pkg.Uint64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
-		s.markCountModified()
+		s.modifiedFields.markModified(fieldModifiedSummaryValueCount)
 	}
 }
 
@@ -109,9 +118,9 @@ func (s *SummaryValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *SummaryValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) {
+	if s.sum != v {
 		s.sum = v
-		s.markSumModified()
+		s.modifiedFields.markModified(fieldModifiedSummaryValueSum)
 	}
 }
 
@@ -143,39 +152,59 @@ func (s *SummaryValue) IsQuantileValuesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSummaryValueQuantileValues != 0
 }
 
-func (s *SummaryValue) markModifiedRecursively() {
-
-	s.quantileValues.markModifiedRecursively()
-
+func (s *SummaryValue) setModifiedRecursively() {
+	s.quantileValues.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedSummaryValueCount |
 			fieldModifiedSummaryValueSum |
 			fieldModifiedSummaryValueQuantileValues | 0
 }
 
-func (s *SummaryValue) markUnmodifiedRecursively() {
-
-	if s.IsCountModified() {
-	}
-
-	if s.IsSumModified() {
-	}
-
+func (s *SummaryValue) setUnmodifiedRecursively() {
 	if s.IsQuantileValuesModified() {
-		s.quantileValues.markUnmodifiedRecursively()
+		s.quantileValues.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
-
-	c := SummaryValue{
-
-		count:          s.count,
-		sum:            s.sum,
-		quantileValues: s.quantileValues.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *SummaryValue) computeDiff(val *SummaryValue) (ret bool) {
+	// Compare Count field.
+	if s.count != val.count {
+		s.modifiedFields.setModified(fieldModifiedSummaryValueCount)
+		ret = true
 	}
+	// Compare Sum field.
+	if s.sum != val.sum {
+		s.modifiedFields.setModified(fieldModifiedSummaryValueSum)
+		ret = true
+	}
+	// Compare QuantileValues field.
+	if s.quantileValues.computeDiff(&val.quantileValues) {
+		s.modifiedFields.setModified(fieldModifiedSummaryValueQuantileValues)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *SummaryValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SummaryValue) CloneShared(allocators *Allocators) SummaryValue {
+	return s.Clone(allocators)
+}
+
+func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
+	c := SummaryValue{
+		count: s.count,
+		sum:   s.sum,
+	}
+	copyToNewQuantileValueArray(&c.quantileValues, &s.quantileValues, allocators)
 	return c
 }
 
@@ -195,18 +224,14 @@ func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue, allocators *Allocators) {
-	dst.count = src.count
-	dst.sum = src.sum
+	dst.SetCount(src.count)
+	dst.SetSum(src.sum)
 	copyToNewQuantileValueArray(&dst.quantileValues, &src.quantileValues, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *SummaryValue) CopyFrom(src *SummaryValue) {
 	copySummaryValue(s, src)
-}
-
-func (s *SummaryValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -271,31 +296,18 @@ func SummaryValueEqual(left, right *SummaryValue) bool {
 // CmpSummaryValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSummaryValue(left, right *SummaryValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Count field.
 	if c := pkg.Uint64Compare(left.count, right.count); c != 0 {
 		return c
 	}
-
 	// Compare Sum field.
 	if c := pkg.Float64Compare(left.sum, right.sum); c != 0 {
 		return c
 	}
-
 	// Compare QuantileValues field.
 	if c := CmpQuantileValueArray(&left.quantileValues, &right.quantileValues); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -304,16 +316,13 @@ type SummaryValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	countEncoder encoders.Uint64Encoder
-
-	sumEncoder encoders.Float64Encoder
-
+	countEncoder              encoders.Uint64Encoder
+	sumEncoder                encoders.Float64Encoder
 	quantileValuesEncoder     *QuantileValueArrayEncoder
 	isQuantileValuesRecursive bool // Indicates QuantileValues field's type is recursive.
 
@@ -384,7 +393,7 @@ func (e *SummaryValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 func (e *SummaryValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Count and all subsequent fields are skipped.
@@ -397,11 +406,9 @@ func (e *SummaryValueEncoder) Reset() {
 	if e.fieldCount <= 2 {
 		return // QuantileValues and all subsequent fields are skipped.
 	}
-
 	if !e.isQuantileValuesRecursive {
 		e.quantileValuesEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -413,12 +420,8 @@ func (e *SummaryValueEncoder) Encode(val *SummaryValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSummaryValueCount |
-				fieldModifiedSummaryValueSum |
-				fieldModifiedSummaryValueQuantileValues | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -456,23 +459,18 @@ func (e *SummaryValueEncoder) Encode(val *SummaryValue) {
 func (e *SummaryValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Count field.
 	if e.fieldCount <= 0 {
 		return // Count and subsequent fields are skipped.
 	}
-
 	e.countEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Sum field.
 	if e.fieldCount <= 1 {
 		return // Sum and subsequent fields are skipped.
 	}
-
 	e.sumEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect QuantileValues field.
 	if e.fieldCount <= 2 {
 		return // QuantileValues and subsequent fields are skipped.
@@ -485,18 +483,16 @@ func (e *SummaryValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SummaryValueDecoder implements decoding of SummaryValue
 type SummaryValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf          pkg.BitsReader
+	column       *pkg.ReadableColumn
+	fieldCount   uint
 	countDecoder encoders.Uint64Decoder
 
 	sumDecoder encoders.Float64Decoder
 
 	quantileValuesDecoder     *QuantileValueArrayDecoder
 	isQuantileValuesRecursive bool
-
-	allocators *Allocators
+	allocators                *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

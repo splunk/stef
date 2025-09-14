@@ -412,8 +412,8 @@ func TestLargeMultimap(t *testing.T) {
 		attrs.SetKey(i, strconv.Itoa(i))
 		attrs.At(i).Value().SetInt64(int64(i))
 	}
-	allocators := &oteltef.Allocators{}
-	attrs1Copy := attrs.Clone(allocators)
+	var attrs1Copy oteltef.Attributes
+	attrs1Copy.CopyFrom(attrs)
 	err = w.Write()
 	require.NoError(t, err)
 
@@ -421,7 +421,8 @@ func TestLargeMultimap(t *testing.T) {
 	// but since the multimap is large it will use full encoding. This is
 	// precisely the case that this test verifies.
 	attrs.At(0).Value().SetString("abc")
-	attrs2Copy := attrs.Clone(allocators)
+	var attrs2Copy oteltef.Attributes
+	attrs2Copy.CopyFrom(attrs)
 	err = w.Write()
 	require.NoError(t, err)
 

@@ -79,7 +79,6 @@ func (s *HistogramValue) initAlloc(parentModifiedFields *modifiedFields, parentM
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *HistogramValue) reset() {
-
 	s.count = 0
 	s.sum = 0.0
 	s.min = 0.0
@@ -92,8 +91,18 @@ func (s *HistogramValue) reset() {
 // an array element and the array was expanded.
 func (s *HistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.bucketCounts.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *HistogramValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *HistogramValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *HistogramValue) Count() int64 {
@@ -102,9 +111,9 @@ func (s *HistogramValue) Count() int64 {
 
 // SetCount sets the value of Count field.
 func (s *HistogramValue) SetCount(v int64) {
-	if !pkg.Int64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
-		s.markCountModified()
+		s.modifiedFields.markModified(fieldModifiedHistogramValueCount)
 	}
 }
 
@@ -126,9 +135,9 @@ func (s *HistogramValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *HistogramValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
+	if s.sum != v || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
 		s.sum = v
-		s.markSumModified()
+		s.modifiedFields.markModified(fieldModifiedHistogramValueSum)
 		s.optionalFieldsPresent |= fieldPresentHistogramValueSum
 	}
 }
@@ -164,9 +173,9 @@ func (s *HistogramValue) Min() float64 {
 
 // SetMin sets the value of Min field.
 func (s *HistogramValue) SetMin(v float64) {
-	if !pkg.Float64Equal(s.min, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
+	if s.min != v || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
 		s.min = v
-		s.markMinModified()
+		s.modifiedFields.markModified(fieldModifiedHistogramValueMin)
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMin
 	}
 }
@@ -202,9 +211,9 @@ func (s *HistogramValue) Max() float64 {
 
 // SetMax sets the value of Max field.
 func (s *HistogramValue) SetMax(v float64) {
-	if !pkg.Float64Equal(s.max, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
+	if s.max != v || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
 		s.max = v
-		s.markMaxModified()
+		s.modifiedFields.markModified(fieldModifiedHistogramValueMax)
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMax
 	}
 }
@@ -250,10 +259,8 @@ func (s *HistogramValue) IsBucketCountsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedHistogramValueBucketCounts != 0
 }
 
-func (s *HistogramValue) markModifiedRecursively() {
-
-	s.bucketCounts.markModifiedRecursively()
-
+func (s *HistogramValue) setModifiedRecursively() {
+	s.bucketCounts.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedHistogramValueCount |
 			fieldModifiedHistogramValueSum |
@@ -262,37 +269,105 @@ func (s *HistogramValue) markModifiedRecursively() {
 			fieldModifiedHistogramValueBucketCounts | 0
 }
 
-func (s *HistogramValue) markUnmodifiedRecursively() {
-
-	if s.IsCountModified() {
-	}
-
-	if s.IsSumModified() {
-	}
-
-	if s.IsMinModified() {
-	}
-
-	if s.IsMaxModified() {
-	}
-
+func (s *HistogramValue) setUnmodifiedRecursively() {
 	if s.IsBucketCountsModified() {
-		s.bucketCounts.markUnmodifiedRecursively()
+		s.bucketCounts.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
-
-	c := HistogramValue{
-
-		count:        s.count,
-		sum:          s.sum,
-		min:          s.min,
-		max:          s.max,
-		bucketCounts: s.bucketCounts.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *HistogramValue) computeDiff(val *HistogramValue) (ret bool) {
+	// Compare Count field.
+	if s.count != val.count {
+		s.modifiedFields.setModified(fieldModifiedHistogramValueCount)
+		ret = true
 	}
+	// Compare Sum field.
+	sSumPresent := s.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	valSumPresent := val.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
+	if !sSumPresent {
+		if valSumPresent {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueSum)
+			ret = true
+		}
+	} else if !valSumPresent {
+		//  Sum is not present in val, so we can consider all of s.Sum to be modified.
+		s.modifiedFields.setModified(fieldModifiedHistogramValueSum)
+		ret = true
+	} else {
+		// Sum is present in both places, compare the values.
+		if s.sum != val.sum {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueSum)
+			ret = true
+		}
+	}
+	// Compare Min field.
+	sMinPresent := s.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	valMinPresent := val.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
+	if !sMinPresent {
+		if valMinPresent {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueMin)
+			ret = true
+		}
+	} else if !valMinPresent {
+		//  Min is not present in val, so we can consider all of s.Min to be modified.
+		s.modifiedFields.setModified(fieldModifiedHistogramValueMin)
+		ret = true
+	} else {
+		// Min is present in both places, compare the values.
+		if s.min != val.min {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueMin)
+			ret = true
+		}
+	}
+	// Compare Max field.
+	sMaxPresent := s.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	valMaxPresent := val.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
+	if !sMaxPresent {
+		if valMaxPresent {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueMax)
+			ret = true
+		}
+	} else if !valMaxPresent {
+		//  Max is not present in val, so we can consider all of s.Max to be modified.
+		s.modifiedFields.setModified(fieldModifiedHistogramValueMax)
+		ret = true
+	} else {
+		// Max is present in both places, compare the values.
+		if s.max != val.max {
+			s.modifiedFields.setModified(fieldModifiedHistogramValueMax)
+			ret = true
+		}
+	}
+	// Compare BucketCounts field.
+	if s.bucketCounts.computeDiff(&val.bucketCounts) {
+		s.modifiedFields.setModified(fieldModifiedHistogramValueBucketCounts)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *HistogramValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *HistogramValue) CloneShared(allocators *Allocators) HistogramValue {
+	return s.Clone(allocators)
+}
+
+func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
+	c := HistogramValue{
+		count: s.count,
+		sum:   s.sum,
+		min:   s.min,
+		max:   s.max,
+	}
+	copyToNewInt64Array(&c.bucketCounts, &s.bucketCounts, allocators)
 	return c
 }
 
@@ -330,7 +405,7 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocators *Allocators) {
-	dst.count = src.count
+	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
 	}
@@ -350,10 +425,6 @@ func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocator
 // CopyFrom() performs a deep copy from src.
 func (s *HistogramValue) CopyFrom(src *HistogramValue) {
 	copyHistogramValue(s, src)
-}
-
-func (s *HistogramValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -464,21 +535,10 @@ func HistogramValueEqual(left, right *HistogramValue) bool {
 // CmpHistogramValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpHistogramValue(left, right *HistogramValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Count field.
 	if c := pkg.Int64Compare(left.count, right.count); c != 0 {
 		return c
 	}
-
 	// Compare Sum field.
 	leftSumPresent := left.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
 	rightSumPresent := right.optionalFieldsPresent&fieldPresentHistogramValueSum != 0
@@ -491,7 +551,6 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 	if c := pkg.Float64Compare(left.sum, right.sum); c != 0 {
 		return c
 	}
-
 	// Compare Min field.
 	leftMinPresent := left.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
 	rightMinPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMin != 0
@@ -504,7 +563,6 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 	if c := pkg.Float64Compare(left.min, right.min); c != 0 {
 		return c
 	}
-
 	// Compare Max field.
 	leftMaxPresent := left.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
 	rightMaxPresent := right.optionalFieldsPresent&fieldPresentHistogramValueMax != 0
@@ -517,12 +575,10 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 	if c := pkg.Float64Compare(left.max, right.max); c != 0 {
 		return c
 	}
-
 	// Compare BucketCounts field.
 	if c := CmpInt64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -531,20 +587,15 @@ type HistogramValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	countEncoder encoders.Int64Encoder
-
-	sumEncoder encoders.Float64Encoder
-
-	minEncoder encoders.Float64Encoder
-
-	maxEncoder encoders.Float64Encoder
-
+	countEncoder            encoders.Int64Encoder
+	sumEncoder              encoders.Float64Encoder
+	minEncoder              encoders.Float64Encoder
+	maxEncoder              encoders.Float64Encoder
 	bucketCountsEncoder     *Int64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
@@ -633,7 +684,7 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 func (e *HistogramValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Count and all subsequent fields are skipped.
@@ -654,11 +705,9 @@ func (e *HistogramValueEncoder) Reset() {
 	if e.fieldCount <= 4 {
 		return // BucketCounts and all subsequent fields are skipped.
 	}
-
 	if !e.isBucketCountsRecursive {
 		e.bucketCountsEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -670,14 +719,8 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedHistogramValueCount |
-				fieldModifiedHistogramValueSum |
-				fieldModifiedHistogramValueMin |
-				fieldModifiedHistogramValueMax |
-				fieldModifiedHistogramValueBucketCounts | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -732,39 +775,30 @@ func (e *HistogramValueEncoder) Encode(val *HistogramValue) {
 func (e *HistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Count field.
 	if e.fieldCount <= 0 {
 		return // Count and subsequent fields are skipped.
 	}
-
 	e.countEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Sum field.
 	if e.fieldCount <= 1 {
 		return // Sum and subsequent fields are skipped.
 	}
-
 	e.sumEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Min field.
 	if e.fieldCount <= 2 {
 		return // Min and subsequent fields are skipped.
 	}
-
 	e.minEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Max field.
 	if e.fieldCount <= 3 {
 		return // Max and subsequent fields are skipped.
 	}
-
 	e.maxEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect BucketCounts field.
 	if e.fieldCount <= 4 {
 		return // BucketCounts and subsequent fields are skipped.
@@ -777,10 +811,9 @@ func (e *HistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // HistogramValueDecoder implements decoding of HistogramValue
 type HistogramValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf          pkg.BitsReader
+	column       *pkg.ReadableColumn
+	fieldCount   uint
 	countDecoder encoders.Int64Decoder
 
 	sumDecoder encoders.Float64Decoder
@@ -791,8 +824,7 @@ type HistogramValueDecoder struct {
 
 	bucketCountsDecoder     *Int64ArrayDecoder
 	isBucketCountsRecursive bool
-
-	allocators *Allocators
+	allocators              *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

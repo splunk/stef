@@ -15,7 +15,6 @@ type WriterState struct {
 
 	// Dictionaries
 	BuildID         encoders.StringDictEncoderDict
-	Comment         encoders.StringDictEncoderDict
 	Filename        encoders.StringDictEncoderDict
 	Function        FunctionEncoderDict
 	FunctionName    encoders.StringDictEncoderDict
@@ -54,7 +53,6 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
 
 	// Init dictionaries
 	d.BuildID.Init(&d.limiter)
-	d.Comment.Init(&d.limiter)
 	d.Filename.Init(&d.limiter)
 	d.Function.Init(&d.limiter)
 	d.FunctionName.Init(&d.limiter)
@@ -71,7 +69,6 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
 func (d *WriterState) ResetDicts() {
 	d.limiter.ResetDict()
 	d.BuildID.Reset()
-	d.Comment.Reset()
 	d.Filename.Reset()
 	d.Function.Reset()
 	d.FunctionName.Reset()

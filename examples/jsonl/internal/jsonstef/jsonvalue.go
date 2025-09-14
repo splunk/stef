@@ -131,10 +131,10 @@ func (s *JsonValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to JsonValueTypeString.
 func (s *JsonValue) SetString(v string) {
-	if s.typ != JsonValueTypeString || !pkg.StringEqual(s.string, v) {
+	if s.typ != JsonValueTypeString || s.string != v {
 		s.string = v
 		s.typ = JsonValueTypeString
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -146,10 +146,10 @@ func (s *JsonValue) Number() float64 {
 
 // SetNumber sets the value to the specified value and sets the type to JsonValueTypeNumber.
 func (s *JsonValue) SetNumber(v float64) {
-	if s.typ != JsonValueTypeNumber || !pkg.Float64Equal(s.number, v) {
+	if s.typ != JsonValueTypeNumber || s.number != v {
 		s.number = v
 		s.typ = JsonValueTypeNumber
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -161,21 +161,39 @@ func (s *JsonValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to JsonValueTypeBool.
 func (s *JsonValue) SetBool(v bool) {
-	if s.typ != JsonValueTypeBool || !pkg.BoolEqual(s.bool, v) {
+	if s.typ != JsonValueTypeBool || s.bool != v {
 		s.bool = v
 		s.typ = JsonValueTypeBool
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
+func (s *JsonValue) canBeShared() bool {
+	// Oneof can never be shared.
+	return false
+}
+
+func (s *JsonValue) CloneShared(allocators *Allocators) *JsonValue {
+	// Oneof is not shareable, so CloneShared is just a Clone.
+	return s.Clone(allocators)
+}
+
 func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
-	return &JsonValue{
-		object: s.object.Clone(allocators),
-		array:  s.array.Clone(allocators),
-		string: s.string,
-		number: s.number,
-		bool:   s.bool,
+	c := allocators.JsonValue.Alloc()
+	c.typ = s.typ
+	switch s.typ {
+	case JsonValueTypeObject:
+		copyToNewJsonObject(&c.object, &s.object, allocators)
+	case JsonValueTypeArray:
+		copyToNewJsonValueArray(&c.array, &s.array, allocators)
+	case JsonValueTypeString:
+		c.string = s.string
+	case JsonValueTypeNumber:
+		c.number = s.number
+	case JsonValueTypeBool:
+		c.bool = s.bool
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -201,7 +219,10 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	case JsonValueTypeBool:
 		dst.SetBool(src.bool)
 	case JsonValueTypeNone:
-		dst.SetType(src.typ)
+		if dst.typ != JsonValueTypeNone {
+			dst.typ = JsonValueTypeNone
+			dst.markParentModified()
+		}
 	default:
 		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -216,11 +237,20 @@ func copyToNewJsonValue(dst *JsonValue, src *JsonValue, allocators *Allocators) 
 	case JsonValueTypeArray:
 		copyToNewJsonValueArray(&dst.array, &src.array, allocators)
 	case JsonValueTypeString:
-		dst.string = src.string
+		if dst.string != src.string {
+			dst.string = src.string
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case JsonValueTypeNumber:
-		dst.number = src.number
+		if dst.number != src.number {
+			dst.number = src.number
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case JsonValueTypeBool:
-		dst.bool = src.bool
+		if dst.bool != src.bool {
+			dst.bool = src.bool
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case JsonValueTypeNone:
 	default:
 		panic("copyJsonValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -236,28 +266,52 @@ func (s *JsonValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *JsonValue) markModifiedRecursively() {
+func (s *JsonValue) setModifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.markModifiedRecursively()
+		s.object.setModifiedRecursively()
 	case JsonValueTypeArray:
-		s.array.markModifiedRecursively()
-	case JsonValueTypeString:
-	case JsonValueTypeNumber:
-	case JsonValueTypeBool:
+		s.array.setModifiedRecursively()
 	}
 }
 
-func (s *JsonValue) markUnmodifiedRecursively() {
+func (s *JsonValue) setUnmodifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.markUnmodifiedRecursively()
+		s.object.setUnmodifiedRecursively()
 	case JsonValueTypeArray:
-		s.array.markUnmodifiedRecursively()
-	case JsonValueTypeString:
-	case JsonValueTypeNumber:
-	case JsonValueTypeBool:
+		s.array.setUnmodifiedRecursively()
 	}
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *JsonValue) computeDiff(val *JsonValue) (ret bool) {
+	if s.typ == val.typ {
+		switch s.typ {
+		case JsonValueTypeObject:
+			ret = s.object.computeDiff(&val.object)
+		case JsonValueTypeArray:
+			ret = s.array.computeDiff(&val.array)
+		case JsonValueTypeString:
+			ret = s.string != val.string
+		case JsonValueTypeNumber:
+			ret = s.number != val.number
+		case JsonValueTypeBool:
+			ret = s.bool != val.bool
+		}
+	} else {
+		ret = true
+		switch s.typ {
+		case JsonValueTypeObject:
+			// val.object doesn't exist at all so mark the whole s.object subtree as modified.
+			s.object.setModifiedRecursively()
+		case JsonValueTypeArray:
+			// val.array doesn't exist at all so mark the whole s.array subtree as modified.
+			s.array.setModifiedRecursively()
+		}
+	}
+	return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -288,16 +342,6 @@ func JsonValueEqual(left, right *JsonValue) bool {
 // CmpJsonValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpJsonValue(left, right *JsonValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
 	if c != 0 {
 		return c
@@ -368,7 +412,6 @@ type JsonValueEncoder struct {
 	fieldCount uint
 
 	// Field encoders.
-
 	objectEncoder     *JsonObjectEncoder
 	isObjectRecursive bool // Indicates Object field's type is recursive.
 
@@ -778,34 +821,19 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 	switch dst.typ {
 	case JsonValueTypeObject:
 		// Decode Object
-		err := d.objectDecoder.Decode(&dst.object)
-		if err != nil {
-			return err
-		}
+		return d.objectDecoder.Decode(&dst.object)
 	case JsonValueTypeArray:
 		// Decode Array
-		err := d.arrayDecoder.Decode(&dst.array)
-		if err != nil {
-			return err
-		}
+		return d.arrayDecoder.Decode(&dst.array)
 	case JsonValueTypeString:
 		// Decode String
-		err := d.stringDecoder.Decode(&dst.string)
-		if err != nil {
-			return err
-		}
+		return d.stringDecoder.Decode(&dst.string)
 	case JsonValueTypeNumber:
 		// Decode Number
-		err := d.numberDecoder.Decode(&dst.number)
-		if err != nil {
-			return err
-		}
+		return d.numberDecoder.Decode(&dst.number)
 	case JsonValueTypeBool:
 		// Decode Bool
-		err := d.boolDecoder.Decode(&dst.bool)
-		if err != nil {
-			return err
-		}
+		return d.boolDecoder.Decode(&dst.bool)
 	}
 	return nil
 }
