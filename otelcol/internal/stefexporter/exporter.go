@@ -122,7 +122,7 @@ func (s *stefExporter) pushMetrics(_ context.Context, md pmetric.Metrics) error 
 		zap.Int("data points", md.DataPointCount()),
 	)
 
-	sorted, err := sortedbymetric.OtlpToSourceTree(md)
+	sorted, err := sortedbymetric.OtlpToSortedTree(md)
 	if err != nil {
 		return err
 	}

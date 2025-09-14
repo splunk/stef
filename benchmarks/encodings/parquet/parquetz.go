@@ -135,7 +135,7 @@ func (r DatumZSlice) Swap(i, j int) {
 }
 
 func (d *EncodingZ) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	sorted, err := sortedbymetric.OtlpToSourceTree(data)
+	sorted, err := sortedbymetric.OtlpToSortedTree(data)
 	if err != nil {
 		return nil, err
 	}

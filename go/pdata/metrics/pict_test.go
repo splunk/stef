@@ -27,8 +27,8 @@ func TestConvertFromToOTLP(t *testing.T) {
 		writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 		require.NoError(t, err)
 
-		converter := OtlpToStefSorted{}
-		err = converter.Convert(otlpMetricSrc, writer)
+		toStef := OtlpToStefSorted{}
+		err = toStef.Convert(otlpMetricSrc, writer)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, srcCount, int(writer.RecordCount()))
@@ -39,14 +39,11 @@ func TestConvertFromToOTLP(t *testing.T) {
 		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 		require.NoError(t, err)
 
-		toOtlp := NewSTEFToSortedTree()
-		sortedByResource, err := toOtlp.FromTef(reader)
+		toOtlp := StefToOtlpSorted{}
+		otlpMetricCopy, err := toOtlp.Convert(reader, true)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, writer.RecordCount(), reader.RecordCount())
-
-		otlpMetricCopy, err := sortedByResource.ToOtlp()
-		require.NoError(t, err)
 
 		testtools.NormalizeMetrics(otlpMetricCopy)
 

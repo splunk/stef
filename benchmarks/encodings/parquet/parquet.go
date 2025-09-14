@@ -52,7 +52,7 @@ type Datum struct {
 }
 
 func (d *Encoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	sorted, err := sortedbymetric.OtlpToSourceTree(data)
+	sorted, err := sortedbymetric.OtlpToSortedTree(data)
 
 	var datums []Datum
 	err = sorted.Iter(

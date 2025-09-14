@@ -4,30 +4,30 @@ import (
 	"errors"
 	"io"
 
+	"go.opentelemetry.io/collector/pdata/pmetric"
+
 	"github.com/splunk/stef/go/otel/oteltef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbyresource"
 	"github.com/splunk/stef/go/pkg"
 )
 
-type STEFToSortedTree struct {
+// StefToOtlpSorted reads and converts STEF records to OTLP metrics, sorted and grouped
+// by Resource/Scope/Metric hierarchy.
+type StefToOtlpSorted struct {
 }
 
-func NewSTEFToSortedTree() *STEFToSortedTree {
-	return &STEFToSortedTree{}
-}
+var _ StefToOtlp = (*StefToOtlpSorted)(nil)
 
-func (c *STEFToSortedTree) FromTef(reader *oteltef.MetricsReader) (*sortedbyresource.SortedTree, error) {
+func (c *StefToOtlpSorted) Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
 	sm := sortedbyresource.NewSortedByResource()
+	metrics := pmetric.NewMetrics()
 
-	i := 0
+	err := reader.Read(pkg.ReadOptions{})
+	if err != nil {
+		return metrics, err
+	}
+
 	for {
-		err := reader.Read(pkg.ReadOptions{})
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, err
-		}
 		record := &reader.Record
 
 		resource := sm.ByResource(record.Resource())
@@ -37,8 +37,26 @@ func (c *STEFToSortedTree) FromTef(reader *oteltef.MetricsReader) (*sortedbyreso
 		point := oteltef.NewPoint()
 		point.CopyFrom(record.Point())
 		*timedValues = append(*timedValues, point)
-		i++
+
+		if untilEOF {
+			err = reader.Read(pkg.ReadOptions{})
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return metrics, err
+			}
+		} else {
+			// Read more records. This will not block on I/O.
+			err = reader.Read(pkg.ReadOptions{TillEndOfFrame: true})
+			if err != nil {
+				if errors.Is(err, pkg.ErrEndOfFrame) {
+					break
+				}
+				return metrics, err
+			}
+		}
 	}
 
-	return sm, nil
+	return sm.ToOtlp()
 }

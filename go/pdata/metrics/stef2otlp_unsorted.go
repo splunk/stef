@@ -12,6 +12,7 @@ import (
 	"github.com/splunk/stef/go/pkg"
 )
 
+// StefToOtlpUnsorted reads and converts STEF records to OTLP metrics.
 type StefToOtlpUnsorted struct {
 	base internal.BaseSTEFToOTLP
 }

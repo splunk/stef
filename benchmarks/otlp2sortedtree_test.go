@@ -39,7 +39,7 @@ func TestConvertFromOTLP(t *testing.T) {
 	otlpData, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst")
 	require.NoError(t, err)
 
-	sorted, err := sortedbymetric.OtlpToSourceTree(otlpData)
+	sorted, err := sortedbymetric.OtlpToSortedTree(otlpData)
 	require.NoError(t, err)
 
 	outputBuf := &pkg.MemChunkWriter{}

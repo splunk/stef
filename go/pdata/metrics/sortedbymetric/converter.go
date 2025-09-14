@@ -14,7 +14,7 @@ type converter struct {
 	internal.BaseOtlpToStef
 }
 
-func OtlpToSourceTree(data pmetric.Metrics) (*SortedTree, error) {
+func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 	rms := data.ResourceMetrics()
 	sm := NewSortedMetrics()
 	c := converter{}

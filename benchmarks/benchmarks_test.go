@@ -396,7 +396,7 @@ func BenchmarkSTEFSerializeMultipart(b *testing.B) {
 					// This models more closely the operation of STEF exporter in Collector.
 
 					for _, part := range parts {
-						tree, err := sortedbymetric.OtlpToSourceTree(part)
+						tree, err := sortedbymetric.OtlpToSortedTree(part)
 						require.NoError(b, err)
 
 						err = tree.ToStef(writer)
@@ -433,7 +433,7 @@ func BenchmarkSTEFDeserializeMultipart(b *testing.B) {
 				// This models more closely the operation of STEF exporter in Collector.
 				pointCount := 0
 				for _, part := range parts {
-					tree, err := sortedbymetric.OtlpToSourceTree(part)
+					tree, err := sortedbymetric.OtlpToSortedTree(part)
 					require.NoError(b, err)
 
 					err = tree.ToStef(writer)

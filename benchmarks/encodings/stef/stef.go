@@ -20,7 +20,7 @@ type STEFEncoding struct {
 }
 
 func (d *STEFEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	return sortedbymetric.OtlpToSourceTree(data)
+	return sortedbymetric.OtlpToSortedTree(data)
 }
 
 func (d *STEFEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
@@ -118,7 +118,7 @@ type stefMultipart struct {
 }
 
 func (s *stefMultipart) AppendPart(part pmetric.Metrics) error {
-	tree, err := sortedbymetric.OtlpToSourceTree(part)
+	tree, err := sortedbymetric.OtlpToSortedTree(part)
 	if err != nil {
 		return err
 	}

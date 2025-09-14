@@ -17,7 +17,7 @@ var _ OtlpToStef = (*OtlpToStefSorted)(nil)
 // Input src metrics are not modified, sorting is done on an internal copy.
 // Will not call Flush() on the writer at the end.
 func (d *OtlpToStefSorted) Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
-	tree, err := sortedbymetric.OtlpToSourceTree(src)
+	tree, err := sortedbymetric.OtlpToSortedTree(src)
 	if err != nil {
 		return err
 	}
