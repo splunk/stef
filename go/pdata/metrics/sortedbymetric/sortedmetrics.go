@@ -54,7 +54,7 @@ func NewSortedMetrics() *SortedTree {
 	return &SortedTree{byMetric: b.TreeNew[*oteltef.Metric, *ByMetric](oteltef.CmpMetric)}
 }
 
-func (s *SortedTree) ToTef(writer *oteltef.MetricsWriter) error {
+func (s *SortedTree) ToStef(writer *oteltef.MetricsWriter) error {
 	i := 0
 	err := s.Iter(
 		func(metric *oteltef.Metric, byMetric *ByMetric) error {

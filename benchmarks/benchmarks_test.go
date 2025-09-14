@@ -19,7 +19,7 @@ import (
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/oteltef"
-	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pkg"
 )
 
@@ -404,11 +404,8 @@ func BenchmarkSTEFSerializeMultipart(b *testing.B) {
 					// This models more closely the operation of STEF exporter in Collector.
 
 					for _, part := range parts {
-						converter := otlpconvert.NewOtlpToSortedTree()
-						tree, err := converter.FromOtlp(part.ResourceMetrics())
-						require.NoError(b, err)
-
-						err = tree.ToTef(writer)
+						converter := metrics.OtlpToStefSorted{}
+						err = converter.Convert(part, writer)
 						require.NoError(b, err)
 
 						err = writer.Flush()
@@ -442,11 +439,8 @@ func BenchmarkSTEFDeserializeMultipart(b *testing.B) {
 				// This models more closely the operation of STEF exporter in Collector.
 				pointCount := 0
 				for _, part := range parts {
-					converter := otlpconvert.NewOtlpToSortedTree()
-					tree, err := converter.FromOtlp(part.ResourceMetrics())
-					require.NoError(b, err)
-
-					err = tree.ToTef(writer)
+					converter := metrics.OtlpToStefSorted{}
+					err = converter.Convert(part, writer)
 					require.NoError(b, err)
 				}
 				err = writer.Flush()

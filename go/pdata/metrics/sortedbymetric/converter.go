@@ -1,4 +1,4 @@
-package metrics
+package sortedbymetric
 
 import (
 	"fmt"
@@ -8,22 +8,16 @@ import (
 	"github.com/splunk/stef/go/otel/oteltef"
 
 	"github.com/splunk/stef/go/pdata/metrics/internal"
-	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
-type OtlpToSortedTree struct {
-	internal.BaseOTLPToSTEF
-	recordCount         int
-	emptyDataPointCount int
-	//encoder             anyvalue.Encoder
+type converter struct {
+	internal.BaseOtlpToStef
 }
 
-func NewOtlpToSortedTree() *OtlpToSortedTree {
-	return &OtlpToSortedTree{}
-}
-
-func (c *OtlpToSortedTree) FromOtlp(rms pmetric.ResourceMetricsSlice) (*sortedbymetric.SortedTree, error) {
-	sm := sortedbymetric.NewSortedMetrics()
+func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
+	rms := data.ResourceMetrics()
+	sm := NewSortedMetrics()
+	c := converter{}
 
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
@@ -95,8 +89,8 @@ func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality)
 	return flags
 }
 
-func (c *OtlpToSortedTree) covertNumberDataPoints(
-	sm *sortedbymetric.SortedTree,
+func (c *converter) covertNumberDataPoints(
+	sm *SortedTree,
 	rm *oteltef.Resource,
 	sms *oteltef.Scope,
 	metric pmetric.Metric,
@@ -104,8 +98,8 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 	flags internal.MetricFlags,
 ) {
 	var metricType oteltef.MetricType
-	var byMetric *sortedbymetric.ByMetric
-	var byScope *sortedbymetric.ByScope
+	var byMetric *ByMetric
+	var byScope *ByScope
 
 	dstPointSlice := make([]oteltef.Point, srcPoints.Len())
 
@@ -113,11 +107,8 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 		srcPoint := srcPoints.At(l)
 
 		if srcPoint.ValueType() == pmetric.NumberDataPointValueTypeEmpty {
-			c.emptyDataPointCount++
 			continue
 		}
-
-		c.recordCount++
 
 		mt := calcNumericMetricType(metric)
 		if mt != metricType || byMetric == nil {
@@ -154,22 +145,20 @@ func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
 	return 0
 }
 
-func (c *OtlpToSortedTree) covertHistogramDataPoints(
-	sm *sortedbymetric.SortedTree,
+func (c *converter) covertHistogramDataPoints(
+	sm *SortedTree,
 	rm *oteltef.Resource,
 	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.Histogram,
 ) error {
-	var byMetric *sortedbymetric.ByMetric
-	var byScope *sortedbymetric.ByScope
+	var byMetric *ByMetric
+	var byScope *ByScope
 	flags := calcMetricFlags(false, hist.AggregationTemporality())
 	srcPoints := hist.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
-
-		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeHistogram, flags, srcPoint.ExplicitBounds().AsRaw())
 		byResource := byMetric.ByResource(rm)
@@ -191,22 +180,20 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 	return nil
 }
 
-func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
-	sm *sortedbymetric.SortedTree,
+func (c *converter) covertExponentialHistogramDataPoints(
+	sm *SortedTree,
 	rm *oteltef.Resource,
 	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.ExponentialHistogram,
 ) error {
-	var byMetric *sortedbymetric.ByMetric
-	var byScope *sortedbymetric.ByScope
+	var byMetric *ByMetric
+	var byScope *ByScope
 	flags := calcMetricFlags(false, hist.AggregationTemporality())
 	srcPoints := hist.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
-
-		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeExpHistogram, flags, nil)
 		byResource := byMetric.ByResource(rm)
@@ -228,21 +215,20 @@ func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 	return nil
 }
 
-func (c *OtlpToSortedTree) covertSummaryDataPoints(
-	sm *sortedbymetric.SortedTree,
+func (c *converter) covertSummaryDataPoints(
+	sm *SortedTree,
 	rm *oteltef.Resource,
 	sms *oteltef.Scope,
 	metric pmetric.Metric,
 	summary pmetric.Summary,
 ) error {
-	var byMetric *sortedbymetric.ByMetric
-	var byScope *sortedbymetric.ByScope
+	var byMetric *ByMetric
+	var byScope *ByScope
 	flags := internal.MetricFlags(0) // No monotonic/temporality for summary
 	srcPoints := summary.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
-		c.recordCount++
 
 		byMetric = sm.ByMetric(metric, oteltef.MetricTypeSummary, flags, nil)
 		byResource := byMetric.ByResource(rm)
