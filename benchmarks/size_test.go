@@ -59,7 +59,7 @@ func TestTracesMultipart(t *testing.T) {
 				writer, err := oteltef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
 				require.NoError(t, err)
 
-				converter := traces2.PdataToSTEFTraces{Sorted: sorted}
+				converter := traces2.PdataToStefTraces{Sorted: sorted}
 
 				otlpSize := 0
 				for i := 0; i < len(traces); i++ {

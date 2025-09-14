@@ -10,13 +10,13 @@ import (
 	"github.com/splunk/stef/go/pkg"
 )
 
-type PdataToSTEFTraces struct {
+type PdataToStefTraces struct {
 	tempAttrs oteltef.Attributes
 	otlp2stef otlptools.Otlp2Stef
 	Sorted    bool
 }
 
-func (d *PdataToSTEFTraces) WriteTraces(src ptrace.Traces, writer *oteltef.SpansWriter) error {
+func (d *PdataToStefTraces) WriteTraces(src ptrace.Traces, writer *oteltef.SpansWriter) error {
 	otlp2stef := &d.otlp2stef
 
 	if d.Sorted {

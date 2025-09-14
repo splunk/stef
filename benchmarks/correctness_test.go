@@ -14,6 +14,7 @@ import (
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/oteltef"
 	"github.com/splunk/stef/go/pdata/metrics"
+	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 	"github.com/splunk/stef/go/pdata/metrics/testtools"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -43,14 +44,11 @@ func TestConvertTEFFromToOTLP(t *testing.T) {
 				writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 				require.NoError(t, err)
 
-				toStef := metrics.NewOtlpToSortedTree()
-				sortedByMetric, err := toStef.FromOtlp(otlpDataSrc.ResourceMetrics())
+				sortedByMetric, err := sortedbymetric.OtlpToSourceTree(otlpDataSrc)
 				require.NoError(t, err)
 
-				err = sortedByMetric.ToTef(writer)
+				err = sortedByMetric.ToStef(writer)
 				require.NoError(t, err)
-
-				//assert.EqualValues(t, srcCount, int(writer.Stats().Datapoints))
 
 				sortedByMetric = nil
 
@@ -63,8 +61,6 @@ func TestConvertTEFFromToOTLP(t *testing.T) {
 				toOtlp := metrics.NewSTEFToSortedTree()
 				sortedByResource, err := toOtlp.FromTef(reader)
 				require.NoError(t, err)
-
-				//assert.EqualValues(t, writer.Stats().Datapoints, reader.Stats().Datapoints)
 
 				otlpDataCopy, err := sortedByResource.ToOtlp()
 				require.NoError(t, err)

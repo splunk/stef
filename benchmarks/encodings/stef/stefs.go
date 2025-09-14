@@ -35,7 +35,7 @@ func (d *STEFSEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 		return nil, err
 	}
 
-	converter := otlpconvert.OtlpToSTEFUnsorted{}
+	converter := otlpconvert.OtlpToStefUnsorted{}
 	err = converter.WriteMetrics(metrics, writer)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ type stefsMultipart struct {
 func (m *stefsMultipart) AppendPart(part pmetric.Metrics) error {
 	m.sorter.SortMetrics(part, false)
 	//otlpconvert2.NormalizeMetrics(part)
-	converter := otlpconvert.OtlpToSTEFUnsorted{}
+	converter := otlpconvert.OtlpToStefUnsorted{}
 	err := converter.WriteMetrics(part, m.writer)
 	if err != nil {
 		return err

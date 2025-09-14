@@ -27,16 +27,11 @@ func TestConvertFromToOTLP(t *testing.T) {
 		writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 		require.NoError(t, err)
 
-		toTef := NewOtlpToSortedTree()
-		sortedByMetric, err := toTef.FromOtlp(otlpMetricSrc.ResourceMetrics())
-		require.NoError(t, err)
-
-		err = sortedByMetric.ToTef(writer)
+		converter := OtlpToStefSorted{}
+		err = converter.WriteMetrics(otlpMetricSrc, writer)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, srcCount, int(writer.RecordCount()))
-
-		sortedByMetric = nil
 
 		err = writer.Flush()
 		require.NoError(t, err)
@@ -83,7 +78,7 @@ func TestFromOTLPToWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		// Convert from OTLP to STEF
-		converter := OtlpToSTEFUnsorted{}
+		converter := OtlpToStefUnsorted{}
 		err = converter.WriteMetrics(otlpMetricSrc, writer)
 		require.NoError(t, err)
 
@@ -120,11 +115,8 @@ func FuzzReader(f *testing.F) {
 		writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 		require.NoError(f, err)
 
-		toStef := NewOtlpToSortedTree()
-		sortedByMetric, err := toStef.FromOtlp(otlpMetricSrc.ResourceMetrics())
-		require.NoError(f, err)
-
-		err = sortedByMetric.ToTef(writer)
+		converter := OtlpToStefSorted{}
+		err = converter.WriteMetrics(otlpMetricSrc, writer)
 		require.NoError(f, err)
 
 		err = writer.Flush()
