@@ -15,8 +15,9 @@ type OtlpToStefUnsorted struct {
 
 var _ OtlpToStef = (*OtlpToStefUnsorted)(nil)
 
-// WriteMetrics converts OTLP metrics and writes to the provided STEF metrics writer.
-func (d *OtlpToStefUnsorted) WriteMetrics(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
+// Convert OTLP metrics to STEF format and writes them to the provided writer.
+// Will not call Flush() on the writer at the end.
+func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
 	otlp2stef := &otlptools.Otlp2Stef{}
 	for i := 0; i < src.ResourceMetrics().Len(); i++ {
 		rmm := src.ResourceMetrics().At(i)

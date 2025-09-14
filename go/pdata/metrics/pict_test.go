@@ -28,7 +28,7 @@ func TestConvertFromToOTLP(t *testing.T) {
 		require.NoError(t, err)
 
 		converter := OtlpToStefSorted{}
-		err = converter.WriteMetrics(otlpMetricSrc, writer)
+		err = converter.Convert(otlpMetricSrc, writer)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, srcCount, int(writer.RecordCount()))
@@ -79,7 +79,7 @@ func TestFromOTLPToWriter(t *testing.T) {
 
 		// Convert from OTLP to STEF
 		converter := OtlpToStefUnsorted{}
-		err = converter.WriteMetrics(otlpMetricSrc, writer)
+		err = converter.Convert(otlpMetricSrc, writer)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, srcCount, int(writer.RecordCount()))
@@ -90,8 +90,8 @@ func TestFromOTLPToWriter(t *testing.T) {
 		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 		require.NoError(t, err)
 
-		toOtlp := STEFToOTLPUnsorted{}
-		otlpMetricCopy, err := toOtlp.Convert(reader)
+		toOtlp := StefToOtlpUnsorted{}
+		otlpMetricCopy, err := toOtlp.Convert(reader, true)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, writer.RecordCount(), reader.RecordCount())
@@ -116,7 +116,7 @@ func FuzzReader(f *testing.F) {
 		require.NoError(f, err)
 
 		converter := OtlpToStefSorted{}
-		err = converter.WriteMetrics(otlpMetricSrc, writer)
+		err = converter.Convert(otlpMetricSrc, writer)
 		require.NoError(f, err)
 
 		err = writer.Flush()

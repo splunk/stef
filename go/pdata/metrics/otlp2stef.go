@@ -8,7 +8,7 @@ import (
 
 // OtlpToStef defines a converter from OTLP metrics to STEF format.
 type OtlpToStef interface {
-	// WriteMetrics converts OTLP metrics to STEF format and writes them to the provided writer.
+	// Convert OTLP metrics to STEF format and write them to the provided writer.
 	// Will not call Flush() on the writer at the end.
-	WriteMetrics(src pmetric.Metrics, writer *oteltef.MetricsWriter) error
+	Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error
 }

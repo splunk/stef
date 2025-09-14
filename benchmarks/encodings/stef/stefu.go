@@ -37,7 +37,7 @@ func (d *STEFUEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 	}
 
 	converter := otlpconvert.OtlpToStefUnsorted{}
-	err = converter.WriteMetrics(metrics, writer)
+	err = converter.Convert(metrics, writer)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +77,8 @@ func (*STEFUEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), err
 	}
 
-	converter := otlpconvert.STEFToOTLPUnsorted{}
-	metrics, err := converter.Convert(reader)
+	converter := otlpconvert.StefToOtlpUnsorted{}
+	metrics, err := converter.Convert(reader, true)
 	if err != nil {
 		return pmetric.NewMetrics(), err
 	}
@@ -120,7 +120,7 @@ type stefuMultipart struct {
 
 func (s *stefuMultipart) AppendPart(part pmetric.Metrics) error {
 	converter := otlpconvert.OtlpToStefUnsorted{}
-	err := converter.WriteMetrics(part, s.writer)
+	err := converter.Convert(part, s.writer)
 	if err != nil {
 		return err
 	}
