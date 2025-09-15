@@ -83,6 +83,13 @@ func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
 	s.function.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Line) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *Line) Function() *Function {
 	return s.function
 }

@@ -91,6 +91,13 @@ func (s *Sample) fixParent(parentModifiedFields *modifiedFields) {
 	s.labels.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Sample) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *Sample) Metadata() *ProfileMetadata {
 	return &s.metadata
 }

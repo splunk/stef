@@ -73,6 +73,13 @@ func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *NumValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *NumValue) Val() int64 {
 	return s.val
 }

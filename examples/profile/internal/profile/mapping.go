@@ -98,6 +98,13 @@ func (s *Mapping) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Mapping) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *Mapping) MemoryStart() uint64 {
 	return s.memoryStart
 }
@@ -1322,6 +1329,10 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

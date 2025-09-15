@@ -108,6 +108,13 @@ func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
 	s.defaultSampleType.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *ProfileMetadata) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *ProfileMetadata) DropFrames() string {
 	return s.dropFrames
 }

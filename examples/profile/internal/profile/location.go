@@ -93,6 +93,13 @@ func (s *Location) fixParent(parentModifiedFields *modifiedFields) {
 	s.lines.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Location) Freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
@@ -883,6 +890,10 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }
