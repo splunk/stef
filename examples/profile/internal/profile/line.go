@@ -87,6 +87,14 @@ func (s *Line) Function() *Function {
 	return s.function
 }
 
+// SetFunction sets the value of Function field.
+func (s *Line) SetFunction(v *Function) {
+	if !s.function.IsEqual(v) {
+		s.function = v
+		s.markFunctionModified()
+	}
+}
+
 func (s *Line) markFunctionModified() {
 	s.modifiedFields.markModified(fieldModifiedLineFunction)
 }
@@ -105,7 +113,7 @@ func (s *Line) Line() uint64 {
 
 // SetLine sets the value of Line field.
 func (s *Line) SetLine(v uint64) {
-	if !pkg.Uint64Equal(s.line, v) {
+	if s.line != v {
 		s.line = v
 		s.markLineModified()
 	}
@@ -129,7 +137,7 @@ func (s *Line) Column() uint64 {
 
 // SetColumn sets the value of Column field.
 func (s *Line) SetColumn(v uint64) {
-	if !pkg.Uint64Equal(s.column, v) {
+	if s.column != v {
 		s.column = v
 		s.markColumnModified()
 	}

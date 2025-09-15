@@ -28,6 +28,8 @@ type Function struct {
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
+	// refNum is non-zero when the struct is stored in a dictionary.
+	refNum uint64
 }
 
 const FunctionStructName = "Function"
@@ -87,7 +89,7 @@ func (s *Function) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Function) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -111,7 +113,7 @@ func (s *Function) SystemName() string {
 
 // SetSystemName sets the value of SystemName field.
 func (s *Function) SetSystemName(v string) {
-	if !pkg.StringEqual(s.systemName, v) {
+	if s.systemName != v {
 		s.systemName = v
 		s.markSystemNameModified()
 	}
@@ -135,7 +137,7 @@ func (s *Function) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Function) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
 		s.markFilenameModified()
 	}
@@ -159,7 +161,7 @@ func (s *Function) StartLine() uint64 {
 
 // SetStartLine sets the value of StartLine field.
 func (s *Function) SetStartLine(v uint64) {
-	if !pkg.Uint64Equal(s.startLine, v) {
+	if s.startLine != v {
 		s.startLine = v
 		s.markStartLineModified()
 	}
@@ -382,19 +384,37 @@ type FunctionEncoder struct {
 
 type FunctionEntry struct {
 	refNum uint64
-	val    *Function
+	//val  *Function
 }
 
 // FunctionEncoderDict is the dictionary used by FunctionEncoder
 type FunctionEncoderDict struct {
-	dict    b.Tree[*Function, FunctionEntry]
+	dict b.Tree[*Function, FunctionEntry]
+	//m       map[*Function]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *FunctionEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Function, FunctionEntry](CmpFunction)
+	//d.m = make(map[*Function]uint64)
 	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *FunctionEncoderDict) Get(val *Function) (uint64, bool) {
+	if val.refNum != 0 {
+		return val.refNum, true
+	}
+	if entry, ok := d.dict.Get(val); ok {
+		return entry.refNum, true
+	}
+	return 0, false
+}
+
+func (d *FunctionEncoderDict) Add(val *Function, allocators *Allocators) {
+	refNum := uint64(d.dict.Len())
+	val.refNum = refNum
+	d.dict.Set(val.Clone(allocators), FunctionEntry{refNum: refNum})
 }
 
 func (d *FunctionEncoderDict) Reset() {
@@ -491,13 +511,13 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	var bitCount uint
 
 	// Check if the Function exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	//refNum := val.refNum
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Function exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -509,10 +529,13 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	}
 
 	// The Function does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = FunctionEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val, e.allocators)
+	//valInDict := val // val.Clone(e.allocators)
+	//val.refNum = uint64(len(e.dict.m)+1)
+	//entry := FunctionEntry{refNum: uint64(len(e.dict.m)+1), val: valInDict}
+	//e.dict.dict.Set(valInDict, entry)
+	//e.dict.m[val] = val.refNum
+	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Function follows.
 	e.buf.WriteBit(1)

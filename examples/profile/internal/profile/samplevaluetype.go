@@ -26,6 +26,8 @@ type SampleValueType struct {
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
+	// refNum is non-zero when the struct is stored in a dictionary.
+	refNum uint64
 }
 
 const SampleValueTypeStructName = "SampleValueType"
@@ -81,7 +83,7 @@ func (s *SampleValueType) Type() string {
 
 // SetType sets the value of Type field.
 func (s *SampleValueType) SetType(v string) {
-	if !pkg.StringEqual(s.type_, v) {
+	if s.type_ != v {
 		s.type_ = v
 		s.markTypeModified()
 	}
@@ -105,7 +107,7 @@ func (s *SampleValueType) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *SampleValueType) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
 		s.markUnitModified()
 	}
@@ -278,19 +280,37 @@ type SampleValueTypeEncoder struct {
 
 type SampleValueTypeEntry struct {
 	refNum uint64
-	val    *SampleValueType
+	//val  *SampleValueType
 }
 
 // SampleValueTypeEncoderDict is the dictionary used by SampleValueTypeEncoder
 type SampleValueTypeEncoderDict struct {
-	dict    b.Tree[*SampleValueType, SampleValueTypeEntry]
+	dict b.Tree[*SampleValueType, SampleValueTypeEntry]
+	//m       map[*SampleValueType]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *SampleValueTypeEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*SampleValueType, SampleValueTypeEntry](CmpSampleValueType)
+	//d.m = make(map[*SampleValueType]uint64)
 	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *SampleValueTypeEncoderDict) Get(val *SampleValueType) (uint64, bool) {
+	if val.refNum != 0 {
+		return val.refNum, true
+	}
+	if entry, ok := d.dict.Get(val); ok {
+		return entry.refNum, true
+	}
+	return 0, false
+}
+
+func (d *SampleValueTypeEncoderDict) Add(val *SampleValueType, allocators *Allocators) {
+	refNum := uint64(d.dict.Len())
+	val.refNum = refNum
+	d.dict.Set(val.Clone(allocators), SampleValueTypeEntry{refNum: refNum})
 }
 
 func (d *SampleValueTypeEncoderDict) Reset() {
@@ -361,13 +381,13 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	var bitCount uint
 
 	// Check if the SampleValueType exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	//refNum := val.refNum
+	if refNum, exists := e.dict.Get(val); exists {
 		// The SampleValueType exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -379,10 +399,13 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	}
 
 	// The SampleValueType does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = SampleValueTypeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val, e.allocators)
+	//valInDict := val // val.Clone(e.allocators)
+	//val.refNum = uint64(len(e.dict.m)+1)
+	//entry := SampleValueTypeEntry{refNum: uint64(len(e.dict.m)+1), val: valInDict}
+	//e.dict.dict.Set(valInDict, entry)
+	//e.dict.m[val] = val.refNum
+	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded SampleValueType follows.
 	e.buf.WriteBit(1)

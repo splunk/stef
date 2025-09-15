@@ -28,6 +28,8 @@ type Location struct {
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
+	// refNum is non-zero when the struct is stored in a dictionary.
+	refNum uint64
 }
 
 const LocationStructName = "Location"
@@ -95,6 +97,14 @@ func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
 
+// SetMapping sets the value of Mapping field.
+func (s *Location) SetMapping(v *Mapping) {
+	if !s.mapping.IsEqual(v) {
+		s.mapping = v
+		s.markMappingModified()
+	}
+}
+
 func (s *Location) markMappingModified() {
 	s.modifiedFields.markModified(fieldModifiedLocationMapping)
 }
@@ -113,7 +123,7 @@ func (s *Location) Address() uint64 {
 
 // SetAddress sets the value of Address field.
 func (s *Location) SetAddress(v uint64) {
-	if !pkg.Uint64Equal(s.address, v) {
+	if s.address != v {
 		s.address = v
 		s.markAddressModified()
 	}
@@ -153,7 +163,7 @@ func (s *Location) IsFolded() bool {
 
 // SetIsFolded sets the value of IsFolded field.
 func (s *Location) SetIsFolded(v bool) {
-	if !pkg.BoolEqual(s.isFolded, v) {
+	if s.isFolded != v {
 		s.isFolded = v
 		s.markIsFoldedModified()
 	}
@@ -394,31 +404,37 @@ type LocationEncoder struct {
 
 type LocationEntry struct {
 	refNum uint64
-	val    *Location
+	//val  *Location
 }
 
 // LocationEncoderDict is the dictionary used by LocationEncoder
 type LocationEncoderDict struct {
-	dict    b.Tree[*Location, LocationEntry]
-	m       map[*Location]uint64
+	dict b.Tree[*Location, LocationEntry]
+	//m       map[*Location]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *LocationEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Location, LocationEntry](CmpLocation)
-	d.m = make(map[*Location]uint64)
+	//d.m = make(map[*Location]uint64)
 	d.dict.Set(nil, LocationEntry{}) // nil Location is RefNum 0
 	d.limiter = limiter
 }
 
 func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
-	if refNum, ok := d.m[val]; ok {
-		return refNum, true
+	if val.refNum != 0 {
+		return val.refNum, true
 	}
 	if entry, ok := d.dict.Get(val); ok {
-		d.m[entry.val] = entry.refNum
+		return entry.refNum, true
 	}
 	return 0, false
+}
+
+func (d *LocationEncoderDict) Add(val *Location, allocators *Allocators) {
+	refNum := uint64(d.dict.Len())
+	val.refNum = refNum
+	d.dict.Set(val.Clone(allocators), LocationEntry{refNum: refNum})
 }
 
 func (d *LocationEncoderDict) Reset() {
@@ -537,8 +553,8 @@ func (e *LocationEncoder) Encode(val *Location) {
 	var bitCount uint
 
 	// Check if the Location exists in the dictionary.
-	refNum, exists := e.dict.Get(val)
-	if exists {
+	//refNum := val.refNum
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Location exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
@@ -555,11 +571,13 @@ func (e *LocationEncoder) Encode(val *Location) {
 	}
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry := LocationEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.m[val] = entry.refNum
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val, e.allocators)
+	//valInDict := val // val.Clone(e.allocators)
+	//val.refNum = uint64(len(e.dict.m)+1)
+	//entry := LocationEntry{refNum: uint64(len(e.dict.m)+1), val: valInDict}
+	//e.dict.dict.Set(valInDict, entry)
+	//e.dict.m[val] = val.refNum
+	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Location follows.
 	e.buf.WriteBit(1)

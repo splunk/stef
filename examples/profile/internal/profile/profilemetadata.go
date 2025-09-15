@@ -114,7 +114,7 @@ func (s *ProfileMetadata) DropFrames() string {
 
 // SetDropFrames sets the value of DropFrames field.
 func (s *ProfileMetadata) SetDropFrames(v string) {
-	if !pkg.StringEqual(s.dropFrames, v) {
+	if s.dropFrames != v {
 		s.dropFrames = v
 		s.markDropFramesModified()
 	}
@@ -138,7 +138,7 @@ func (s *ProfileMetadata) KeepFrames() string {
 
 // SetKeepFrames sets the value of KeepFrames field.
 func (s *ProfileMetadata) SetKeepFrames(v string) {
-	if !pkg.StringEqual(s.keepFrames, v) {
+	if s.keepFrames != v {
 		s.keepFrames = v
 		s.markKeepFramesModified()
 	}
@@ -162,7 +162,7 @@ func (s *ProfileMetadata) TimeNanos() int64 {
 
 // SetTimeNanos sets the value of TimeNanos field.
 func (s *ProfileMetadata) SetTimeNanos(v int64) {
-	if !pkg.Int64Equal(s.timeNanos, v) {
+	if s.timeNanos != v {
 		s.timeNanos = v
 		s.markTimeNanosModified()
 	}
@@ -186,7 +186,7 @@ func (s *ProfileMetadata) DurationNanos() int64 {
 
 // SetDurationNanos sets the value of DurationNanos field.
 func (s *ProfileMetadata) SetDurationNanos(v int64) {
-	if !pkg.Int64Equal(s.durationNanos, v) {
+	if s.durationNanos != v {
 		s.durationNanos = v
 		s.markDurationNanosModified()
 	}
@@ -208,6 +208,14 @@ func (s *ProfileMetadata) PeriodType() *SampleValueType {
 	return s.periodType
 }
 
+// SetPeriodType sets the value of PeriodType field.
+func (s *ProfileMetadata) SetPeriodType(v *SampleValueType) {
+	if !s.periodType.IsEqual(v) {
+		s.periodType = v
+		s.markPeriodTypeModified()
+	}
+}
+
 func (s *ProfileMetadata) markPeriodTypeModified() {
 	s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
 }
@@ -226,7 +234,7 @@ func (s *ProfileMetadata) Period() int64 {
 
 // SetPeriod sets the value of Period field.
 func (s *ProfileMetadata) SetPeriod(v int64) {
-	if !pkg.Int64Equal(s.period, v) {
+	if s.period != v {
 		s.period = v
 		s.markPeriodModified()
 	}
@@ -262,6 +270,14 @@ func (s *ProfileMetadata) IsCommentsModified() bool {
 
 func (s *ProfileMetadata) DefaultSampleType() *SampleValueType {
 	return s.defaultSampleType
+}
+
+// SetDefaultSampleType sets the value of DefaultSampleType field.
+func (s *ProfileMetadata) SetDefaultSampleType(v *SampleValueType) {
+	if !s.defaultSampleType.IsEqual(v) {
+		s.defaultSampleType = v
+		s.markDefaultSampleTypeModified()
+	}
 }
 
 func (s *ProfileMetadata) markDefaultSampleTypeModified() {

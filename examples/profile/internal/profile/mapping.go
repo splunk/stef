@@ -33,6 +33,8 @@ type Mapping struct {
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
+	// refNum is non-zero when the struct is stored in a dictionary.
+	refNum uint64
 }
 
 const MappingStructName = "Mapping"
@@ -102,7 +104,7 @@ func (s *Mapping) MemoryStart() uint64 {
 
 // SetMemoryStart sets the value of MemoryStart field.
 func (s *Mapping) SetMemoryStart(v uint64) {
-	if !pkg.Uint64Equal(s.memoryStart, v) {
+	if s.memoryStart != v {
 		s.memoryStart = v
 		s.markMemoryStartModified()
 	}
@@ -126,7 +128,7 @@ func (s *Mapping) MemoryLimit() uint64 {
 
 // SetMemoryLimit sets the value of MemoryLimit field.
 func (s *Mapping) SetMemoryLimit(v uint64) {
-	if !pkg.Uint64Equal(s.memoryLimit, v) {
+	if s.memoryLimit != v {
 		s.memoryLimit = v
 		s.markMemoryLimitModified()
 	}
@@ -150,7 +152,7 @@ func (s *Mapping) FileOffset() uint64 {
 
 // SetFileOffset sets the value of FileOffset field.
 func (s *Mapping) SetFileOffset(v uint64) {
-	if !pkg.Uint64Equal(s.fileOffset, v) {
+	if s.fileOffset != v {
 		s.fileOffset = v
 		s.markFileOffsetModified()
 	}
@@ -174,7 +176,7 @@ func (s *Mapping) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Mapping) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
 		s.markFilenameModified()
 	}
@@ -198,7 +200,7 @@ func (s *Mapping) BuildId() string {
 
 // SetBuildId sets the value of BuildId field.
 func (s *Mapping) SetBuildId(v string) {
-	if !pkg.StringEqual(s.buildId, v) {
+	if s.buildId != v {
 		s.buildId = v
 		s.markBuildIdModified()
 	}
@@ -222,7 +224,7 @@ func (s *Mapping) HasFunctions() bool {
 
 // SetHasFunctions sets the value of HasFunctions field.
 func (s *Mapping) SetHasFunctions(v bool) {
-	if !pkg.BoolEqual(s.hasFunctions, v) {
+	if s.hasFunctions != v {
 		s.hasFunctions = v
 		s.markHasFunctionsModified()
 	}
@@ -246,7 +248,7 @@ func (s *Mapping) HasFilenames() bool {
 
 // SetHasFilenames sets the value of HasFilenames field.
 func (s *Mapping) SetHasFilenames(v bool) {
-	if !pkg.BoolEqual(s.hasFilenames, v) {
+	if s.hasFilenames != v {
 		s.hasFilenames = v
 		s.markHasFilenamesModified()
 	}
@@ -270,7 +272,7 @@ func (s *Mapping) HasLineNumbers() bool {
 
 // SetHasLineNumbers sets the value of HasLineNumbers field.
 func (s *Mapping) SetHasLineNumbers(v bool) {
-	if !pkg.BoolEqual(s.hasLineNumbers, v) {
+	if s.hasLineNumbers != v {
 		s.hasLineNumbers = v
 		s.markHasLineNumbersModified()
 	}
@@ -294,7 +296,7 @@ func (s *Mapping) HasInlineFrames() bool {
 
 // SetHasInlineFrames sets the value of HasInlineFrames field.
 func (s *Mapping) SetHasInlineFrames(v bool) {
-	if !pkg.BoolEqual(s.hasInlineFrames, v) {
+	if s.hasInlineFrames != v {
 		s.hasInlineFrames = v
 		s.markHasInlineFramesModified()
 	}
@@ -642,19 +644,37 @@ type MappingEncoder struct {
 
 type MappingEntry struct {
 	refNum uint64
-	val    *Mapping
+	//val  *Mapping
 }
 
 // MappingEncoderDict is the dictionary used by MappingEncoder
 type MappingEncoderDict struct {
-	dict    b.Tree[*Mapping, MappingEntry]
+	dict b.Tree[*Mapping, MappingEntry]
+	//m       map[*Mapping]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *MappingEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Mapping, MappingEntry](CmpMapping)
+	//d.m = make(map[*Mapping]uint64)
 	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *MappingEncoderDict) Get(val *Mapping) (uint64, bool) {
+	if val.refNum != 0 {
+		return val.refNum, true
+	}
+	if entry, ok := d.dict.Get(val); ok {
+		return entry.refNum, true
+	}
+	return 0, false
+}
+
+func (d *MappingEncoderDict) Add(val *Mapping, allocators *Allocators) {
+	refNum := uint64(d.dict.Len())
+	val.refNum = refNum
+	d.dict.Set(val.Clone(allocators), MappingEntry{refNum: refNum})
 }
 
 func (d *MappingEncoderDict) Reset() {
@@ -816,13 +836,13 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	var bitCount uint
 
 	// Check if the Mapping exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	//refNum := val.refNum
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Mapping exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -834,10 +854,13 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	}
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = MappingEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val, e.allocators)
+	//valInDict := val // val.Clone(e.allocators)
+	//val.refNum = uint64(len(e.dict.m)+1)
+	//entry := MappingEntry{refNum: uint64(len(e.dict.m)+1), val: valInDict}
+	//e.dict.dict.Set(valInDict, entry)
+	//e.dict.m[val] = val.refNum
+	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Mapping follows.
 	e.buf.WriteBit(1)

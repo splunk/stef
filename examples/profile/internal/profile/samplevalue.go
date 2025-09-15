@@ -86,7 +86,7 @@ func (s *SampleValue) Val() int64 {
 
 // SetVal sets the value of Val field.
 func (s *SampleValue) SetVal(v int64) {
-	if !pkg.Int64Equal(s.val, v) {
+	if s.val != v {
 		s.val = v
 		s.markValModified()
 	}
@@ -106,6 +106,14 @@ func (s *SampleValue) IsValModified() bool {
 
 func (s *SampleValue) Type() *SampleValueType {
 	return s.type_
+}
+
+// SetType sets the value of Type field.
+func (s *SampleValue) SetType(v *SampleValueType) {
+	if !s.type_.IsEqual(v) {
+		s.type_ = v
+		s.markTypeModified()
+	}
 }
 
 func (s *SampleValue) markTypeModified() {

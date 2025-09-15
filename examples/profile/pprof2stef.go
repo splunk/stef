@@ -12,22 +12,16 @@ import (
 )
 
 type converter struct {
-	mappings  map[*profile.Mapping]*stefprofile.Mapping
-	functions map[*profile.Function]*stefprofile.Function
-	locations map[*profile.Location]*stefprofile.Location
-}
-
-func newConverter() converter {
-	return converter{
-		mappings:  make(map[*profile.Mapping]*stefprofile.Mapping),
-		functions: make(map[*profile.Function]*stefprofile.Function),
-		locations: make(map[*profile.Location]*stefprofile.Location),
-	}
+	mappings  []stefprofile.Mapping
+	functions []stefprofile.Function
+	locations []stefprofile.Location
 }
 
 func (c *converter) convertMappings(prof *profile.Profile) {
+	c.mappings = make([]stefprofile.Mapping, len(prof.Mapping)+1)
 	for _, srcMapping := range prof.Mapping {
-		mapping := stefprofile.NewMapping()
+		mapping := &c.mappings[srcMapping.ID] // stefprofile.NewMapping()
+		mapping.Init()
 		mapping.SetMemoryStart(srcMapping.Start)
 		mapping.SetMemoryLimit(srcMapping.Limit)
 		mapping.SetFileOffset(srcMapping.Offset)
@@ -37,31 +31,37 @@ func (c *converter) convertMappings(prof *profile.Profile) {
 		mapping.SetHasFilenames(srcMapping.HasFilenames)
 		mapping.SetHasLineNumbers(srcMapping.HasLineNumbers)
 		mapping.SetHasInlineFrames(srcMapping.HasInlineFrames)
-		c.mappings[srcMapping] = mapping
+		//c.mappings[srcMapping.ID] = mapping
 	}
 }
 
 func (c *converter) convertFunctions(prof *profile.Profile) {
+	c.functions = make([]stefprofile.Function, len(prof.Function)+1)
 	for _, srcFunction := range prof.Function {
-		function := stefprofile.NewFunction()
+		//function := stefprofile.NewFunction()
+		function := &c.functions[srcFunction.ID]
+		function.Init()
 		function.SetName(srcFunction.Name)
 		function.SetSystemName(srcFunction.SystemName)
 		function.SetFilename(srcFunction.Filename)
 		function.SetStartLine(uint64(srcFunction.StartLine))
-		c.functions[srcFunction] = function
+
 	}
 }
 
 func (c *converter) convertLocations(prof *profile.Profile) {
+	c.locations = make([]stefprofile.Location, len(prof.Location)+1)
 	for _, srcLoc := range prof.Location {
-		dstLoc := stefprofile.NewLocation()
+		dstLoc := &c.locations[srcLoc.ID]
+		dstLoc.Init()
+		//dstLoc := stefprofile.NewLocation()
 
 		dstLoc.SetAddress(srcLoc.Address)
 		dstLoc.SetIsFolded(srcLoc.IsFolded)
 
 		// Convert mapping
 		if srcLoc.Mapping != nil {
-			dstLoc.Mapping().CopyFrom(c.mappings[srcLoc.Mapping])
+			dstLoc.SetMapping(&c.mappings[srcLoc.Mapping.ID])
 		}
 
 		// Convert lines
@@ -74,11 +74,10 @@ func (c *converter) convertLocations(prof *profile.Profile) {
 
 			// Convert function
 			if line.Function != nil {
-				stefLine.Function().CopyFrom(c.functions[line.Function])
+				stefLine.SetFunction(&c.functions[line.Function.ID])
 			}
 		}
 
-		c.locations[srcLoc] = dstLoc
 	}
 }
 
@@ -87,8 +86,7 @@ func (c *converter) convertSample(srcSample *profile.Sample, srcProf *profile.Pr
 	locations := dst.Locations()
 	locations.EnsureLen(0)
 	for _, loc := range srcSample.Location {
-		stefLoc := c.locations[loc]
-		locations.Append(stefLoc)
+		locations.Append(&c.locations[loc.ID])
 	}
 
 	// Convert values
@@ -165,7 +163,7 @@ func convertPprofToStef(prof *profile.Profile, dst io.Writer) error {
 	// Convert profile metadata once
 	convertProfileMetadata(prof, writer.Record.Metadata())
 
-	c := newConverter()
+	c := converter{}
 	c.convertMappings(prof)
 	c.convertFunctions(prof)
 	c.convertLocations(prof)
