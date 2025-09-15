@@ -14,12 +14,11 @@ import (
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/oteltef"
 	"github.com/splunk/stef/go/pdata/metrics"
-	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 	"github.com/splunk/stef/go/pdata/metrics/testtools"
 	"github.com/splunk/stef/go/pkg"
 )
 
-func TestConvertTEFFromToOTLP(t *testing.T) {
+func TestConvertSTEFFromToOTLP(t *testing.T) {
 	tests := []struct {
 		file string
 	}{
@@ -44,13 +43,9 @@ func TestConvertTEFFromToOTLP(t *testing.T) {
 				writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
 				require.NoError(t, err)
 
-				sortedByMetric, err := sortedbymetric.OtlpToSortedTree(otlpDataSrc)
+				toStef := metrics.OtlpToStefSorted{}
+				err = toStef.Convert(otlpDataSrc, writer)
 				require.NoError(t, err)
-
-				err = sortedByMetric.ToStef(writer)
-				require.NoError(t, err)
-
-				sortedByMetric = nil
 
 				err = writer.Flush()
 				require.NoError(t, err)
