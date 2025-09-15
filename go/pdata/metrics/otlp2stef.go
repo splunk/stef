@@ -12,3 +12,10 @@ type OtlpToStef interface {
 	// Will not call Flush() on the writer at the end.
 	Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error
 }
+
+func NewOtlpToStef(sorted bool) OtlpToStef {
+	if sorted {
+		return &OtlpToStefSorted{}
+	}
+	return &OtlpToStefUnsorted{}
+}

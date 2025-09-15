@@ -53,8 +53,8 @@ func TestConvertSTEFFromToOTLP(t *testing.T) {
 				reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 				require.NoError(t, err)
 
-				converter := metrics.StefToOtlpSorted{}
-				otlpDataCopy, err := converter.Convert(reader, true)
+				toOtlp := metrics.StefToOtlpUnsorted{}
+				otlpDataCopy, err := toOtlp.Convert(reader, true)
 				require.NoError(t, err)
 
 				testtools.NormalizeMetrics(otlpDataCopy)

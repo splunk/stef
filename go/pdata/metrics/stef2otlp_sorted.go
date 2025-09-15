@@ -11,14 +11,14 @@ import (
 	"github.com/splunk/stef/go/pkg"
 )
 
-// StefToOtlpSorted reads and converts STEF records to OTLP metrics, sorted and grouped
+// stefToOtlpSorted reads and converts STEF records to OTLP metrics, sorted and grouped
 // by Resource/Scope/Metric hierarchy.
-type StefToOtlpSorted struct {
+type stefToOtlpSorted struct {
 }
 
-var _ StefToOtlp = (*StefToOtlpSorted)(nil)
+var _ StefToOtlp = (*stefToOtlpSorted)(nil)
 
-func (c *StefToOtlpSorted) Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
+func (c *stefToOtlpSorted) Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
 	sm := sortedbyresource.NewSortedByResource()
 	metrics := pmetric.NewMetrics()
 
