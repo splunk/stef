@@ -1,3 +1,5 @@
+package books
+
 // Records of events that happened with books. This is the main record struct.
 struct BookRecords root {
     Book Book       // Which book the event is about.
