@@ -209,22 +209,22 @@ func BenchmarkSerialization(b *testing.B) {
 				var dst bytes.Buffer
 				for i := 0; i < b.N; i++ {
 					dst.Reset()
-					err = convertPprofToStef(prof, &dst)
-					//chunkWriter := pkg.NewWrapChunkWriter(&dst)
-					//
-					//// Create sample writer
-					//writer, err := stefprofile.NewSampleWriter(chunkWriter, pkg.WriterOptions{})
-					//if err != nil {
-					//	b.Fatalf("failed to create srcSample writer: %s", err)
-					//}
-					//
-					//for j := 0; j < recCount; j++ {
-					//	writer.Record.CopyFrom(&records[j])
-					//	if err := writer.Write(); err != nil {
-					//		b.Fatalf("failed to write srcSample: %v", err)
-					//	}
-					//}
-					//err = writer.Flush()
+					//err = convertPprofToStef(prof, &dst)
+					chunkWriter := pkg.NewWrapChunkWriter(&dst)
+
+					// Create sample writer
+					writer, err := stefprofile.NewSampleWriter(chunkWriter, pkg.WriterOptions{})
+					if err != nil {
+						b.Fatalf("failed to create srcSample writer: %s", err)
+					}
+
+					for j := 0; j < recCount; j++ {
+						writer.Record.CopyFrom(&records[j])
+						if err := writer.Write(); err != nil {
+							b.Fatalf("failed to write srcSample: %v", err)
+						}
+					}
+					err = writer.Flush()
 					if err != nil {
 						b.Fatal(err)
 					}
