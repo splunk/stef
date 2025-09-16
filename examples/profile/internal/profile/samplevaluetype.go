@@ -154,6 +154,11 @@ func (s *SampleValueType) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *SampleValueType) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *SampleValueType) CloneShared(allocators *Allocators) *SampleValueType {
@@ -185,9 +190,20 @@ func (s *SampleValueType) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
+func copySampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+	if dst == nil {
+		dst = allocators.SampleValueType.Alloc()
+		dst.initAlloc(nil, 0, allocators)
+	}
+
 	dst.SetType(src.type_)
 	dst.SetUnit(src.unit)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -198,14 +214,14 @@ func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, alloca
 		return src
 	}
 
-	dst.type_ = src.type_
-	dst.unit = src.unit
+	dst.SetType(src.type_)
+	dst.SetUnit(src.unit)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValueType) CopyFrom(src *SampleValueType) {
-	copySampleValueType(s, src)
+func (s *SampleValueType) CopyFrom(src *SampleValueType, allocators *Allocators) {
+	copySampleValueType(s, src, allocators)
 }
 
 func (s *SampleValueType) markParentModified() {
@@ -315,13 +331,15 @@ type SampleValueTypeEntry struct {
 
 // SampleValueTypeEncoderDict is the dictionary used by SampleValueTypeEncoder
 type SampleValueTypeEncoderDict struct {
-	dict b.Tree[*SampleValueType, SampleValueTypeEntry]
+	dict  b.Tree[*SampleValueType, SampleValueTypeEntry]
+	slice []*SampleValueType
 	//m       map[*SampleValueType]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *SampleValueTypeEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*SampleValueType, SampleValueTypeEntry](CmpSampleValueType)
+	d.slice = make([]*SampleValueType, 1) // refNum 0 is reserved for nil SampleValueType
 	//d.m = make(map[*SampleValueType]uint64)
 	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
 	d.limiter = limiter
@@ -329,7 +347,16 @@ func (d *SampleValueTypeEncoderDict) Init(limiter *pkg.SizeLimiter) {
 
 func (d *SampleValueTypeEncoderDict) Get(val *SampleValueType) (uint64, bool) {
 	if val.refNum != 0 {
-		return val.refNum, true
+		if val.modifiedFields.isAnyModified() {
+			// The struct was modified since it was added to the dictionary, so refNum
+			// is no longer valid.
+		} else {
+			// Verify that the refNum is still valid. It may become invalid if for example
+			// the dictionaries are reset during encoding and refNums are reused.
+			if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
+				return val.refNum, true
+			}
+		}
 	}
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -340,12 +367,17 @@ func (d *SampleValueTypeEncoderDict) Get(val *SampleValueType) (uint64, bool) {
 func (d *SampleValueTypeEncoderDict) Add(val *SampleValueType, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
 	val.refNum = refNum
-	d.dict.Set(val.Clone(allocators), SampleValueTypeEntry{refNum: refNum})
+	d.slice = append(d.slice, val)
+
+	clone := val.Clone(allocators)
+	clone.Freeze()
+	d.dict.Set(clone, SampleValueTypeEntry{refNum: refNum})
 }
 
 func (d *SampleValueTypeEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {

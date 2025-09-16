@@ -371,6 +371,11 @@ func (s *Mapping) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Mapping) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Mapping) CloneShared(allocators *Allocators) *Mapping {
@@ -409,7 +414,17 @@ func (s *Mapping) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyMapping(dst *Mapping, src *Mapping) {
+func copyMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+	if dst == nil {
+		dst = allocators.Mapping.Alloc()
+		dst.initAlloc(nil, 0, allocators)
+	}
+
 	dst.SetMemoryStart(src.memoryStart)
 	dst.SetMemoryLimit(src.memoryLimit)
 	dst.SetFileOffset(src.fileOffset)
@@ -419,6 +434,7 @@ func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetHasFilenames(src.hasFilenames)
 	dst.SetHasLineNumbers(src.hasLineNumbers)
 	dst.SetHasInlineFrames(src.hasInlineFrames)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -429,21 +445,21 @@ func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mappi
 		return src
 	}
 
-	dst.memoryStart = src.memoryStart
-	dst.memoryLimit = src.memoryLimit
-	dst.fileOffset = src.fileOffset
-	dst.filename = src.filename
-	dst.buildId = src.buildId
-	dst.hasFunctions = src.hasFunctions
-	dst.hasFilenames = src.hasFilenames
-	dst.hasLineNumbers = src.hasLineNumbers
-	dst.hasInlineFrames = src.hasInlineFrames
+	dst.SetMemoryStart(src.memoryStart)
+	dst.SetMemoryLimit(src.memoryLimit)
+	dst.SetFileOffset(src.fileOffset)
+	dst.SetFilename(src.filename)
+	dst.SetBuildId(src.buildId)
+	dst.SetHasFunctions(src.hasFunctions)
+	dst.SetHasFilenames(src.hasFilenames)
+	dst.SetHasLineNumbers(src.hasLineNumbers)
+	dst.SetHasInlineFrames(src.hasInlineFrames)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Mapping) CopyFrom(src *Mapping) {
-	copyMapping(s, src)
+func (s *Mapping) CopyFrom(src *Mapping, allocators *Allocators) {
+	copyMapping(s, src, allocators)
 }
 
 func (s *Mapping) markParentModified() {
@@ -679,13 +695,15 @@ type MappingEntry struct {
 
 // MappingEncoderDict is the dictionary used by MappingEncoder
 type MappingEncoderDict struct {
-	dict b.Tree[*Mapping, MappingEntry]
+	dict  b.Tree[*Mapping, MappingEntry]
+	slice []*Mapping
 	//m       map[*Mapping]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *MappingEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Mapping, MappingEntry](CmpMapping)
+	d.slice = make([]*Mapping, 1) // refNum 0 is reserved for nil Mapping
 	//d.m = make(map[*Mapping]uint64)
 	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
 	d.limiter = limiter
@@ -693,7 +711,16 @@ func (d *MappingEncoderDict) Init(limiter *pkg.SizeLimiter) {
 
 func (d *MappingEncoderDict) Get(val *Mapping) (uint64, bool) {
 	if val.refNum != 0 {
-		return val.refNum, true
+		if val.modifiedFields.isAnyModified() {
+			// The struct was modified since it was added to the dictionary, so refNum
+			// is no longer valid.
+		} else {
+			// Verify that the refNum is still valid. It may become invalid if for example
+			// the dictionaries are reset during encoding and refNums are reused.
+			if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
+				return val.refNum, true
+			}
+		}
 	}
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -704,12 +731,17 @@ func (d *MappingEncoderDict) Get(val *Mapping) (uint64, bool) {
 func (d *MappingEncoderDict) Add(val *Mapping, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
 	val.refNum = refNum
-	d.dict.Set(val.Clone(allocators), MappingEntry{refNum: refNum})
+	d.slice = append(d.slice, val)
+
+	clone := val.Clone(allocators)
+	clone.Freeze()
+	d.dict.Set(clone, MappingEntry{refNum: refNum})
 }
 
 func (d *MappingEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {

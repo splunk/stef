@@ -216,6 +216,11 @@ func (s *Function) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Function) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Function) CloneShared(allocators *Allocators) *Function {
@@ -249,11 +254,22 @@ func (s *Function) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyFunction(dst *Function, src *Function) {
+func copyFunction(dst *Function, src *Function, allocators *Allocators) *Function {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+	if dst == nil {
+		dst = allocators.Function.Alloc()
+		dst.initAlloc(nil, 0, allocators)
+	}
+
 	dst.SetName(src.name)
 	dst.SetSystemName(src.systemName)
 	dst.SetFilename(src.filename)
 	dst.SetStartLine(src.startLine)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -264,16 +280,16 @@ func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) *Fu
 		return src
 	}
 
-	dst.name = src.name
-	dst.systemName = src.systemName
-	dst.filename = src.filename
-	dst.startLine = src.startLine
+	dst.SetName(src.name)
+	dst.SetSystemName(src.systemName)
+	dst.SetFilename(src.filename)
+	dst.SetStartLine(src.startLine)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Function) CopyFrom(src *Function) {
-	copyFunction(s, src)
+func (s *Function) CopyFrom(src *Function, allocators *Allocators) {
+	copyFunction(s, src, allocators)
 }
 
 func (s *Function) markParentModified() {
@@ -419,13 +435,15 @@ type FunctionEntry struct {
 
 // FunctionEncoderDict is the dictionary used by FunctionEncoder
 type FunctionEncoderDict struct {
-	dict b.Tree[*Function, FunctionEntry]
+	dict  b.Tree[*Function, FunctionEntry]
+	slice []*Function
 	//m       map[*Function]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *FunctionEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Function, FunctionEntry](CmpFunction)
+	d.slice = make([]*Function, 1) // refNum 0 is reserved for nil Function
 	//d.m = make(map[*Function]uint64)
 	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
 	d.limiter = limiter
@@ -433,7 +451,16 @@ func (d *FunctionEncoderDict) Init(limiter *pkg.SizeLimiter) {
 
 func (d *FunctionEncoderDict) Get(val *Function) (uint64, bool) {
 	if val.refNum != 0 {
-		return val.refNum, true
+		if val.modifiedFields.isAnyModified() {
+			// The struct was modified since it was added to the dictionary, so refNum
+			// is no longer valid.
+		} else {
+			// Verify that the refNum is still valid. It may become invalid if for example
+			// the dictionaries are reset during encoding and refNums are reused.
+			if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
+				return val.refNum, true
+			}
+		}
 	}
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -444,12 +471,17 @@ func (d *FunctionEncoderDict) Get(val *Function) (uint64, bool) {
 func (d *FunctionEncoderDict) Add(val *Function, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
 	val.refNum = refNum
-	d.dict.Set(val.Clone(allocators), FunctionEntry{refNum: refNum})
+	d.slice = append(d.slice, val)
+
+	clone := val.Clone(allocators)
+	clone.Freeze()
+	d.dict.Set(clone, FunctionEntry{refNum: refNum})
 }
 
 func (d *FunctionEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {

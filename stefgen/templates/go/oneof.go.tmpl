@@ -173,7 +173,10 @@ func (s *{{ .StructName }}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+    if dst == src {
+        return
+    }
 	switch src.typ {
     {{- range .Fields}}
     case {{ $.StructName }}Type{{.Name}}:
@@ -181,7 +184,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
         dst.SetType(src.typ)
         copy{{.Type.TypeName}}(
             {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
         {{- else}}
         dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
         {{- end}}
@@ -215,8 +218,8 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
-    copy{{.StructName}}(s, src)
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}, allocators *Allocators) {
+    copy{{.StructName}}(s, src, allocators)
 }
 
 func (s* {{.StructName}}) markParentModified() {

@@ -232,6 +232,11 @@ func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
     s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *{{ .StructName }}) canBeShared() bool {
+    return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
@@ -267,7 +272,17 @@ func (s *{{ .StructName }}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) *{{.StructName}} {
+    {{if .DictName}}
+    if src.isFrozen() {
+        // If src is frozen it means it is safe to share without cloning.
+        return src
+    }
+    if dst == nil {
+        dst = allocators.{{.StructName}}.Alloc()
+        dst.initAlloc(nil, 0, allocators)
+    }
+    {{end}}
     {{- range .Fields -}}
     {{- if .Type.MustClone}}
     {{- if .Optional}}
@@ -277,17 +292,22 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- end}}
     {{- if .Type.Flags.StoreByPtr}}
     if src.{{.name}} != nil {
-        if dst.{{.name}} == nil {
-            dst.{{.name}} = &{{ .Type.Storage }}{}
-            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        if src.{{.name}}.canBeShared() {
+            dst.{{.name}} = src.{{.name}}
+        } else {
+            if dst.{{.name}} == nil {
+                dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+                dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            }
+            copy{{.Type.TypeName}}(
+                {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
         }
-    {{- end}}
-        copy{{.Type.TypeName}}(
-            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
-    {{- if .Type.Flags.StoreByPtr}}
     }
     {{- end}}
+    copy{{.Type.TypeName}}(
+        {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
     {{- else}}
 	{{- if .Optional}}
 	if src.Has{{.Name}}() {
@@ -303,6 +323,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     {{- if .OptionalFieldCount}}
     dst.optionalFieldsPresent = src.optionalFieldsPresent
     {{- end}}
+    return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -322,9 +343,15 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
     {{- end}}
     {{ if .Type.Flags.StoreByPtr}}
     if src.{{.name}} != nil {
-        //dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
-        //dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
-        dst.{{.name }} = src.{{.name}}.CloneShared(allocators)
+        if src.{{.name}}.canBeShared() {
+            dst.{{.name}} = src.{{.name}}
+        } else {
+            dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            copyToNew{{.Type.TypeName}}(
+                {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+        }
     }
     {{- else -}}
     copyToNew{{.Type.TypeName}}(
@@ -338,7 +365,7 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
 		dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
 	}
 	{{else}}
-    dst.{{.name}} = src.{{.name}}
+    dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
     {{- end}}
     {{- end}}
     {{- end}}
@@ -349,8 +376,8 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
-    copy{{.StructName}}(s, src)
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}, allocators *Allocators) {
+    copy{{.StructName}}(s, src, allocators)
 }
 
 func (s* {{.StructName}}) markParentModified() {
@@ -498,12 +525,14 @@ type {{ .StructName }}Entry struct {
 // {{ .StructName }}EncoderDict is the dictionary used by {{ .StructName }}Encoder
 type {{ .StructName }}EncoderDict struct {
 	dict b.Tree[*{{ .StructName }}, {{ .StructName }}Entry]
+	slice []*{{ .StructName }}
 	//m       map[*{{ .StructName }}]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d* {{ .StructName }}EncoderDict) Init(limiter *pkg.SizeLimiter) {
     d.dict = *b.TreeNew[*{{ .StructName }}, {{ .StructName }}Entry](Cmp{{.StructName}})
+    d.slice = make([]*{{ .StructName }}, 1) // refNum 0 is reserved for nil {{ .StructName }}
 	//d.m = make(map[*{{ .StructName }}]uint64)
     d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
     d.limiter = limiter
@@ -511,7 +540,16 @@ func (d* {{ .StructName }}EncoderDict) Init(limiter *pkg.SizeLimiter) {
 
 func (d *{{ .StructName }}EncoderDict) Get(val *{{ .StructName }}) (uint64, bool) {
     if val.refNum != 0 {
-        return val.refNum, true
+        if val.modifiedFields.isAnyModified() {
+            // The struct was modified since it was added to the dictionary, so refNum
+            // is no longer valid.
+        } else {
+            // Verify that the refNum is still valid. It may become invalid if for example
+            // the dictionaries are reset during encoding and refNums are reused.
+            if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
+                return val.refNum, true
+            }
+        }
     }
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -522,12 +560,17 @@ func (d *{{ .StructName }}EncoderDict) Get(val *{{ .StructName }}) (uint64, bool
 func (d *{{ .StructName }}EncoderDict) Add(val *{{ .StructName }}, allocators *Allocators) {
     refNum := uint64(d.dict.Len())
     val.refNum = refNum
-    d.dict.Set(val.Clone(allocators), {{ .StructName }}Entry{refNum: refNum})
+    d.slice = append(d.slice, val)
+
+    clone := val.Clone(allocators)
+    clone.Freeze()
+    d.dict.Set(clone, {{ .StructName }}Entry{refNum: refNum})
 }
 
 func (d* {{ .StructName }}EncoderDict) Reset() {
     d.dict.Clear()
     d.dict.Set(nil, {{ .StructName }}Entry{}) // nil {{ .StructName }} is RefNum 0
+    d.slice = d.slice[:1]
 }
 {{end}}
 

@@ -160,6 +160,11 @@ func (s *SampleValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *SampleValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *SampleValue) CloneShared(allocators *Allocators) SampleValue {
@@ -185,33 +190,44 @@ func (s *SampleValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValue(dst *SampleValue, src *SampleValue) {
+func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
+
 	dst.SetVal(src.val)
 	if src.type_ != nil {
-		if dst.type_ == nil {
-			dst.type_ = &SampleValueType{}
-			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+		if src.type_.canBeShared() {
+			dst.type_ = src.type_
+		} else {
+			if dst.type_ == nil {
+				dst.type_ = allocators.SampleValueType.Alloc()
+				dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+			}
+			copySampleValueType(dst.type_, src.type_, allocators)
 		}
-		copySampleValueType(dst.type_, src.type_)
 	}
+	copySampleValueType(dst.type_, src.type_, allocators)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
 
-	dst.val = src.val
+	dst.SetVal(src.val)
 
 	if src.type_ != nil {
-		//dst.type_ = allocators.SampleValueType.Alloc()
-		//dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
-		dst.type_ = src.type_.CloneShared(allocators)
+		if src.type_.canBeShared() {
+			dst.type_ = src.type_
+		} else {
+			dst.type_ = allocators.SampleValueType.Alloc()
+			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+			copyToNewSampleValueType(dst.type_, src.type_, allocators)
+		}
 	}
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValue) CopyFrom(src *SampleValue) {
-	copySampleValue(s, src)
+func (s *SampleValue) CopyFrom(src *SampleValue, allocators *Allocators) {
+	copySampleValue(s, src, allocators)
 }
 
 func (s *SampleValue) markParentModified() {

@@ -27,10 +27,11 @@ func genSampleRecords(random *rand.Rand, schem *schema.Schema) (records []Sample
 	record.Init()
 
 	records = make([]Sample, recCount)
+	allocators := &Allocators{}
 	for i := 0; i < recCount; i++ {
 		record.mutateRandom(random, schem)
 		records[i].Init()
-		records[i].CopyFrom(&record)
+		records[i].CopyFrom(&record, allocators)
 	}
 
 	return records
@@ -64,6 +65,7 @@ func TestSampleWriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
+	seed1 = 1758059136221252000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
 	// Load the schema from the allSchemaContent variable.
@@ -80,7 +82,7 @@ func TestSampleWriteRead(t *testing.T) {
 	}
 	wireSchema := schema.NewWireSchema(schem, "Sample")
 
-	for _, opt := range opts {
+	for j, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
 				succeeded := false
@@ -100,8 +102,12 @@ func TestSampleWriteRead(t *testing.T) {
 				// Generate records pseudo-randomly
 				records := genSampleRecords(random, schem)
 				// Write the records
+				allocators := &Allocators{}
 				for i := 0; i < len(records); i++ {
-					writer.Record.CopyFrom(&records[i])
+					if j == 0 && i == 820 {
+						_ = i
+					}
+					writer.Record.CopyFrom(&records[i], allocators)
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 				}
@@ -113,6 +119,9 @@ func TestSampleWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
+					if j == 0 && i == 820 {
+						_ = i
+					}
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)

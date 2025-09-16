@@ -45,6 +45,11 @@ func (e *SampleValueArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *SampleValueArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of SampleValueArray
 func (e *SampleValueArray) Clone(allocators *Allocators) SampleValueArray {
 	var clone SampleValueArray
@@ -96,8 +101,8 @@ func (e *SampleValueArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
+// Update from src to dst, overwriting existing data in dst.
+func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) *SampleValueArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -110,26 +115,37 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copySampleValue(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copySampleValue(dst.elems[i], src.elems[i], allocators)
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]SampleValue, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]SampleValue, len(dst.elems) - minLen)
+		for j := i; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copySampleValue(dst.elems[i+j], src.elems[i+j])
+			if src.elems[j].canBeShared() {
+				dst.elems[j] = src.elems[i]
+			} else {
+				dst.elems[j] = allocators.SampleValue.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+				copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
+			}
 		}
 	}
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -141,11 +157,15 @@ func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray, all
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.SampleValue.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.SampleValue.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 
 	return dst

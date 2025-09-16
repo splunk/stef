@@ -224,6 +224,11 @@ func (s *Location) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Location) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Location) CloneShared(allocators *Allocators) *Location {
@@ -257,17 +262,33 @@ func (s *Location) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLocation(dst *Location, src *Location) {
-	if src.mapping != nil {
-		if dst.mapping == nil {
-			dst.mapping = &Mapping{}
-			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
-		}
-		copyMapping(dst.mapping, src.mapping)
+func copyLocation(dst *Location, src *Location, allocators *Allocators) *Location {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
 	}
+	if dst == nil {
+		dst = allocators.Location.Alloc()
+		dst.initAlloc(nil, 0, allocators)
+	}
+
+	if src.mapping != nil {
+		if src.mapping.canBeShared() {
+			dst.mapping = src.mapping
+		} else {
+			if dst.mapping == nil {
+				dst.mapping = allocators.Mapping.Alloc()
+				dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+			}
+			copyMapping(dst.mapping, src.mapping, allocators)
+		}
+	}
+	copyMapping(dst.mapping, src.mapping, allocators)
 	dst.SetAddress(src.address)
-	copyLineArray(&dst.lines, &src.lines)
+	copyLineArray(&dst.lines, &src.lines, allocators)
 	dst.SetIsFolded(src.isFolded)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -279,19 +300,23 @@ func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Lo
 	}
 
 	if src.mapping != nil {
-		//dst.mapping = allocators.Mapping.Alloc()
-		//dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
-		dst.mapping = src.mapping.CloneShared(allocators)
+		if src.mapping.canBeShared() {
+			dst.mapping = src.mapping
+		} else {
+			dst.mapping = allocators.Mapping.Alloc()
+			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+			copyToNewMapping(dst.mapping, src.mapping, allocators)
+		}
 	}
-	dst.address = src.address
+	dst.SetAddress(src.address)
 	copyToNewLineArray(&dst.lines, &src.lines, allocators)
-	dst.isFolded = src.isFolded
+	dst.SetIsFolded(src.isFolded)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Location) CopyFrom(src *Location) {
-	copyLocation(s, src)
+func (s *Location) CopyFrom(src *Location, allocators *Allocators) {
+	copyLocation(s, src, allocators)
 }
 
 func (s *Location) markParentModified() {
@@ -439,13 +464,15 @@ type LocationEntry struct {
 
 // LocationEncoderDict is the dictionary used by LocationEncoder
 type LocationEncoderDict struct {
-	dict b.Tree[*Location, LocationEntry]
+	dict  b.Tree[*Location, LocationEntry]
+	slice []*Location
 	//m       map[*Location]uint64
 	limiter *pkg.SizeLimiter
 }
 
 func (d *LocationEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Location, LocationEntry](CmpLocation)
+	d.slice = make([]*Location, 1) // refNum 0 is reserved for nil Location
 	//d.m = make(map[*Location]uint64)
 	d.dict.Set(nil, LocationEntry{}) // nil Location is RefNum 0
 	d.limiter = limiter
@@ -453,7 +480,16 @@ func (d *LocationEncoderDict) Init(limiter *pkg.SizeLimiter) {
 
 func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
 	if val.refNum != 0 {
-		return val.refNum, true
+		if val.modifiedFields.isAnyModified() {
+			// The struct was modified since it was added to the dictionary, so refNum
+			// is no longer valid.
+		} else {
+			// Verify that the refNum is still valid. It may become invalid if for example
+			// the dictionaries are reset during encoding and refNums are reused.
+			if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
+				return val.refNum, true
+			}
+		}
 	}
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -464,12 +500,17 @@ func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
 func (d *LocationEncoderDict) Add(val *Location, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
 	val.refNum = refNum
-	d.dict.Set(val.Clone(allocators), LocationEntry{refNum: refNum})
+	d.slice = append(d.slice, val)
+
+	clone := val.Clone(allocators)
+	clone.Freeze()
+	d.dict.Set(clone, LocationEntry{refNum: refNum})
 }
 
 func (d *LocationEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, LocationEntry{}) // nil Location is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {

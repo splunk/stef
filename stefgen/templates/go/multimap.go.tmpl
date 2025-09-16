@@ -182,7 +182,7 @@ func (m *{{.MultimapName}}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
+func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, allocators *Allocators) {
 	if len(dst.elems)!=len(src.elems) {
 		dst.EnsureLen(len(src.elems))
 	}
@@ -195,7 +195,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 		}
 		{{else}}
 		if !{{.Key.Type.EqualFunc}}(&dst.elems[i].key, &src.elems[i].key) {
-			copy{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key)
+			copy{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
 			dst.modifiedElems.markKeyModified(i)
 		}
 		{{end}}
@@ -207,7 +207,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 		}
 		{{else}}
 		if !{{.Value.Type.EqualFunc}}(&dst.elems[i].value, &src.elems[i].value) {
-			copy{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value)
+			copy{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
 			dst.modifiedElems.markValModified(i)
 		}
 		{{- end}}
@@ -241,8 +241,8 @@ func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, 
 	{{end}}
 }
 
-func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}) {
-    copy{{.MultimapName}}(m, src)
+func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}, allocators *Allocators) {
+    copy{{.MultimapName}}(m, src, allocators)
 }
 
 func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {

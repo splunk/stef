@@ -46,6 +46,11 @@ func (e *{{.ArrayName}}) fixParent(parentModifiedFields *modifiedFields) {
     e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *{{.ArrayName}}) canBeShared() bool {
+    // An array can never be shared.
+    return false
+}
+
 // Clone() creates a deep copy of {{ .ArrayName }}
 func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
     var clone {{ .ArrayName }}
@@ -113,8 +118,8 @@ func (e* {{.ArrayName}}) markUnmodifiedRecursively() {
 {{end}}
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
+// Update from src to dst, overwriting existing data in dst.
+func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) *{{.ArrayName}} {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -128,7 +133,11 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
 		{{- if .ElemType.MustClone}}
-		copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+		    dst.elems[i] = src.elems[i]
+		} else {
+		    copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i], allocators)
+		}
 		isModified = true
 		{{- else}}
 		if dst.elems[i] != src.elems[i] {
@@ -143,16 +152,20 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 		isModified = true
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]{{.ElemType.Storage}}, len(dst.elems) - minLen)
-		for j := range elems {
-			{{if not .ElemType.IsPrimitive -}}
+		//elems := make([]{{.ElemType.Storage}}, len(dst.elems) - minLen)
+		for j := i; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			{{- end}}
+			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copy{{.ElemType.TypeName}}(dst.elems[i+j], src.elems[i+j])
+			if src.elems[j].canBeShared() {
+                dst.elems[j] = src.elems[i]
+            } else {
+    			dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
+	    		dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+		    	copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+		    }
 		}
 	}
 	{{- else}}
@@ -166,6 +179,7 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -179,13 +193,15 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
 	{{- if .ElemType.MustClone}}
     // Need to allocate new elements for the part of the array that has grown.
     for j := 0; j<len(dst.elems); j++ {
-        {{if not .ElemType.IsPrimitive -}}
-        // Alloc and init the element.
-        dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
-        dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-        {{- end}}
-        // Copy the element.
-        {{if .ElemType.Flags.StoreByPtr}}dst.elems[j] = {{end}}copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+        if src.elems[j].canBeShared() {
+            dst.elems[j] = src.elems[j]
+        } else {
+            // Alloc and init the element.
+            dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
+            dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+            // Copy the element.
+            copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+        }
     }
 	{{- else}}
 	for i:=0; i < len(dst.elems); i++ {

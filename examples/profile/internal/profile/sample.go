@@ -204,6 +204,11 @@ func (s *Sample) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Sample) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Sample) CloneShared(allocators *Allocators) Sample {
@@ -231,11 +236,13 @@ func (s *Sample) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySample(dst *Sample, src *Sample) {
-	copyProfileMetadata(&dst.metadata, &src.metadata)
-	copyLocationArray(&dst.locations, &src.locations)
-	copySampleValueArray(&dst.values, &src.values)
-	copyLabels(&dst.labels, &src.labels)
+func copySample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
+
+	copyProfileMetadata(&dst.metadata, &src.metadata, allocators)
+	copyLocationArray(&dst.locations, &src.locations, allocators)
+	copySampleValueArray(&dst.values, &src.values, allocators)
+	copyLabels(&dst.labels, &src.labels, allocators)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
@@ -249,8 +256,8 @@ func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Sample) CopyFrom(src *Sample) {
-	copySample(s, src)
+func (s *Sample) CopyFrom(src *Sample, allocators *Allocators) {
+	copySample(s, src, allocators)
 }
 
 func (s *Sample) markParentModified() {

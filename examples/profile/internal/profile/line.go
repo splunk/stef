@@ -191,6 +191,11 @@ func (s *Line) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Line) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Line) CloneShared(allocators *Allocators) Line {
@@ -217,34 +222,45 @@ func (s *Line) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLine(dst *Line, src *Line) {
+func copyLine(dst *Line, src *Line, allocators *Allocators) *Line {
+
 	if src.function != nil {
-		if dst.function == nil {
-			dst.function = &Function{}
-			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		if src.function.canBeShared() {
+			dst.function = src.function
+		} else {
+			if dst.function == nil {
+				dst.function = allocators.Function.Alloc()
+				dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+			}
+			copyFunction(dst.function, src.function, allocators)
 		}
-		copyFunction(dst.function, src.function)
 	}
+	copyFunction(dst.function, src.function, allocators)
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLine(dst *Line, src *Line, allocators *Allocators) *Line {
 
 	if src.function != nil {
-		//dst.function = allocators.Function.Alloc()
-		//dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
-		dst.function = src.function.CloneShared(allocators)
+		if src.function.canBeShared() {
+			dst.function = src.function
+		} else {
+			dst.function = allocators.Function.Alloc()
+			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+			copyToNewFunction(dst.function, src.function, allocators)
+		}
 	}
-	dst.line = src.line
-	dst.column = src.column
+	dst.SetLine(src.line)
+	dst.SetColumn(src.column)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Line) CopyFrom(src *Line) {
-	copyLine(s, src)
+func (s *Line) CopyFrom(src *Line, allocators *Allocators) {
+	copyLine(s, src, allocators)
 }
 
 func (s *Line) markParentModified() {

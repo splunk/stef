@@ -47,6 +47,11 @@ func (e *StringArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *StringArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of StringArray
 func (e *StringArray) Clone(allocators *Allocators) StringArray {
 	var clone StringArray
@@ -100,8 +105,8 @@ func (e *StringArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copyStringArray(dst *StringArray, src *StringArray) {
+// Update from src to dst, overwriting existing data in dst.
+func copyStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -128,6 +133,7 @@ func copyStringArray(dst *StringArray, src *StringArray) {
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.

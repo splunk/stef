@@ -136,13 +136,16 @@ func (s *LabelValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLabelValue(dst *LabelValue, src *LabelValue) {
+func copyLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
+	if dst == src {
+		return
+	}
 	switch src.typ {
 	case LabelValueTypeStr:
 		dst.SetStr(src.str)
 	case LabelValueTypeNum:
 		dst.SetType(src.typ)
-		copyNumValue(&dst.num, &src.num)
+		copyNumValue(&dst.num, &src.num, allocators)
 	case LabelValueTypeNone:
 		dst.SetType(src.typ)
 	default:
@@ -165,8 +168,8 @@ func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocator
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *LabelValue) CopyFrom(src *LabelValue) {
-	copyLabelValue(s, src)
+func (s *LabelValue) CopyFrom(src *LabelValue, allocators *Allocators) {
+	copyLabelValue(s, src, allocators)
 }
 
 func (s *LabelValue) markParentModified() {

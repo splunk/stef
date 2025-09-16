@@ -150,6 +150,11 @@ func (s *NumValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *NumValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *NumValue) CloneShared(allocators *Allocators) NumValue {
@@ -175,22 +180,24 @@ func (s *NumValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyNumValue(dst *NumValue, src *NumValue) {
+func copyNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
+
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
 
-	dst.val = src.val
-	dst.unit = src.unit
+	dst.SetVal(src.val)
+	dst.SetUnit(src.unit)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *NumValue) CopyFrom(src *NumValue) {
-	copyNumValue(s, src)
+func (s *NumValue) CopyFrom(src *NumValue, allocators *Allocators) {
+	copyNumValue(s, src, allocators)
 }
 
 func (s *NumValue) markParentModified() {

@@ -136,7 +136,7 @@ func (m *Labels) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLabels(dst *Labels, src *Labels) {
+func copyLabels(dst *Labels, src *Labels, allocators *Allocators) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
 	}
@@ -148,7 +148,7 @@ func copyLabels(dst *Labels, src *Labels) {
 		}
 
 		if !LabelValueEqual(&dst.elems[i].value, &src.elems[i].value) {
-			copyLabelValue(&dst.elems[i].value, &src.elems[i].value)
+			copyLabelValue(&dst.elems[i].value, &src.elems[i].value, allocators)
 			dst.modifiedElems.markValModified(i)
 		}
 	}
@@ -169,8 +169,8 @@ func copyToNewLabels(dst *Labels, src *Labels, allocators *Allocators) {
 
 }
 
-func (m *Labels) CopyFrom(src *Labels) {
-	copyLabels(m, src)
+func (m *Labels) CopyFrom(src *Labels, allocators *Allocators) {
+	copyLabels(m, src, allocators)
 }
 
 func (e *Labels) IsEqual(val *Labels) bool {
