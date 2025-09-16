@@ -87,6 +87,10 @@ func (s *SampleValue) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *SampleValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *SampleValue) Val() int64 {
 	return s.val
 }
@@ -156,12 +160,19 @@ func (s *SampleValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SampleValue) CloneShared(allocators *Allocators) SampleValue {
+
+	return s.Clone(allocators)
+}
+
 func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
 
 	c := SampleValue{
 
 		val:   s.val,
-		type_: s.type_.Clone(allocators),
+		type_: s.type_.CloneShared(allocators),
 	}
 	return c
 }
@@ -186,13 +197,16 @@ func copySampleValue(dst *SampleValue, src *SampleValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) {
+func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
+
 	dst.val = src.val
+
 	if src.type_ != nil {
-		dst.type_ = allocators.SampleValueType.Alloc()
-		dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
-		copyToNewSampleValueType(dst.type_, src.type_, allocators)
+		//dst.type_ = allocators.SampleValueType.Alloc()
+		//dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+		dst.type_ = src.type_.CloneShared(allocators)
 	}
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -64,6 +64,10 @@ func (m *modifiedFields) freeze() {
     m.frozen = true
 }
 
+func (m *modifiedFields) isFrozen() bool {
+    return m.frozen
+}
+
 func (m *modifiedFields) markUnmodifiedAll() {
     m.mask = 0
 }

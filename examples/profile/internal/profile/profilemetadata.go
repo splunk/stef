@@ -115,6 +115,10 @@ func (s *ProfileMetadata) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *ProfileMetadata) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *ProfileMetadata) DropFrames() string {
 	return s.dropFrames
 }
@@ -350,6 +354,13 @@ func (s *ProfileMetadata) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ProfileMetadata) CloneShared(allocators *Allocators) ProfileMetadata {
+
+	return s.Clone(allocators)
+}
+
 func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
 
 	c := ProfileMetadata{
@@ -358,10 +369,10 @@ func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.Clone(allocators),
+		periodType:        s.periodType.CloneShared(allocators),
 		period:            s.period,
-		comments:          s.comments.Clone(allocators),
-		defaultSampleType: s.defaultSampleType.Clone(allocators),
+		comments:          s.comments.CloneShared(allocators),
+		defaultSampleType: s.defaultSampleType.CloneShared(allocators),
 	}
 	return c
 }
@@ -398,23 +409,27 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) {
+func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) *ProfileMetadata {
+
 	dst.dropFrames = src.dropFrames
 	dst.keepFrames = src.keepFrames
 	dst.timeNanos = src.timeNanos
 	dst.durationNanos = src.durationNanos
+
 	if src.periodType != nil {
-		dst.periodType = allocators.SampleValueType.Alloc()
-		dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
-		copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
+		//dst.periodType = allocators.SampleValueType.Alloc()
+		//dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		dst.periodType = src.periodType.CloneShared(allocators)
 	}
 	dst.period = src.period
 	copyToNewStringArray(&dst.comments, &src.comments, allocators)
+
 	if src.defaultSampleType != nil {
-		dst.defaultSampleType = allocators.SampleValueType.Alloc()
-		dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
-		copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
+		//dst.defaultSampleType = allocators.SampleValueType.Alloc()
+		//dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		dst.defaultSampleType = src.defaultSampleType.CloneShared(allocators)
 	}
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

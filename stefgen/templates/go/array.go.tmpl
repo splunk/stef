@@ -53,6 +53,11 @@ func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
     return clone
 }
 
+func (e *{{.ArrayName}}) CloneShared(allocators *Allocators) {{ .ArrayName }} {
+    // Clone and CloneShared are the same.
+    return e.Clone(allocators)
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (e *{{.ArrayName}}) byteSize() uint {
@@ -164,9 +169,9 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) {
+func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) *{{.ArrayName}} {
     if len(src.elems)==0 {
-        return
+        return dst
     }
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -180,13 +185,15 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
         dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
         {{- end}}
         // Copy the element.
-        copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+        {{if .ElemType.Flags.StoreByPtr}}dst.elems[j] = {{end}}copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
     }
 	{{- else}}
 	for i:=0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
 	{{- end}}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

@@ -52,6 +52,11 @@ func (e *LocationArray) Clone(allocators *Allocators) LocationArray {
 	return clone
 }
 
+func (e *LocationArray) CloneShared(allocators *Allocators) LocationArray {
+	// Clone and CloneShared are the same.
+	return e.Clone(allocators)
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (e *LocationArray) byteSize() uint {
@@ -128,9 +133,9 @@ func copyLocationArray(dst *LocationArray, src *LocationArray) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) {
+func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) *LocationArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -140,8 +145,10 @@ func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *
 		dst.elems[j] = allocators.Location.Alloc()
 		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 		// Copy the element.
-		copyToNewLocation(dst.elems[j], src.elems[j], allocators)
+		dst.elems[j] = copyToNewLocation(dst.elems[j], src.elems[j], allocators)
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

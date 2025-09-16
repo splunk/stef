@@ -84,6 +84,10 @@ func (s *SampleValueType) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *SampleValueType) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *SampleValueType) Type() string {
 	return s.type_
 }
@@ -150,6 +154,18 @@ func (s *SampleValueType) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SampleValueType) CloneShared(allocators *Allocators) *SampleValueType {
+
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+
+	return s.Clone(allocators)
+}
+
 func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
 
 	c := allocators.SampleValueType.Alloc()
@@ -175,9 +191,16 @@ func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
+func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+
 	dst.type_ = src.type_
 	dst.unit = src.unit
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

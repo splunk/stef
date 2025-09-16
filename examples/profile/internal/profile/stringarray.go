@@ -54,6 +54,11 @@ func (e *StringArray) Clone(allocators *Allocators) StringArray {
 	return clone
 }
 
+func (e *StringArray) CloneShared(allocators *Allocators) StringArray {
+	// Clone and CloneShared are the same.
+	return e.Clone(allocators)
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (e *StringArray) byteSize() uint {
@@ -126,15 +131,17 @@ func copyStringArray(dst *StringArray, src *StringArray) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) {
+func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

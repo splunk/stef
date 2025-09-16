@@ -100,6 +100,10 @@ func (s *Location) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *Location) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
@@ -220,14 +224,26 @@ func (s *Location) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Location) CloneShared(allocators *Allocators) *Location {
+
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+
+	return s.Clone(allocators)
+}
+
 func (s *Location) Clone(allocators *Allocators) *Location {
 
 	c := allocators.Location.Alloc()
 	*c = Location{
 
-		mapping:  s.mapping.Clone(allocators),
+		mapping:  s.mapping.CloneShared(allocators),
 		address:  s.address,
-		lines:    s.lines.Clone(allocators),
+		lines:    s.lines.CloneShared(allocators),
 		isFolded: s.isFolded,
 	}
 	return c
@@ -255,15 +271,22 @@ func copyLocation(dst *Location, src *Location) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) {
+func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Location {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+
 	if src.mapping != nil {
-		dst.mapping = allocators.Mapping.Alloc()
-		dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
-		copyToNewMapping(dst.mapping, src.mapping, allocators)
+		//dst.mapping = allocators.Mapping.Alloc()
+		//dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+		dst.mapping = src.mapping.CloneShared(allocators)
 	}
 	dst.address = src.address
 	copyToNewLineArray(&dst.lines, &src.lines, allocators)
 	dst.isFolded = src.isFolded
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

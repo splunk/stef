@@ -80,6 +80,10 @@ func (s *NumValue) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *NumValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *NumValue) Val() int64 {
 	return s.val
 }
@@ -146,6 +150,13 @@ func (s *NumValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *NumValue) CloneShared(allocators *Allocators) NumValue {
+
+	return s.Clone(allocators)
+}
+
 func (s *NumValue) Clone(allocators *Allocators) NumValue {
 
 	c := NumValue{
@@ -170,9 +181,11 @@ func copyNumValue(dst *NumValue, src *NumValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) {
+func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
+
 	dst.val = src.val
 	dst.unit = src.unit
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

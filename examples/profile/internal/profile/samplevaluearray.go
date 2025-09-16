@@ -52,6 +52,11 @@ func (e *SampleValueArray) Clone(allocators *Allocators) SampleValueArray {
 	return clone
 }
 
+func (e *SampleValueArray) CloneShared(allocators *Allocators) SampleValueArray {
+	// Clone and CloneShared are the same.
+	return e.Clone(allocators)
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (e *SampleValueArray) byteSize() uint {
@@ -128,9 +133,9 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) {
+func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) *SampleValueArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -142,6 +147,8 @@ func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray, all
 		// Copy the element.
 		copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

@@ -61,6 +61,11 @@ func (m *Labels) Clone(allocators *Allocators) Labels {
 	return clone
 }
 
+func (m *Labels) CloneShared(allocators *Allocators) Labels {
+	// Clone and CloneShared are the same.
+	return m.Clone(allocators)
+}
+
 // Len returns the number of elements in the multimap.
 func (m *Labels) Len() int {
 	return len(m.elems)

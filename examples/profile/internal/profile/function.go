@@ -90,6 +90,10 @@ func (s *Function) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *Function) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Function) Name() string {
 	return s.name
 }
@@ -212,6 +216,18 @@ func (s *Function) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Function) CloneShared(allocators *Allocators) *Function {
+
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+
+	return s.Clone(allocators)
+}
+
 func (s *Function) Clone(allocators *Allocators) *Function {
 
 	c := allocators.Function.Alloc()
@@ -241,11 +257,18 @@ func copyFunction(dst *Function, src *Function) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) {
+func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) *Function {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+
 	dst.name = src.name
 	dst.systemName = src.systemName
 	dst.filename = src.filename
 	dst.startLine = src.startLine
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

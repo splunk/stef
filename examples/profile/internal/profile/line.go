@@ -90,6 +90,10 @@ func (s *Line) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *Line) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Line) Function() *Function {
 	return s.function
 }
@@ -187,11 +191,18 @@ func (s *Line) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Line) CloneShared(allocators *Allocators) Line {
+
+	return s.Clone(allocators)
+}
+
 func (s *Line) Clone(allocators *Allocators) Line {
 
 	c := Line{
 
-		function: s.function.Clone(allocators),
+		function: s.function.CloneShared(allocators),
 		line:     s.line,
 		column:   s.column,
 	}
@@ -219,14 +230,16 @@ func copyLine(dst *Line, src *Line) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
+func copyToNewLine(dst *Line, src *Line, allocators *Allocators) *Line {
+
 	if src.function != nil {
-		dst.function = allocators.Function.Alloc()
-		dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
-		copyToNewFunction(dst.function, src.function, allocators)
+		//dst.function = allocators.Function.Alloc()
+		//dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		dst.function = src.function.CloneShared(allocators)
 	}
 	dst.line = src.line
 	dst.column = src.column
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

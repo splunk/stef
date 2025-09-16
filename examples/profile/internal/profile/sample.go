@@ -98,6 +98,10 @@ func (s *Sample) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *Sample) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Sample) Metadata() *ProfileMetadata {
 	return &s.metadata
 }
@@ -200,14 +204,21 @@ func (s *Sample) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Sample) CloneShared(allocators *Allocators) Sample {
+
+	return s.Clone(allocators)
+}
+
 func (s *Sample) Clone(allocators *Allocators) Sample {
 
 	c := Sample{
 
-		metadata:  s.metadata.Clone(allocators),
-		locations: s.locations.Clone(allocators),
-		values:    s.values.Clone(allocators),
-		labels:    s.labels.Clone(allocators),
+		metadata:  s.metadata.CloneShared(allocators),
+		locations: s.locations.CloneShared(allocators),
+		values:    s.values.CloneShared(allocators),
+		labels:    s.labels.CloneShared(allocators),
 	}
 	return c
 }
@@ -228,11 +239,13 @@ func copySample(dst *Sample, src *Sample) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) {
+func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
+
 	copyToNewProfileMetadata(&dst.metadata, &src.metadata, allocators)
 	copyToNewLocationArray(&dst.locations, &src.locations, allocators)
 	copyToNewSampleValueArray(&dst.values, &src.values, allocators)
 	copyToNewLabels(&dst.labels, &src.labels, allocators)
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

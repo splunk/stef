@@ -105,6 +105,10 @@ func (s *Mapping) Freeze() {
 	s.modifiedFields.freeze()
 }
 
+func (s *Mapping) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Mapping) MemoryStart() uint64 {
 	return s.memoryStart
 }
@@ -367,6 +371,18 @@ func (s *Mapping) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Mapping) CloneShared(allocators *Allocators) *Mapping {
+
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+
+	return s.Clone(allocators)
+}
+
 func (s *Mapping) Clone(allocators *Allocators) *Mapping {
 
 	c := allocators.Mapping.Alloc()
@@ -406,7 +422,13 @@ func copyMapping(dst *Mapping, src *Mapping) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
+func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
+
+	if src.isFrozen() {
+		// If src is frozen it means it is safe to share without cloning.
+		return src
+	}
+
 	dst.memoryStart = src.memoryStart
 	dst.memoryLimit = src.memoryLimit
 	dst.fileOffset = src.fileOffset
@@ -416,6 +438,7 @@ func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
 	dst.hasFilenames = src.hasFilenames
 	dst.hasLineNumbers = src.hasLineNumbers
 	dst.hasInlineFrames = src.hasInlineFrames
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

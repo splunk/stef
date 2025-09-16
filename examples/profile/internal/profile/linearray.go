@@ -52,6 +52,11 @@ func (e *LineArray) Clone(allocators *Allocators) LineArray {
 	return clone
 }
 
+func (e *LineArray) CloneShared(allocators *Allocators) LineArray {
+	// Clone and CloneShared are the same.
+	return e.Clone(allocators)
+}
+
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (e *LineArray) byteSize() uint {
@@ -128,9 +133,9 @@ func copyLineArray(dst *LineArray, src *LineArray) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) {
+func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *LineArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -142,6 +147,8 @@ func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) 
 		// Copy the element.
 		copyToNewLine(dst.elems[j], src.elems[j], allocators)
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

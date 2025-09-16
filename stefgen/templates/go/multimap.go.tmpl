@@ -61,6 +61,11 @@ func (m *{{.MultimapName}}) Clone(allocators *Allocators) {{.MultimapName}} {
 	return clone
 }
 
+func (m *{{.MultimapName}}) CloneShared(allocators *Allocators) {{.MultimapName}} {
+    // Clone and CloneShared are the same.
+    return m.Clone(allocators)
+}
+
 // Len returns the number of elements in the multimap.
 func (m *{{.MultimapName}}) Len() int {
 	return len(m.elems)
