@@ -855,7 +855,7 @@ var wireSchema{{.StructName}} = []byte{ {{printf .Schema}} }
 
 func {{.StructName}}WireSchema() (schema.WireSchema, error) {
     var w schema.WireSchema
-    if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchema{{.StructName}}))); err != nil {
+    if err := w.Deserialize(bytes.NewReader(wireSchema{{.StructName}})); err != nil {
         return w, err
     }
     return w,nil

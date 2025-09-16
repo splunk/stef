@@ -852,7 +852,7 @@ var wireSchemaSample = []byte{0x0A, 0x04, 0x08, 0x02, 0x04, 0x09, 0x03, 0x04, 0x
 
 func SampleWireSchema() (schema.WireSchema, error) {
 	var w schema.WireSchema
-	if err := w.Deserialize(bytes.NewBuffer([]byte(wireSchemaSample))); err != nil {
+	if err := w.Deserialize(bytes.NewReader(wireSchemaSample)); err != nil {
 		return w, err
 	}
 	return w, nil
