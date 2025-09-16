@@ -26,7 +26,6 @@ import (
 	"github.com/splunk/stef/go/grpc/stef_proto"
 	tef_grpctypes "github.com/splunk/stef/go/grpc/types"
 	"github.com/splunk/stef/go/otel/oteltef"
-	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -123,8 +122,7 @@ func (s *stefExporter) pushMetrics(_ context.Context, md pmetric.Metrics) error 
 		zap.Int("data points", md.DataPointCount()),
 	)
 
-	converter := otlpconvert.NewOtlpToSortedTree()
-	sorted, err := converter.FromOtlp(md.ResourceMetrics())
+	sorted, err := sortedbymetric.OtlpToSortedTree(md)
 	if err != nil {
 		return err
 	}
@@ -143,7 +141,7 @@ func (s *stefExporter) pushMetrics(_ context.Context, md pmetric.Metrics) error 
 	}
 
 	if s.remoteWriter != nil {
-		err := sorted.ToTef(s.remoteWriter)
+		err := sorted.ToStef(s.remoteWriter)
 		if err != nil {
 			return err
 		}

@@ -11,7 +11,6 @@ import (
 
 	"github.com/splunk/stef/benchmarks/encodings"
 	"github.com/splunk/stef/go/otel/oteltef"
-	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -135,44 +134,8 @@ func (r DatumZSlice) Swap(i, j int) {
 	r[j] = rec
 }
 
-//func (d *EncodingZ) Encode2(data *metricspb.MetricsData) ([]byte, error) {
-//	converter := metrics.NewConverter()
-//	records := converter.Otlp2records(data.ResourceMetrics)
-//	sort.Sort(records)
-//
-//	buf := bytes.NewBuffer(nil)
-//	writer := parquet.NewGenericWriter[DatumZ](buf)
-//
-//	var datums []DatumZ
-//	for _, r := range records {
-//		datums = append(
-//			datums, DatumZ{
-//				MetricName:        r.MetricName,
-//				Unit:              r.Unit,
-//				Description:       r.Description,
-//				Type:              uint(r.Type),
-//				Flags:             uint(r.Flags),
-//				Attributes:        convertAttrsZ(r.Metadata),
-//				TimestampUnixNano: r.TimestampUnixNano,
-//				Int64Vals:         r.Int64Vals,
-//				Float64Vals:       r.Float64Vals,
-//			},
-//		)
-//	}
-//
-//	if _, err := writer.Write(datums); err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	if err := writer.Close(); err != nil {
-//		log.Fatal(err)
-//	}
-//	return buf.Bytes(), nil
-//}
-
 func (d *EncodingZ) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	converter := otlpconvert.NewOtlpToSortedTree()
-	sorted, err := converter.FromOtlp(data.ResourceMetrics())
+	sorted, err := sortedbymetric.OtlpToSortedTree(data)
 	if err != nil {
 		return nil, err
 	}

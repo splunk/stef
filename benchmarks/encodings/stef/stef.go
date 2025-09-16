@@ -20,8 +20,7 @@ type STEFEncoding struct {
 }
 
 func (d *STEFEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	converter := otlpconvert.NewOtlpToSortedTree()
-	return converter.FromOtlp(data.ResourceMetrics())
+	return sortedbymetric.OtlpToSortedTree(data)
 }
 
 func (d *STEFEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
@@ -33,7 +32,7 @@ func (d *STEFEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 		return nil, err
 	}
 
-	err = sorted.ToTef(writer)
+	err = sorted.ToStef(writer)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +72,8 @@ func (*STEFEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), err
 	}
 
-	converter := otlpconvert.STEFToOTLPUnsorted{}
-	metrics, err := converter.Convert(reader)
+	converter := otlpconvert.StefToOtlpUnsorted{}
+	metrics, err := converter.Convert(reader, true)
 	if err != nil {
 		return pmetric.NewMetrics(), err
 	}
@@ -119,13 +118,12 @@ type stefMultipart struct {
 }
 
 func (s *stefMultipart) AppendPart(part pmetric.Metrics) error {
-	converter := otlpconvert.NewOtlpToSortedTree()
-	tree, err := converter.FromOtlp(part.ResourceMetrics())
+	tree, err := sortedbymetric.OtlpToSortedTree(part)
 	if err != nil {
 		return err
 	}
 
-	if err := tree.ToTef(s.writer); err != nil {
+	if err := tree.ToStef(s.writer); err != nil {
 		return err
 	}
 	return s.writer.Flush()

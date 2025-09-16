@@ -11,7 +11,6 @@ import (
 
 	"github.com/splunk/stef/benchmarks/encodings"
 	"github.com/splunk/stef/go/otel/oteltef"
-	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -53,8 +52,7 @@ type Datum struct {
 }
 
 func (d *Encoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
-	converter := otlpconvert.NewOtlpToSortedTree()
-	sorted, err := converter.FromOtlp(data.ResourceMetrics())
+	sorted, err := sortedbymetric.OtlpToSortedTree(data)
 
 	var datums []Datum
 	err = sorted.Iter(

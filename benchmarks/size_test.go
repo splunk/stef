@@ -22,7 +22,7 @@ import (
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/oteltef"
-	traces2 "github.com/splunk/stef/go/pdata/traces"
+	converters "github.com/splunk/stef/go/pdata/traces"
 	"github.com/splunk/stef/go/pkg"
 )
 
@@ -59,11 +59,11 @@ func TestTracesMultipart(t *testing.T) {
 				writer, err := oteltef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
 				require.NoError(t, err)
 
-				converter := traces2.PdataToSTEFTraces{Sorted: sorted}
+				converter := converters.OtlpToStefUnsorted{Sorted: sorted}
 
 				otlpSize := 0
 				for i := 0; i < len(traces); i++ {
-					err = converter.WriteTraces(traces[i].(ptrace.Traces), writer)
+					err = converter.Convert(traces[i].(ptrace.Traces), writer)
 					require.NoError(t, err)
 
 					err = writer.Flush()
