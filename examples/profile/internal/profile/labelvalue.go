@@ -3,6 +3,7 @@ package profile
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand/v2"
 	"strings"
 	"unsafe"
@@ -267,10 +268,13 @@ func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 
 // LabelValueEncoder implements encoding of LabelValue
 type LabelValueEncoder struct {
-	buf        pkg.BitsWriter
-	limiter    *pkg.SizeLimiter
-	prevType   LabelValueType
+	buf     pkg.BitsWriter
+	limiter *pkg.SizeLimiter
+
+	// fieldCount is the number of fields, i.e. the number of types in this oneof.
 	fieldCount uint
+	// Number of bits needed to encode the type (including None type).
+	typeBitCount uint
 
 	// Field encoders.
 
@@ -296,6 +300,7 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %v", "LabelValue", err)
 	}
+	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
 	// Init encoder for Str field.
 	if e.fieldCount <= 0 {
@@ -328,7 +333,6 @@ func (e *LabelValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 }
 
 func (e *LabelValueEncoder) Reset() {
-	e.prevType = 0
 
 	if e.fieldCount <= 0 {
 		return // Str and all subsequent fields are skipped.
@@ -352,13 +356,10 @@ func (e *LabelValueEncoder) Encode(val *LabelValue) {
 		typ = LabelValueTypeNone
 	}
 
-	// Compute type delta. 0 means the type is the same as the last time.
-	typDelta := int(typ) - int(e.prevType)
-	e.prevType = typ
-	bitCount := e.buf.WriteVarintCompact(int64(typDelta))
+	e.buf.WriteBits(uint64(typ), e.typeBitCount)
 
 	// Account written bits in the limiter.
-	e.limiter.AddFrameBits(bitCount)
+	e.limiter.AddFrameBits(e.typeBitCount)
 
 	// Encode currently selected field.
 	switch typ {
@@ -400,9 +401,11 @@ type LabelValueDecoder struct {
 	column     *pkg.ReadableColumn
 	lastValPtr *LabelValue
 	lastVal    LabelValue
-	fieldCount uint
 
-	prevType LabelValueType
+	// fieldCount is the number of fields, i.e. the number of types in this oneof.
+	fieldCount uint
+	// Number of bits needed to encode the type (including None type).
+	typeBitCount uint
 
 	// Field decoders.
 
@@ -435,6 +438,8 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 
 	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
+
+	d.typeBitCount = uint(bits.Len64(uint64(d.fieldCount) + 1))
 	if d.fieldCount <= 0 {
 		return nil // Str and subsequent fields are skipped.
 	}
@@ -484,7 +489,6 @@ func (d *LabelValueDecoder) Continue() {
 }
 
 func (d *LabelValueDecoder) Reset() {
-	d.prevType = 0
 
 	if d.fieldCount <= 0 {
 		return // Str and all subsequent fields are skipped.
@@ -501,21 +505,20 @@ func (d *LabelValueDecoder) Reset() {
 }
 
 func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
-	// Read Type delta
-	typeDelta := d.buf.ReadVarintCompact()
-
-	// Calculate and validate the new Type
-	typ := int(d.prevType) + int(typeDelta)
-	if typ < 0 || typ >= int(LabelValueTypeCount) {
+	// Read the type and validate it
+	typ := uint(d.buf.ReadBits(d.typeBitCount))
+	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
 
 	dst := dstPtr
 	if dst.typ != LabelValueType(typ) {
 		dst.typ = LabelValueType(typ)
+		// The type changed, we need to reset the contained value so that
+		// it does not contain carry-over data form a previous record that
+		// was of this same type.
 		dst.resetContained()
 	}
-	d.prevType = LabelValueType(dst.typ)
 
 	// Decode selected field
 	switch dst.typ {
