@@ -36,7 +36,7 @@ build-ci: docs-install-deps docs-validate
 	cd go/pdata && make all
 	cd otelcol && make all
 	cd examples && make
-	cd benchmarks && make all
+	cd benchmarks && make build-ci
 
 .PHONY: verifyver
 verifyver:
