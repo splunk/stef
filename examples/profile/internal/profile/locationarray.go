@@ -19,17 +19,16 @@ var _ = (*strings.Builder)(nil)
 type LocationArray struct {
 	elems []*Location
 
+	allocators *Allocators
+
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *LocationArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (e *LocationArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-}
-
-func (e *LocationArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	e.init(parentModifiedFields, parentModifiedBit)
+	e.allocators = allocators
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -51,15 +50,15 @@ func (e *LocationArray) canBeShared() bool {
 }
 
 // Clone() creates a deep copy of LocationArray
-func (e *LocationArray) Clone(allocators *Allocators) LocationArray {
-	var clone LocationArray
-	copyToNewLocationArray(&clone, e, allocators)
+func (e *LocationArray) Clone() LocationArray {
+	clone := LocationArray{allocators: e.allocators}
+	copyToNewLocationArray(&clone, e)
 	return clone
 }
 
-func (e *LocationArray) CloneShared(allocators *Allocators) LocationArray {
+func (e *LocationArray) CloneShared() LocationArray {
 	// Clone and CloneShared are the same.
-	return e.Clone(allocators)
+	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -102,7 +101,7 @@ func (e *LocationArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) *LocationArray {
+func copyLocationArray(dst *LocationArray, src *LocationArray) *LocationArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -118,7 +117,7 @@ func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Alloc
 		if src.elems[i].canBeShared() {
 			dst.elems[i] = src.elems[i]
 		} else {
-			copyLocation(dst.elems[i], src.elems[i], allocators)
+			copyLocation(dst.elems[i], src.elems[i])
 		}
 		isModified = true
 	}
@@ -136,9 +135,9 @@ func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Alloc
 			if src.elems[j].canBeShared() {
 				dst.elems[j] = src.elems[i]
 			} else {
-				dst.elems[j] = allocators.Location.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-				copyToNewLocation(dst.elems[j], src.elems[j], allocators)
+				dst.elems[j] = dst.allocators.Location.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+				copyToNewLocation(dst.elems[j], src.elems[j])
 			}
 		}
 	}
@@ -149,7 +148,7 @@ func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Alloc
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) *LocationArray {
+func copyToNewLocationArray(dst *LocationArray, src *LocationArray) *LocationArray {
 	if len(src.elems) == 0 {
 		return dst
 	}
@@ -161,10 +160,10 @@ func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			dst.elems[j] = allocators.Location.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			dst.elems[j] = dst.allocators.Location.Alloc()
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
 			// Copy the element.
-			copyToNewLocation(dst.elems[j], src.elems[j], allocators)
+			copyToNewLocation(dst.elems[j], src.elems[j])
 		}
 	}
 
@@ -192,7 +191,7 @@ func (e *LocationArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(Location)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -212,7 +211,7 @@ func (e *LocationArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.Location.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

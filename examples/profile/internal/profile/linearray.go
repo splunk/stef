@@ -19,17 +19,16 @@ var _ = (*strings.Builder)(nil)
 type LineArray struct {
 	elems []*Line
 
+	allocators *Allocators
+
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *LineArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (e *LineArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-}
-
-func (e *LineArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	e.init(parentModifiedFields, parentModifiedBit)
+	e.allocators = allocators
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -51,15 +50,15 @@ func (e *LineArray) canBeShared() bool {
 }
 
 // Clone() creates a deep copy of LineArray
-func (e *LineArray) Clone(allocators *Allocators) LineArray {
-	var clone LineArray
-	copyToNewLineArray(&clone, e, allocators)
+func (e *LineArray) Clone() LineArray {
+	clone := LineArray{allocators: e.allocators}
+	copyToNewLineArray(&clone, e)
 	return clone
 }
 
-func (e *LineArray) CloneShared(allocators *Allocators) LineArray {
+func (e *LineArray) CloneShared() LineArray {
 	// Clone and CloneShared are the same.
-	return e.Clone(allocators)
+	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -102,7 +101,7 @@ func (e *LineArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *LineArray {
+func copyLineArray(dst *LineArray, src *LineArray) *LineArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -118,7 +117,7 @@ func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *Line
 		if src.elems[i].canBeShared() {
 			dst.elems[i] = src.elems[i]
 		} else {
-			copyLine(dst.elems[i], src.elems[i], allocators)
+			copyLine(dst.elems[i], src.elems[i])
 		}
 		isModified = true
 	}
@@ -136,9 +135,9 @@ func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *Line
 			if src.elems[j].canBeShared() {
 				dst.elems[j] = src.elems[i]
 			} else {
-				dst.elems[j] = allocators.Line.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-				copyToNewLine(dst.elems[j], src.elems[j], allocators)
+				dst.elems[j] = dst.allocators.Line.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+				copyToNewLine(dst.elems[j], src.elems[j])
 			}
 		}
 	}
@@ -149,7 +148,7 @@ func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *Line
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *LineArray {
+func copyToNewLineArray(dst *LineArray, src *LineArray) *LineArray {
 	if len(src.elems) == 0 {
 		return dst
 	}
@@ -161,10 +160,10 @@ func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) 
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			dst.elems[j] = allocators.Line.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			dst.elems[j] = dst.allocators.Line.Alloc()
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
 			// Copy the element.
-			copyToNewLine(dst.elems[j], src.elems[j], allocators)
+			copyToNewLine(dst.elems[j], src.elems[j])
 		}
 	}
 
@@ -192,7 +191,7 @@ func (e *LineArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(Line)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -212,7 +211,7 @@ func (e *LineArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.Line.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

@@ -51,7 +51,7 @@ func NewSampleWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*SampleWriter
 		}
 	}
 
-	writer.Record.Init()
+	writer.Record.Init(&writer.state.Allocators)
 	writer.state.Init(&writer.opts)
 	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
 

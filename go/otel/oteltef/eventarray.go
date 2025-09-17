@@ -19,17 +19,16 @@ var _ = (*strings.Builder)(nil)
 type EventArray struct {
 	elems []*Event
 
+	allocators *Allocators
+
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *EventArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (e *EventArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-}
-
-func (e *EventArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	e.init(parentModifiedFields, parentModifiedBit)
+	e.allocators = allocators
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -45,11 +44,21 @@ func (e *EventArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *EventArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of EventArray
-func (e *EventArray) Clone(allocators *Allocators) EventArray {
-	var clone EventArray
-	copyToNewEventArray(&clone, e, allocators)
+func (e *EventArray) Clone() EventArray {
+	clone := EventArray{allocators: e.allocators}
+	copyToNewEventArray(&clone, e)
 	return clone
+}
+
+func (e *EventArray) CloneShared() EventArray {
+	// Clone and CloneShared are the same.
+	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -91,8 +100,8 @@ func (e *EventArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copyEventArray(dst *EventArray, src *EventArray) {
+// Update from src to dst, overwriting existing data in dst.
+func copyEventArray(dst *EventArray, src *EventArray) *EventArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -105,43 +114,60 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyEvent(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyEvent(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]Event, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]Event, len(dst.elems) - minLen)
+		for j := i; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyEvent(dst.elems[i+j], src.elems[i+j])
+			if src.elems[j].canBeShared() {
+				dst.elems[j] = src.elems[i]
+			} else {
+				dst.elems[j] = dst.allocators.Event.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+				copyToNewEvent(dst.elems[j], src.elems[j])
+			}
 		}
 	}
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEventArray(dst *EventArray, src *EventArray, allocators *Allocators) {
+func copyToNewEventArray(dst *EventArray, src *EventArray) *EventArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Event.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewEvent(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = dst.allocators.Event.Alloc()
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+			// Copy the element.
+			copyToNewEvent(dst.elems[j], src.elems[j])
+		}
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.
@@ -165,7 +191,7 @@ func (e *EventArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(Event)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -185,7 +211,7 @@ func (e *EventArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.Event.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

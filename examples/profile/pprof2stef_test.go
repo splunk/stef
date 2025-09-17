@@ -198,12 +198,13 @@ func BenchmarkSerialization(b *testing.B) {
 				}
 				recCount := 0
 				records := make([]stefprofile.Sample, len(prof.Sample))
-				allocators := stefprofile.Allocators{}
+				allocators := &stefprofile.Allocators{}
 				for {
 					if err := reader.Read(pkg.ReadOptions{}); err != nil {
 						break
 					}
-					records[recCount].CopyFrom(&reader.Record, &allocators)
+					records[recCount].Init(allocators)
+					records[recCount].CopyFrom(&reader.Record)
 					recCount++
 				}
 				b.ResetTimer()
@@ -219,9 +220,8 @@ func BenchmarkSerialization(b *testing.B) {
 						b.Fatalf("failed to create srcSample writer: %s", err)
 					}
 
-					allocators := stefprofile.Allocators{}
 					for j := 0; j < recCount; j++ {
-						writer.Record.CopyFrom(&records[j], &allocators)
+						writer.Record.CopyFrom(&records[j])
 						if err := writer.Write(); err != nil {
 							b.Fatalf("failed to write srcSample: %v", err)
 						}

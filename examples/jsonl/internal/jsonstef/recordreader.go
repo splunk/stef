@@ -25,7 +25,7 @@ func NewRecordReader(source io.Reader) (*RecordReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &RecordReader{}
 
-	reader.Record.Init()
+	reader.Record.Init(&reader.state.Allocators)
 	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {

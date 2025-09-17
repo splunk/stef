@@ -22,6 +22,8 @@ type QuantileValue struct {
 	quantile float64
 	value    float64
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -35,25 +37,20 @@ const (
 )
 
 // Init must be called once, before the QuantileValue is used.
-func (s *QuantileValue) Init() {
-	s.init(nil, 0)
+func (s *QuantileValue) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewQuantileValue() *QuantileValue {
+func NewQuantileValue(allocators *Allocators) *QuantileValue {
 	var s QuantileValue
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *QuantileValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *QuantileValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-}
-
-func (s *QuantileValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 }
 
@@ -73,13 +70,24 @@ func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *QuantileValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *QuantileValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *QuantileValue) Quantile() float64 {
 	return s.quantile
 }
 
 // SetQuantile sets the value of Quantile field.
 func (s *QuantileValue) SetQuantile(v float64) {
-	if !pkg.Float64Equal(s.quantile, v) {
+	if s.quantile != v {
 		s.quantile = v
 		s.markQuantileModified()
 	}
@@ -103,7 +111,7 @@ func (s *QuantileValue) Value() float64 {
 
 // SetValue sets the value of Value field.
 func (s *QuantileValue) SetValue(v float64) {
-	if !pkg.Float64Equal(s.value, v) {
+	if s.value != v {
 		s.value = v
 		s.markValueModified()
 	}
@@ -139,12 +147,25 @@ func (s *QuantileValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *QuantileValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *QuantileValue) CloneShared() QuantileValue {
+
+	return s.Clone()
+}
+
+func (s *QuantileValue) Clone() QuantileValue {
 
 	c := QuantileValue{
 
-		quantile: s.quantile,
-		value:    s.value,
+		allocators: s.allocators,
+		quantile:   s.quantile,
+		value:      s.value,
 	}
 	return c
 }
@@ -157,15 +178,19 @@ func (s *QuantileValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
+func copyQuantileValue(dst *QuantileValue, src *QuantileValue) *QuantileValue {
+
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue, allocators *Allocators) {
-	dst.quantile = src.quantile
-	dst.value = src.value
+func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue) *QuantileValue {
+
+	dst.SetQuantile(src.quantile)
+	dst.SetValue(src.value)
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

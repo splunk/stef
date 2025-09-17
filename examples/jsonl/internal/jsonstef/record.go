@@ -21,6 +21,8 @@ var _ = bytes.NewBuffer
 type Record struct {
 	value *JsonValue
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -33,30 +35,23 @@ const (
 )
 
 // Init must be called once, before the Record is used.
-func (s *Record) Init() {
-	s.init(nil, 0)
+func (s *Record) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewRecord() *Record {
+func NewRecord(allocators *Allocators) *Record {
 	var s Record
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Record) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.value = &JsonValue{}
-	s.value.init(&s.modifiedFields, fieldModifiedRecordValue)
-}
-
-func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 	s.value = allocators.JsonValue.Alloc()
-	s.value.initAlloc(&s.modifiedFields, fieldModifiedRecordValue, allocators)
+	s.value.init(&s.modifiedFields, fieldModifiedRecordValue, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -75,6 +70,17 @@ func (s *Record) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 
 	s.value.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Record) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Record) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Record) Value() *JsonValue {
@@ -110,11 +116,24 @@ func (s *Record) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Record) Clone(allocators *Allocators) Record {
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Record) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Record) CloneShared() Record {
+
+	return s.Clone()
+}
+
+func (s *Record) Clone() Record {
 
 	c := Record{
 
-		value: s.value.Clone(allocators),
+		allocators: s.allocators,
+		value:      s.value.CloneShared(),
 	}
 	return c
 }
@@ -127,23 +146,37 @@ func (s *Record) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyRecord(dst *Record, src *Record) {
+func copyRecord(dst *Record, src *Record) *Record {
+
 	if src.value != nil {
-		if dst.value == nil {
-			dst.value = &JsonValue{}
-			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		if src.value.canBeShared() {
+			dst.value = src.value
+		} else {
+			if dst.value == nil {
+				dst.value = dst.allocators.JsonValue.Alloc()
+				dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue, dst.allocators)
+			}
+			copyJsonValue(dst.value, src.value)
 		}
-		copyJsonValue(dst.value, src.value)
+	} else {
+		dst.value = nil
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewRecord(dst *Record, src *Record, allocators *Allocators) {
+func copyToNewRecord(dst *Record, src *Record) *Record {
+
 	if src.value != nil {
-		dst.value = allocators.JsonValue.Alloc()
-		dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
-		copyToNewJsonValue(dst.value, src.value, allocators)
+		if src.value.canBeShared() {
+			dst.value = src.value
+		} else {
+			dst.value = dst.allocators.JsonValue.Alloc()
+			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue, dst.allocators)
+			copyToNewJsonValue(dst.value, src.value)
+		}
 	}
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -431,7 +464,7 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 		// Field is changed and is present, decode it.
 		if val.value == nil {
 			val.value = d.allocators.JsonValue.Alloc()
-			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
+			val.value.init(&val.modifiedFields, fieldModifiedRecordValue, d.allocators)
 		}
 
 		err = d.valueDecoder.Decode(val.value)

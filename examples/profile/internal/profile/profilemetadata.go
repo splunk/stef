@@ -28,6 +28,8 @@ type ProfileMetadata struct {
 	comments          StringArray
 	defaultSampleType *SampleValueType
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -47,36 +49,26 @@ const (
 )
 
 // Init must be called once, before the ProfileMetadata is used.
-func (s *ProfileMetadata) Init() {
-	s.init(nil, 0)
+func (s *ProfileMetadata) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewProfileMetadata() *ProfileMetadata {
+func NewProfileMetadata(allocators *Allocators) *ProfileMetadata {
 	var s ProfileMetadata
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *ProfileMetadata) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *ProfileMetadata) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.periodType = &SampleValueType{}
-	s.periodType.init(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType)
-	s.comments.init(&s.modifiedFields, fieldModifiedProfileMetadataComments)
-	s.defaultSampleType = &SampleValueType{}
-	s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
-}
-
-func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 	s.periodType = allocators.SampleValueType.Alloc()
-	s.periodType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
-	s.comments.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataComments, allocators)
+	s.periodType.init(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
+	s.comments.init(&s.modifiedFields, fieldModifiedProfileMetadataComments, allocators)
 	s.defaultSampleType = allocators.SampleValueType.Alloc()
-	s.defaultSampleType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
+	s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -361,23 +353,24 @@ func (s *ProfileMetadata) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *ProfileMetadata) CloneShared(allocators *Allocators) ProfileMetadata {
+func (s *ProfileMetadata) CloneShared() ProfileMetadata {
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
+func (s *ProfileMetadata) Clone() ProfileMetadata {
 
 	c := ProfileMetadata{
 
+		allocators:        s.allocators,
 		dropFrames:        s.dropFrames,
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.CloneShared(allocators),
+		periodType:        s.periodType.CloneShared(),
 		period:            s.period,
-		comments:          s.comments.CloneShared(allocators),
-		defaultSampleType: s.defaultSampleType.CloneShared(allocators),
+		comments:          s.comments.CloneShared(),
+		defaultSampleType: s.defaultSampleType.CloneShared(),
 	}
 	return c
 }
@@ -390,7 +383,7 @@ func (s *ProfileMetadata) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) *ProfileMetadata {
+func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) *ProfileMetadata {
 
 	dst.SetDropFrames(src.dropFrames)
 	dst.SetKeepFrames(src.keepFrames)
@@ -401,25 +394,25 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators 
 			dst.periodType = src.periodType
 		} else {
 			if dst.periodType == nil {
-				dst.periodType = allocators.SampleValueType.Alloc()
-				dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+				dst.periodType = dst.allocators.SampleValueType.Alloc()
+				dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType, dst.allocators)
 			}
-			copySampleValueType(dst.periodType, src.periodType, allocators)
+			copySampleValueType(dst.periodType, src.periodType)
 		}
 	} else {
 		dst.periodType = nil
 	}
 	dst.SetPeriod(src.period)
-	copyStringArray(&dst.comments, &src.comments, allocators)
+	copyStringArray(&dst.comments, &src.comments)
 	if src.defaultSampleType != nil {
 		if src.defaultSampleType.canBeShared() {
 			dst.defaultSampleType = src.defaultSampleType
 		} else {
 			if dst.defaultSampleType == nil {
-				dst.defaultSampleType = allocators.SampleValueType.Alloc()
-				dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+				dst.defaultSampleType = dst.allocators.SampleValueType.Alloc()
+				dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, dst.allocators)
 			}
-			copySampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
+			copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
 		}
 	} else {
 		dst.defaultSampleType = nil
@@ -428,7 +421,7 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators 
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) *ProfileMetadata {
+func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) *ProfileMetadata {
 
 	dst.SetDropFrames(src.dropFrames)
 	dst.SetKeepFrames(src.keepFrames)
@@ -439,29 +432,29 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 		if src.periodType.canBeShared() {
 			dst.periodType = src.periodType
 		} else {
-			dst.periodType = allocators.SampleValueType.Alloc()
-			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
-			copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
+			dst.periodType = dst.allocators.SampleValueType.Alloc()
+			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType, dst.allocators)
+			copyToNewSampleValueType(dst.periodType, src.periodType)
 		}
 	}
 	dst.SetPeriod(src.period)
-	copyToNewStringArray(&dst.comments, &src.comments, allocators)
+	copyToNewStringArray(&dst.comments, &src.comments)
 
 	if src.defaultSampleType != nil {
 		if src.defaultSampleType.canBeShared() {
 			dst.defaultSampleType = src.defaultSampleType
 		} else {
-			dst.defaultSampleType = allocators.SampleValueType.Alloc()
-			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
-			copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
+			dst.defaultSampleType = dst.allocators.SampleValueType.Alloc()
+			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, dst.allocators)
+			copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType)
 		}
 	}
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata, allocators *Allocators) {
-	copyProfileMetadata(s, src, allocators)
+func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
+	copyProfileMetadata(s, src)
 }
 
 func (s *ProfileMetadata) markParentModified() {
@@ -1268,7 +1261,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		// Field is changed and is present, decode it.
 		if val.periodType == nil {
 			val.periodType = d.allocators.SampleValueType.Alloc()
-			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType, d.allocators)
 		}
 
 		err = d.periodTypeDecoder.Decode(&val.periodType)
@@ -1297,7 +1290,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		// Field is changed and is present, decode it.
 		if val.defaultSampleType == nil {
 			val.defaultSampleType = d.allocators.SampleValueType.Alloc()
-			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, d.allocators)
 		}
 
 		err = d.defaultSampleTypeDecoder.Decode(&val.defaultSampleType)

@@ -15,6 +15,8 @@ type OtlpToSortedTree struct {
 	internal.BaseOTLPToSTEF
 	recordCount         int
 	emptyDataPointCount int
+	allocators          oteltef.Allocators
+
 	//encoder             anyvalue.Encoder
 }
 
@@ -122,7 +124,7 @@ func (c *OtlpToSortedTree) covertNumberDataPoints(
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
 
 		dstPoint := &dstPointSlice[l]
-		dstPoint.Init()
+		dstPoint.Init(&c.allocators)
 
 		*dstPoints = append(*dstPoints, dstPoint)
 		dstPoint.SetTimestamp(uint64(srcPoint.Timestamp()))
@@ -169,7 +171,7 @@ func (c *OtlpToSortedTree) covertHistogramDataPoints(
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := oteltef.NewPoint(&c.allocators)
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
@@ -206,7 +208,7 @@ func (c *OtlpToSortedTree) covertExponentialHistogramDataPoints(
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := oteltef.NewPoint(&c.allocators)
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
@@ -240,7 +242,7 @@ func (c *OtlpToSortedTree) covertSummaryDataPoints(
 		byScope = byResource.ByScope(sms.Scope(), sms.SchemaUrl())
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := oteltef.NewPoint(&c.allocators)
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		dstPoint.SetTimestamp(uint64(srcPoint.Timestamp()))

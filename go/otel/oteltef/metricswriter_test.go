@@ -24,12 +24,13 @@ import (
 func genMetricsRecords(random *rand.Rand, schem *schema.Schema) (records []Metrics) {
 	const recCount = 1000
 	var record Metrics
-	record.Init()
+	allocators := &Allocators{}
+	record.Init(allocators)
 
 	records = make([]Metrics, recCount)
 	for i := 0; i < recCount; i++ {
 		record.mutateRandom(random, schem)
-		records[i].Init()
+		records[i].Init(allocators)
 		records[i].CopyFrom(&record)
 	}
 
@@ -64,6 +65,7 @@ func TestMetricsWriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
+	seed1 = 1758059136221252000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
 	// Load the schema from the allSchemaContent variable.
@@ -80,7 +82,7 @@ func TestMetricsWriteRead(t *testing.T) {
 	}
 	wireSchema := schema.NewWireSchema(schem, "Metrics")
 
-	for _, opt := range opts {
+	for j, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
 				succeeded := false
@@ -101,6 +103,9 @@ func TestMetricsWriteRead(t *testing.T) {
 				records := genMetricsRecords(random, schem)
 				// Write the records
 				for i := 0; i < len(records); i++ {
+					if j == 0 && i == 26 {
+						_ = i
+					}
 					writer.Record.CopyFrom(&records[i])
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
@@ -113,6 +118,9 @@ func TestMetricsWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
+					if j == 0 && i == 26 {
+						_ = i
+					}
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)

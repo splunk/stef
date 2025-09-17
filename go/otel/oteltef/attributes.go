@@ -14,9 +14,9 @@ import (
 // Attributes is a multimap, (aka an associative array or a list) of key value
 // pairs from string to AnyValue.
 type Attributes struct {
-	elems       []AttributesElem
-	initedCount int
-
+	elems         []AttributesElem
+	initedCount   int
+	allocators    *Allocators
 	modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,12 +33,9 @@ func (e *AttributesElem) Value() *AnyValue {
 	return &e.value
 }
 
-func (m *Attributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (m *Attributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-}
-
-func (m *Attributes) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	m.init(parentModifiedFields, parentModifiedBit)
+	m.allocators = allocators
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -55,10 +52,15 @@ func (m *Attributes) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of Attributes
-func (m *Attributes) Clone(allocators *Allocators) Attributes {
-	clone := Attributes{}
-	copyToNewAttributes(&clone, m, allocators)
+func (m *Attributes) Clone() Attributes {
+	clone := Attributes{allocators: m.allocators}
+	copyToNewAttributes(&clone, m)
 	return clone
+}
+
+func (m *Attributes) CloneShared() Attributes {
+	// Clone and CloneShared are the same.
+	return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -91,7 +93,7 @@ func (m *Attributes) EnsureLen(newLen int) {
 
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i), m.allocators)
 		}
 		if m.initedCount < newLen {
 			m.initedCount = newLen
@@ -150,7 +152,7 @@ func copyAttributes(dst *Attributes, src *Attributes) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewAttributes(dst *Attributes, src *Attributes, allocators *Allocators) {
+func copyToNewAttributes(dst *Attributes, src *Attributes) {
 	if len(src.elems) == 0 {
 		return
 	}
@@ -159,7 +161,7 @@ func copyToNewAttributes(dst *Attributes, src *Attributes, allocators *Allocator
 	for i := 0; i < len(src.elems); i++ {
 		dst.elems[i].key = src.elems[i].key
 
-		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value)
 	}
 
 }

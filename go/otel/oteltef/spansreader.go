@@ -25,7 +25,7 @@ func NewSpansReader(source io.Reader) (*SpansReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &SpansReader{}
 
-	reader.Record.Init()
+	reader.Record.Init(&reader.state.Allocators)
 	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {

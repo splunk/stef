@@ -14,9 +14,9 @@ import (
 // Labels is a multimap, (aka an associative array or a list) of key value
 // pairs from string to LabelValue.
 type Labels struct {
-	elems       []LabelsElem
-	initedCount int
-
+	elems         []LabelsElem
+	initedCount   int
+	allocators    *Allocators
 	modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,12 +33,9 @@ func (e *LabelsElem) Value() *LabelValue {
 	return &e.value
 }
 
-func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-}
-
-func (m *Labels) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	m.init(parentModifiedFields, parentModifiedBit)
+	m.allocators = allocators
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -55,15 +52,15 @@ func (m *Labels) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of Labels
-func (m *Labels) Clone(allocators *Allocators) Labels {
-	clone := Labels{}
-	copyToNewLabels(&clone, m, allocators)
+func (m *Labels) Clone() Labels {
+	clone := Labels{allocators: m.allocators}
+	copyToNewLabels(&clone, m)
 	return clone
 }
 
-func (m *Labels) CloneShared(allocators *Allocators) Labels {
+func (m *Labels) CloneShared() Labels {
 	// Clone and CloneShared are the same.
-	return m.Clone(allocators)
+	return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -96,7 +93,7 @@ func (m *Labels) EnsureLen(newLen int) {
 
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i), m.allocators)
 		}
 		if m.initedCount < newLen {
 			m.initedCount = newLen
@@ -136,7 +133,7 @@ func (m *Labels) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLabels(dst *Labels, src *Labels, allocators *Allocators) {
+func copyLabels(dst *Labels, src *Labels) {
 	if len(dst.elems) != len(src.elems) {
 		dst.EnsureLen(len(src.elems))
 	}
@@ -148,14 +145,14 @@ func copyLabels(dst *Labels, src *Labels, allocators *Allocators) {
 		}
 
 		if !LabelValueEqual(&dst.elems[i].value, &src.elems[i].value) {
-			copyLabelValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+			copyLabelValue(&dst.elems[i].value, &src.elems[i].value)
 			dst.modifiedElems.markValModified(i)
 		}
 	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLabels(dst *Labels, src *Labels, allocators *Allocators) {
+func copyToNewLabels(dst *Labels, src *Labels) {
 	if len(src.elems) == 0 {
 		return
 	}
@@ -164,13 +161,13 @@ func copyToNewLabels(dst *Labels, src *Labels, allocators *Allocators) {
 	for i := 0; i < len(src.elems); i++ {
 		dst.elems[i].key = src.elems[i].key
 
-		copyToNewLabelValue(&dst.elems[i].value, &src.elems[i].value, allocators)
+		copyToNewLabelValue(&dst.elems[i].value, &src.elems[i].value)
 	}
 
 }
 
-func (m *Labels) CopyFrom(src *Labels, allocators *Allocators) {
-	copyLabels(m, src, allocators)
+func (m *Labels) CopyFrom(src *Labels) {
+	copyLabels(m, src)
 }
 
 func (e *Labels) IsEqual(val *Labels) bool {

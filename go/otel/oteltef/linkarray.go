@@ -19,17 +19,16 @@ var _ = (*strings.Builder)(nil)
 type LinkArray struct {
 	elems []*Link
 
+	allocators *Allocators
+
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *LinkArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (e *LinkArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-}
-
-func (e *LinkArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	e.init(parentModifiedFields, parentModifiedBit)
+	e.allocators = allocators
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -45,11 +44,21 @@ func (e *LinkArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *LinkArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of LinkArray
-func (e *LinkArray) Clone(allocators *Allocators) LinkArray {
-	var clone LinkArray
-	copyToNewLinkArray(&clone, e, allocators)
+func (e *LinkArray) Clone() LinkArray {
+	clone := LinkArray{allocators: e.allocators}
+	copyToNewLinkArray(&clone, e)
 	return clone
+}
+
+func (e *LinkArray) CloneShared() LinkArray {
+	// Clone and CloneShared are the same.
+	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -91,8 +100,8 @@ func (e *LinkArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copyLinkArray(dst *LinkArray, src *LinkArray) {
+// Update from src to dst, overwriting existing data in dst.
+func copyLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -105,43 +114,60 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyLink(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyLink(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		elems := make([]Link, len(dst.elems)-minLen)
-		for j := range elems {
+		//elems := make([]Link, len(dst.elems) - minLen)
+		for j := i; j < len(dst.elems); j++ {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
+			//dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			copyLink(dst.elems[i+j], src.elems[i+j])
+			if src.elems[j].canBeShared() {
+				dst.elems[j] = src.elems[i]
+			} else {
+				dst.elems[j] = dst.allocators.Link.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+				copyToNewLink(dst.elems[j], src.elems[j])
+			}
 		}
 	}
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLinkArray(dst *LinkArray, src *LinkArray, allocators *Allocators) {
+func copyToNewLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Link.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewLink(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = dst.allocators.Link.Alloc()
+			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+			// Copy the element.
+			copyToNewLink(dst.elems[j], src.elems[j])
+		}
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.
@@ -165,7 +191,7 @@ func (e *LinkArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(Link)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -185,7 +211,7 @@ func (e *LinkArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.Link.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

@@ -31,6 +31,8 @@ type Mapping struct {
 	hasLineNumbers  bool
 	hasInlineFrames bool
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 	// refNum is non-zero when the struct is stored in a dictionary.
@@ -53,25 +55,20 @@ const (
 )
 
 // Init must be called once, before the Mapping is used.
-func (s *Mapping) Init() {
-	s.init(nil, 0)
+func (s *Mapping) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewMapping() *Mapping {
+func NewMapping(allocators *Allocators) *Mapping {
 	var s Mapping
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Mapping) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Mapping) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-}
-
-func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 }
 
@@ -378,21 +375,22 @@ func (s *Mapping) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Mapping) CloneShared(allocators *Allocators) *Mapping {
+func (s *Mapping) CloneShared() *Mapping {
 
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *Mapping) Clone(allocators *Allocators) *Mapping {
+func (s *Mapping) Clone() *Mapping {
 
-	c := allocators.Mapping.Alloc()
+	c := s.allocators.Mapping.Alloc()
 	*c = Mapping{
 
+		allocators:      s.allocators,
 		memoryStart:     s.memoryStart,
 		memoryLimit:     s.memoryLimit,
 		fileOffset:      s.fileOffset,
@@ -414,15 +412,15 @@ func (s *Mapping) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
+func copyMapping(dst *Mapping, src *Mapping) *Mapping {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
 		return src
 	}
 	if dst == nil {
-		dst = allocators.Mapping.Alloc()
-		dst.initAlloc(nil, 0, allocators)
+		dst = src.allocators.Mapping.Alloc()
+		dst.init(nil, 0, src.allocators)
 	}
 
 	dst.SetMemoryStart(src.memoryStart)
@@ -438,7 +436,7 @@ func copyMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
+func copyToNewMapping(dst *Mapping, src *Mapping) *Mapping {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
@@ -458,8 +456,8 @@ func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mappi
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Mapping) CopyFrom(src *Mapping, allocators *Allocators) {
-	copyMapping(s, src, allocators)
+func (s *Mapping) CopyFrom(src *Mapping) {
+	copyMapping(s, src)
 }
 
 func (s *Mapping) markParentModified() {
@@ -726,12 +724,12 @@ func (d *MappingEncoderDict) Get(val *Mapping) (uint64, bool) {
 	return 0, false
 }
 
-func (d *MappingEncoderDict) Add(val *Mapping, allocators *Allocators) {
+func (d *MappingEncoderDict) Add(val *Mapping) {
 	refNum := uint64(d.dict.Len())
 	val.modifiedFields.refNum = refNum
 	d.slice = append(d.slice, val)
 
-	clone := val.Clone(allocators)
+	clone := val.Clone()
 	clone.Freeze()
 	d.dict.Set(clone, MappingEntry{refNum: refNum})
 }
@@ -913,7 +911,7 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	}
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val, e.allocators)
+	e.dict.Add(val)
 	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Mapping follows.
@@ -1295,7 +1293,7 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

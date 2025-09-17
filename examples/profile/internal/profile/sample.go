@@ -24,6 +24,8 @@ type Sample struct {
 	values    SampleValueArray
 	labels    Labels
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -39,34 +41,25 @@ const (
 )
 
 // Init must be called once, before the Sample is used.
-func (s *Sample) Init() {
-	s.init(nil, 0)
+func (s *Sample) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewSample() *Sample {
+func NewSample(allocators *Allocators) *Sample {
 	var s Sample
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Sample) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Sample) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
-	s.metadata.init(&s.modifiedFields, fieldModifiedSampleMetadata)
-	s.locations.init(&s.modifiedFields, fieldModifiedSampleLocations)
-	s.values.init(&s.modifiedFields, fieldModifiedSampleValues)
-	s.labels.init(&s.modifiedFields, fieldModifiedSampleLabels)
-}
-
-func (s *Sample) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.metadata.initAlloc(&s.modifiedFields, fieldModifiedSampleMetadata, allocators)
-	s.locations.initAlloc(&s.modifiedFields, fieldModifiedSampleLocations, allocators)
-	s.values.initAlloc(&s.modifiedFields, fieldModifiedSampleValues, allocators)
-	s.labels.initAlloc(&s.modifiedFields, fieldModifiedSampleLabels, allocators)
+	s.metadata.init(&s.modifiedFields, fieldModifiedSampleMetadata, allocators)
+	s.locations.init(&s.modifiedFields, fieldModifiedSampleLocations, allocators)
+	s.values.init(&s.modifiedFields, fieldModifiedSampleValues, allocators)
+	s.labels.init(&s.modifiedFields, fieldModifiedSampleLabels, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -211,19 +204,20 @@ func (s *Sample) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Sample) CloneShared(allocators *Allocators) Sample {
+func (s *Sample) CloneShared() Sample {
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *Sample) Clone(allocators *Allocators) Sample {
+func (s *Sample) Clone() Sample {
 
 	c := Sample{
 
-		metadata:  s.metadata.CloneShared(allocators),
-		locations: s.locations.CloneShared(allocators),
-		values:    s.values.CloneShared(allocators),
-		labels:    s.labels.CloneShared(allocators),
+		allocators: s.allocators,
+		metadata:   s.metadata.CloneShared(),
+		locations:  s.locations.CloneShared(),
+		values:     s.values.CloneShared(),
+		labels:     s.labels.CloneShared(),
 	}
 	return c
 }
@@ -236,28 +230,28 @@ func (s *Sample) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
+func copySample(dst *Sample, src *Sample) *Sample {
 
-	copyProfileMetadata(&dst.metadata, &src.metadata, allocators)
-	copyLocationArray(&dst.locations, &src.locations, allocators)
-	copySampleValueArray(&dst.values, &src.values, allocators)
-	copyLabels(&dst.labels, &src.labels, allocators)
+	copyProfileMetadata(&dst.metadata, &src.metadata)
+	copyLocationArray(&dst.locations, &src.locations)
+	copySampleValueArray(&dst.values, &src.values)
+	copyLabels(&dst.labels, &src.labels)
 	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
+func copyToNewSample(dst *Sample, src *Sample) *Sample {
 
-	copyToNewProfileMetadata(&dst.metadata, &src.metadata, allocators)
-	copyToNewLocationArray(&dst.locations, &src.locations, allocators)
-	copyToNewSampleValueArray(&dst.values, &src.values, allocators)
-	copyToNewLabels(&dst.labels, &src.labels, allocators)
+	copyToNewProfileMetadata(&dst.metadata, &src.metadata)
+	copyToNewLocationArray(&dst.locations, &src.locations)
+	copyToNewSampleValueArray(&dst.values, &src.values)
+	copyToNewLabels(&dst.labels, &src.labels)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Sample) CopyFrom(src *Sample, allocators *Allocators) {
-	copySample(s, src, allocators)
+func (s *Sample) CopyFrom(src *Sample) {
+	copySample(s, src)
 }
 
 func (s *Sample) markParentModified() {

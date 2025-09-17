@@ -26,6 +26,8 @@ type Function struct {
 	filename   string
 	startLine  uint64
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 	// refNum is non-zero when the struct is stored in a dictionary.
@@ -43,25 +45,20 @@ const (
 )
 
 // Init must be called once, before the Function is used.
-func (s *Function) Init() {
-	s.init(nil, 0)
+func (s *Function) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewFunction() *Function {
+func NewFunction(allocators *Allocators) *Function {
 	var s Function
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Function) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Function) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-}
-
-func (s *Function) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 }
 
@@ -223,21 +220,22 @@ func (s *Function) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Function) CloneShared(allocators *Allocators) *Function {
+func (s *Function) CloneShared() *Function {
 
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *Function) Clone(allocators *Allocators) *Function {
+func (s *Function) Clone() *Function {
 
-	c := allocators.Function.Alloc()
+	c := s.allocators.Function.Alloc()
 	*c = Function{
 
+		allocators: s.allocators,
 		name:       s.name,
 		systemName: s.systemName,
 		filename:   s.filename,
@@ -254,15 +252,15 @@ func (s *Function) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyFunction(dst *Function, src *Function, allocators *Allocators) *Function {
+func copyFunction(dst *Function, src *Function) *Function {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
 		return src
 	}
 	if dst == nil {
-		dst = allocators.Function.Alloc()
-		dst.initAlloc(nil, 0, allocators)
+		dst = src.allocators.Function.Alloc()
+		dst.init(nil, 0, src.allocators)
 	}
 
 	dst.SetName(src.name)
@@ -273,7 +271,7 @@ func copyFunction(dst *Function, src *Function, allocators *Allocators) *Functio
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) *Function {
+func copyToNewFunction(dst *Function, src *Function) *Function {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
@@ -288,8 +286,8 @@ func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) *Fu
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Function) CopyFrom(src *Function, allocators *Allocators) {
-	copyFunction(s, src, allocators)
+func (s *Function) CopyFrom(src *Function) {
+	copyFunction(s, src)
 }
 
 func (s *Function) markParentModified() {
@@ -466,12 +464,12 @@ func (d *FunctionEncoderDict) Get(val *Function) (uint64, bool) {
 	return 0, false
 }
 
-func (d *FunctionEncoderDict) Add(val *Function, allocators *Allocators) {
+func (d *FunctionEncoderDict) Add(val *Function) {
 	refNum := uint64(d.dict.Len())
 	val.modifiedFields.refNum = refNum
 	d.slice = append(d.slice, val)
 
-	clone := val.Clone(allocators)
+	clone := val.Clone()
 	clone.Freeze()
 	d.dict.Set(clone, FunctionEntry{refNum: refNum})
 }
@@ -588,7 +586,7 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	}
 
 	// The Function does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val, e.allocators)
+	e.dict.Add(val)
 	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Function follows.
@@ -815,7 +813,7 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error

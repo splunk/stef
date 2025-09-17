@@ -22,6 +22,8 @@ type SampleValue struct {
 	val   int64
 	type_ *SampleValueType
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -35,30 +37,23 @@ const (
 )
 
 // Init must be called once, before the SampleValue is used.
-func (s *SampleValue) Init() {
-	s.init(nil, 0)
+func (s *SampleValue) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewSampleValue() *SampleValue {
+func NewSampleValue(allocators *Allocators) *SampleValue {
 	var s SampleValue
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *SampleValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *SampleValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.type_ = &SampleValueType{}
-	s.type_.init(&s.modifiedFields, fieldModifiedSampleValueType)
-}
-
-func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 	s.type_ = allocators.SampleValueType.Alloc()
-	s.type_.initAlloc(&s.modifiedFields, fieldModifiedSampleValueType, allocators)
+	s.type_.init(&s.modifiedFields, fieldModifiedSampleValueType, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -167,17 +162,18 @@ func (s *SampleValue) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *SampleValue) CloneShared(allocators *Allocators) SampleValue {
+func (s *SampleValue) CloneShared() SampleValue {
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
+func (s *SampleValue) Clone() SampleValue {
 
 	c := SampleValue{
 
-		val:   s.val,
-		type_: s.type_.CloneShared(allocators),
+		allocators: s.allocators,
+		val:        s.val,
+		type_:      s.type_.CloneShared(),
 	}
 	return c
 }
@@ -190,7 +186,7 @@ func (s *SampleValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
+func copySampleValue(dst *SampleValue, src *SampleValue) *SampleValue {
 
 	dst.SetVal(src.val)
 	if src.type_ != nil {
@@ -198,10 +194,10 @@ func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators)
 			dst.type_ = src.type_
 		} else {
 			if dst.type_ == nil {
-				dst.type_ = allocators.SampleValueType.Alloc()
-				dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+				dst.type_ = dst.allocators.SampleValueType.Alloc()
+				dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType, dst.allocators)
 			}
-			copySampleValueType(dst.type_, src.type_, allocators)
+			copySampleValueType(dst.type_, src.type_)
 		}
 	} else {
 		dst.type_ = nil
@@ -210,7 +206,7 @@ func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
+func copyToNewSampleValue(dst *SampleValue, src *SampleValue) *SampleValue {
 
 	dst.SetVal(src.val)
 
@@ -218,17 +214,17 @@ func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Alloca
 		if src.type_.canBeShared() {
 			dst.type_ = src.type_
 		} else {
-			dst.type_ = allocators.SampleValueType.Alloc()
-			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
-			copyToNewSampleValueType(dst.type_, src.type_, allocators)
+			dst.type_ = dst.allocators.SampleValueType.Alloc()
+			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType, dst.allocators)
+			copyToNewSampleValueType(dst.type_, src.type_)
 		}
 	}
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValue) CopyFrom(src *SampleValue, allocators *Allocators) {
-	copySampleValue(s, src, allocators)
+func (s *SampleValue) CopyFrom(src *SampleValue) {
+	copySampleValue(s, src)
 }
 
 func (s *SampleValue) markParentModified() {
@@ -581,7 +577,7 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		// Field is changed and is present, decode it.
 		if val.type_ == nil {
 			val.type_ = d.allocators.SampleValueType.Alloc()
-			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
+			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType, d.allocators)
 		}
 
 		err = d.type_Decoder.Decode(&val.type_)

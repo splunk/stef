@@ -21,17 +21,16 @@ var _ = (*strings.Builder)(nil)
 type Float64Array struct {
 	elems []float64
 
+	allocators *Allocators
+
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *Float64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (e *Float64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-}
-
-func (e *Float64Array) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	e.init(parentModifiedFields, parentModifiedBit)
+	e.allocators = allocators
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -47,11 +46,21 @@ func (e *Float64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *Float64Array) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of Float64Array
-func (e *Float64Array) Clone(allocators *Allocators) Float64Array {
-	var clone Float64Array
-	copyToNewFloat64Array(&clone, e, allocators)
+func (e *Float64Array) Clone() Float64Array {
+	clone := Float64Array{allocators: e.allocators}
+	copyToNewFloat64Array(&clone, e)
 	return clone
+}
+
+func (e *Float64Array) CloneShared() Float64Array {
+	// Clone and CloneShared are the same.
+	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -95,8 +104,8 @@ func (e *Float64Array) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
-func copyFloat64Array(dst *Float64Array, src *Float64Array) {
+// Update from src to dst, overwriting existing data in dst.
+func copyFloat64Array(dst *Float64Array, src *Float64Array) *Float64Array {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -123,18 +132,21 @@ func copyFloat64Array(dst *Float64Array, src *Float64Array) {
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewFloat64Array(dst *Float64Array, src *Float64Array, allocators *Allocators) {
+func copyToNewFloat64Array(dst *Float64Array, src *Float64Array) *Float64Array {
 	if len(src.elems) == 0 {
-		return
+		return dst
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
+
+	return dst
 }
 
 // Len returns the number of elements in the array.

@@ -29,6 +29,8 @@ type ExpHistogramValue struct {
 	negativeBuckets ExpHistogramBuckets
 	zeroThreshold   float64
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 
@@ -60,30 +62,23 @@ const (
 )
 
 // Init must be called once, before the ExpHistogramValue is used.
-func (s *ExpHistogramValue) Init() {
-	s.init(nil, 0)
+func (s *ExpHistogramValue) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewExpHistogramValue() *ExpHistogramValue {
+func NewExpHistogramValue(allocators *Allocators) *ExpHistogramValue {
 	var s ExpHistogramValue
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *ExpHistogramValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *ExpHistogramValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
-	s.positiveBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets)
-	s.negativeBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets)
-}
-
-func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.positiveBuckets.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets, allocators)
-	s.negativeBuckets.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets, allocators)
+	s.positiveBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets, allocators)
+	s.negativeBuckets.init(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -111,13 +106,24 @@ func (s *ExpHistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.negativeBuckets.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *ExpHistogramValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *ExpHistogramValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *ExpHistogramValue) Count() uint64 {
 	return s.count
 }
 
 // SetCount sets the value of Count field.
 func (s *ExpHistogramValue) SetCount(v uint64) {
-	if !pkg.Uint64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
 		s.markCountModified()
 	}
@@ -141,7 +147,7 @@ func (s *ExpHistogramValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *ExpHistogramValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueSum == 0 {
+	if s.sum != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueSum == 0 {
 		s.sum = v
 		s.markSumModified()
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueSum
@@ -179,7 +185,7 @@ func (s *ExpHistogramValue) Min() float64 {
 
 // SetMin sets the value of Min field.
 func (s *ExpHistogramValue) SetMin(v float64) {
-	if !pkg.Float64Equal(s.min, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMin == 0 {
+	if s.min != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueMin == 0 {
 		s.min = v
 		s.markMinModified()
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMin
@@ -217,7 +223,7 @@ func (s *ExpHistogramValue) Max() float64 {
 
 // SetMax sets the value of Max field.
 func (s *ExpHistogramValue) SetMax(v float64) {
-	if !pkg.Float64Equal(s.max, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMax == 0 {
+	if s.max != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueMax == 0 {
 		s.max = v
 		s.markMaxModified()
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMax
@@ -255,7 +261,7 @@ func (s *ExpHistogramValue) Scale() int64 {
 
 // SetScale sets the value of Scale field.
 func (s *ExpHistogramValue) SetScale(v int64) {
-	if !pkg.Int64Equal(s.scale, v) {
+	if s.scale != v {
 		s.scale = v
 		s.markScaleModified()
 	}
@@ -279,7 +285,7 @@ func (s *ExpHistogramValue) ZeroCount() uint64 {
 
 // SetZeroCount sets the value of ZeroCount field.
 func (s *ExpHistogramValue) SetZeroCount(v uint64) {
-	if !pkg.Uint64Equal(s.zeroCount, v) {
+	if s.zeroCount != v {
 		s.zeroCount = v
 		s.markZeroCountModified()
 	}
@@ -335,7 +341,7 @@ func (s *ExpHistogramValue) ZeroThreshold() float64 {
 
 // SetZeroThreshold sets the value of ZeroThreshold field.
 func (s *ExpHistogramValue) SetZeroThreshold(v float64) {
-	if !pkg.Float64Equal(s.zeroThreshold, v) {
+	if s.zeroThreshold != v {
 		s.zeroThreshold = v
 		s.markZeroThresholdModified()
 	}
@@ -405,18 +411,31 @@ func (s *ExpHistogramValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *ExpHistogramValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ExpHistogramValue) CloneShared() ExpHistogramValue {
+
+	return s.Clone()
+}
+
+func (s *ExpHistogramValue) Clone() ExpHistogramValue {
 
 	c := ExpHistogramValue{
 
+		allocators:      s.allocators,
 		count:           s.count,
 		sum:             s.sum,
 		min:             s.min,
 		max:             s.max,
 		scale:           s.scale,
 		zeroCount:       s.zeroCount,
-		positiveBuckets: s.positiveBuckets.Clone(allocators),
-		negativeBuckets: s.negativeBuckets.Clone(allocators),
+		positiveBuckets: s.positiveBuckets.CloneShared(),
+		negativeBuckets: s.negativeBuckets.CloneShared(),
 		zeroThreshold:   s.zeroThreshold,
 	}
 	return c
@@ -430,7 +449,8 @@ func (s *ExpHistogramValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
+func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) *ExpHistogramValue {
+
 	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
@@ -456,11 +476,13 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	copyExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, allocators *Allocators) {
-	dst.count = src.count
+func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) *ExpHistogramValue {
+
+	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
 	}
@@ -473,12 +495,13 @@ func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, 
 		dst.SetMax(src.max)
 	}
 
-	dst.scale = src.scale
-	dst.zeroCount = src.zeroCount
-	copyToNewExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets, allocators)
-	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets, allocators)
-	dst.zeroThreshold = src.zeroThreshold
+	dst.SetScale(src.scale)
+	dst.SetZeroCount(src.zeroCount)
+	copyToNewExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets)
+	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
+	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

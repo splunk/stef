@@ -25,6 +25,8 @@ type {{ .StructName }} struct {
     {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.Storage }}
     {{- end }}
 
+    allocators *Allocators
+
     // modifiedFields keeps track of which fields are modified.
     modifiedFields modifiedFields
 	{{- if .OptionalFieldCount}}
@@ -61,47 +63,48 @@ const (
 {{end}}
 
 // Init must be called once, before the {{.StructName }} is used.
-func (s *{{.StructName }}) Init() {
-    s.init(nil, 0)
+func (s *{{.StructName }}) Init(allocators *Allocators) {
+    s.init(nil, 0, allocators)
 }
 
-func New{{.StructName }}() *{{.StructName }} {
+func New{{.StructName }}(allocators *Allocators) *{{.StructName }} {
 	var s {{.StructName}}
-    s.init(nil, 0)
+    s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+{{/*func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {*/}}
+{{/*    s.modifiedFields.parent = parentModifiedFields*/}}
+{{/*    s.modifiedFields.parentBit = parentModifiedBit*/}}
+
+{{/*    {{ range .Fields }}*/}}
+{{/*    {{- if not .Type.IsPrimitive }}*/}}
+{{/*    {{- if .Type.Flags.StoreByPtr}}*/}}
+{{/*    {{- if not .Optional}}*/}}
+{{/*    s.{{.name}} = &{{ .Type.Storage }}{}*/}}
+{{/*    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})*/}}
+{{/*    {{- end}}*/}}
+{{/*    {{- else }}*/}}
+{{/*    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})*/}}
+{{/*    {{- end }}*/}}
+{{/*    {{- end -}}*/}}
+{{/*    {{- end -}}*/}}
+{{/*}*/}}
+
+func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
     s.modifiedFields.parent = parentModifiedFields
     s.modifiedFields.parentBit = parentModifiedBit
-
-    {{ range .Fields }}
-    {{- if not .Type.IsPrimitive }}
-    {{- if .Type.Flags.StoreByPtr}}
-    {{- if not .Optional}}
-    s.{{.name}} = &{{ .Type.Storage }}{}
-    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
-    {{- end}}
-    {{- else }}
-    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
-    {{- end }}
-    {{- end -}}
-    {{- end -}}
-}
-
-func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-    s.modifiedFields.parent = parentModifiedFields
-    s.modifiedFields.parentBit = parentModifiedBit
+    s.allocators = allocators
 
     {{ range .Fields }}
     {{- if not .Type.IsPrimitive }}
     {{- if .Type.Flags.StoreByPtr}}
     {{- if not .Optional}}
     s.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
-    s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
+    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
     {{- end}}
     {{- else }}
-    s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
+    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
     {{- end }}
     {{- end -}}
     {{- end -}}
@@ -239,24 +242,25 @@ func (s *{{ .StructName }}) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+func (s *{{ .StructName }}) CloneShared() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 {{if .DictName}}
     if s.isFrozen() {
         // If s is frozen it means it is safe to share without cloning.
         return s
     }
 {{end}}
-    return s.Clone(allocators)
+    return s.Clone()
 }
 
-func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+func (s *{{ .StructName }}) Clone() {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 {{if .Type.Flags.StoreByPtr}}
-    c := allocators.{{.StructName}}.Alloc()
+    c := s.allocators.{{.StructName}}.Alloc()
     *c = {{.StructName}}{
 {{else}}
     c := {{.StructName}}{
 {{end}}
-        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.CloneShared(allocators){{else}}s.{{.name}}{{end}},
+        allocators: s.allocators,
+        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.CloneShared(){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}
     return c
@@ -272,15 +276,15 @@ func (s *{{ .StructName }}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) *{{.StructName}} {
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) *{{.StructName}} {
     {{if .DictName}}
     if src.isFrozen() {
         // If src is frozen it means it is safe to share without cloning.
         return src
     }
     if dst == nil {
-        dst = allocators.{{.StructName}}.Alloc()
-        dst.initAlloc(nil, 0, allocators)
+        dst = src.allocators.{{.StructName}}.Alloc()
+        dst.init(nil, 0, src.allocators)
     }
     {{end}}
     {{- range .Fields -}}
@@ -296,12 +300,12 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators 
             dst.{{.name}} = src.{{.name}}
         } else {
             if dst.{{.name}} == nil {
-                dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
-                dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+                dst.{{.name}} = dst.allocators.{{ .Type.Storage }}.Alloc()
+                dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, dst.allocators)
             }
             copy{{.Type.TypeName}}(
                 {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         }
     } else {
         dst.{{.name}} = nil
@@ -309,7 +313,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators 
     {{- else}}
     copy{{.Type.TypeName}}(
         {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
     {{- end}}
     {{- else}}
 	{{- if .Optional}}
@@ -330,7 +334,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators 
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) *{{.StructName}} {
+func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) *{{.StructName}} {
     {{if .DictName}}
     if src.isFrozen() {
         // If src is frozen it means it is safe to share without cloning.
@@ -349,17 +353,17 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
         if src.{{.name}}.canBeShared() {
             dst.{{.name}} = src.{{.name}}
         } else {
-            dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
-            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            dst.{{.name}} = dst.allocators.{{ .Type.Storage }}.Alloc()
+            dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, dst.allocators)
             copyToNew{{.Type.TypeName}}(
                 {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         }
     }
     {{- else -}}
     copyToNew{{.Type.TypeName}}(
         {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
     {{- end}}
 
     {{- else}}
@@ -379,8 +383,8 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}, allocators *Allocators) {
-    copy{{.StructName}}(s, src, allocators)
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
+    copy{{.StructName}}(s, src)
 }
 
 func (s* {{.StructName}}) markParentModified() {
@@ -414,8 +418,8 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
         s.mark{{.Name}}Modified()
         if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
             if s.{{.name}} == nil {
-                s.{{.name}} = &{{ .Type.Storage }}{}
-                s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+                s.{{.name}} = s.allocators.{{ .Type.Storage }}.Alloc()
+                s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, s.allocators)
             }
             s.{{.name}}.mutateRandom(random, schem)
         }
@@ -561,12 +565,12 @@ func (d *{{ .StructName }}EncoderDict) Get(val *{{ .StructName }}) (uint64, bool
 	return 0, false
 }
 
-func (d *{{ .StructName }}EncoderDict) Add(val *{{ .StructName }}, allocators *Allocators) {
+func (d *{{ .StructName }}EncoderDict) Add(val *{{ .StructName }}) {
     refNum := uint64(d.dict.Len())
     val.modifiedFields.refNum = refNum
     d.slice = append(d.slice, val)
 
-    clone := val.Clone(allocators)
+    clone := val.Clone()
     clone.Freeze()
     d.dict.Set(clone, {{ .StructName }}Entry{refNum: refNum})
 }
@@ -669,7 +673,7 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 	}
 
 	// The {{ .StructName }} does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val, e.allocators)
+	e.dict.Add(val)
     e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded {{ .StructName }} follows.
@@ -860,7 +864,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).Clone()
     *dstPtr = val
 	{{- else}}
     val := dstPtr
@@ -886,7 +890,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         {{- if .Type.Flags.StoreByPtr}}
         if val.{{.name}} == nil {
             val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
-            val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, d.allocators)
         }
         {{end}}
  		err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})

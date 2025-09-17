@@ -23,6 +23,8 @@ type Line struct {
 	line     uint64
 	column   uint64
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -37,30 +39,23 @@ const (
 )
 
 // Init must be called once, before the Line is used.
-func (s *Line) Init() {
-	s.init(nil, 0)
+func (s *Line) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewLine() *Line {
+func NewLine(allocators *Allocators) *Line {
 	var s Line
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Line) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Line) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.function = &Function{}
-	s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
-}
-
-func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 	s.function = allocators.Function.Alloc()
-	s.function.initAlloc(&s.modifiedFields, fieldModifiedLineFunction, allocators)
+	s.function.init(&s.modifiedFields, fieldModifiedLineFunction, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -198,18 +193,19 @@ func (s *Line) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Line) CloneShared(allocators *Allocators) Line {
+func (s *Line) CloneShared() Line {
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *Line) Clone(allocators *Allocators) Line {
+func (s *Line) Clone() Line {
 
 	c := Line{
 
-		function: s.function.CloneShared(allocators),
-		line:     s.line,
-		column:   s.column,
+		allocators: s.allocators,
+		function:   s.function.CloneShared(),
+		line:       s.line,
+		column:     s.column,
 	}
 	return c
 }
@@ -222,17 +218,17 @@ func (s *Line) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLine(dst *Line, src *Line, allocators *Allocators) *Line {
+func copyLine(dst *Line, src *Line) *Line {
 
 	if src.function != nil {
 		if src.function.canBeShared() {
 			dst.function = src.function
 		} else {
 			if dst.function == nil {
-				dst.function = allocators.Function.Alloc()
-				dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+				dst.function = dst.allocators.Function.Alloc()
+				dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction, dst.allocators)
 			}
-			copyFunction(dst.function, src.function, allocators)
+			copyFunction(dst.function, src.function)
 		}
 	} else {
 		dst.function = nil
@@ -243,15 +239,15 @@ func copyLine(dst *Line, src *Line, allocators *Allocators) *Line {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLine(dst *Line, src *Line, allocators *Allocators) *Line {
+func copyToNewLine(dst *Line, src *Line) *Line {
 
 	if src.function != nil {
 		if src.function.canBeShared() {
 			dst.function = src.function
 		} else {
-			dst.function = allocators.Function.Alloc()
-			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
-			copyToNewFunction(dst.function, src.function, allocators)
+			dst.function = dst.allocators.Function.Alloc()
+			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction, dst.allocators)
+			copyToNewFunction(dst.function, src.function)
 		}
 	}
 	dst.SetLine(src.line)
@@ -260,8 +256,8 @@ func copyToNewLine(dst *Line, src *Line, allocators *Allocators) *Line {
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Line) CopyFrom(src *Line, allocators *Allocators) {
-	copyLine(s, src, allocators)
+func (s *Line) CopyFrom(src *Line) {
+	copyLine(s, src)
 }
 
 func (s *Line) markParentModified() {
@@ -668,7 +664,7 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		// Field is changed and is present, decode it.
 		if val.function == nil {
 			val.function = d.allocators.Function.Alloc()
-			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
+			val.function.init(&val.modifiedFields, fieldModifiedLineFunction, d.allocators)
 		}
 
 		err = d.functionDecoder.Decode(&val.function)

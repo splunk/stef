@@ -14,9 +14,9 @@ import (
 // EnvelopeAttributes is a multimap, (aka an associative array or a list) of key value
 // pairs from string to Bytes.
 type EnvelopeAttributes struct {
-	elems       []EnvelopeAttributesElem
-	initedCount int
-
+	elems         []EnvelopeAttributesElem
+	initedCount   int
+	allocators    *Allocators
 	modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,12 +33,9 @@ func (e *EnvelopeAttributesElem) Value() pkg.Bytes {
 	return e.value
 }
 
-func (m *EnvelopeAttributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (m *EnvelopeAttributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-}
-
-func (m *EnvelopeAttributes) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	m.init(parentModifiedFields, parentModifiedBit)
+	m.allocators = allocators
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -55,10 +52,15 @@ func (m *EnvelopeAttributes) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of EnvelopeAttributes
-func (m *EnvelopeAttributes) Clone(allocators *Allocators) EnvelopeAttributes {
-	clone := EnvelopeAttributes{}
-	copyToNewEnvelopeAttributes(&clone, m, allocators)
+func (m *EnvelopeAttributes) Clone() EnvelopeAttributes {
+	clone := EnvelopeAttributes{allocators: m.allocators}
+	copyToNewEnvelopeAttributes(&clone, m)
 	return clone
+}
+
+func (m *EnvelopeAttributes) CloneShared() EnvelopeAttributes {
+	// Clone and CloneShared are the same.
+	return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -159,7 +161,7 @@ func copyEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes, allocators *Allocators) {
+func copyToNewEnvelopeAttributes(dst *EnvelopeAttributes, src *EnvelopeAttributes) {
 	if len(src.elems) == 0 {
 		return
 	}

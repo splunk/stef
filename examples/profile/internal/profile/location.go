@@ -26,6 +26,8 @@ type Location struct {
 	lines    LineArray
 	isFolded bool
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 	// refNum is non-zero when the struct is stored in a dictionary.
@@ -43,32 +45,24 @@ const (
 )
 
 // Init must be called once, before the Location is used.
-func (s *Location) Init() {
-	s.init(nil, 0)
+func (s *Location) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewLocation() *Location {
+func NewLocation(allocators *Allocators) *Location {
 	var s Location
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Location) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Location) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.mapping = &Mapping{}
-	s.mapping.init(&s.modifiedFields, fieldModifiedLocationMapping)
-	s.lines.init(&s.modifiedFields, fieldModifiedLocationLines)
-}
-
-func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
 	s.mapping = allocators.Mapping.Alloc()
-	s.mapping.initAlloc(&s.modifiedFields, fieldModifiedLocationMapping, allocators)
-	s.lines.initAlloc(&s.modifiedFields, fieldModifiedLocationLines, allocators)
+	s.mapping.init(&s.modifiedFields, fieldModifiedLocationMapping, allocators)
+	s.lines.init(&s.modifiedFields, fieldModifiedLocationLines, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -231,25 +225,26 @@ func (s *Location) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Location) CloneShared(allocators *Allocators) *Location {
+func (s *Location) CloneShared() *Location {
 
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
 
-	return s.Clone(allocators)
+	return s.Clone()
 }
 
-func (s *Location) Clone(allocators *Allocators) *Location {
+func (s *Location) Clone() *Location {
 
-	c := allocators.Location.Alloc()
+	c := s.allocators.Location.Alloc()
 	*c = Location{
 
-		mapping:  s.mapping.CloneShared(allocators),
-		address:  s.address,
-		lines:    s.lines.CloneShared(allocators),
-		isFolded: s.isFolded,
+		allocators: s.allocators,
+		mapping:    s.mapping.CloneShared(),
+		address:    s.address,
+		lines:      s.lines.CloneShared(),
+		isFolded:   s.isFolded,
 	}
 	return c
 }
@@ -262,15 +257,15 @@ func (s *Location) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLocation(dst *Location, src *Location, allocators *Allocators) *Location {
+func copyLocation(dst *Location, src *Location) *Location {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
 		return src
 	}
 	if dst == nil {
-		dst = allocators.Location.Alloc()
-		dst.initAlloc(nil, 0, allocators)
+		dst = src.allocators.Location.Alloc()
+		dst.init(nil, 0, src.allocators)
 	}
 
 	if src.mapping != nil {
@@ -278,22 +273,22 @@ func copyLocation(dst *Location, src *Location, allocators *Allocators) *Locatio
 			dst.mapping = src.mapping
 		} else {
 			if dst.mapping == nil {
-				dst.mapping = allocators.Mapping.Alloc()
-				dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+				dst.mapping = dst.allocators.Mapping.Alloc()
+				dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping, dst.allocators)
 			}
-			copyMapping(dst.mapping, src.mapping, allocators)
+			copyMapping(dst.mapping, src.mapping)
 		}
 	} else {
 		dst.mapping = nil
 	}
 	dst.SetAddress(src.address)
-	copyLineArray(&dst.lines, &src.lines, allocators)
+	copyLineArray(&dst.lines, &src.lines)
 	dst.SetIsFolded(src.isFolded)
 	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Location {
+func copyToNewLocation(dst *Location, src *Location) *Location {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
@@ -304,20 +299,20 @@ func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Lo
 		if src.mapping.canBeShared() {
 			dst.mapping = src.mapping
 		} else {
-			dst.mapping = allocators.Mapping.Alloc()
-			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
-			copyToNewMapping(dst.mapping, src.mapping, allocators)
+			dst.mapping = dst.allocators.Mapping.Alloc()
+			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping, dst.allocators)
+			copyToNewMapping(dst.mapping, src.mapping)
 		}
 	}
 	dst.SetAddress(src.address)
-	copyToNewLineArray(&dst.lines, &src.lines, allocators)
+	copyToNewLineArray(&dst.lines, &src.lines)
 	dst.SetIsFolded(src.isFolded)
 	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Location) CopyFrom(src *Location, allocators *Allocators) {
-	copyLocation(s, src, allocators)
+func (s *Location) CopyFrom(src *Location) {
+	copyLocation(s, src)
 }
 
 func (s *Location) markParentModified() {
@@ -496,12 +491,12 @@ func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
 	return 0, false
 }
 
-func (d *LocationEncoderDict) Add(val *Location, allocators *Allocators) {
+func (d *LocationEncoderDict) Add(val *Location) {
 	refNum := uint64(d.dict.Len())
 	val.modifiedFields.refNum = refNum
 	d.slice = append(d.slice, val)
 
-	clone := val.Clone(allocators)
+	clone := val.Clone()
 	clone.Freeze()
 	d.dict.Set(clone, LocationEntry{refNum: refNum})
 }
@@ -640,7 +635,7 @@ func (e *LocationEncoder) Encode(val *Location) {
 	}
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val, e.allocators)
+	e.dict.Add(val)
 	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Location follows.
@@ -901,7 +896,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).Clone()
 	*dstPtr = val
 
 	var err error
@@ -913,7 +908,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		// Field is changed and is present, decode it.
 		if val.mapping == nil {
 			val.mapping = d.allocators.Mapping.Alloc()
-			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
+			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping, d.allocators)
 		}
 
 		err = d.mappingDecoder.Decode(&val.mapping)

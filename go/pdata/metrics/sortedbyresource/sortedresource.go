@@ -15,24 +15,24 @@ import (
 type SortedTree struct {
 	internal.BaseSTEFToOTLP
 	byResource *b.Tree[*oteltef.Resource, *ByResource]
-	allocators oteltef.Allocators
+	//allocators oteltef.Allocators
 }
 
 type ByResource struct {
-	byScope    *b.Tree[*oteltef.Scope, *ByScope]
-	allocators *oteltef.Allocators
+	byScope *b.Tree[*oteltef.Scope, *ByScope]
+	//allocators *oteltef.Allocators
 }
 
 type ByScope struct {
-	byMetrics  *b.Tree[*oteltef.Metric, *ByMetric]
-	allocators *oteltef.Allocators
+	byMetrics *b.Tree[*oteltef.Metric, *ByMetric]
+	//allocators *oteltef.Allocators
 }
 
 type Points []*oteltef.Point
 
 type ByMetric struct {
-	byAttrs    *b.Tree[*oteltef.Attributes, *Points]
-	allocators *oteltef.Allocators
+	byAttrs *b.Tree[*oteltef.Attributes, *Points]
+	//allocators *oteltef.Allocators
 }
 
 func NewSortedByResource() *SortedTree {
@@ -90,8 +90,8 @@ func (s *SortedTree) ToOtlp() (pmetric.Metrics, error) {
 func (s *SortedTree) ByResource(resource *oteltef.Resource) *ByResource {
 	elem, exists := s.byResource.Get(resource)
 	if !exists {
-		elem = &ByResource{byScope: b.TreeNew[*oteltef.Scope, *ByScope](oteltef.CmpScope), allocators: &s.allocators}
-		s.byResource.Set(resource.Clone(&s.allocators), elem)
+		elem = &ByResource{byScope: b.TreeNew[*oteltef.Scope, *ByScope](oteltef.CmpScope)}
+		s.byResource.Set(resource.Clone(), elem)
 	}
 	return elem
 }
@@ -99,8 +99,8 @@ func (s *SortedTree) ByResource(resource *oteltef.Resource) *ByResource {
 func (m *ByResource) ByScope(scope *oteltef.Scope) *ByScope {
 	elem, exists := m.byScope.Get(scope)
 	if !exists {
-		elem = &ByScope{byMetrics: b.TreeNew[*oteltef.Metric, *ByMetric](oteltef.CmpMetric), allocators: m.allocators}
-		m.byScope.Set(scope.Clone(m.allocators), elem)
+		elem = &ByScope{byMetrics: b.TreeNew[*oteltef.Metric, *ByMetric](oteltef.CmpMetric)}
+		m.byScope.Set(scope.Clone(), elem)
 	}
 	return elem
 }
@@ -111,10 +111,9 @@ func (m *ByScope) ByMetric(
 	elem, exists := m.byMetrics.Get(metric)
 	if !exists {
 		elem = &ByMetric{
-			byAttrs:    b.TreeNew[*oteltef.Attributes, *Points](oteltef.CmpAttributes),
-			allocators: m.allocators,
+			byAttrs: b.TreeNew[*oteltef.Attributes, *Points](oteltef.CmpAttributes),
 		}
-		m.byMetrics.Set(metric.Clone(m.allocators), elem)
+		m.byMetrics.Set(metric.Clone(), elem)
 	}
 	return elem
 }
@@ -122,7 +121,7 @@ func (m *ByScope) ByMetric(
 func (m *ByMetric) ByAttrs(attrs *oteltef.Attributes) *Points {
 	elem, exists := m.byAttrs.Get(attrs)
 	if !exists {
-		clone := attrs.Clone(m.allocators)
+		clone := attrs.Clone()
 		elem = &Points{}
 		m.byAttrs.Set(&clone, elem)
 	}

@@ -21,6 +21,8 @@ var _ = bytes.NewBuffer
 type Envelope struct {
 	attributes EnvelopeAttributes
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -33,28 +35,22 @@ const (
 )
 
 // Init must be called once, before the Envelope is used.
-func (s *Envelope) Init() {
-	s.init(nil, 0)
+func (s *Envelope) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewEnvelope() *Envelope {
+func NewEnvelope(allocators *Allocators) *Envelope {
 	var s Envelope
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Envelope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Envelope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
-	s.attributes.init(&s.modifiedFields, fieldModifiedEnvelopeAttributes)
-}
-
-func (s *Envelope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedEnvelopeAttributes, allocators)
+	s.attributes.init(&s.modifiedFields, fieldModifiedEnvelopeAttributes, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -71,6 +67,17 @@ func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 
 	s.attributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Envelope) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Envelope) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Envelope) Attributes() *EnvelopeAttributes {
@@ -106,11 +113,24 @@ func (s *Envelope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Envelope) Clone(allocators *Allocators) Envelope {
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Envelope) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Envelope) CloneShared() Envelope {
+
+	return s.Clone()
+}
+
+func (s *Envelope) Clone() Envelope {
 
 	c := Envelope{
 
-		attributes: s.attributes.Clone(allocators),
+		allocators: s.allocators,
+		attributes: s.attributes.CloneShared(),
 	}
 	return c
 }
@@ -123,13 +143,17 @@ func (s *Envelope) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyEnvelope(dst *Envelope, src *Envelope) {
+func copyEnvelope(dst *Envelope, src *Envelope) *Envelope {
+
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEnvelope(dst *Envelope, src *Envelope, allocators *Allocators) {
-	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes, allocators)
+func copyToNewEnvelope(dst *Envelope, src *Envelope) *Envelope {
+
+	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes)
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

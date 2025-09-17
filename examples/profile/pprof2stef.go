@@ -12,16 +12,17 @@ import (
 )
 
 type converter struct {
-	mappings  []stefprofile.Mapping
-	functions []stefprofile.Function
-	locations []stefprofile.Location
+	allocators stefprofile.Allocators
+	mappings   []stefprofile.Mapping
+	functions  []stefprofile.Function
+	locations  []stefprofile.Location
 }
 
 func (c *converter) convertMappings(prof *profile.Profile) {
 	c.mappings = make([]stefprofile.Mapping, len(prof.Mapping)+1)
 	for _, src := range prof.Mapping {
 		dst := &c.mappings[src.ID]
-		dst.Init()
+		dst.Init(&c.allocators)
 		dst.SetMemoryStart(src.Start)
 		dst.SetMemoryLimit(src.Limit)
 		dst.SetFileOffset(src.Offset)
@@ -39,7 +40,7 @@ func (c *converter) convertFunctions(prof *profile.Profile) {
 	c.functions = make([]stefprofile.Function, len(prof.Function)+1)
 	for _, src := range prof.Function {
 		dst := &c.functions[src.ID]
-		dst.Init()
+		dst.Init(&c.allocators)
 		dst.SetName(src.Name)
 		dst.SetSystemName(src.SystemName)
 		dst.SetFilename(src.Filename)
@@ -52,7 +53,7 @@ func (c *converter) convertLocations(prof *profile.Profile) {
 	c.locations = make([]stefprofile.Location, len(prof.Location)+1)
 	for _, src := range prof.Location {
 		dst := &c.locations[src.ID]
-		dst.Init()
+		dst.Init(&c.allocators)
 
 		dst.SetAddress(src.Address)
 		dst.SetIsFolded(src.IsFolded)

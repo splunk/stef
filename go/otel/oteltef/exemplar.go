@@ -25,6 +25,8 @@ type Exemplar struct {
 	traceID            pkg.Bytes
 	filteredAttributes Attributes
 
+	allocators *Allocators
+
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -41,30 +43,23 @@ const (
 )
 
 // Init must be called once, before the Exemplar is used.
-func (s *Exemplar) Init() {
-	s.init(nil, 0)
+func (s *Exemplar) Init(allocators *Allocators) {
+	s.init(nil, 0, allocators)
 }
 
-func NewExemplar() *Exemplar {
+func NewExemplar(allocators *Allocators) *Exemplar {
 	var s Exemplar
-	s.init(nil, 0)
+	s.init(nil, 0, allocators)
 	return &s
 }
 
-func (s *Exemplar) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+func (s *Exemplar) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
+	s.allocators = allocators
 
-	s.value.init(&s.modifiedFields, fieldModifiedExemplarValue)
-	s.filteredAttributes.init(&s.modifiedFields, fieldModifiedExemplarFilteredAttributes)
-}
-
-func (s *Exemplar) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	s.modifiedFields.parent = parentModifiedFields
-	s.modifiedFields.parentBit = parentModifiedBit
-
-	s.value.initAlloc(&s.modifiedFields, fieldModifiedExemplarValue, allocators)
-	s.filteredAttributes.initAlloc(&s.modifiedFields, fieldModifiedExemplarFilteredAttributes, allocators)
+	s.value.init(&s.modifiedFields, fieldModifiedExemplarValue, allocators)
+	s.filteredAttributes.init(&s.modifiedFields, fieldModifiedExemplarFilteredAttributes, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -88,13 +83,24 @@ func (s *Exemplar) fixParent(parentModifiedFields *modifiedFields) {
 	s.filteredAttributes.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Exemplar) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Exemplar) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Exemplar) Timestamp() uint64 {
 	return s.timestamp
 }
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Exemplar) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
 		s.markTimestampModified()
 	}
@@ -134,7 +140,7 @@ func (s *Exemplar) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Exemplar) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -158,7 +164,7 @@ func (s *Exemplar) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Exemplar) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -228,15 +234,28 @@ func (s *Exemplar) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Exemplar) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Exemplar) CloneShared() Exemplar {
+
+	return s.Clone()
+}
+
+func (s *Exemplar) Clone() Exemplar {
 
 	c := Exemplar{
 
+		allocators:         s.allocators,
 		timestamp:          s.timestamp,
-		value:              s.value.Clone(allocators),
+		value:              s.value.CloneShared(),
 		spanID:             s.spanID,
 		traceID:            s.traceID,
-		filteredAttributes: s.filteredAttributes.Clone(allocators),
+		filteredAttributes: s.filteredAttributes.CloneShared(),
 	}
 	return c
 }
@@ -249,21 +268,25 @@ func (s *Exemplar) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyExemplar(dst *Exemplar, src *Exemplar) {
+func copyExemplar(dst *Exemplar, src *Exemplar) *Exemplar {
+
 	dst.SetTimestamp(src.timestamp)
 	copyExemplarValue(&dst.value, &src.value)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceID(src.traceID)
 	copyAttributes(&dst.filteredAttributes, &src.filteredAttributes)
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExemplar(dst *Exemplar, src *Exemplar, allocators *Allocators) {
-	dst.timestamp = src.timestamp
-	copyToNewExemplarValue(&dst.value, &src.value, allocators)
-	dst.spanID = src.spanID
-	dst.traceID = src.traceID
-	copyToNewAttributes(&dst.filteredAttributes, &src.filteredAttributes, allocators)
+func copyToNewExemplar(dst *Exemplar, src *Exemplar) *Exemplar {
+
+	dst.SetTimestamp(src.timestamp)
+	copyToNewExemplarValue(&dst.value, &src.value)
+	dst.SetSpanID(src.spanID)
+	dst.SetTraceID(src.traceID)
+	copyToNewAttributes(&dst.filteredAttributes, &src.filteredAttributes)
+	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

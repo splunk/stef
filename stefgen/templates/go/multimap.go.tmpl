@@ -16,7 +16,7 @@ import (
 type {{ .MultimapName }} struct {
 	elems []{{ .MultimapName }}Elem
 	initedCount int
-
+    allocators *Allocators
     modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,12 +33,13 @@ func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{en
 	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}e.value
 }
 
-func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
-	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-}
+{{/*func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {*/}}
+{{/*	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)*/}}
+{{/*}*/}}
 
-func (m *{{.MultimapName}}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
-	m.init(parentModifiedFields, parentModifiedBit)
+func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
+	m.allocators = allocators
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -55,15 +56,15 @@ func (m *{{.MultimapName}}) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of {{.MultimapName}}
-func (m *{{.MultimapName}}) Clone(allocators *Allocators) {{.MultimapName}} {
-	clone := {{.MultimapName}}{}
-	copyToNew{{.MultimapName}}(&clone, m, allocators)
+func (m *{{.MultimapName}}) Clone() {{.MultimapName}} {
+	clone := {{.MultimapName}}{allocators: m.allocators}
+	copyToNew{{.MultimapName}}(&clone, m)
 	return clone
 }
 
-func (m *{{.MultimapName}}) CloneShared(allocators *Allocators) {{.MultimapName}} {
+func (m *{{.MultimapName}}) CloneShared() {{.MultimapName}} {
     // Clone and CloneShared are the same.
-    return m.Clone(allocators)
+    return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -102,10 +103,10 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
 		// Init elements with pointers to the parent struct.
 		for i:=m.initedCount; i < newLen; i++ {
 			{{- if not .Key.Type.IsPrimitive}}
-			m.elems[i].key.init(&m.modifiedElems.keys, m.modifiedElems.maskForIndex(i))
+			m.elems[i].key.init(&m.modifiedElems.keys, m.modifiedElems.maskForIndex(i), m.allocators)
 			{{- end}}
 			{{- if not .Value.Type.IsPrimitive}}
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i), m.allocators)
 			{{- end}}
 		}
 		if m.initedCount < newLen {
@@ -182,7 +183,7 @@ func (m *{{.MultimapName}}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, allocators *Allocators) {
+func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 	if len(dst.elems)!=len(src.elems) {
 		dst.EnsureLen(len(src.elems))
 	}
@@ -195,7 +196,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, alloc
 		}
 		{{else}}
 		if !{{.Key.Type.EqualFunc}}(&dst.elems[i].key, &src.elems[i].key) {
-			copy{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
+			copy{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key)
 			dst.modifiedElems.markKeyModified(i)
 		}
 		{{end}}
@@ -207,7 +208,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, alloc
 		}
 		{{else}}
 		if !{{.Value.Type.EqualFunc}}(&dst.elems[i].value, &src.elems[i].value) {
-			copy{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
+			copy{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value)
 			dst.modifiedElems.markValModified(i)
 		}
 		{{- end}}
@@ -215,7 +216,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, alloc
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, allocators *Allocators) {
+func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 	if len(src.elems) == 0 {
         return
 	}
@@ -229,20 +230,20 @@ func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, 
 		{{- if .Key.Type.IsPrimitive}}
 		dst.elems[i].key = src.elems[i].key
 		{{else}}
-		copyToNew{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
+		copyToNew{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key)
 		{{end}}
 
 		{{- if .Value.Type.IsPrimitive}}
 		dst.elems[i].value = src.elems[i].value
 		{{else}}
-		copyToNew{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
+		copyToNew{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value)
 		{{- end}}
 	}
 	{{end}}
 }
 
-func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}, allocators *Allocators) {
-    copy{{.MultimapName}}(m, src, allocators)
+func (m *{{.MultimapName}}) CopyFrom(src *{{.MultimapName}}) {
+    copy{{.MultimapName}}(m, src)
 }
 
 func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {

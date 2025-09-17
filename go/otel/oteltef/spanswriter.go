@@ -51,7 +51,7 @@ func NewSpansWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*SpansWriter, 
 		}
 	}
 
-	writer.Record.Init()
+	writer.Record.Init(&writer.state.Allocators)
 	writer.state.Init(&writer.opts)
 	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
 
