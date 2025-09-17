@@ -109,6 +109,7 @@ func metric2metric(
 ) *oteltef.Metric {
 
 	var dst oteltef.Metric
+	dst.Init()
 	otlp2tef.MapSorted(metric.Metadata(), dst.Metadata())
 	dst.SetName(metric.Name())
 	dst.SetDescription(metric.Description())
