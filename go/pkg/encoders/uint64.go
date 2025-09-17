@@ -23,7 +23,10 @@ func (e *Uint64Encoder) IsEqual(val uint64) bool {
 	return e.lastVal == val
 }
 
+var Uint64EncoderCount int
+
 func (e *Uint64Encoder) Encode(val uint64) {
+	Uint64EncoderCount++
 	delta := val - e.lastVal
 	e.lastVal = val
 
