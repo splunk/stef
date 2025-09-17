@@ -24,8 +24,6 @@ type SampleValueType struct {
 	type_ string
 	unit  string
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 	// refNum is non-zero when the struct is stored in a dictionary.
@@ -41,20 +39,25 @@ const (
 )
 
 // Init must be called once, before the SampleValueType is used.
-func (s *SampleValueType) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *SampleValueType) Init() {
+	s.init(nil, 0)
 }
 
-func NewSampleValueType(allocators *Allocators) *SampleValueType {
+func NewSampleValueType() *SampleValueType {
 	var s SampleValueType
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *SampleValueType) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *SampleValueType) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
+
+}
+
+func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
 
 }
 
@@ -158,24 +161,23 @@ func (s *SampleValueType) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *SampleValueType) CloneShared() *SampleValueType {
+func (s *SampleValueType) CloneShared(allocators *Allocators) *SampleValueType {
 
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
 
-	return s.Clone()
+	return s.Clone(allocators)
 }
 
-func (s *SampleValueType) Clone() *SampleValueType {
+func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
 
-	c := s.allocators.SampleValueType.Alloc()
+	c := allocators.SampleValueType.Alloc()
 	*c = SampleValueType{
 
-		allocators: s.allocators,
-		type_:      s.type_,
-		unit:       s.unit,
+		type_: s.type_,
+		unit:  s.unit,
 	}
 	return c
 }
@@ -188,15 +190,15 @@ func (s *SampleValueType) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValueType(dst *SampleValueType, src *SampleValueType) *SampleValueType {
+func copySampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
 		return src
 	}
 	if dst == nil {
-		dst = src.allocators.SampleValueType.Alloc()
-		dst.init(nil, 0, src.allocators)
+		dst = allocators.SampleValueType.Alloc()
+		dst.initAlloc(nil, 0, allocators)
 	}
 
 	dst.SetType(src.type_)
@@ -205,7 +207,7 @@ func copySampleValueType(dst *SampleValueType, src *SampleValueType) *SampleValu
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType) *SampleValueType {
+func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
@@ -218,8 +220,8 @@ func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType) *Sampl
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValueType) CopyFrom(src *SampleValueType) {
-	copySampleValueType(s, src)
+func (s *SampleValueType) CopyFrom(src *SampleValueType, allocators *Allocators) {
+	copySampleValueType(s, src, allocators)
 }
 
 func (s *SampleValueType) markParentModified() {
@@ -360,12 +362,12 @@ func (d *SampleValueTypeEncoderDict) Get(val *SampleValueType) (uint64, bool) {
 	return 0, false
 }
 
-func (d *SampleValueTypeEncoderDict) Add(val *SampleValueType) {
+func (d *SampleValueTypeEncoderDict) Add(val *SampleValueType, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
 	val.modifiedFields.refNum = refNum
 	d.slice = append(d.slice, val)
 
-	clone := val.Clone()
+	clone := val.Clone(allocators)
 	clone.Freeze()
 	d.dict.Set(clone, SampleValueTypeEntry{refNum: refNum})
 }
@@ -456,7 +458,7 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	}
 
 	// The SampleValueType does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val)
+	e.dict.Add(val, e.allocators)
 	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded SampleValueType follows.
@@ -621,7 +623,7 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error

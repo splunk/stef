@@ -10,7 +10,6 @@ import (
 )
 
 type STEFToSortedTree struct {
-	allocators oteltef.Allocators
 }
 
 func NewSTEFToSortedTree() *STEFToSortedTree {
@@ -35,7 +34,7 @@ func (c *STEFToSortedTree) FromTef(reader *oteltef.MetricsReader) (*sortedbyreso
 		scope := resource.ByScope(record.Scope())
 		metric := scope.ByMetric(record.Metric())
 		timedValues := metric.ByAttrs(record.Attributes())
-		point := oteltef.NewPoint(&c.allocators)
+		point := oteltef.NewPoint()
 		point.CopyFrom(record.Point())
 		*timedValues = append(*timedValues, point)
 		i++

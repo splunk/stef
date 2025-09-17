@@ -20,21 +20,17 @@ var _ = (*strings.Builder)(nil)
 type {{ .ArrayName }} struct {
 	elems []{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}
 
-    allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit uint64
 }
 
-{{/*func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {*/}}
-{{/*	e.parentModifiedFields = parentModifiedFields*/}}
-{{/*	e.parentModifiedBit = parentModifiedBit*/}}
-{{/*}*/}}
-
-func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *{{.ArrayName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *{{.ArrayName}}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -56,15 +52,15 @@ func (e *{{.ArrayName}}) canBeShared() bool {
 }
 
 // Clone() creates a deep copy of {{ .ArrayName }}
-func (e *{{.ArrayName}}) Clone() {{ .ArrayName }} {
-    clone := {{ .ArrayName }}{allocators: e.allocators}
-    copyToNew{{.ArrayName}}(&clone, e)
+func (e *{{.ArrayName}}) Clone(allocators *Allocators) {{ .ArrayName }} {
+    var clone {{ .ArrayName }}
+    copyToNew{{.ArrayName}}(&clone, e, allocators)
     return clone
 }
 
-func (e *{{.ArrayName}}) CloneShared() {{ .ArrayName }} {
+func (e *{{.ArrayName}}) CloneShared(allocators *Allocators) {{ .ArrayName }} {
     // Clone and CloneShared are the same.
-    return e.Clone()
+    return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -137,15 +133,11 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
 		{{- if .ElemType.MustClone}}
-		{{if .DictName}}
 		if src.elems[i].canBeShared() {
 		    dst.elems[i] = src.elems[i]
 		} else {
 		    copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
 		}
-		{{else}}
-		copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
-		{{end}}
 		isModified = true
 		{{- else}}
 		if dst.elems[i] != src.elems[i] {
@@ -159,14 +151,21 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	if minLen < len(dst.elems) {
 		isModified = true
 		{{if .DictName}}
-		for j := i; j < len(dst.elems); j++ {
-			// Copy the element.
-			if src.elems[j].canBeShared() {
-                dst.elems[j] = src.elems[i]
+		allocCount := 0
+		for j := minLen; j < len(dst.elems); j++ {
+		    if src.elems[j].canBeShared() {
+                dst.elems[j] = src.elems[j]
             } else {
-    			dst.elems[j] = dst.allocators.{{.ElemType.Storage}}.Alloc()
-	    		dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-		    	copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j])
+                allocCount++
+            }
+        }
+        elems := make([]{{.ElemType.Storage}}, allocCount)
+		for j := 0, i:=minLen; j< len(elems); j++,i++ {
+			// Copy the element.
+			if !src.elems[i].canBeShared() {
+    			dst.elems[i] = &elems[j]
+	    		dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+		    	copyToNew{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
 		    }
 		}
 		{{else}}
@@ -196,10 +195,11 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	if isModified {
 		dst.markModified()
 	}
+	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
+func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocators *Allocators) {
     if len(src.elems)==0 {
         return
     }
@@ -213,10 +213,10 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
             dst.elems[j] = src.elems[j]
         } else {
             // Alloc and init the element.
-            dst.elems[j] = dst.allocators.{{.ElemType.Storage}}.Alloc()
-            dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+            dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
+            dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
             // Copy the element.
-            copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j])
+            copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
         }
     }
 	{{- else}}
@@ -248,7 +248,7 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen<newLen; oldLen++ {
 			e.elems[oldLen] = new({{.ElemType.Storage}})
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
 		}
 		{{- end}}
 	} else if oldLen > newLen {
@@ -270,7 +270,7 @@ func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen<newLen; oldLen++ {
 			e.elems[oldLen] = allocators.{{.ElemType.Storage}}.Alloc()
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 		{{- end}}
 	} else if oldLen > newLen {

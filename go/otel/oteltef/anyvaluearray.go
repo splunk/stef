@@ -19,16 +19,17 @@ var _ = (*strings.Builder)(nil)
 type AnyValueArray struct {
 	elems []*AnyValue
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *AnyValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *AnyValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *AnyValueArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -44,21 +45,11 @@ func (e *AnyValueArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-func (e *AnyValueArray) canBeShared() bool {
-	// An array can never be shared.
-	return false
-}
-
 // Clone() creates a deep copy of AnyValueArray
-func (e *AnyValueArray) Clone() AnyValueArray {
-	clone := AnyValueArray{allocators: e.allocators}
-	copyToNewAnyValueArray(&clone, e)
+func (e *AnyValueArray) Clone(allocators *Allocators) AnyValueArray {
+	var clone AnyValueArray
+	copyToNewAnyValueArray(&clone, e, allocators)
 	return clone
-}
-
-func (e *AnyValueArray) CloneShared() AnyValueArray {
-	// Clone and CloneShared are the same.
-	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -100,7 +91,7 @@ func (e *AnyValueArray) markUnmodifiedRecursively() {
 
 }
 
-// Update from src to dst, overwriting existing data in dst.
+// Copy from src to dst, overwriting existing data in dst.
 func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 	isModified := false
 
@@ -114,26 +105,22 @@ func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-
 		copyAnyValue(dst.elems[i], src.elems[i])
-
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
-
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
 		elems := make([]AnyValue, len(dst.elems)-minLen)
 		for j := range elems {
 			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
 			dst.elems[i+j] = &elems[j]
 			// Copy the element.
 			copyAnyValue(dst.elems[i+j], src.elems[i+j])
 		}
-
 	}
 	if isModified {
 		dst.markModified()
@@ -141,7 +128,7 @@ func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
+func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray, allocators *Allocators) {
 	if len(src.elems) == 0 {
 		return
 	}
@@ -149,15 +136,11 @@ func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = dst.allocators.AnyValue.Alloc()
-			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-			// Copy the element.
-			copyToNewAnyValue(dst.elems[j], src.elems[j])
-		}
+		// Alloc and init the element.
+		dst.elems[j] = allocators.AnyValue.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewAnyValue(dst.elems[j], src.elems[j], allocators)
 	}
 }
 
@@ -182,7 +165,7 @@ func (e *AnyValueArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(AnyValue)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -202,7 +185,7 @@ func (e *AnyValueArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.AnyValue.Alloc()
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

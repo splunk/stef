@@ -21,16 +21,17 @@ var _ = (*strings.Builder)(nil)
 type Int64Array struct {
 	elems []int64
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *Int64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *Int64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *Int64Array) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -46,21 +47,11 @@ func (e *Int64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-func (e *Int64Array) canBeShared() bool {
-	// An array can never be shared.
-	return false
-}
-
 // Clone() creates a deep copy of Int64Array
-func (e *Int64Array) Clone() Int64Array {
-	clone := Int64Array{allocators: e.allocators}
-	copyToNewInt64Array(&clone, e)
+func (e *Int64Array) Clone(allocators *Allocators) Int64Array {
+	var clone Int64Array
+	copyToNewInt64Array(&clone, e, allocators)
 	return clone
-}
-
-func (e *Int64Array) CloneShared() Int64Array {
-	// Clone and CloneShared are the same.
-	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -104,7 +95,7 @@ func (e *Int64Array) markUnmodifiedRecursively() {
 
 }
 
-// Update from src to dst, overwriting existing data in dst.
+// Copy from src to dst, overwriting existing data in dst.
 func copyInt64Array(dst *Int64Array, src *Int64Array) {
 	isModified := false
 
@@ -135,7 +126,7 @@ func copyInt64Array(dst *Int64Array, src *Int64Array) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewInt64Array(dst *Int64Array, src *Int64Array) {
+func copyToNewInt64Array(dst *Int64Array, src *Int64Array, allocators *Allocators) {
 	if len(src.elems) == 0 {
 		return
 	}

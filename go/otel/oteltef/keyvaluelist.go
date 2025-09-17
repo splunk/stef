@@ -14,9 +14,9 @@ import (
 // KeyValueList is a multimap, (aka an associative array or a list) of key value
 // pairs from string to AnyValue.
 type KeyValueList struct {
-	elems         []KeyValueListElem
-	initedCount   int
-	allocators    *Allocators
+	elems       []KeyValueListElem
+	initedCount int
+
 	modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,9 +33,12 @@ func (e *KeyValueListElem) Value() *AnyValue {
 	return &e.value
 }
 
-func (m *KeyValueList) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (m *KeyValueList) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-	m.allocators = allocators
+}
+
+func (m *KeyValueList) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -52,15 +55,10 @@ func (m *KeyValueList) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of KeyValueList
-func (m *KeyValueList) Clone() KeyValueList {
-	clone := KeyValueList{allocators: m.allocators}
-	copyToNewKeyValueList(&clone, m)
+func (m *KeyValueList) Clone(allocators *Allocators) KeyValueList {
+	clone := KeyValueList{}
+	copyToNewKeyValueList(&clone, m, allocators)
 	return clone
-}
-
-func (m *KeyValueList) CloneShared() KeyValueList {
-	// Clone and CloneShared are the same.
-	return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -93,7 +91,7 @@ func (m *KeyValueList) EnsureLen(newLen int) {
 
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i), m.allocators)
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
 		}
 		if m.initedCount < newLen {
 			m.initedCount = newLen
@@ -152,7 +150,7 @@ func copyKeyValueList(dst *KeyValueList, src *KeyValueList) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewKeyValueList(dst *KeyValueList, src *KeyValueList) {
+func copyToNewKeyValueList(dst *KeyValueList, src *KeyValueList, allocators *Allocators) {
 	if len(src.elems) == 0 {
 		return
 	}
@@ -161,7 +159,7 @@ func copyToNewKeyValueList(dst *KeyValueList, src *KeyValueList) {
 	for i := 0; i < len(src.elems); i++ {
 		dst.elems[i].key = src.elems[i].key
 
-		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value)
+		copyToNewAnyValue(&dst.elems[i].value, &src.elems[i].value, allocators)
 	}
 
 }

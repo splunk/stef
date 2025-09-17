@@ -28,7 +28,6 @@ type AnyValue struct {
 	kVList  KeyValueList
 	bytes   pkg.Bytes
 
-	allocators *Allocators
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
 	// Bit to set in parent's modifiedFields when this oneof is modified.
@@ -36,17 +35,24 @@ type AnyValue struct {
 }
 
 // Init must be called once, before the AnyValue is used.
-func (s *AnyValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *AnyValue) Init() {
+	s.init(nil, 0)
 }
 
-func (s *AnyValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *AnyValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.array.init(parentModifiedFields, parentModifiedBit, allocators)
-	s.kVList.init(parentModifiedFields, parentModifiedBit, allocators)
+	s.array.init(parentModifiedFields, parentModifiedBit)
+	s.kVList.init(parentModifiedFields, parentModifiedBit)
+}
+
+func (s *AnyValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.array.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.kVList.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -196,25 +202,15 @@ func (s *AnyValue) SetBytes(v pkg.Bytes) {
 	}
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *AnyValue) canBeShared() bool {
-	return false
-}
-
-func (s *AnyValue) CloneShared() *AnyValue {
-	return s.Clone()
-}
-
-func (s *AnyValue) Clone() *AnyValue {
+func (s *AnyValue) Clone(allocators *Allocators) *AnyValue {
 	return &AnyValue{
-		allocators: s.allocators,
-		string:     s.string,
-		bool:       s.bool,
-		int64:      s.int64,
-		float64:    s.float64,
-		array:      s.array.Clone(),
-		kVList:     s.kVList.Clone(),
-		bytes:      s.bytes,
+		string:  s.string,
+		bool:    s.bool,
+		int64:   s.int64,
+		float64: s.float64,
+		array:   s.array.Clone(allocators),
+		kVList:  s.kVList.Clone(allocators),
+		bytes:   s.bytes,
 	}
 }
 
@@ -227,9 +223,6 @@ func (s *AnyValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyAnyValue(dst *AnyValue, src *AnyValue) {
-	if dst == src {
-		return
-	}
 	switch src.typ {
 	case AnyValueTypeString:
 		dst.SetString(src.string)
@@ -255,7 +248,7 @@ func copyAnyValue(dst *AnyValue, src *AnyValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewAnyValue(dst *AnyValue, src *AnyValue) {
+func copyToNewAnyValue(dst *AnyValue, src *AnyValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case AnyValueTypeString:
@@ -267,9 +260,9 @@ func copyToNewAnyValue(dst *AnyValue, src *AnyValue) {
 	case AnyValueTypeFloat64:
 		dst.float64 = src.float64
 	case AnyValueTypeArray:
-		copyToNewAnyValueArray(&dst.array, &src.array)
+		copyToNewAnyValueArray(&dst.array, &src.array, allocators)
 	case AnyValueTypeKVList:
-		copyToNewKeyValueList(&dst.kVList, &src.kVList)
+		copyToNewKeyValueList(&dst.kVList, &src.kVList, allocators)
 	case AnyValueTypeBytes:
 		dst.bytes = src.bytes
 	case AnyValueTypeNone:
@@ -757,7 +750,7 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0, d.allocators)
+	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	if d.fieldCount <= 0 {
 		return nil // String and subsequent fields are skipped.

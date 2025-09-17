@@ -26,7 +26,6 @@ type JsonValue struct {
 	number float64
 	bool   bool
 
-	allocators *Allocators
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
 	// Bit to set in parent's modifiedFields when this oneof is modified.
@@ -34,17 +33,24 @@ type JsonValue struct {
 }
 
 // Init must be called once, before the JsonValue is used.
-func (s *JsonValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *JsonValue) Init() {
+	s.init(nil, 0)
 }
 
-func (s *JsonValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *JsonValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.object.init(parentModifiedFields, parentModifiedBit, allocators)
-	s.array.init(parentModifiedFields, parentModifiedBit, allocators)
+	s.object.init(parentModifiedFields, parentModifiedBit)
+	s.array.init(parentModifiedFields, parentModifiedBit)
+}
+
+func (s *JsonValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.object.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.array.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -162,23 +168,13 @@ func (s *JsonValue) SetBool(v bool) {
 	}
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *JsonValue) canBeShared() bool {
-	return false
-}
-
-func (s *JsonValue) CloneShared() *JsonValue {
-	return s.Clone()
-}
-
-func (s *JsonValue) Clone() *JsonValue {
+func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
 	return &JsonValue{
-		allocators: s.allocators,
-		object:     s.object.Clone(),
-		array:      s.array.Clone(),
-		string:     s.string,
-		number:     s.number,
-		bool:       s.bool,
+		object: s.object.Clone(allocators),
+		array:  s.array.Clone(allocators),
+		string: s.string,
+		number: s.number,
+		bool:   s.bool,
 	}
 }
 
@@ -191,9 +187,6 @@ func (s *JsonValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyJsonValue(dst *JsonValue, src *JsonValue) {
-	if dst == src {
-		return
-	}
 	switch src.typ {
 	case JsonValueTypeObject:
 		dst.SetType(src.typ)
@@ -215,13 +208,13 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewJsonValue(dst *JsonValue, src *JsonValue) {
+func copyToNewJsonValue(dst *JsonValue, src *JsonValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case JsonValueTypeObject:
-		copyToNewJsonObject(&dst.object, &src.object)
+		copyToNewJsonObject(&dst.object, &src.object, allocators)
 	case JsonValueTypeArray:
-		copyToNewJsonValueArray(&dst.array, &src.array)
+		copyToNewJsonValueArray(&dst.array, &src.array, allocators)
 	case JsonValueTypeString:
 		dst.string = src.string
 	case JsonValueTypeNumber:
@@ -635,7 +628,7 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0, d.allocators)
+	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	if d.fieldCount <= 0 {
 		return nil // Object and subsequent fields are skipped.

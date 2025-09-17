@@ -26,8 +26,6 @@ type Link struct {
 	attributes             Attributes
 	droppedAttributesCount uint64
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -45,22 +43,28 @@ const (
 )
 
 // Init must be called once, before the Link is used.
-func (s *Link) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Link) Init() {
+	s.init(nil, 0)
 }
 
-func NewLink(allocators *Allocators) *Link {
+func NewLink() *Link {
 	var s Link
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Link) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Link) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.attributes.init(&s.modifiedFields, fieldModifiedLinkAttributes, allocators)
+	s.attributes.init(&s.modifiedFields, fieldModifiedLinkAttributes)
+}
+
+func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedLinkAttributes, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -84,24 +88,13 @@ func (s *Link) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Link) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Link) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Link) TraceID() pkg.Bytes {
 	return s.traceID
 }
 
 // SetTraceID sets the value of TraceID field.
 func (s *Link) SetTraceID(v pkg.Bytes) {
-	if s.traceID != v {
+	if !pkg.BytesEqual(s.traceID, v) {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -125,7 +118,7 @@ func (s *Link) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Link) SetSpanID(v pkg.Bytes) {
-	if s.spanID != v {
+	if !pkg.BytesEqual(s.spanID, v) {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -149,7 +142,7 @@ func (s *Link) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Link) SetTraceState(v string) {
-	if s.traceState != v {
+	if !pkg.StringEqual(s.traceState, v) {
 		s.traceState = v
 		s.markTraceStateModified()
 	}
@@ -173,7 +166,7 @@ func (s *Link) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Link) SetFlags(v uint64) {
-	if s.flags != v {
+	if !pkg.Uint64Equal(s.flags, v) {
 		s.flags = v
 		s.markFlagsModified()
 	}
@@ -213,7 +206,7 @@ func (s *Link) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Link) SetDroppedAttributesCount(v uint64) {
-	if s.droppedAttributesCount != v {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -268,28 +261,15 @@ func (s *Link) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Link) canBeShared() bool {
-	return s.isFrozen()
-}
-
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Link) CloneShared() Link {
-
-	return s.Clone()
-}
-
-func (s *Link) Clone() Link {
+func (s *Link) Clone(allocators *Allocators) Link {
 
 	c := Link{
 
-		allocators:             s.allocators,
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
 		flags:                  s.flags,
-		attributes:             s.attributes.CloneShared(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
 	return c
@@ -304,7 +284,6 @@ func (s *Link) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyLink(dst *Link, src *Link) {
-
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceState(src.traceState)
@@ -314,14 +293,13 @@ func copyLink(dst *Link, src *Link) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLink(dst *Link, src *Link) {
-
-	dst.SetTraceID(src.traceID)
-	dst.SetSpanID(src.spanID)
-	dst.SetTraceState(src.traceState)
-	dst.SetFlags(src.flags)
-	copyToNewAttributes(&dst.attributes, &src.attributes)
-	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+func copyToNewLink(dst *Link, src *Link, allocators *Allocators) {
+	dst.traceID = src.traceID
+	dst.spanID = src.spanID
+	dst.traceState = src.traceState
+	dst.flags = src.flags
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.

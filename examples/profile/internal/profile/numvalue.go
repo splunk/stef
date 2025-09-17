@@ -22,8 +22,6 @@ type NumValue struct {
 	val  int64
 	unit string
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -37,20 +35,25 @@ const (
 )
 
 // Init must be called once, before the NumValue is used.
-func (s *NumValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *NumValue) Init() {
+	s.init(nil, 0)
 }
 
-func NewNumValue(allocators *Allocators) *NumValue {
+func NewNumValue() *NumValue {
 	var s NumValue
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *NumValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *NumValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
+
+}
+
+func (s *NumValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
 
 }
 
@@ -154,18 +157,17 @@ func (s *NumValue) canBeShared() bool {
 
 // CloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *NumValue) CloneShared() NumValue {
+func (s *NumValue) CloneShared(allocators *Allocators) NumValue {
 
-	return s.Clone()
+	return s.Clone(allocators)
 }
 
-func (s *NumValue) Clone() NumValue {
+func (s *NumValue) Clone(allocators *Allocators) NumValue {
 
 	c := NumValue{
 
-		allocators: s.allocators,
-		val:        s.val,
-		unit:       s.unit,
+		val:  s.val,
+		unit: s.unit,
 	}
 	return c
 }
@@ -178,7 +180,7 @@ func (s *NumValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyNumValue(dst *NumValue, src *NumValue) *NumValue {
+func copyNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
 
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
@@ -186,7 +188,7 @@ func copyNumValue(dst *NumValue, src *NumValue) *NumValue {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewNumValue(dst *NumValue, src *NumValue) *NumValue {
+func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
 
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
@@ -194,8 +196,8 @@ func copyToNewNumValue(dst *NumValue, src *NumValue) *NumValue {
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *NumValue) CopyFrom(src *NumValue) {
-	copyNumValue(s, src)
+func (s *NumValue) CopyFrom(src *NumValue, allocators *Allocators) {
+	copyNumValue(s, src, allocators)
 }
 
 func (s *NumValue) markParentModified() {

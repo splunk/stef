@@ -21,16 +21,17 @@ var _ = (*strings.Builder)(nil)
 type StringArray struct {
 	elems []string
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *StringArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *StringArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -52,15 +53,15 @@ func (e *StringArray) canBeShared() bool {
 }
 
 // Clone() creates a deep copy of StringArray
-func (e *StringArray) Clone() StringArray {
-	clone := StringArray{allocators: e.allocators}
-	copyToNewStringArray(&clone, e)
+func (e *StringArray) Clone(allocators *Allocators) StringArray {
+	var clone StringArray
+	copyToNewStringArray(&clone, e, allocators)
 	return clone
 }
 
-func (e *StringArray) CloneShared() StringArray {
+func (e *StringArray) CloneShared(allocators *Allocators) StringArray {
 	// Clone and CloneShared are the same.
-	return e.Clone()
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -105,7 +106,7 @@ func (e *StringArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyStringArray(dst *StringArray, src *StringArray) *StringArray {
+func copyStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -136,7 +137,7 @@ func copyStringArray(dst *StringArray, src *StringArray) *StringArray {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewStringArray(dst *StringArray, src *StringArray) *StringArray {
+func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
 	if len(src.elems) == 0 {
 		return dst
 	}

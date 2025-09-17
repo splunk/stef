@@ -26,7 +26,6 @@ type PointValue struct {
 	expHistogram ExpHistogramValue
 	summary      SummaryValue
 
-	allocators *Allocators
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
 	// Bit to set in parent's modifiedFields when this oneof is modified.
@@ -34,18 +33,26 @@ type PointValue struct {
 }
 
 // Init must be called once, before the PointValue is used.
-func (s *PointValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *PointValue) Init() {
+	s.init(nil, 0)
 }
 
-func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.histogram.init(parentModifiedFields, parentModifiedBit, allocators)
-	s.expHistogram.init(parentModifiedFields, parentModifiedBit, allocators)
-	s.summary.init(parentModifiedFields, parentModifiedBit, allocators)
+	s.histogram.init(parentModifiedFields, parentModifiedBit)
+	s.expHistogram.init(parentModifiedFields, parentModifiedBit)
+	s.summary.init(parentModifiedFields, parentModifiedBit)
+}
+
+func (s *PointValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.histogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.expHistogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	s.summary.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -157,23 +164,13 @@ func (s *PointValue) Summary() *SummaryValue {
 	return &s.summary
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *PointValue) canBeShared() bool {
-	return false
-}
-
-func (s *PointValue) CloneShared() PointValue {
-	return s.Clone()
-}
-
-func (s *PointValue) Clone() PointValue {
+func (s *PointValue) Clone(allocators *Allocators) PointValue {
 	return PointValue{
-		allocators:   s.allocators,
 		int64:        s.int64,
 		float64:      s.float64,
-		histogram:    s.histogram.Clone(),
-		expHistogram: s.expHistogram.Clone(),
-		summary:      s.summary.Clone(),
+		histogram:    s.histogram.Clone(allocators),
+		expHistogram: s.expHistogram.Clone(allocators),
+		summary:      s.summary.Clone(allocators),
 	}
 }
 
@@ -186,9 +183,6 @@ func (s *PointValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyPointValue(dst *PointValue, src *PointValue) {
-	if dst == src {
-		return
-	}
 	switch src.typ {
 	case PointValueTypeInt64:
 		dst.SetInt64(src.int64)
@@ -211,7 +205,7 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewPointValue(dst *PointValue, src *PointValue) {
+func copyToNewPointValue(dst *PointValue, src *PointValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case PointValueTypeInt64:
@@ -219,11 +213,11 @@ func copyToNewPointValue(dst *PointValue, src *PointValue) {
 	case PointValueTypeFloat64:
 		dst.float64 = src.float64
 	case PointValueTypeHistogram:
-		copyToNewHistogramValue(&dst.histogram, &src.histogram)
+		copyToNewHistogramValue(&dst.histogram, &src.histogram, allocators)
 	case PointValueTypeExpHistogram:
-		copyToNewExpHistogramValue(&dst.expHistogram, &src.expHistogram)
+		copyToNewExpHistogramValue(&dst.expHistogram, &src.expHistogram, allocators)
 	case PointValueTypeSummary:
-		copyToNewSummaryValue(&dst.summary, &src.summary)
+		copyToNewSummaryValue(&dst.summary, &src.summary, allocators)
 	case PointValueTypeNone:
 	default:
 		panic("copyPointValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -648,7 +642,7 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0, d.allocators)
+	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	if d.fieldCount <= 0 {
 		return nil // Int64 and subsequent fields are skipped.

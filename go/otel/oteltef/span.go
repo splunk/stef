@@ -34,8 +34,6 @@ type Span struct {
 	links                  LinkArray
 	status                 SpanStatus
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -61,25 +59,34 @@ const (
 )
 
 // Init must be called once, before the Span is used.
-func (s *Span) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Span) Init() {
+	s.init(nil, 0)
 }
 
-func NewSpan(allocators *Allocators) *Span {
+func NewSpan() *Span {
 	var s Span
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Span) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Span) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.attributes.init(&s.modifiedFields, fieldModifiedSpanAttributes, allocators)
-	s.events.init(&s.modifiedFields, fieldModifiedSpanEvents, allocators)
-	s.links.init(&s.modifiedFields, fieldModifiedSpanLinks, allocators)
-	s.status.init(&s.modifiedFields, fieldModifiedSpanStatus, allocators)
+	s.attributes.init(&s.modifiedFields, fieldModifiedSpanAttributes)
+	s.events.init(&s.modifiedFields, fieldModifiedSpanEvents)
+	s.links.init(&s.modifiedFields, fieldModifiedSpanLinks)
+	s.status.init(&s.modifiedFields, fieldModifiedSpanStatus)
+}
+
+func (s *Span) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedSpanAttributes, allocators)
+	s.events.initAlloc(&s.modifiedFields, fieldModifiedSpanEvents, allocators)
+	s.links.initAlloc(&s.modifiedFields, fieldModifiedSpanLinks, allocators)
+	s.status.initAlloc(&s.modifiedFields, fieldModifiedSpanStatus, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -114,24 +121,13 @@ func (s *Span) fixParent(parentModifiedFields *modifiedFields) {
 	s.status.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Span) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Span) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Span) TraceID() pkg.Bytes {
 	return s.traceID
 }
 
 // SetTraceID sets the value of TraceID field.
 func (s *Span) SetTraceID(v pkg.Bytes) {
-	if s.traceID != v {
+	if !pkg.BytesEqual(s.traceID, v) {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -155,7 +151,7 @@ func (s *Span) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Span) SetSpanID(v pkg.Bytes) {
-	if s.spanID != v {
+	if !pkg.BytesEqual(s.spanID, v) {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -179,7 +175,7 @@ func (s *Span) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Span) SetTraceState(v string) {
-	if s.traceState != v {
+	if !pkg.StringEqual(s.traceState, v) {
 		s.traceState = v
 		s.markTraceStateModified()
 	}
@@ -203,7 +199,7 @@ func (s *Span) ParentSpanID() pkg.Bytes {
 
 // SetParentSpanID sets the value of ParentSpanID field.
 func (s *Span) SetParentSpanID(v pkg.Bytes) {
-	if s.parentSpanID != v {
+	if !pkg.BytesEqual(s.parentSpanID, v) {
 		s.parentSpanID = v
 		s.markParentSpanIDModified()
 	}
@@ -227,7 +223,7 @@ func (s *Span) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Span) SetFlags(v uint64) {
-	if s.flags != v {
+	if !pkg.Uint64Equal(s.flags, v) {
 		s.flags = v
 		s.markFlagsModified()
 	}
@@ -251,7 +247,7 @@ func (s *Span) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Span) SetName(v string) {
-	if s.name != v {
+	if !pkg.StringEqual(s.name, v) {
 		s.name = v
 		s.markNameModified()
 	}
@@ -275,7 +271,7 @@ func (s *Span) Kind() uint64 {
 
 // SetKind sets the value of Kind field.
 func (s *Span) SetKind(v uint64) {
-	if s.kind != v {
+	if !pkg.Uint64Equal(s.kind, v) {
 		s.kind = v
 		s.markKindModified()
 	}
@@ -299,7 +295,7 @@ func (s *Span) StartTimeUnixNano() uint64 {
 
 // SetStartTimeUnixNano sets the value of StartTimeUnixNano field.
 func (s *Span) SetStartTimeUnixNano(v uint64) {
-	if s.startTimeUnixNano != v {
+	if !pkg.Uint64Equal(s.startTimeUnixNano, v) {
 		s.startTimeUnixNano = v
 		s.markStartTimeUnixNanoModified()
 	}
@@ -323,7 +319,7 @@ func (s *Span) EndTimeUnixNano() uint64 {
 
 // SetEndTimeUnixNano sets the value of EndTimeUnixNano field.
 func (s *Span) SetEndTimeUnixNano(v uint64) {
-	if s.endTimeUnixNano != v {
+	if !pkg.Uint64Equal(s.endTimeUnixNano, v) {
 		s.endTimeUnixNano = v
 		s.markEndTimeUnixNanoModified()
 	}
@@ -363,7 +359,7 @@ func (s *Span) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Span) SetDroppedAttributesCount(v uint64) {
-	if s.droppedAttributesCount != v {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -507,23 +503,10 @@ func (s *Span) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Span) canBeShared() bool {
-	return s.isFrozen()
-}
-
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Span) CloneShared() Span {
-
-	return s.Clone()
-}
-
-func (s *Span) Clone() Span {
+func (s *Span) Clone(allocators *Allocators) Span {
 
 	c := Span{
 
-		allocators:             s.allocators,
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
@@ -533,11 +516,11 @@ func (s *Span) Clone() Span {
 		kind:                   s.kind,
 		startTimeUnixNano:      s.startTimeUnixNano,
 		endTimeUnixNano:        s.endTimeUnixNano,
-		attributes:             s.attributes.CloneShared(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
-		events:                 s.events.CloneShared(),
-		links:                  s.links.CloneShared(),
-		status:                 s.status.CloneShared(),
+		events:                 s.events.Clone(allocators),
+		links:                  s.links.Clone(allocators),
+		status:                 s.status.Clone(allocators),
 	}
 	return c
 }
@@ -551,7 +534,6 @@ func (s *Span) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpan(dst *Span, src *Span) {
-
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceState(src.traceState)
@@ -569,22 +551,21 @@ func copySpan(dst *Span, src *Span) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSpan(dst *Span, src *Span) {
-
-	dst.SetTraceID(src.traceID)
-	dst.SetSpanID(src.spanID)
-	dst.SetTraceState(src.traceState)
-	dst.SetParentSpanID(src.parentSpanID)
-	dst.SetFlags(src.flags)
-	dst.SetName(src.name)
-	dst.SetKind(src.kind)
-	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
-	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
-	copyToNewAttributes(&dst.attributes, &src.attributes)
-	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	copyToNewEventArray(&dst.events, &src.events)
-	copyToNewLinkArray(&dst.links, &src.links)
-	copyToNewSpanStatus(&dst.status, &src.status)
+func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
+	dst.traceID = src.traceID
+	dst.spanID = src.spanID
+	dst.traceState = src.traceState
+	dst.parentSpanID = src.parentSpanID
+	dst.flags = src.flags
+	dst.name = src.name
+	dst.kind = src.kind
+	dst.startTimeUnixNano = src.startTimeUnixNano
+	dst.endTimeUnixNano = src.endTimeUnixNano
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
+	copyToNewEventArray(&dst.events, &src.events, allocators)
+	copyToNewLinkArray(&dst.links, &src.links, allocators)
+	copyToNewSpanStatus(&dst.status, &src.status, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -25,7 +25,7 @@ func NewSampleReader(source io.Reader) (*SampleReader, error) {
 	bufferedSource := bufio.NewReaderSize(source, 64*1024)
 	reader := &SampleReader{}
 
-	reader.Record.Init(&reader.state.Allocators)
+	reader.Record.Init()
 	reader.recordPtr = &reader.Record
 
 	if err := reader.base.Init(bufferedSource); err != nil {

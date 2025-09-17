@@ -23,7 +23,6 @@ type ExemplarValue struct {
 	int64   int64
 	float64 float64
 
-	allocators *Allocators
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
 	// Bit to set in parent's modifiedFields when this oneof is modified.
@@ -31,14 +30,19 @@ type ExemplarValue struct {
 }
 
 // Init must be called once, before the ExemplarValue is used.
-func (s *ExemplarValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *ExemplarValue) Init() {
+	s.init(nil, 0)
 }
 
-func (s *ExemplarValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *ExemplarValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-	s.allocators = allocators
+
+}
+
+func (s *ExemplarValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
 
 }
 
@@ -121,20 +125,10 @@ func (s *ExemplarValue) SetFloat64(v float64) {
 	}
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *ExemplarValue) canBeShared() bool {
-	return false
-}
-
-func (s *ExemplarValue) CloneShared() ExemplarValue {
-	return s.Clone()
-}
-
-func (s *ExemplarValue) Clone() ExemplarValue {
+func (s *ExemplarValue) Clone(allocators *Allocators) ExemplarValue {
 	return ExemplarValue{
-		allocators: s.allocators,
-		int64:      s.int64,
-		float64:    s.float64,
+		int64:   s.int64,
+		float64: s.float64,
 	}
 }
 
@@ -147,9 +141,6 @@ func (s *ExemplarValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
-	if dst == src {
-		return
-	}
 	switch src.typ {
 	case ExemplarValueTypeInt64:
 		dst.SetInt64(src.int64)
@@ -163,7 +154,7 @@ func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
+func copyToNewExemplarValue(dst *ExemplarValue, src *ExemplarValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case ExemplarValueTypeInt64:
@@ -428,7 +419,7 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0, d.allocators)
+	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	if d.fieldCount <= 0 {
 		return nil // Int64 and subsequent fields are skipped.

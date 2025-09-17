@@ -23,7 +23,6 @@ type LabelValue struct {
 	str string
 	num NumValue
 
-	allocators *Allocators
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
 	// Bit to set in parent's modifiedFields when this oneof is modified.
@@ -31,16 +30,22 @@ type LabelValue struct {
 }
 
 // Init must be called once, before the LabelValue is used.
-func (s *LabelValue) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *LabelValue) Init() {
+	s.init(nil, 0)
 }
 
-func (s *LabelValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *LabelValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.num.init(parentModifiedFields, parentModifiedBit, allocators)
+	s.num.init(parentModifiedFields, parentModifiedBit)
+}
+
+func (s *LabelValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	s.num.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -116,20 +121,10 @@ func (s *LabelValue) Num() *NumValue {
 	return &s.num
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *LabelValue) canBeShared() bool {
-	return false
-}
-
-func (s *LabelValue) CloneShared() LabelValue {
-	return s.Clone()
-}
-
-func (s *LabelValue) Clone() LabelValue {
+func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 	return LabelValue{
-		allocators: s.allocators,
-		str:        s.str,
-		num:        s.num.Clone(),
+		str: s.str,
+		num: s.num.Clone(allocators),
 	}
 }
 
@@ -141,7 +136,7 @@ func (s *LabelValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLabelValue(dst *LabelValue, src *LabelValue) {
+func copyLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
 	if dst == src {
 		return
 	}
@@ -150,7 +145,7 @@ func copyLabelValue(dst *LabelValue, src *LabelValue) {
 		dst.SetStr(src.str)
 	case LabelValueTypeNum:
 		dst.SetType(src.typ)
-		copyNumValue(&dst.num, &src.num)
+		copyNumValue(&dst.num, &src.num, allocators)
 	case LabelValueTypeNone:
 		dst.SetType(src.typ)
 	default:
@@ -159,13 +154,13 @@ func copyLabelValue(dst *LabelValue, src *LabelValue) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLabelValue(dst *LabelValue, src *LabelValue) {
+func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case LabelValueTypeStr:
 		dst.str = src.str
 	case LabelValueTypeNum:
-		copyToNewNumValue(&dst.num, &src.num)
+		copyToNewNumValue(&dst.num, &src.num, allocators)
 	case LabelValueTypeNone:
 	default:
 		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -173,8 +168,8 @@ func copyToNewLabelValue(dst *LabelValue, src *LabelValue) {
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *LabelValue) CopyFrom(src *LabelValue) {
-	copyLabelValue(s, src)
+func (s *LabelValue) CopyFrom(src *LabelValue, allocators *Allocators) {
+	copyLabelValue(s, src, allocators)
 }
 
 func (s *LabelValue) markParentModified() {
@@ -441,7 +436,7 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 
 	d.column = columns.Column()
 
-	d.lastVal.init(nil, 0, d.allocators)
+	d.lastVal.init(nil, 0)
 	d.lastValPtr = &d.lastVal
 	if d.fieldCount <= 0 {
 		return nil // Str and subsequent fields are skipped.

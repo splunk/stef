@@ -19,16 +19,17 @@ var _ = (*strings.Builder)(nil)
 type JsonValueArray struct {
 	elems []*JsonValue
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *JsonValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *JsonValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *JsonValueArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -44,21 +45,11 @@ func (e *JsonValueArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-func (e *JsonValueArray) canBeShared() bool {
-	// An array can never be shared.
-	return false
-}
-
 // Clone() creates a deep copy of JsonValueArray
-func (e *JsonValueArray) Clone() JsonValueArray {
-	clone := JsonValueArray{allocators: e.allocators}
-	copyToNewJsonValueArray(&clone, e)
+func (e *JsonValueArray) Clone(allocators *Allocators) JsonValueArray {
+	var clone JsonValueArray
+	copyToNewJsonValueArray(&clone, e, allocators)
 	return clone
-}
-
-func (e *JsonValueArray) CloneShared() JsonValueArray {
-	// Clone and CloneShared are the same.
-	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -100,8 +91,8 @@ func (e *JsonValueArray) markUnmodifiedRecursively() {
 
 }
 
-// Update from src to dst, overwriting existing data in dst.
-func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) *JsonValueArray {
+// Copy from src to dst, overwriting existing data in dst.
+func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -114,60 +105,43 @@ func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) *JsonValueArra
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyJsonValue(dst.elems[i], src.elems[i])
-		}
+		copyJsonValue(dst.elems[i], src.elems[i])
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]JsonValue, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]JsonValue, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = dst.allocators.JsonValue.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-				copyToNewJsonValue(dst.elems[j], src.elems[j])
-			}
+			copyJsonValue(dst.elems[i+j], src.elems[i+j])
 		}
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewJsonValueArray(dst *JsonValueArray, src *JsonValueArray) *JsonValueArray {
+func copyToNewJsonValueArray(dst *JsonValueArray, src *JsonValueArray, allocators *Allocators) {
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = dst.allocators.JsonValue.Alloc()
-			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-			// Copy the element.
-			copyToNewJsonValue(dst.elems[j], src.elems[j])
-		}
+		// Alloc and init the element.
+		dst.elems[j] = allocators.JsonValue.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewJsonValue(dst.elems[j], src.elems[j], allocators)
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.
@@ -191,7 +165,7 @@ func (e *JsonValueArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(JsonValue)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -211,7 +185,7 @@ func (e *JsonValueArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.JsonValue.Alloc()
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

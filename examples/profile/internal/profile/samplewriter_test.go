@@ -24,14 +24,14 @@ import (
 func genSampleRecords(random *rand.Rand, schem *schema.Schema) (records []Sample) {
 	const recCount = 1000
 	var record Sample
-	allocators := &Allocators{}
-	record.Init(allocators)
+	record.Init()
 
 	records = make([]Sample, recCount)
+	allocators := &Allocators{}
 	for i := 0; i < recCount; i++ {
 		record.mutateRandom(random, schem)
-		records[i].Init(allocators)
-		records[i].CopyFrom(&record)
+		records[i].Init()
+		records[i].CopyFrom(&record, allocators)
 	}
 
 	return records
@@ -102,11 +102,12 @@ func TestSampleWriteRead(t *testing.T) {
 				// Generate records pseudo-randomly
 				records := genSampleRecords(random, schem)
 				// Write the records
+				allocators := &Allocators{}
 				for i := 0; i < len(records); i++ {
 					if j == 0 && i == 26 {
 						_ = i
 					}
-					writer.Record.CopyFrom(&records[i])
+					writer.Record.CopyFrom(&records[i], allocators)
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 				}

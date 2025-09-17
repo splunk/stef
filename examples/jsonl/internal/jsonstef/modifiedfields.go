@@ -15,9 +15,6 @@ type modifiedFields struct {
 
 	// the bit that corresponds to this struct's field in the parent struct
 	parentBit uint64
-
-	refNum uint64
-	frozen bool
 }
 
 func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -41,36 +38,18 @@ func (m *modifiedFields) markParentModified() {
 }
 
 func (m *modifiedFields) markModifiedSlow(fieldBit uint64) {
-	if m.frozen {
-		panic("attempt to modify a frozen struct")
-	}
-	// Reset refNum on modification. Since the object has changed, the refNum is no longer valid.
-	m.refNum = 0
 	m.mask |= fieldBit
 	child := m
 	parent := m.parent
 	for parent != nil {
-		if parent.frozen {
-			panic("attempt to modify a frozen struct")
-		}
-
 		if parent.mask&child.parentBit == 0 {
 			parent.mask |= child.parentBit
-			parent.refNum = 0
 			child = parent
 			parent = parent.parent
 		} else {
 			break
 		}
 	}
-}
-
-func (m *modifiedFields) freeze() {
-	m.frozen = true
-}
-
-func (m *modifiedFields) isFrozen() bool {
-	return m.frozen
 }
 
 func (m *modifiedFields) markUnmodifiedAll() {

@@ -51,7 +51,7 @@ func NewMetricsWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*MetricsWrit
 		}
 	}
 
-	writer.Record.Init(&writer.state.Allocators)
+	writer.Record.Init()
 	writer.state.Init(&writer.opts)
 	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
 

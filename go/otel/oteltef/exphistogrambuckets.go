@@ -22,8 +22,6 @@ type ExpHistogramBuckets struct {
 	offset       int64
 	bucketCounts Uint64Array
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -37,22 +35,28 @@ const (
 )
 
 // Init must be called once, before the ExpHistogramBuckets is used.
-func (s *ExpHistogramBuckets) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *ExpHistogramBuckets) Init() {
+	s.init(nil, 0)
 }
 
-func NewExpHistogramBuckets(allocators *Allocators) *ExpHistogramBuckets {
+func NewExpHistogramBuckets() *ExpHistogramBuckets {
 	var s ExpHistogramBuckets
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *ExpHistogramBuckets) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *ExpHistogramBuckets) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.bucketCounts.init(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts, allocators)
+	s.bucketCounts.init(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts)
+}
+
+func (s *ExpHistogramBuckets) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.bucketCounts.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -72,24 +76,13 @@ func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *ExpHistogramBuckets) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *ExpHistogramBuckets) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *ExpHistogramBuckets) Offset() int64 {
 	return s.offset
 }
 
 // SetOffset sets the value of Offset field.
 func (s *ExpHistogramBuckets) SetOffset(v int64) {
-	if s.offset != v {
+	if !pkg.Int64Equal(s.offset, v) {
 		s.offset = v
 		s.markOffsetModified()
 	}
@@ -144,25 +137,12 @@ func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *ExpHistogramBuckets) canBeShared() bool {
-	return s.isFrozen()
-}
-
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *ExpHistogramBuckets) CloneShared() ExpHistogramBuckets {
-
-	return s.Clone()
-}
-
-func (s *ExpHistogramBuckets) Clone() ExpHistogramBuckets {
+func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
 
 	c := ExpHistogramBuckets{
 
-		allocators:   s.allocators,
 		offset:       s.offset,
-		bucketCounts: s.bucketCounts.CloneShared(),
+		bucketCounts: s.bucketCounts.Clone(allocators),
 	}
 	return c
 }
@@ -176,16 +156,14 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
-
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
-
-	dst.SetOffset(src.offset)
-	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts)
+func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets, allocators *Allocators) {
+	dst.offset = src.offset
+	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -30,12 +30,8 @@ type Metric struct {
 	aggregationTemporality uint64
 	monotonic              bool
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
-	// refNum is non-zero when the struct is stored in a dictionary.
-	//refNum uint64
 }
 
 const MetricStructName = "Metric"
@@ -53,23 +49,30 @@ const (
 )
 
 // Init must be called once, before the Metric is used.
-func (s *Metric) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Metric) Init() {
+	s.init(nil, 0)
 }
 
-func NewMetric(allocators *Allocators) *Metric {
+func NewMetric() *Metric {
 	var s Metric
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Metric) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Metric) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.metadata.init(&s.modifiedFields, fieldModifiedMetricMetadata, allocators)
-	s.histogramBounds.init(&s.modifiedFields, fieldModifiedMetricHistogramBounds, allocators)
+	s.metadata.init(&s.modifiedFields, fieldModifiedMetricMetadata)
+	s.histogramBounds.init(&s.modifiedFields, fieldModifiedMetricHistogramBounds)
+}
+
+func (s *Metric) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.metadata.initAlloc(&s.modifiedFields, fieldModifiedMetricMetadata, allocators)
+	s.histogramBounds.initAlloc(&s.modifiedFields, fieldModifiedMetricHistogramBounds, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -96,24 +99,13 @@ func (s *Metric) fixParent(parentModifiedFields *modifiedFields) {
 	s.histogramBounds.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Metric) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Metric) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Metric) Name() string {
 	return s.name
 }
 
 // SetName sets the value of Name field.
 func (s *Metric) SetName(v string) {
-	if s.name != v {
+	if !pkg.StringEqual(s.name, v) {
 		s.name = v
 		s.markNameModified()
 	}
@@ -137,7 +129,7 @@ func (s *Metric) Description() string {
 
 // SetDescription sets the value of Description field.
 func (s *Metric) SetDescription(v string) {
-	if s.description != v {
+	if !pkg.StringEqual(s.description, v) {
 		s.description = v
 		s.markDescriptionModified()
 	}
@@ -161,7 +153,7 @@ func (s *Metric) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *Metric) SetUnit(v string) {
-	if s.unit != v {
+	if !pkg.StringEqual(s.unit, v) {
 		s.unit = v
 		s.markUnitModified()
 	}
@@ -185,7 +177,7 @@ func (s *Metric) Type() MetricType {
 
 // SetType sets the value of Type field.
 func (s *Metric) SetType(v MetricType) {
-	if s.type_ != uint64(v) {
+	if !pkg.Uint64Equal(s.type_, uint64(v)) {
 		s.type_ = uint64(v)
 		s.markTypeModified()
 	}
@@ -241,7 +233,7 @@ func (s *Metric) AggregationTemporality() uint64 {
 
 // SetAggregationTemporality sets the value of AggregationTemporality field.
 func (s *Metric) SetAggregationTemporality(v uint64) {
-	if s.aggregationTemporality != v {
+	if !pkg.Uint64Equal(s.aggregationTemporality, v) {
 		s.aggregationTemporality = v
 		s.markAggregationTemporalityModified()
 	}
@@ -265,7 +257,7 @@ func (s *Metric) Monotonic() bool {
 
 // SetMonotonic sets the value of Monotonic field.
 func (s *Metric) SetMonotonic(v bool) {
-	if s.monotonic != v {
+	if !pkg.BoolEqual(s.monotonic, v) {
 		s.monotonic = v
 		s.markMonotonicModified()
 	}
@@ -331,35 +323,17 @@ func (s *Metric) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Metric) canBeShared() bool {
-	return s.isFrozen()
-}
+func (s *Metric) Clone(allocators *Allocators) *Metric {
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Metric) CloneShared() *Metric {
-
-	if s.isFrozen() {
-		// If s is frozen it means it is safe to share without cloning.
-		return s
-	}
-
-	return s.Clone()
-}
-
-func (s *Metric) Clone() *Metric {
-
-	c := s.allocators.Metric.Alloc()
+	c := allocators.Metric.Alloc()
 	*c = Metric{
 
-		allocators:             s.allocators,
 		name:                   s.name,
 		description:            s.description,
 		unit:                   s.unit,
 		type_:                  s.type_,
-		metadata:               s.metadata.CloneShared(),
-		histogramBounds:        s.histogramBounds.CloneShared(),
+		metadata:               s.metadata.Clone(allocators),
+		histogramBounds:        s.histogramBounds.Clone(allocators),
 		aggregationTemporality: s.aggregationTemporality,
 		monotonic:              s.monotonic,
 	}
@@ -375,16 +349,6 @@ func (s *Metric) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyMetric(dst *Metric, src *Metric) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = src.allocators.Metric.Alloc()
-		dst.init(nil, 0, src.allocators)
-	}
-
 	dst.SetName(src.name)
 	dst.SetDescription(src.description)
 	dst.SetUnit(src.unit)
@@ -396,21 +360,15 @@ func copyMetric(dst *Metric, src *Metric) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMetric(dst *Metric, src *Metric) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-
-	dst.SetName(src.name)
-	dst.SetDescription(src.description)
-	dst.SetUnit(src.unit)
-	dst.SetType(MetricType(src.type_))
-	copyToNewAttributes(&dst.metadata, &src.metadata)
-	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds)
-	dst.SetAggregationTemporality(src.aggregationTemporality)
-	dst.SetMonotonic(src.monotonic)
+func copyToNewMetric(dst *Metric, src *Metric, allocators *Allocators) {
+	dst.name = src.name
+	dst.description = src.description
+	dst.unit = src.unit
+	dst.type_ = src.type_
+	copyToNewAttributes(&dst.metadata, &src.metadata, allocators)
+	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds, allocators)
+	dst.aggregationTemporality = src.aggregationTemporality
+	dst.monotonic = src.monotonic
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -630,56 +588,24 @@ type MetricEncoder struct {
 
 type MetricEntry struct {
 	refNum uint64
-	//val  *Metric
+	val    *Metric
 }
 
 // MetricEncoderDict is the dictionary used by MetricEncoder
 type MetricEncoderDict struct {
-	dict  b.Tree[*Metric, MetricEntry]
-	slice []*Metric
-	//m       map[*Metric]uint64
+	dict    b.Tree[*Metric, MetricEntry]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *MetricEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Metric, MetricEntry](CmpMetric)
-	d.slice = make([]*Metric, 1) // refNum 0 is reserved for nil Metric
-	//d.m = make(map[*Metric]uint64)
 	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
 	d.limiter = limiter
-}
-
-func (d *MetricEncoderDict) Get(val *Metric) (uint64, bool) {
-	refNum := val.modifiedFields.refNum
-	if refNum != 0 {
-
-		// Verify that the refNum is still valid. It may become invalid if for example
-		// the dictionaries are reset during encoding and refNums are reused.
-		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
-			return refNum, true
-		}
-
-	}
-	if entry, ok := d.dict.Get(val); ok {
-		return entry.refNum, true
-	}
-	return 0, false
-}
-
-func (d *MetricEncoderDict) Add(val *Metric) {
-	refNum := uint64(d.dict.Len())
-	val.modifiedFields.refNum = refNum
-	d.slice = append(d.slice, val)
-
-	clone := val.Clone()
-	clone.Freeze()
-	d.dict.Set(clone, MetricEntry{refNum: refNum})
 }
 
 func (d *MetricEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
-	d.slice = d.slice[:1]
 }
 
 func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -845,12 +771,13 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	var bitCount uint
 
 	// Check if the Metric exists in the dictionary.
-	if refNum, exists := e.dict.Get(val); exists {
+	entry, exists := e.dict.dict.Get(val)
+	if exists {
 		// The Metric exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(refNum)
+		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -862,8 +789,10 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	}
 
 	// The Metric does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val)
-	e.dict.limiter.AddDictElemSize(val.byteSize())
+	valInDict := val.Clone(e.allocators)
+	entry = MetricEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
+	e.dict.dict.Set(valInDict, entry)
+	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Metric follows.
 	e.buf.WriteBit(1)
@@ -1247,7 +1176,7 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -1320,10 +1249,6 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
-	// Freeze the value. It is now in the dictionary and must not be modified.
-	// This also improves performance of any encode operations that use this
-	// value as it can be safely shared in encoder's dictionary without cloning.
-	val.Freeze()
 
 	return nil
 }

@@ -26,8 +26,6 @@ type Metrics struct {
 	attributes Attributes
 	point      Point
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -45,30 +43,44 @@ const (
 )
 
 // Init must be called once, before the Metrics is used.
-func (s *Metrics) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Metrics) Init() {
+	s.init(nil, 0)
 }
 
-func NewMetrics(allocators *Allocators) *Metrics {
+func NewMetrics() *Metrics {
 	var s Metrics
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Metrics) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Metrics) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.envelope.init(&s.modifiedFields, fieldModifiedMetricsEnvelope, allocators)
+	s.envelope.init(&s.modifiedFields, fieldModifiedMetricsEnvelope)
+	s.metric = &Metric{}
+	s.metric.init(&s.modifiedFields, fieldModifiedMetricsMetric)
+	s.resource = &Resource{}
+	s.resource.init(&s.modifiedFields, fieldModifiedMetricsResource)
+	s.scope = &Scope{}
+	s.scope.init(&s.modifiedFields, fieldModifiedMetricsScope)
+	s.attributes.init(&s.modifiedFields, fieldModifiedMetricsAttributes)
+	s.point.init(&s.modifiedFields, fieldModifiedMetricsPoint)
+}
+
+func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.envelope.initAlloc(&s.modifiedFields, fieldModifiedMetricsEnvelope, allocators)
 	s.metric = allocators.Metric.Alloc()
-	s.metric.init(&s.modifiedFields, fieldModifiedMetricsMetric, allocators)
+	s.metric.initAlloc(&s.modifiedFields, fieldModifiedMetricsMetric, allocators)
 	s.resource = allocators.Resource.Alloc()
-	s.resource.init(&s.modifiedFields, fieldModifiedMetricsResource, allocators)
+	s.resource.initAlloc(&s.modifiedFields, fieldModifiedMetricsResource, allocators)
 	s.scope = allocators.Scope.Alloc()
-	s.scope.init(&s.modifiedFields, fieldModifiedMetricsScope, allocators)
-	s.attributes.init(&s.modifiedFields, fieldModifiedMetricsAttributes, allocators)
-	s.point.init(&s.modifiedFields, fieldModifiedMetricsPoint, allocators)
+	s.scope.initAlloc(&s.modifiedFields, fieldModifiedMetricsScope, allocators)
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedMetricsAttributes, allocators)
+	s.point.initAlloc(&s.modifiedFields, fieldModifiedMetricsPoint, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -103,17 +115,6 @@ func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
 	s.point.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Metrics) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Metrics) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Metrics) Envelope() *Envelope {
 	return &s.envelope
 }
@@ -134,14 +135,6 @@ func (s *Metrics) Metric() *Metric {
 	return s.metric
 }
 
-// SetMetric sets the value of Metric field.
-func (s *Metrics) SetMetric(v *Metric) {
-	if !s.metric.IsEqual(v) {
-		s.metric = v
-		s.markMetricModified()
-	}
-}
-
 func (s *Metrics) markMetricModified() {
 	s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 }
@@ -158,14 +151,6 @@ func (s *Metrics) Resource() *Resource {
 	return s.resource
 }
 
-// SetResource sets the value of Resource field.
-func (s *Metrics) SetResource(v *Resource) {
-	if !s.resource.IsEqual(v) {
-		s.resource = v
-		s.markResourceModified()
-	}
-}
-
 func (s *Metrics) markResourceModified() {
 	s.modifiedFields.markModified(fieldModifiedMetricsResource)
 }
@@ -180,14 +165,6 @@ func (s *Metrics) IsResourceModified() bool {
 
 func (s *Metrics) Scope() *Scope {
 	return s.scope
-}
-
-// SetScope sets the value of Scope field.
-func (s *Metrics) SetScope(v *Scope) {
-	if !s.scope.IsEqual(v) {
-		s.scope = v
-		s.markScopeModified()
-	}
 }
 
 func (s *Metrics) markScopeModified() {
@@ -286,29 +263,16 @@ func (s *Metrics) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Metrics) canBeShared() bool {
-	return s.isFrozen()
-}
-
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Metrics) CloneShared() Metrics {
-
-	return s.Clone()
-}
-
-func (s *Metrics) Clone() Metrics {
+func (s *Metrics) Clone(allocators *Allocators) Metrics {
 
 	c := Metrics{
 
-		allocators: s.allocators,
-		envelope:   s.envelope.CloneShared(),
-		metric:     s.metric.CloneShared(),
-		resource:   s.resource.CloneShared(),
-		scope:      s.scope.CloneShared(),
-		attributes: s.attributes.CloneShared(),
-		point:      s.point.CloneShared(),
+		envelope:   s.envelope.Clone(allocators),
+		metric:     s.metric.Clone(allocators),
+		resource:   s.resource.Clone(allocators),
+		scope:      s.scope.Clone(allocators),
+		attributes: s.attributes.Clone(allocators),
+		point:      s.point.Clone(allocators),
 	}
 	return c
 }
@@ -322,87 +286,52 @@ func (s *Metrics) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyMetrics(dst *Metrics, src *Metrics) {
-
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.metric != nil {
-		if src.metric.canBeShared() {
-			dst.metric = src.metric
-		} else {
-			if dst.metric == nil {
-				dst.metric = dst.allocators.Metric.Alloc()
-				dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric, dst.allocators)
-			}
-			copyMetric(dst.metric, src.metric)
+		if dst.metric == nil {
+			dst.metric = &Metric{}
+			dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
 		}
-	} else {
-		dst.metric = nil
+		copyMetric(dst.metric, src.metric)
 	}
 	if src.resource != nil {
-		if src.resource.canBeShared() {
-			dst.resource = src.resource
-		} else {
-			if dst.resource == nil {
-				dst.resource = dst.allocators.Resource.Alloc()
-				dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource, dst.allocators)
-			}
-			copyResource(dst.resource, src.resource)
+		if dst.resource == nil {
+			dst.resource = &Resource{}
+			dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
 		}
-	} else {
-		dst.resource = nil
+		copyResource(dst.resource, src.resource)
 	}
 	if src.scope != nil {
-		if src.scope.canBeShared() {
-			dst.scope = src.scope
-		} else {
-			if dst.scope == nil {
-				dst.scope = dst.allocators.Scope.Alloc()
-				dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope, dst.allocators)
-			}
-			copyScope(dst.scope, src.scope)
+		if dst.scope == nil {
+			dst.scope = &Scope{}
+			dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
 		}
-	} else {
-		dst.scope = nil
+		copyScope(dst.scope, src.scope)
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
 	copyPoint(&dst.point, &src.point)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMetrics(dst *Metrics, src *Metrics) {
-
-	copyToNewEnvelope(&dst.envelope, &src.envelope)
-
+func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
+	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
 	if src.metric != nil {
-		if src.metric.canBeShared() {
-			dst.metric = src.metric
-		} else {
-			dst.metric = dst.allocators.Metric.Alloc()
-			dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric, dst.allocators)
-			copyToNewMetric(dst.metric, src.metric)
-		}
+		dst.metric = allocators.Metric.Alloc()
+		dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
+		copyToNewMetric(dst.metric, src.metric, allocators)
 	}
-
 	if src.resource != nil {
-		if src.resource.canBeShared() {
-			dst.resource = src.resource
-		} else {
-			dst.resource = dst.allocators.Resource.Alloc()
-			dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource, dst.allocators)
-			copyToNewResource(dst.resource, src.resource)
-		}
+		dst.resource = allocators.Resource.Alloc()
+		dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
+		copyToNewResource(dst.resource, src.resource, allocators)
 	}
-
 	if src.scope != nil {
-		if src.scope.canBeShared() {
-			dst.scope = src.scope
-		} else {
-			dst.scope = dst.allocators.Scope.Alloc()
-			dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope, dst.allocators)
-			copyToNewScope(dst.scope, src.scope)
-		}
+		dst.scope = allocators.Scope.Alloc()
+		dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
+		copyToNewScope(dst.scope, src.scope, allocators)
 	}
-	copyToNewAttributes(&dst.attributes, &src.attributes)
-	copyToNewPoint(&dst.point, &src.point)
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	copyToNewPoint(&dst.point, &src.point, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -1153,7 +1082,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		// Field is changed and is present, decode it.
 		if val.metric == nil {
 			val.metric = d.allocators.Metric.Alloc()
-			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric, d.allocators)
+			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
 		}
 
 		err = d.metricDecoder.Decode(&val.metric)
@@ -1166,7 +1095,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		// Field is changed and is present, decode it.
 		if val.resource == nil {
 			val.resource = d.allocators.Resource.Alloc()
-			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource, d.allocators)
+			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
 		}
 
 		err = d.resourceDecoder.Decode(&val.resource)
@@ -1179,7 +1108,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		// Field is changed and is present, decode it.
 		if val.scope == nil {
 			val.scope = d.allocators.Scope.Alloc()
-			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope, d.allocators)
+			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
 		}
 
 		err = d.scopeDecoder.Decode(&val.scope)

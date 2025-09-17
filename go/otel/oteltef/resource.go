@@ -25,12 +25,8 @@ type Resource struct {
 	attributes             Attributes
 	droppedAttributesCount uint64
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
-	// refNum is non-zero when the struct is stored in a dictionary.
-	//refNum uint64
 }
 
 const ResourceStructName = "Resource"
@@ -43,22 +39,28 @@ const (
 )
 
 // Init must be called once, before the Resource is used.
-func (s *Resource) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Resource) Init() {
+	s.init(nil, 0)
 }
 
-func NewResource(allocators *Allocators) *Resource {
+func NewResource() *Resource {
 	var s Resource
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Resource) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Resource) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.attributes.init(&s.modifiedFields, fieldModifiedResourceAttributes, allocators)
+	s.attributes.init(&s.modifiedFields, fieldModifiedResourceAttributes)
+}
+
+func (s *Resource) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedResourceAttributes, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -79,24 +81,13 @@ func (s *Resource) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Resource) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Resource) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Resource) SchemaURL() string {
 	return s.schemaURL
 }
 
 // SetSchemaURL sets the value of SchemaURL field.
 func (s *Resource) SetSchemaURL(v string) {
-	if s.schemaURL != v {
+	if !pkg.StringEqual(s.schemaURL, v) {
 		s.schemaURL = v
 		s.markSchemaURLModified()
 	}
@@ -136,7 +127,7 @@ func (s *Resource) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Resource) SetDroppedAttributesCount(v uint64) {
-	if s.droppedAttributesCount != v {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -179,31 +170,13 @@ func (s *Resource) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Resource) canBeShared() bool {
-	return s.isFrozen()
-}
+func (s *Resource) Clone(allocators *Allocators) *Resource {
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Resource) CloneShared() *Resource {
-
-	if s.isFrozen() {
-		// If s is frozen it means it is safe to share without cloning.
-		return s
-	}
-
-	return s.Clone()
-}
-
-func (s *Resource) Clone() *Resource {
-
-	c := s.allocators.Resource.Alloc()
+	c := allocators.Resource.Alloc()
 	*c = Resource{
 
-		allocators:             s.allocators,
 		schemaURL:              s.schemaURL,
-		attributes:             s.attributes.CloneShared(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
 	return c
@@ -218,32 +191,16 @@ func (s *Resource) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyResource(dst *Resource, src *Resource) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = src.allocators.Resource.Alloc()
-		dst.init(nil, 0, src.allocators)
-	}
-
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewResource(dst *Resource, src *Resource) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-
-	dst.SetSchemaURL(src.schemaURL)
-	copyToNewAttributes(&dst.attributes, &src.attributes)
-	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+func copyToNewResource(dst *Resource, src *Resource, allocators *Allocators) {
+	dst.schemaURL = src.schemaURL
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -372,56 +329,24 @@ type ResourceEncoder struct {
 
 type ResourceEntry struct {
 	refNum uint64
-	//val  *Resource
+	val    *Resource
 }
 
 // ResourceEncoderDict is the dictionary used by ResourceEncoder
 type ResourceEncoderDict struct {
-	dict  b.Tree[*Resource, ResourceEntry]
-	slice []*Resource
-	//m       map[*Resource]uint64
+	dict    b.Tree[*Resource, ResourceEntry]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *ResourceEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Resource, ResourceEntry](CmpResource)
-	d.slice = make([]*Resource, 1) // refNum 0 is reserved for nil Resource
-	//d.m = make(map[*Resource]uint64)
 	d.dict.Set(nil, ResourceEntry{}) // nil Resource is RefNum 0
 	d.limiter = limiter
-}
-
-func (d *ResourceEncoderDict) Get(val *Resource) (uint64, bool) {
-	refNum := val.modifiedFields.refNum
-	if refNum != 0 {
-
-		// Verify that the refNum is still valid. It may become invalid if for example
-		// the dictionaries are reset during encoding and refNums are reused.
-		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
-			return refNum, true
-		}
-
-	}
-	if entry, ok := d.dict.Get(val); ok {
-		return entry.refNum, true
-	}
-	return 0, false
-}
-
-func (d *ResourceEncoderDict) Add(val *Resource) {
-	refNum := uint64(d.dict.Len())
-	val.modifiedFields.refNum = refNum
-	d.slice = append(d.slice, val)
-
-	clone := val.Clone()
-	clone.Freeze()
-	d.dict.Set(clone, ResourceEntry{refNum: refNum})
 }
 
 func (d *ResourceEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, ResourceEntry{}) // nil Resource is RefNum 0
-	d.slice = d.slice[:1]
 }
 
 func (e *ResourceEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -511,12 +436,13 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	var bitCount uint
 
 	// Check if the Resource exists in the dictionary.
-	if refNum, exists := e.dict.Get(val); exists {
+	entry, exists := e.dict.dict.Get(val)
+	if exists {
 		// The Resource exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(refNum)
+		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -528,8 +454,10 @@ func (e *ResourceEncoder) Encode(val *Resource) {
 	}
 
 	// The Resource does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val)
-	e.dict.limiter.AddDictElemSize(val.byteSize())
+	valInDict := val.Clone(e.allocators)
+	entry = ResourceEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
+	e.dict.dict.Set(valInDict, entry)
+	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Resource follows.
 	e.buf.WriteBit(1)
@@ -741,7 +669,7 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -774,10 +702,6 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
-	// Freeze the value. It is now in the dictionary and must not be modified.
-	// This also improves performance of any encode operations that use this
-	// value as it can be safely shared in encoder's dictionary without cloning.
-	val.Freeze()
 
 	return nil
 }

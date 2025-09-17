@@ -19,16 +19,17 @@ var _ = (*strings.Builder)(nil)
 type SampleValueArray struct {
 	elems []*SampleValue
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *SampleValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *SampleValueArray) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *SampleValueArray) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -50,15 +51,15 @@ func (e *SampleValueArray) canBeShared() bool {
 }
 
 // Clone() creates a deep copy of SampleValueArray
-func (e *SampleValueArray) Clone() SampleValueArray {
-	clone := SampleValueArray{allocators: e.allocators}
-	copyToNewSampleValueArray(&clone, e)
+func (e *SampleValueArray) Clone(allocators *Allocators) SampleValueArray {
+	var clone SampleValueArray
+	copyToNewSampleValueArray(&clone, e, allocators)
 	return clone
 }
 
-func (e *SampleValueArray) CloneShared() SampleValueArray {
+func (e *SampleValueArray) CloneShared(allocators *Allocators) SampleValueArray {
 	// Clone and CloneShared are the same.
-	return e.Clone()
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -101,7 +102,7 @@ func (e *SampleValueArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) *SampleValueArray {
+func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) *SampleValueArray {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -117,7 +118,7 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) *SampleV
 		if src.elems[i].canBeShared() {
 			dst.elems[i] = src.elems[i]
 		} else {
-			copySampleValue(dst.elems[i], src.elems[i])
+			copySampleValue(dst.elems[i], src.elems[i], allocators)
 		}
 		isModified = true
 	}
@@ -135,9 +136,9 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) *SampleV
 			if src.elems[j].canBeShared() {
 				dst.elems[j] = src.elems[i]
 			} else {
-				dst.elems[j] = dst.allocators.SampleValue.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-				copyToNewSampleValue(dst.elems[j], src.elems[j])
+				dst.elems[j] = allocators.SampleValue.Alloc()
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+				copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
 			}
 		}
 	}
@@ -148,7 +149,7 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) *SampleV
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray) *SampleValueArray {
+func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray, allocators *Allocators) *SampleValueArray {
 	if len(src.elems) == 0 {
 		return dst
 	}
@@ -160,10 +161,10 @@ func copyToNewSampleValueArray(dst *SampleValueArray, src *SampleValueArray) *Sa
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			dst.elems[j] = dst.allocators.SampleValue.Alloc()
-			dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
+			dst.elems[j] = allocators.SampleValue.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Copy the element.
-			copyToNewSampleValue(dst.elems[j], src.elems[j])
+			copyToNewSampleValue(dst.elems[j], src.elems[j], allocators)
 		}
 	}
 
@@ -191,7 +192,7 @@ func (e *SampleValueArray) EnsureLen(newLen int) {
 		// Initialize newlly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = new(SampleValue)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, e.allocators)
+			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
 		}
 	} else if oldLen > newLen {
 		// Shrink it
@@ -211,7 +212,7 @@ func (e *SampleValueArray) ensureLen(newLen int, allocators *Allocators) {
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.SampleValue.Alloc()
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit, allocators)
+			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 	} else if oldLen > newLen {
 		// Shrink it

@@ -21,16 +21,17 @@ var _ = (*strings.Builder)(nil)
 type Uint64Array struct {
 	elems []uint64
 
-	allocators *Allocators
-
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
 }
 
-func (e *Uint64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (e *Uint64Array) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	e.parentModifiedFields = parentModifiedFields
 	e.parentModifiedBit = parentModifiedBit
-	e.allocators = allocators
+}
+
+func (e *Uint64Array) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	e.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the array to its initial state, as if init() was just called.
@@ -46,21 +47,11 @@ func (e *Uint64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-func (e *Uint64Array) canBeShared() bool {
-	// An array can never be shared.
-	return false
-}
-
 // Clone() creates a deep copy of Uint64Array
-func (e *Uint64Array) Clone() Uint64Array {
-	clone := Uint64Array{allocators: e.allocators}
-	copyToNewUint64Array(&clone, e)
+func (e *Uint64Array) Clone(allocators *Allocators) Uint64Array {
+	var clone Uint64Array
+	copyToNewUint64Array(&clone, e, allocators)
 	return clone
-}
-
-func (e *Uint64Array) CloneShared() Uint64Array {
-	// Clone and CloneShared are the same.
-	return e.Clone()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -104,7 +95,7 @@ func (e *Uint64Array) markUnmodifiedRecursively() {
 
 }
 
-// Update from src to dst, overwriting existing data in dst.
+// Copy from src to dst, overwriting existing data in dst.
 func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
 	isModified := false
 
@@ -135,7 +126,7 @@ func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array) {
+func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array, allocators *Allocators) {
 	if len(src.elems) == 0 {
 		return
 	}

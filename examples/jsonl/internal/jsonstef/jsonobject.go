@@ -14,9 +14,9 @@ import (
 // JsonObject is a multimap, (aka an associative array or a list) of key value
 // pairs from string to JsonValue.
 type JsonObject struct {
-	elems         []JsonObjectElem
-	initedCount   int
-	allocators    *Allocators
+	elems       []JsonObjectElem
+	initedCount int
+
 	modifiedElems modifiedFieldsMultimap
 }
 
@@ -33,9 +33,12 @@ func (e *JsonObjectElem) Value() *JsonValue {
 	return &e.value
 }
 
-func (m *JsonObject) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (m *JsonObject) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
-	m.allocators = allocators
+}
+
+func (m *JsonObject) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	m.init(parentModifiedFields, parentModifiedBit)
 }
 
 // reset the multimap to its initial state, as if init() was just called.
@@ -52,15 +55,10 @@ func (m *JsonObject) fixParent(parentModifiedFields *modifiedFields) {
 }
 
 // Clone() creates a deep copy of JsonObject
-func (m *JsonObject) Clone() JsonObject {
-	clone := JsonObject{allocators: m.allocators}
-	copyToNewJsonObject(&clone, m)
+func (m *JsonObject) Clone(allocators *Allocators) JsonObject {
+	clone := JsonObject{}
+	copyToNewJsonObject(&clone, m, allocators)
 	return clone
-}
-
-func (m *JsonObject) CloneShared() JsonObject {
-	// Clone and CloneShared are the same.
-	return m.Clone()
 }
 
 // Len returns the number of elements in the multimap.
@@ -93,7 +91,7 @@ func (m *JsonObject) EnsureLen(newLen int) {
 
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i), m.allocators)
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
 		}
 		if m.initedCount < newLen {
 			m.initedCount = newLen
@@ -152,7 +150,7 @@ func copyJsonObject(dst *JsonObject, src *JsonObject) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewJsonObject(dst *JsonObject, src *JsonObject) {
+func copyToNewJsonObject(dst *JsonObject, src *JsonObject, allocators *Allocators) {
 	if len(src.elems) == 0 {
 		return
 	}
@@ -161,7 +159,7 @@ func copyToNewJsonObject(dst *JsonObject, src *JsonObject) {
 	for i := 0; i < len(src.elems); i++ {
 		dst.elems[i].key = src.elems[i].key
 
-		copyToNewJsonValue(&dst.elems[i].value, &src.elems[i].value)
+		copyToNewJsonValue(&dst.elems[i].value, &src.elems[i].value, allocators)
 	}
 
 }

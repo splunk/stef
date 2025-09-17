@@ -22,8 +22,6 @@ type SpanStatus struct {
 	message string
 	code    uint64
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 }
@@ -37,20 +35,25 @@ const (
 )
 
 // Init must be called once, before the SpanStatus is used.
-func (s *SpanStatus) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *SpanStatus) Init() {
+	s.init(nil, 0)
 }
 
-func NewSpanStatus(allocators *Allocators) *SpanStatus {
+func NewSpanStatus() *SpanStatus {
 	var s SpanStatus
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *SpanStatus) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *SpanStatus) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
+
+}
+
+func (s *SpanStatus) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
 
 }
 
@@ -70,24 +73,13 @@ func (s *SpanStatus) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *SpanStatus) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *SpanStatus) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *SpanStatus) Message() string {
 	return s.message
 }
 
 // SetMessage sets the value of Message field.
 func (s *SpanStatus) SetMessage(v string) {
-	if s.message != v {
+	if !pkg.StringEqual(s.message, v) {
 		s.message = v
 		s.markMessageModified()
 	}
@@ -111,7 +103,7 @@ func (s *SpanStatus) Code() uint64 {
 
 // SetCode sets the value of Code field.
 func (s *SpanStatus) SetCode(v uint64) {
-	if s.code != v {
+	if !pkg.Uint64Equal(s.code, v) {
 		s.code = v
 		s.markCodeModified()
 	}
@@ -147,25 +139,12 @@ func (s *SpanStatus) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *SpanStatus) canBeShared() bool {
-	return s.isFrozen()
-}
-
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *SpanStatus) CloneShared() SpanStatus {
-
-	return s.Clone()
-}
-
-func (s *SpanStatus) Clone() SpanStatus {
+func (s *SpanStatus) Clone(allocators *Allocators) SpanStatus {
 
 	c := SpanStatus{
 
-		allocators: s.allocators,
-		message:    s.message,
-		code:       s.code,
+		message: s.message,
+		code:    s.code,
 	}
 	return c
 }
@@ -179,16 +158,14 @@ func (s *SpanStatus) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
-
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus) {
-
-	dst.SetMessage(src.message)
-	dst.SetCode(src.code)
+func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus, allocators *Allocators) {
+	dst.message = src.message
+	dst.code = src.code
 }
 
 // CopyFrom() performs a deep copy from src.

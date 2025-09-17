@@ -27,12 +27,8 @@ type Scope struct {
 	attributes             Attributes
 	droppedAttributesCount uint64
 
-	allocators *Allocators
-
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
-	// refNum is non-zero when the struct is stored in a dictionary.
-	//refNum uint64
 }
 
 const ScopeStructName = "Scope"
@@ -47,22 +43,28 @@ const (
 )
 
 // Init must be called once, before the Scope is used.
-func (s *Scope) Init(allocators *Allocators) {
-	s.init(nil, 0, allocators)
+func (s *Scope) Init() {
+	s.init(nil, 0)
 }
 
-func NewScope(allocators *Allocators) *Scope {
+func NewScope() *Scope {
 	var s Scope
-	s.init(nil, 0, allocators)
+	s.init(nil, 0)
 	return &s
 }
 
-func (s *Scope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+func (s *Scope) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
-	s.allocators = allocators
 
-	s.attributes.init(&s.modifiedFields, fieldModifiedScopeAttributes, allocators)
+	s.attributes.init(&s.modifiedFields, fieldModifiedScopeAttributes)
+}
+
+func (s *Scope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+
+	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedScopeAttributes, allocators)
 }
 
 // reset the struct to its initial state, as if init() was just called.
@@ -85,24 +87,13 @@ func (s *Scope) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing without cloning
-// which can improve performance.
-func (s *Scope) Freeze() {
-	s.modifiedFields.freeze()
-}
-
-func (s *Scope) isFrozen() bool {
-	return s.modifiedFields.isFrozen()
-}
-
 func (s *Scope) Name() string {
 	return s.name
 }
 
 // SetName sets the value of Name field.
 func (s *Scope) SetName(v string) {
-	if s.name != v {
+	if !pkg.StringEqual(s.name, v) {
 		s.name = v
 		s.markNameModified()
 	}
@@ -126,7 +117,7 @@ func (s *Scope) Version() string {
 
 // SetVersion sets the value of Version field.
 func (s *Scope) SetVersion(v string) {
-	if s.version != v {
+	if !pkg.StringEqual(s.version, v) {
 		s.version = v
 		s.markVersionModified()
 	}
@@ -150,7 +141,7 @@ func (s *Scope) SchemaURL() string {
 
 // SetSchemaURL sets the value of SchemaURL field.
 func (s *Scope) SetSchemaURL(v string) {
-	if s.schemaURL != v {
+	if !pkg.StringEqual(s.schemaURL, v) {
 		s.schemaURL = v
 		s.markSchemaURLModified()
 	}
@@ -190,7 +181,7 @@ func (s *Scope) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Scope) SetDroppedAttributesCount(v uint64) {
-	if s.droppedAttributesCount != v {
+	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -241,33 +232,15 @@ func (s *Scope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
-func (s *Scope) canBeShared() bool {
-	return s.isFrozen()
-}
+func (s *Scope) Clone(allocators *Allocators) *Scope {
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Scope) CloneShared() *Scope {
-
-	if s.isFrozen() {
-		// If s is frozen it means it is safe to share without cloning.
-		return s
-	}
-
-	return s.Clone()
-}
-
-func (s *Scope) Clone() *Scope {
-
-	c := s.allocators.Scope.Alloc()
+	c := allocators.Scope.Alloc()
 	*c = Scope{
 
-		allocators:             s.allocators,
 		name:                   s.name,
 		version:                s.version,
 		schemaURL:              s.schemaURL,
-		attributes:             s.attributes.CloneShared(),
+		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
 	return c
@@ -282,16 +255,6 @@ func (s *Scope) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyScope(dst *Scope, src *Scope) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = src.allocators.Scope.Alloc()
-		dst.init(nil, 0, src.allocators)
-	}
-
 	dst.SetName(src.name)
 	dst.SetVersion(src.version)
 	dst.SetSchemaURL(src.schemaURL)
@@ -300,18 +263,12 @@ func copyScope(dst *Scope, src *Scope) {
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewScope(dst *Scope, src *Scope) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-
-	dst.SetName(src.name)
-	dst.SetVersion(src.version)
-	dst.SetSchemaURL(src.schemaURL)
-	copyToNewAttributes(&dst.attributes, &src.attributes)
-	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
+func copyToNewScope(dst *Scope, src *Scope, allocators *Allocators) {
+	dst.name = src.name
+	dst.version = src.version
+	dst.schemaURL = src.schemaURL
+	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
+	dst.droppedAttributesCount = src.droppedAttributesCount
 }
 
 // CopyFrom() performs a deep copy from src.
@@ -476,56 +433,24 @@ type ScopeEncoder struct {
 
 type ScopeEntry struct {
 	refNum uint64
-	//val  *Scope
+	val    *Scope
 }
 
 // ScopeEncoderDict is the dictionary used by ScopeEncoder
 type ScopeEncoderDict struct {
-	dict  b.Tree[*Scope, ScopeEntry]
-	slice []*Scope
-	//m       map[*Scope]uint64
+	dict    b.Tree[*Scope, ScopeEntry]
 	limiter *pkg.SizeLimiter
 }
 
 func (d *ScopeEncoderDict) Init(limiter *pkg.SizeLimiter) {
 	d.dict = *b.TreeNew[*Scope, ScopeEntry](CmpScope)
-	d.slice = make([]*Scope, 1) // refNum 0 is reserved for nil Scope
-	//d.m = make(map[*Scope]uint64)
 	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
 	d.limiter = limiter
-}
-
-func (d *ScopeEncoderDict) Get(val *Scope) (uint64, bool) {
-	refNum := val.modifiedFields.refNum
-	if refNum != 0 {
-
-		// Verify that the refNum is still valid. It may become invalid if for example
-		// the dictionaries are reset during encoding and refNums are reused.
-		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
-			return refNum, true
-		}
-
-	}
-	if entry, ok := d.dict.Get(val); ok {
-		return entry.refNum, true
-	}
-	return 0, false
-}
-
-func (d *ScopeEncoderDict) Add(val *Scope) {
-	refNum := uint64(d.dict.Len())
-	val.modifiedFields.refNum = refNum
-	d.slice = append(d.slice, val)
-
-	clone := val.Clone()
-	clone.Freeze()
-	d.dict.Set(clone, ScopeEntry{refNum: refNum})
 }
 
 func (d *ScopeEncoderDict) Reset() {
 	d.dict.Clear()
 	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
-	d.slice = d.slice[:1]
 }
 
 func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -641,12 +566,13 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	var bitCount uint
 
 	// Check if the Scope exists in the dictionary.
-	if refNum, exists := e.dict.Get(val); exists {
+	entry, exists := e.dict.dict.Get(val)
+	if exists {
 		// The Scope exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(refNum)
+		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
@@ -658,8 +584,10 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	}
 
 	// The Scope does not exist in the dictionary. Add it to the dictionary.
-	e.dict.Add(val)
-	e.dict.limiter.AddDictElemSize(val.byteSize())
+	valInDict := val.Clone(e.allocators)
+	entry = ScopeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
+	e.dict.dict.Set(valInDict, entry)
+	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
 
 	// Indicate that an encoded Scope follows.
 	e.buf.WriteBit(1)
@@ -933,7 +861,7 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone()
+	val := (*dstPtr).Clone(d.allocators)
 	*dstPtr = val
 
 	var err error
@@ -982,10 +910,6 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
-	// Freeze the value. It is now in the dictionary and must not be modified.
-	// This also improves performance of any encode operations that use this
-	// value as it can be safely shared in encoder's dictionary without cloning.
-	val.Freeze()
 
 	return nil
 }
