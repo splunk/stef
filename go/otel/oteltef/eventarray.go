@@ -45,11 +45,21 @@ func (e *EventArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *EventArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of EventArray
 func (e *EventArray) Clone(allocators *Allocators) EventArray {
 	var clone EventArray
 	copyToNewEventArray(&clone, e, allocators)
 	return clone
+}
+
+func (e *EventArray) CloneShared(allocators *Allocators) EventArray {
+	// Clone and CloneShared are the same for arrays.
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -91,7 +101,7 @@ func (e *EventArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
+// Update from src to dst, overwriting existing data in dst.
 func copyEventArray(dst *EventArray, src *EventArray) {
 	isModified := false
 
@@ -105,11 +115,16 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyEvent(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyEvent(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
 		elems := make([]Event, len(dst.elems)-minLen)
@@ -121,6 +136,7 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 			// Copy the element.
 			copyEvent(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
@@ -136,11 +152,15 @@ func copyToNewEventArray(dst *EventArray, src *EventArray, allocators *Allocator
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Event.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewEvent(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.Event.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewEvent(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 }
 

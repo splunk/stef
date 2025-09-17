@@ -45,11 +45,21 @@ func (e *ExemplarArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *ExemplarArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of ExemplarArray
 func (e *ExemplarArray) Clone(allocators *Allocators) ExemplarArray {
 	var clone ExemplarArray
 	copyToNewExemplarArray(&clone, e, allocators)
 	return clone
+}
+
+func (e *ExemplarArray) CloneShared(allocators *Allocators) ExemplarArray {
+	// Clone and CloneShared are the same for arrays.
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -91,7 +101,7 @@ func (e *ExemplarArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
+// Update from src to dst, overwriting existing data in dst.
 func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 	isModified := false
 
@@ -105,11 +115,16 @@ func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyExemplar(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyExemplar(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
 		elems := make([]Exemplar, len(dst.elems)-minLen)
@@ -121,6 +136,7 @@ func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 			// Copy the element.
 			copyExemplar(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
@@ -136,11 +152,15 @@ func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray, allocators *
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Exemplar.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewExemplar(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.Exemplar.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewExemplar(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 }
 

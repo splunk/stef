@@ -73,13 +73,24 @@ func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *QuantileValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *QuantileValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *QuantileValue) Quantile() float64 {
 	return s.quantile
 }
 
 // SetQuantile sets the value of Quantile field.
 func (s *QuantileValue) SetQuantile(v float64) {
-	if !pkg.Float64Equal(s.quantile, v) {
+	if s.quantile != v {
 		s.quantile = v
 		s.markQuantileModified()
 	}
@@ -103,7 +114,7 @@ func (s *QuantileValue) Value() float64 {
 
 // SetValue sets the value of Value field.
 func (s *QuantileValue) SetValue(v float64) {
-	if !pkg.Float64Equal(s.value, v) {
+	if s.value != v {
 		s.value = v
 		s.markValueModified()
 	}
@@ -139,6 +150,18 @@ func (s *QuantileValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *QuantileValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *QuantileValue) CloneShared(allocators *Allocators) QuantileValue {
+
+	return s.Clone(allocators)
+}
+
 func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
 
 	c := QuantileValue{
@@ -158,14 +181,16 @@ func (s *QuantileValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
+
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue, allocators *Allocators) {
-	dst.quantile = src.quantile
-	dst.value = src.value
+
+	dst.SetQuantile(src.quantile)
+	dst.SetValue(src.value)
 }
 
 // CopyFrom() performs a deep copy from src.

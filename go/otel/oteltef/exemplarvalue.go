@@ -125,6 +125,16 @@ func (s *ExemplarValue) SetFloat64(v float64) {
 	}
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *ExemplarValue) canBeShared() bool {
+	return false // oneof cannot be shared
+}
+
+func (s *ExemplarValue) CloneShared(allocators *Allocators) ExemplarValue {
+	// Clone and CloneShared are the same for oneof.
+	return s.Clone(allocators)
+}
+
 func (s *ExemplarValue) Clone(allocators *Allocators) ExemplarValue {
 	return ExemplarValue{
 		int64:   s.int64,
@@ -141,6 +151,9 @@ func (s *ExemplarValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
+	if dst == src {
+		return
+	}
 	switch src.typ {
 	case ExemplarValueTypeInt64:
 		dst.SetInt64(src.int64)

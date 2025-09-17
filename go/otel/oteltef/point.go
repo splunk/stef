@@ -85,13 +85,24 @@ func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
 	s.exemplars.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Point) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Point) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Point) StartTimestamp() uint64 {
 	return s.startTimestamp
 }
 
 // SetStartTimestamp sets the value of StartTimestamp field.
 func (s *Point) SetStartTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.startTimestamp, v) {
+	if s.startTimestamp != v {
 		s.startTimestamp = v
 		s.markStartTimestampModified()
 	}
@@ -115,7 +126,7 @@ func (s *Point) Timestamp() uint64 {
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Point) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
 		s.markTimestampModified()
 	}
@@ -197,14 +208,26 @@ func (s *Point) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Point) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Point) CloneShared(allocators *Allocators) Point {
+
+	return s.Clone(allocators)
+}
+
 func (s *Point) Clone(allocators *Allocators) Point {
 
 	c := Point{
 
 		startTimestamp: s.startTimestamp,
 		timestamp:      s.timestamp,
-		value:          s.value.Clone(allocators),
-		exemplars:      s.exemplars.Clone(allocators),
+		value:          s.value.CloneShared(allocators),
+		exemplars:      s.exemplars.CloneShared(allocators),
 	}
 	return c
 }
@@ -218,6 +241,7 @@ func (s *Point) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyPoint(dst *Point, src *Point) {
+
 	dst.SetStartTimestamp(src.startTimestamp)
 	dst.SetTimestamp(src.timestamp)
 	copyPointValue(&dst.value, &src.value)
@@ -226,8 +250,9 @@ func copyPoint(dst *Point, src *Point) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewPoint(dst *Point, src *Point, allocators *Allocators) {
-	dst.startTimestamp = src.startTimestamp
-	dst.timestamp = src.timestamp
+
+	dst.SetStartTimestamp(src.startTimestamp)
+	dst.SetTimestamp(src.timestamp)
 	copyToNewPointValue(&dst.value, &src.value, allocators)
 	copyToNewExemplarArray(&dst.exemplars, &src.exemplars, allocators)
 }

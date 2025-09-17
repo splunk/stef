@@ -99,6 +99,17 @@ func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
 	s.span.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Spans) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Spans) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Spans) Envelope() *Envelope {
 	return &s.envelope
 }
@@ -119,6 +130,14 @@ func (s *Spans) Resource() *Resource {
 	return s.resource
 }
 
+// SetResource sets the value of Resource field.
+func (s *Spans) SetResource(v *Resource) {
+	if !s.resource.IsEqual(v) {
+		s.resource = v
+		s.markResourceModified()
+	}
+}
+
 func (s *Spans) markResourceModified() {
 	s.modifiedFields.markModified(fieldModifiedSpansResource)
 }
@@ -133,6 +152,14 @@ func (s *Spans) IsResourceModified() bool {
 
 func (s *Spans) Scope() *Scope {
 	return s.scope
+}
+
+// SetScope sets the value of Scope field.
+func (s *Spans) SetScope(v *Scope) {
+	if !s.scope.IsEqual(v) {
+		s.scope = v
+		s.markScopeModified()
+	}
 }
 
 func (s *Spans) markScopeModified() {
@@ -201,14 +228,26 @@ func (s *Spans) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Spans) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Spans) CloneShared(allocators *Allocators) Spans {
+
+	return s.Clone(allocators)
+}
+
 func (s *Spans) Clone(allocators *Allocators) Spans {
 
 	c := Spans{
 
-		envelope: s.envelope.Clone(allocators),
-		resource: s.resource.Clone(allocators),
-		scope:    s.scope.Clone(allocators),
-		span:     s.span.Clone(allocators),
+		envelope: s.envelope.CloneShared(allocators),
+		resource: s.resource.CloneShared(allocators),
+		scope:    s.scope.CloneShared(allocators),
+		span:     s.span.CloneShared(allocators),
 	}
 	return c
 }
@@ -222,36 +261,60 @@ func (s *Spans) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpans(dst *Spans, src *Spans) {
+
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.resource != nil {
-		if dst.resource == nil {
-			dst.resource = &Resource{}
-			dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+		if src.resource.canBeShared() {
+			dst.resource = src.resource
+		} else {
+			if dst.resource == nil {
+				dst.resource = new(Resource)
+				dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+			}
+			copyResource(dst.resource, src.resource)
 		}
-		copyResource(dst.resource, src.resource)
+	} else {
+		dst.resource = nil
 	}
 	if src.scope != nil {
-		if dst.scope == nil {
-			dst.scope = &Scope{}
-			dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+		if src.scope.canBeShared() {
+			dst.scope = src.scope
+		} else {
+			if dst.scope == nil {
+				dst.scope = new(Scope)
+				dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+			}
+			copyScope(dst.scope, src.scope)
 		}
-		copyScope(dst.scope, src.scope)
+	} else {
+		dst.scope = nil
 	}
 	copySpan(&dst.span, &src.span)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
+
 	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
+
 	if src.resource != nil {
-		dst.resource = allocators.Resource.Alloc()
-		dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
-		copyToNewResource(dst.resource, src.resource, allocators)
+		if src.resource.canBeShared() {
+			dst.resource = src.resource
+		} else {
+			dst.resource = allocators.Resource.Alloc()
+			dst.resource.initAlloc(&dst.modifiedFields, fieldModifiedSpansResource, allocators)
+			copyToNewResource(dst.resource, src.resource, allocators)
+		}
 	}
+
 	if src.scope != nil {
-		dst.scope = allocators.Scope.Alloc()
-		dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
-		copyToNewScope(dst.scope, src.scope, allocators)
+		if src.scope.canBeShared() {
+			dst.scope = src.scope
+		} else {
+			dst.scope = allocators.Scope.Alloc()
+			dst.scope.initAlloc(&dst.modifiedFields, fieldModifiedSpansScope, allocators)
+			copyToNewScope(dst.scope, src.scope, allocators)
+		}
 	}
 	copyToNewSpan(&dst.span, &src.span, allocators)
 }
@@ -822,7 +885,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		// Field is changed and is present, decode it.
 		if val.resource == nil {
 			val.resource = d.allocators.Resource.Alloc()
-			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
+			val.resource.initAlloc(&val.modifiedFields, fieldModifiedSpansResource, d.allocators)
 		}
 
 		err = d.resourceDecoder.Decode(&val.resource)
@@ -835,7 +898,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		// Field is changed and is present, decode it.
 		if val.scope == nil {
 			val.scope = d.allocators.Scope.Alloc()
-			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
+			val.scope.initAlloc(&val.modifiedFields, fieldModifiedSpansScope, d.allocators)
 		}
 
 		err = d.scopeDecoder.Decode(&val.scope)

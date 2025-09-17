@@ -96,13 +96,24 @@ func (s *HistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *HistogramValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *HistogramValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *HistogramValue) Count() int64 {
 	return s.count
 }
 
 // SetCount sets the value of Count field.
 func (s *HistogramValue) SetCount(v int64) {
-	if !pkg.Int64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
 		s.markCountModified()
 	}
@@ -126,7 +137,7 @@ func (s *HistogramValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *HistogramValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
+	if s.sum != v || s.optionalFieldsPresent&fieldPresentHistogramValueSum == 0 {
 		s.sum = v
 		s.markSumModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueSum
@@ -164,7 +175,7 @@ func (s *HistogramValue) Min() float64 {
 
 // SetMin sets the value of Min field.
 func (s *HistogramValue) SetMin(v float64) {
-	if !pkg.Float64Equal(s.min, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
+	if s.min != v || s.optionalFieldsPresent&fieldPresentHistogramValueMin == 0 {
 		s.min = v
 		s.markMinModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMin
@@ -202,7 +213,7 @@ func (s *HistogramValue) Max() float64 {
 
 // SetMax sets the value of Max field.
 func (s *HistogramValue) SetMax(v float64) {
-	if !pkg.Float64Equal(s.max, v) || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
+	if s.max != v || s.optionalFieldsPresent&fieldPresentHistogramValueMax == 0 {
 		s.max = v
 		s.markMaxModified()
 		s.optionalFieldsPresent |= fieldPresentHistogramValueMax
@@ -283,6 +294,18 @@ func (s *HistogramValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *HistogramValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *HistogramValue) CloneShared(allocators *Allocators) HistogramValue {
+
+	return s.Clone(allocators)
+}
+
 func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
 
 	c := HistogramValue{
@@ -291,7 +314,7 @@ func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
 		sum:          s.sum,
 		min:          s.min,
 		max:          s.max,
-		bucketCounts: s.bucketCounts.Clone(allocators),
+		bucketCounts: s.bucketCounts.CloneShared(allocators),
 	}
 	return c
 }
@@ -305,6 +328,7 @@ func (s *HistogramValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
+
 	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
@@ -330,7 +354,8 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocators *Allocators) {
-	dst.count = src.count
+
+	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
 	}

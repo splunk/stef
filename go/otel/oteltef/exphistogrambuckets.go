@@ -76,13 +76,24 @@ func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *ExpHistogramBuckets) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *ExpHistogramBuckets) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *ExpHistogramBuckets) Offset() int64 {
 	return s.offset
 }
 
 // SetOffset sets the value of Offset field.
 func (s *ExpHistogramBuckets) SetOffset(v int64) {
-	if !pkg.Int64Equal(s.offset, v) {
+	if s.offset != v {
 		s.offset = v
 		s.markOffsetModified()
 	}
@@ -137,12 +148,24 @@ func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *ExpHistogramBuckets) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ExpHistogramBuckets) CloneShared(allocators *Allocators) ExpHistogramBuckets {
+
+	return s.Clone(allocators)
+}
+
 func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
 
 	c := ExpHistogramBuckets{
 
 		offset:       s.offset,
-		bucketCounts: s.bucketCounts.Clone(allocators),
+		bucketCounts: s.bucketCounts.CloneShared(allocators),
 	}
 	return c
 }
@@ -156,13 +179,15 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
+
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets, allocators *Allocators) {
-	dst.offset = src.offset
+
+	dst.SetOffset(src.offset)
 	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 }
 

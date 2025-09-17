@@ -121,13 +121,24 @@ func (s *Span) fixParent(parentModifiedFields *modifiedFields) {
 	s.status.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Span) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Span) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Span) TraceID() pkg.Bytes {
 	return s.traceID
 }
 
 // SetTraceID sets the value of TraceID field.
 func (s *Span) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
 		s.markTraceIDModified()
 	}
@@ -151,7 +162,7 @@ func (s *Span) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Span) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
 		s.markSpanIDModified()
 	}
@@ -175,7 +186,7 @@ func (s *Span) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Span) SetTraceState(v string) {
-	if !pkg.StringEqual(s.traceState, v) {
+	if s.traceState != v {
 		s.traceState = v
 		s.markTraceStateModified()
 	}
@@ -199,7 +210,7 @@ func (s *Span) ParentSpanID() pkg.Bytes {
 
 // SetParentSpanID sets the value of ParentSpanID field.
 func (s *Span) SetParentSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.parentSpanID, v) {
+	if s.parentSpanID != v {
 		s.parentSpanID = v
 		s.markParentSpanIDModified()
 	}
@@ -223,7 +234,7 @@ func (s *Span) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Span) SetFlags(v uint64) {
-	if !pkg.Uint64Equal(s.flags, v) {
+	if s.flags != v {
 		s.flags = v
 		s.markFlagsModified()
 	}
@@ -247,7 +258,7 @@ func (s *Span) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Span) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -271,7 +282,7 @@ func (s *Span) Kind() uint64 {
 
 // SetKind sets the value of Kind field.
 func (s *Span) SetKind(v uint64) {
-	if !pkg.Uint64Equal(s.kind, v) {
+	if s.kind != v {
 		s.kind = v
 		s.markKindModified()
 	}
@@ -295,7 +306,7 @@ func (s *Span) StartTimeUnixNano() uint64 {
 
 // SetStartTimeUnixNano sets the value of StartTimeUnixNano field.
 func (s *Span) SetStartTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.startTimeUnixNano, v) {
+	if s.startTimeUnixNano != v {
 		s.startTimeUnixNano = v
 		s.markStartTimeUnixNanoModified()
 	}
@@ -319,7 +330,7 @@ func (s *Span) EndTimeUnixNano() uint64 {
 
 // SetEndTimeUnixNano sets the value of EndTimeUnixNano field.
 func (s *Span) SetEndTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.endTimeUnixNano, v) {
+	if s.endTimeUnixNano != v {
 		s.endTimeUnixNano = v
 		s.markEndTimeUnixNanoModified()
 	}
@@ -359,7 +370,7 @@ func (s *Span) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Span) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -503,6 +514,18 @@ func (s *Span) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Span) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Span) CloneShared(allocators *Allocators) Span {
+
+	return s.Clone(allocators)
+}
+
 func (s *Span) Clone(allocators *Allocators) Span {
 
 	c := Span{
@@ -516,11 +539,11 @@ func (s *Span) Clone(allocators *Allocators) Span {
 		kind:                   s.kind,
 		startTimeUnixNano:      s.startTimeUnixNano,
 		endTimeUnixNano:        s.endTimeUnixNano,
-		attributes:             s.attributes.Clone(allocators),
+		attributes:             s.attributes.CloneShared(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
-		events:                 s.events.Clone(allocators),
-		links:                  s.links.Clone(allocators),
-		status:                 s.status.Clone(allocators),
+		events:                 s.events.CloneShared(allocators),
+		links:                  s.links.CloneShared(allocators),
+		status:                 s.status.CloneShared(allocators),
 	}
 	return c
 }
@@ -534,6 +557,7 @@ func (s *Span) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpan(dst *Span, src *Span) {
+
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceState(src.traceState)
@@ -552,17 +576,18 @@ func copySpan(dst *Span, src *Span) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
-	dst.traceID = src.traceID
-	dst.spanID = src.spanID
-	dst.traceState = src.traceState
-	dst.parentSpanID = src.parentSpanID
-	dst.flags = src.flags
-	dst.name = src.name
-	dst.kind = src.kind
-	dst.startTimeUnixNano = src.startTimeUnixNano
-	dst.endTimeUnixNano = src.endTimeUnixNano
+
+	dst.SetTraceID(src.traceID)
+	dst.SetSpanID(src.spanID)
+	dst.SetTraceState(src.traceState)
+	dst.SetParentSpanID(src.parentSpanID)
+	dst.SetFlags(src.flags)
+	dst.SetName(src.name)
+	dst.SetKind(src.kind)
+	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
+	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 	copyToNewEventArray(&dst.events, &src.events, allocators)
 	copyToNewLinkArray(&dst.links, &src.links, allocators)
 	copyToNewSpanStatus(&dst.status, &src.status, allocators)

@@ -45,11 +45,21 @@ func (e *LinkArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *LinkArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of LinkArray
 func (e *LinkArray) Clone(allocators *Allocators) LinkArray {
 	var clone LinkArray
 	copyToNewLinkArray(&clone, e, allocators)
 	return clone
+}
+
+func (e *LinkArray) CloneShared(allocators *Allocators) LinkArray {
+	// Clone and CloneShared are the same for arrays.
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -91,7 +101,7 @@ func (e *LinkArray) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
+// Update from src to dst, overwriting existing data in dst.
 func copyLinkArray(dst *LinkArray, src *LinkArray) {
 	isModified := false
 
@@ -105,11 +115,16 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyLink(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyLink(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
 		elems := make([]Link, len(dst.elems)-minLen)
@@ -121,6 +136,7 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 			// Copy the element.
 			copyLink(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
@@ -136,11 +152,15 @@ func copyToNewLinkArray(dst *LinkArray, src *LinkArray, allocators *Allocators) 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Link.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewLink(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.Link.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewLink(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 }
 

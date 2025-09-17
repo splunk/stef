@@ -82,13 +82,24 @@ func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Event) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Event) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Event) Name() string {
 	return s.name
 }
 
 // SetName sets the value of Name field.
 func (s *Event) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
 		s.markNameModified()
 	}
@@ -112,7 +123,7 @@ func (s *Event) TimeUnixNano() uint64 {
 
 // SetTimeUnixNano sets the value of TimeUnixNano field.
 func (s *Event) SetTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.timeUnixNano, v) {
+	if s.timeUnixNano != v {
 		s.timeUnixNano = v
 		s.markTimeUnixNanoModified()
 	}
@@ -152,7 +163,7 @@ func (s *Event) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Event) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
 		s.markDroppedAttributesCountModified()
 	}
@@ -199,13 +210,25 @@ func (s *Event) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Event) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Event) CloneShared(allocators *Allocators) Event {
+
+	return s.Clone(allocators)
+}
+
 func (s *Event) Clone(allocators *Allocators) Event {
 
 	c := Event{
 
 		name:                   s.name,
 		timeUnixNano:           s.timeUnixNano,
-		attributes:             s.attributes.Clone(allocators),
+		attributes:             s.attributes.CloneShared(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
 	return c
@@ -220,6 +243,7 @@ func (s *Event) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyEvent(dst *Event, src *Event) {
+
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
@@ -228,10 +252,11 @@ func copyEvent(dst *Event, src *Event) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewEvent(dst *Event, src *Event, allocators *Allocators) {
-	dst.name = src.name
-	dst.timeUnixNano = src.timeUnixNano
+
+	dst.SetName(src.name)
+	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.

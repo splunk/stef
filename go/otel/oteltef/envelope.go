@@ -73,6 +73,17 @@ func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *Envelope) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Envelope) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Envelope) Attributes() *EnvelopeAttributes {
 	return &s.attributes
 }
@@ -106,11 +117,23 @@ func (s *Envelope) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *Envelope) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Envelope) CloneShared(allocators *Allocators) Envelope {
+
+	return s.Clone(allocators)
+}
+
 func (s *Envelope) Clone(allocators *Allocators) Envelope {
 
 	c := Envelope{
 
-		attributes: s.attributes.Clone(allocators),
+		attributes: s.attributes.CloneShared(allocators),
 	}
 	return c
 }
@@ -124,11 +147,13 @@ func (s *Envelope) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyEnvelope(dst *Envelope, src *Envelope) {
+
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewEnvelope(dst *Envelope, src *Envelope, allocators *Allocators) {
+
 	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes, allocators)
 }
 

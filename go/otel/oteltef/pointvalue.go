@@ -164,6 +164,16 @@ func (s *PointValue) Summary() *SummaryValue {
 	return &s.summary
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *PointValue) canBeShared() bool {
+	return false // oneof cannot be shared
+}
+
+func (s *PointValue) CloneShared(allocators *Allocators) PointValue {
+	// Clone and CloneShared are the same for oneof.
+	return s.Clone(allocators)
+}
+
 func (s *PointValue) Clone(allocators *Allocators) PointValue {
 	return PointValue{
 		int64:        s.int64,
@@ -183,6 +193,9 @@ func (s *PointValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyPointValue(dst *PointValue, src *PointValue) {
+	if dst == src {
+		return
+	}
 	switch src.typ {
 	case PointValueTypeInt64:
 		dst.SetInt64(src.int64)

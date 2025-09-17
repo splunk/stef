@@ -156,6 +156,16 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type
 {{end}}
 {{ end }}
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *{{ .StructName }}) canBeShared() bool {
+    return false // oneof cannot be shared
+}
+
+func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+    // Clone and CloneShared are the same for oneof.
+    return s.Clone(allocators)
+}
+
 func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(allocators){{else}}s.{{.name}}{{end}},
@@ -173,7 +183,7 @@ func (s *{{ .StructName }}) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
+func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     if dst == src {
         return
     }
@@ -184,7 +194,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators 
         dst.SetType(src.typ)
         copy{{.Type.TypeName}}(
             {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         {{- else}}
         dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
         {{- end}}
@@ -218,8 +228,8 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}, allocators *Allocators) {
-    copy{{.StructName}}(s, src, allocators)
+func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
+    copy{{.StructName}}(s, src)
 }
 
 func (s* {{.StructName}}) markParentModified() {

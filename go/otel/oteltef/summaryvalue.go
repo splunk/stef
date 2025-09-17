@@ -79,13 +79,24 @@ func (s *SummaryValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.quantileValues.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *SummaryValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SummaryValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *SummaryValue) Count() uint64 {
 	return s.count
 }
 
 // SetCount sets the value of Count field.
 func (s *SummaryValue) SetCount(v uint64) {
-	if !pkg.Uint64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
 		s.markCountModified()
 	}
@@ -109,7 +120,7 @@ func (s *SummaryValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *SummaryValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) {
+	if s.sum != v {
 		s.sum = v
 		s.markSumModified()
 	}
@@ -168,13 +179,25 @@ func (s *SummaryValue) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *SummaryValue) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SummaryValue) CloneShared(allocators *Allocators) SummaryValue {
+
+	return s.Clone(allocators)
+}
+
 func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
 
 	c := SummaryValue{
 
 		count:          s.count,
 		sum:            s.sum,
-		quantileValues: s.quantileValues.Clone(allocators),
+		quantileValues: s.quantileValues.CloneShared(allocators),
 	}
 	return c
 }
@@ -188,6 +211,7 @@ func (s *SummaryValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
+
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyQuantileValueArray(&dst.quantileValues, &src.quantileValues)
@@ -195,8 +219,9 @@ func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue, allocators *Allocators) {
-	dst.count = src.count
-	dst.sum = src.sum
+
+	dst.SetCount(src.count)
+	dst.SetSum(src.sum)
 	copyToNewQuantileValueArray(&dst.quantileValues, &src.quantileValues, allocators)
 }
 

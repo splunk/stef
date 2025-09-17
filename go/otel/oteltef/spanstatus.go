@@ -73,13 +73,24 @@ func (s *SpanStatus) fixParent(parentModifiedFields *modifiedFields) {
 
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing without cloning
+// which can improve performance.
+func (s *SpanStatus) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SpanStatus) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *SpanStatus) Message() string {
 	return s.message
 }
 
 // SetMessage sets the value of Message field.
 func (s *SpanStatus) SetMessage(v string) {
-	if !pkg.StringEqual(s.message, v) {
+	if s.message != v {
 		s.message = v
 		s.markMessageModified()
 	}
@@ -103,7 +114,7 @@ func (s *SpanStatus) Code() uint64 {
 
 // SetCode sets the value of Code field.
 func (s *SpanStatus) SetCode(v uint64) {
-	if !pkg.Uint64Equal(s.code, v) {
+	if s.code != v {
 		s.code = v
 		s.markCodeModified()
 	}
@@ -139,6 +150,18 @@ func (s *SpanStatus) markUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *SpanStatus) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SpanStatus) CloneShared(allocators *Allocators) SpanStatus {
+
+	return s.Clone(allocators)
+}
+
 func (s *SpanStatus) Clone(allocators *Allocators) SpanStatus {
 
 	c := SpanStatus{
@@ -158,14 +181,16 @@ func (s *SpanStatus) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
+
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus, allocators *Allocators) {
-	dst.message = src.message
-	dst.code = src.code
+
+	dst.SetMessage(src.message)
+	dst.SetCode(src.code)
 }
 
 // CopyFrom() performs a deep copy from src.

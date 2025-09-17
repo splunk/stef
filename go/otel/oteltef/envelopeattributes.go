@@ -61,6 +61,11 @@ func (m *EnvelopeAttributes) Clone(allocators *Allocators) EnvelopeAttributes {
 	return clone
 }
 
+func (m *EnvelopeAttributes) CloneShared(allocators *Allocators) EnvelopeAttributes {
+	// Clone and CloneShared are the same.
+	return m.Clone(allocators)
+}
+
 // Len returns the number of elements in the multimap.
 func (m *EnvelopeAttributes) Len() int {
 	return len(m.elems)

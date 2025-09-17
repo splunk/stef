@@ -202,6 +202,16 @@ func (s *AnyValue) SetBytes(v pkg.Bytes) {
 	}
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *AnyValue) canBeShared() bool {
+	return false // oneof cannot be shared
+}
+
+func (s *AnyValue) CloneShared(allocators *Allocators) *AnyValue {
+	// Clone and CloneShared are the same for oneof.
+	return s.Clone(allocators)
+}
+
 func (s *AnyValue) Clone(allocators *Allocators) *AnyValue {
 	return &AnyValue{
 		string:  s.string,
@@ -223,6 +233,9 @@ func (s *AnyValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyAnyValue(dst *AnyValue, src *AnyValue) {
+	if dst == src {
+		return
+	}
 	switch src.typ {
 	case AnyValueTypeString:
 		dst.SetString(src.string)

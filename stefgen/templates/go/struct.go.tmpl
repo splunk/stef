@@ -61,13 +61,13 @@ const (
 {{end}}
 
 // Init must be called once, before the {{.StructName }} is used.
-func (s *{{.StructName }}) Init(allocators *Allocators) {
-    s.initAlloc(nil, 0, allocators)
+func (s *{{.StructName }}) Init() {
+    s.init(nil, 0)
 }
 
-func New{{.StructName }}(allocators *Allocators) *{{.StructName }} {
+func New{{.StructName }}() *{{.StructName }} {
 	var s {{.StructName}}
-    s.initAlloc(nil, 0, allocators)
+    s.init(nil, 0)
 	return &s
 }
 
@@ -279,8 +279,8 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
         return
     }
     if dst == nil {
-        dst = allocators.{{.StructName}}.Alloc()
-        dst.initAlloc(nil, 0, allocators)
+        dst = new({{.StructName}})
+        dst.init(nil, 0)
     }
     {{end}}
     {{- range .Fields -}}
@@ -296,7 +296,7 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
             dst.{{.name}} = src.{{.name}}
         } else {
             if dst.{{.name}} == nil {
-                dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
+                dst.{{.name}} = new({{ .Type.Storage }})
                 dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             }
             copy{{.Type.TypeName}}(

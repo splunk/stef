@@ -47,11 +47,21 @@ func (e *Int64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+func (e *Int64Array) canBeShared() bool {
+	// An array can never be shared.
+	return false
+}
+
 // Clone() creates a deep copy of Int64Array
 func (e *Int64Array) Clone(allocators *Allocators) Int64Array {
 	var clone Int64Array
 	copyToNewInt64Array(&clone, e, allocators)
 	return clone
+}
+
+func (e *Int64Array) CloneShared(allocators *Allocators) Int64Array {
+	// Clone and CloneShared are the same for arrays.
+	return e.Clone(allocators)
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -95,7 +105,7 @@ func (e *Int64Array) markUnmodifiedRecursively() {
 
 }
 
-// Copy from src to dst, overwriting existing data in dst.
+// Update from src to dst, overwriting existing data in dst.
 func copyInt64Array(dst *Int64Array, src *Int64Array) {
 	isModified := false
 

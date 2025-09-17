@@ -61,6 +61,11 @@ func (m *KeyValueList) Clone(allocators *Allocators) KeyValueList {
 	return clone
 }
 
+func (m *KeyValueList) CloneShared(allocators *Allocators) KeyValueList {
+	// Clone and CloneShared are the same.
+	return m.Clone(allocators)
+}
+
 // Len returns the number of elements in the multimap.
 func (m *KeyValueList) Len() int {
 	return len(m.elems)
