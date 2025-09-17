@@ -238,6 +238,7 @@ func (s *Function) Clone(allocators *Allocators) *Function {
 	c := allocators.Function.Alloc()
 	*c = Function{
 
+		//modifiedFields: s.modifiedFields,
 		name:       s.name,
 		systemName: s.systemName,
 		filename:   s.filename,
@@ -254,42 +255,30 @@ func (s *Function) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyFunction(dst *Function, src *Function, allocators *Allocators) *Function {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return src
-	}
-	if dst == nil {
-		dst = allocators.Function.Alloc()
-		dst.initAlloc(nil, 0, allocators)
-	}
-
+func copyFunction(dst *Function, src *Function) {
 	dst.SetName(src.name)
 	dst.SetSystemName(src.systemName)
 	dst.SetFilename(src.filename)
 	dst.SetStartLine(src.startLine)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) *Function {
+func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	dst.SetName(src.name)
 	dst.SetSystemName(src.systemName)
 	dst.SetFilename(src.filename)
 	dst.SetStartLine(src.startLine)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Function) CopyFrom(src *Function, allocators *Allocators) {
-	copyFunction(s, src, allocators)
+func (s *Function) CopyFrom(src *Function) {
+	copyFunction(s, src)
 }
 
 func (s *Function) markParentModified() {

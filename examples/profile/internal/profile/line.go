@@ -207,6 +207,7 @@ func (s *Line) Clone(allocators *Allocators) Line {
 
 	c := Line{
 
+		//modifiedFields: s.modifiedFields,
 		function: s.function.CloneShared(allocators),
 		line:     s.line,
 		column:   s.column,
@@ -222,46 +223,43 @@ func (s *Line) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLine(dst *Line, src *Line, allocators *Allocators) *Line {
-
+func copyLine(dst *Line, src *Line) {
 	if src.function != nil {
 		if src.function.canBeShared() {
 			dst.function = src.function
 		} else {
 			if dst.function == nil {
-				dst.function = allocators.Function.Alloc()
+				dst.function = new(Function)
 				dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
 			}
-			copyFunction(dst.function, src.function, allocators)
+			copyFunction(dst.function, src.function)
 		}
 	} else {
 		dst.function = nil
 	}
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLine(dst *Line, src *Line, allocators *Allocators) *Line {
+func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
 
 	if src.function != nil {
 		if src.function.canBeShared() {
 			dst.function = src.function
 		} else {
 			dst.function = allocators.Function.Alloc()
-			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+			dst.function.initAlloc(&dst.modifiedFields, fieldModifiedLineFunction, allocators)
 			copyToNewFunction(dst.function, src.function, allocators)
 		}
 	}
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Line) CopyFrom(src *Line, allocators *Allocators) {
-	copyLine(s, src, allocators)
+func (s *Line) CopyFrom(src *Line) {
+	copyLine(s, src)
 }
 
 func (s *Line) markParentModified() {
@@ -668,7 +666,7 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		// Field is changed and is present, decode it.
 		if val.function == nil {
 			val.function = d.allocators.Function.Alloc()
-			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
+			val.function.initAlloc(&val.modifiedFields, fieldModifiedLineFunction, d.allocators)
 		}
 
 		err = d.functionDecoder.Decode(&val.function)

@@ -58,7 +58,7 @@ func (e *LineArray) Clone(allocators *Allocators) LineArray {
 }
 
 func (e *LineArray) CloneShared(allocators *Allocators) LineArray {
-	// Clone and CloneShared are the same.
+	// Clone and CloneShared are the same for arrays.
 	return e.Clone(allocators)
 }
 
@@ -102,7 +102,7 @@ func (e *LineArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *LineArray {
+func copyLineArray(dst *LineArray, src *LineArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -115,60 +115,51 @@ func copyLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *Line
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyLine(dst.elems[i], src.elems[i], allocators)
-		}
+
+		copyLine(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]Line, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]Line, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = allocators.Line.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-				copyToNewLine(dst.elems[j], src.elems[j], allocators)
-			}
+			copyLine(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) *LineArray {
+func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) {
+	dst.parentModifiedFields = &dummyModifiedFields
+
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = allocators.Line.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-			// Copy the element.
-			copyToNewLine(dst.elems[j], src.elems[j], allocators)
-		}
-	}
 
-	return dst
+		// Alloc and init the element.
+		dst.elems[j] = allocators.Line.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewLine(dst.elems[j], src.elems[j], allocators)
+
+	}
 }
 
 // Len returns the number of elements in the array.

@@ -244,7 +244,6 @@ func (s *Event) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyEvent(dst *Event, src *Event) {
-
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)

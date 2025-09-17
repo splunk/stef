@@ -370,6 +370,7 @@ func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
 
 	c := ProfileMetadata{
 
+		//modifiedFields: s.modifiedFields,
 		dropFrames:        s.dropFrames,
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
@@ -390,8 +391,7 @@ func (s *ProfileMetadata) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) *ProfileMetadata {
-
+func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 	dst.SetDropFrames(src.dropFrames)
 	dst.SetKeepFrames(src.keepFrames)
 	dst.SetTimeNanos(src.timeNanos)
@@ -401,34 +401,33 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators 
 			dst.periodType = src.periodType
 		} else {
 			if dst.periodType == nil {
-				dst.periodType = allocators.SampleValueType.Alloc()
+				dst.periodType = new(SampleValueType)
 				dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 			}
-			copySampleValueType(dst.periodType, src.periodType, allocators)
+			copySampleValueType(dst.periodType, src.periodType)
 		}
 	} else {
 		dst.periodType = nil
 	}
 	dst.SetPeriod(src.period)
-	copyStringArray(&dst.comments, &src.comments, allocators)
+	copyStringArray(&dst.comments, &src.comments)
 	if src.defaultSampleType != nil {
 		if src.defaultSampleType.canBeShared() {
 			dst.defaultSampleType = src.defaultSampleType
 		} else {
 			if dst.defaultSampleType == nil {
-				dst.defaultSampleType = allocators.SampleValueType.Alloc()
+				dst.defaultSampleType = new(SampleValueType)
 				dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 			}
-			copySampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
+			copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
 		}
 	} else {
 		dst.defaultSampleType = nil
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) *ProfileMetadata {
+func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) {
 
 	dst.SetDropFrames(src.dropFrames)
 	dst.SetKeepFrames(src.keepFrames)
@@ -440,7 +439,7 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 			dst.periodType = src.periodType
 		} else {
 			dst.periodType = allocators.SampleValueType.Alloc()
-			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+			dst.periodType.initAlloc(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
 			copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
 		}
 	}
@@ -452,16 +451,15 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 			dst.defaultSampleType = src.defaultSampleType
 		} else {
 			dst.defaultSampleType = allocators.SampleValueType.Alloc()
-			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+			dst.defaultSampleType.initAlloc(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
 			copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 		}
 	}
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata, allocators *Allocators) {
-	copyProfileMetadata(s, src, allocators)
+func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
+	copyProfileMetadata(s, src)
 }
 
 func (s *ProfileMetadata) markParentModified() {
@@ -1268,7 +1266,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		// Field is changed and is present, decode it.
 		if val.periodType == nil {
 			val.periodType = d.allocators.SampleValueType.Alloc()
-			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+			val.periodType.initAlloc(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType, d.allocators)
 		}
 
 		err = d.periodTypeDecoder.Decode(&val.periodType)
@@ -1297,7 +1295,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		// Field is changed and is present, decode it.
 		if val.defaultSampleType == nil {
 			val.defaultSampleType = d.allocators.SampleValueType.Alloc()
-			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+			val.defaultSampleType.initAlloc(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, d.allocators)
 		}
 
 		err = d.defaultSampleTypeDecoder.Decode(&val.defaultSampleType)

@@ -166,6 +166,7 @@ func (s *NumValue) Clone(allocators *Allocators) NumValue {
 
 	c := NumValue{
 
+		//modifiedFields: s.modifiedFields,
 		val:  s.val,
 		unit: s.unit,
 	}
@@ -180,24 +181,21 @@ func (s *NumValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
-
+func copyNumValue(dst *NumValue, src *NumValue) {
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) *NumValue {
+func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) {
 
 	dst.SetVal(src.val)
 	dst.SetUnit(src.unit)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *NumValue) CopyFrom(src *NumValue, allocators *Allocators) {
-	copyNumValue(s, src, allocators)
+func (s *NumValue) CopyFrom(src *NumValue) {
+	copyNumValue(s, src)
 }
 
 func (s *NumValue) markParentModified() {

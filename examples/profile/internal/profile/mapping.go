@@ -393,6 +393,7 @@ func (s *Mapping) Clone(allocators *Allocators) *Mapping {
 	c := allocators.Mapping.Alloc()
 	*c = Mapping{
 
+		//modifiedFields: s.modifiedFields,
 		memoryStart:     s.memoryStart,
 		memoryLimit:     s.memoryLimit,
 		fileOffset:      s.fileOffset,
@@ -414,17 +415,7 @@ func (s *Mapping) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return src
-	}
-	if dst == nil {
-		dst = allocators.Mapping.Alloc()
-		dst.initAlloc(nil, 0, allocators)
-	}
-
+func copyMapping(dst *Mapping, src *Mapping) {
 	dst.SetMemoryStart(src.memoryStart)
 	dst.SetMemoryLimit(src.memoryLimit)
 	dst.SetFileOffset(src.fileOffset)
@@ -434,15 +425,14 @@ func copyMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
 	dst.SetHasFilenames(src.hasFilenames)
 	dst.SetHasLineNumbers(src.hasLineNumbers)
 	dst.SetHasInlineFrames(src.hasInlineFrames)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mapping {
+func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	dst.SetMemoryStart(src.memoryStart)
@@ -454,12 +444,11 @@ func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) *Mappi
 	dst.SetHasFilenames(src.hasFilenames)
 	dst.SetHasLineNumbers(src.hasLineNumbers)
 	dst.SetHasInlineFrames(src.hasInlineFrames)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Mapping) CopyFrom(src *Mapping, allocators *Allocators) {
-	copyMapping(s, src, allocators)
+func (s *Mapping) CopyFrom(src *Mapping) {
+	copyMapping(s, src)
 }
 
 func (s *Mapping) markParentModified() {

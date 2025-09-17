@@ -182,7 +182,6 @@ func (s *QuantileValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
-
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
 }

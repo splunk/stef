@@ -334,7 +334,6 @@ func (s *Metrics) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyMetrics(dst *Metrics, src *Metrics) {
-
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.metric != nil {
 		if src.metric.canBeShared() {

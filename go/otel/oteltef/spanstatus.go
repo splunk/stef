@@ -182,7 +182,6 @@ func (s *SpanStatus) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
-
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
 }

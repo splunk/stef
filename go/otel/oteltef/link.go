@@ -308,7 +308,6 @@ func (s *Link) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyLink(dst *Link, src *Link) {
-
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceState(src.traceState)

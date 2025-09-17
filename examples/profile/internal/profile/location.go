@@ -246,6 +246,7 @@ func (s *Location) Clone(allocators *Allocators) *Location {
 	c := allocators.Location.Alloc()
 	*c = Location{
 
+		//modifiedFields: s.modifiedFields,
 		mapping:  s.mapping.CloneShared(allocators),
 		address:  s.address,
 		lines:    s.lines.CloneShared(allocators),
@@ -262,42 +263,31 @@ func (s *Location) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLocation(dst *Location, src *Location, allocators *Allocators) *Location {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return src
-	}
-	if dst == nil {
-		dst = allocators.Location.Alloc()
-		dst.initAlloc(nil, 0, allocators)
-	}
-
+func copyLocation(dst *Location, src *Location) {
 	if src.mapping != nil {
 		if src.mapping.canBeShared() {
 			dst.mapping = src.mapping
 		} else {
 			if dst.mapping == nil {
-				dst.mapping = allocators.Mapping.Alloc()
+				dst.mapping = new(Mapping)
 				dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
 			}
-			copyMapping(dst.mapping, src.mapping, allocators)
+			copyMapping(dst.mapping, src.mapping)
 		}
 	} else {
 		dst.mapping = nil
 	}
 	dst.SetAddress(src.address)
-	copyLineArray(&dst.lines, &src.lines, allocators)
+	copyLineArray(&dst.lines, &src.lines)
 	dst.SetIsFolded(src.isFolded)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Location {
+func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	if src.mapping != nil {
@@ -305,19 +295,18 @@ func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) *Lo
 			dst.mapping = src.mapping
 		} else {
 			dst.mapping = allocators.Mapping.Alloc()
-			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+			dst.mapping.initAlloc(&dst.modifiedFields, fieldModifiedLocationMapping, allocators)
 			copyToNewMapping(dst.mapping, src.mapping, allocators)
 		}
 	}
 	dst.SetAddress(src.address)
 	copyToNewLineArray(&dst.lines, &src.lines, allocators)
 	dst.SetIsFolded(src.isFolded)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Location) CopyFrom(src *Location, allocators *Allocators) {
-	copyLocation(s, src, allocators)
+func (s *Location) CopyFrom(src *Location) {
+	copyLocation(s, src)
 }
 
 func (s *Location) markParentModified() {
@@ -913,7 +902,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		// Field is changed and is present, decode it.
 		if val.mapping == nil {
 			val.mapping = d.allocators.Mapping.Alloc()
-			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
+			val.mapping.initAlloc(&val.modifiedFields, fieldModifiedLocationMapping, d.allocators)
 		}
 
 		err = d.mappingDecoder.Decode(&val.mapping)

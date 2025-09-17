@@ -222,16 +222,6 @@ func (s *Resource) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyResource(dst *Resource, src *Resource) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = new(Resource)
-		dst.init(nil, 0)
-	}
-
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)

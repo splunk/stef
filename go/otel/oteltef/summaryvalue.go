@@ -212,7 +212,6 @@ func (s *SummaryValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
-
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyQuantileValueArray(&dst.quantileValues, &src.quantileValues)

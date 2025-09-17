@@ -58,7 +58,7 @@ func (e *LocationArray) Clone(allocators *Allocators) LocationArray {
 }
 
 func (e *LocationArray) CloneShared(allocators *Allocators) LocationArray {
-	// Clone and CloneShared are the same.
+	// Clone and CloneShared are the same for arrays.
 	return e.Clone(allocators)
 }
 
@@ -102,7 +102,7 @@ func (e *LocationArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) *LocationArray {
+func copyLocationArray(dst *LocationArray, src *LocationArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -115,60 +115,51 @@ func copyLocationArray(dst *LocationArray, src *LocationArray, allocators *Alloc
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyLocation(dst.elems[i], src.elems[i], allocators)
-		}
+
+		copyLocation(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]Location, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]Location, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = allocators.Location.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-				copyToNewLocation(dst.elems[j], src.elems[j], allocators)
-			}
+			copyLocation(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) *LocationArray {
+func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *Allocators) {
+	dst.parentModifiedFields = &dummyModifiedFields
+
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = allocators.Location.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-			// Copy the element.
-			copyToNewLocation(dst.elems[j], src.elems[j], allocators)
-		}
-	}
 
-	return dst
+		// Alloc and init the element.
+		dst.elems[j] = allocators.Location.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewLocation(dst.elems[j], src.elems[j], allocators)
+
+	}
 }
 
 // Len returns the number of elements in the array.

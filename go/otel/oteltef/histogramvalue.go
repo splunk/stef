@@ -329,7 +329,6 @@ func (s *HistogramValue) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
-
 	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)

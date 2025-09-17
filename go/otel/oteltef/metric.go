@@ -380,16 +380,6 @@ func (s *Metric) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyMetric(dst *Metric, src *Metric) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = new(Metric)
-		dst.init(nil, 0)
-	}
-
 	dst.SetName(src.name)
 	dst.SetDescription(src.description)
 	dst.SetUnit(src.unit)

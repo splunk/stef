@@ -148,7 +148,6 @@ func (s *Envelope) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyEnvelope(dst *Envelope, src *Envelope) {
-
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
 }
 

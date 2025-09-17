@@ -176,6 +176,7 @@ func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
 
 	c := SampleValue{
 
+		//modifiedFields: s.modifiedFields,
 		val:   s.val,
 		type_: s.type_.CloneShared(allocators),
 	}
@@ -190,27 +191,25 @@ func (s *SampleValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
-
+func copySampleValue(dst *SampleValue, src *SampleValue) {
 	dst.SetVal(src.val)
 	if src.type_ != nil {
 		if src.type_.canBeShared() {
 			dst.type_ = src.type_
 		} else {
 			if dst.type_ == nil {
-				dst.type_ = allocators.SampleValueType.Alloc()
+				dst.type_ = new(SampleValueType)
 				dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
 			}
-			copySampleValueType(dst.type_, src.type_, allocators)
+			copySampleValueType(dst.type_, src.type_)
 		}
 	} else {
 		dst.type_ = nil
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) *SampleValue {
+func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) {
 
 	dst.SetVal(src.val)
 
@@ -219,16 +218,15 @@ func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Alloca
 			dst.type_ = src.type_
 		} else {
 			dst.type_ = allocators.SampleValueType.Alloc()
-			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+			dst.type_.initAlloc(&dst.modifiedFields, fieldModifiedSampleValueType, allocators)
 			copyToNewSampleValueType(dst.type_, src.type_, allocators)
 		}
 	}
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValue) CopyFrom(src *SampleValue, allocators *Allocators) {
-	copySampleValue(s, src, allocators)
+func (s *SampleValue) CopyFrom(src *SampleValue) {
+	copySampleValue(s, src)
 }
 
 func (s *SampleValue) markParentModified() {
@@ -581,7 +579,7 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 		// Field is changed and is present, decode it.
 		if val.type_ == nil {
 			val.type_ = d.allocators.SampleValueType.Alloc()
-			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
+			val.type_.initAlloc(&val.modifiedFields, fieldModifiedSampleValueType, d.allocators)
 		}
 
 		err = d.type_Decoder.Decode(&val.type_)

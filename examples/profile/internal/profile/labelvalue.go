@@ -121,6 +121,16 @@ func (s *LabelValue) Num() *NumValue {
 	return &s.num
 }
 
+// canBeShared returns true if s is safe to share without cloning (for example if s is frozen).
+func (s *LabelValue) canBeShared() bool {
+	return false // oneof cannot be shared
+}
+
+func (s *LabelValue) CloneShared(allocators *Allocators) LabelValue {
+	// Clone and CloneShared are the same for oneof.
+	return s.Clone(allocators)
+}
+
 func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 	return LabelValue{
 		str: s.str,
@@ -136,7 +146,7 @@ func (s *LabelValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
+func copyLabelValue(dst *LabelValue, src *LabelValue) {
 	if dst == src {
 		return
 	}
@@ -145,7 +155,7 @@ func copyLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
 		dst.SetStr(src.str)
 	case LabelValueTypeNum:
 		dst.SetType(src.typ)
-		copyNumValue(&dst.num, &src.num, allocators)
+		copyNumValue(&dst.num, &src.num)
 	case LabelValueTypeNone:
 		dst.SetType(src.typ)
 	default:
@@ -168,8 +178,8 @@ func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocator
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *LabelValue) CopyFrom(src *LabelValue, allocators *Allocators) {
-	copyLabelValue(s, src, allocators)
+func (s *LabelValue) CopyFrom(src *LabelValue) {
+	copyLabelValue(s, src)
 }
 
 func (s *LabelValue) markParentModified() {

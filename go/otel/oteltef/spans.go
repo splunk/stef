@@ -262,7 +262,6 @@ func (s *Spans) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpans(dst *Spans, src *Spans) {
-
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.resource != nil {
 		if src.resource.canBeShared() {

@@ -20,15 +20,23 @@ type modifiedFields struct {
 	frozen bool
 }
 
+// Used to avoid nil checks on modifiedFields receiver.
+var dummyModifiedFields modifiedFields
+
 func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.parent = parentModifiedFields
 	m.parentBit = parentModifiedBit
 }
 
 func (m *modifiedFields) markModified(fieldBit uint64) {
-	if m != nil && m.mask&fieldBit != fieldBit {
+	if m == nil {
+		_ = m
+	}
+
+	if m.mask == 0 {
 		m.markModifiedSlow(fieldBit)
 	}
+	m.mask |= fieldBit
 }
 
 func (m *modifiedFields) isAnyModified() bool {

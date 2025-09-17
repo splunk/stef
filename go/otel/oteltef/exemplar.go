@@ -274,7 +274,6 @@ func (s *Exemplar) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExemplar(dst *Exemplar, src *Exemplar) {
-
 	dst.SetTimestamp(src.timestamp)
 	copyExemplarValue(&dst.value, &src.value)
 	dst.SetSpanID(src.spanID)

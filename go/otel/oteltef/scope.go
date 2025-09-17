@@ -286,16 +286,6 @@ func (s *Scope) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyScope(dst *Scope, src *Scope) {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return
-	}
-	if dst == nil {
-		dst = new(Scope)
-		dst.init(nil, 0)
-	}
-
 	dst.SetName(src.name)
 	dst.SetVersion(src.version)
 	dst.SetSchemaURL(src.schemaURL)

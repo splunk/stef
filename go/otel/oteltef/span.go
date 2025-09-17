@@ -558,7 +558,6 @@ func (s *Span) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copySpan(dst *Span, src *Span) {
-
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceState(src.traceState)

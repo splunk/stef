@@ -180,7 +180,6 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
-
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
 }

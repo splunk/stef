@@ -21,7 +21,6 @@ import (
 	"github.com/splunk/stef/go/otel/oteltef"
 	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
 )
 
 var speedEncodings = []encodings.MetricEncoding{
@@ -157,7 +156,6 @@ func BenchmarkSerializeNative(b *testing.B) {
 		}
 	}
 	b.ReportAllocs()
-	fmt.Printf("Uint64EncoderCount=%v\n", encoders.Uint64EncoderCount)
 }
 
 func BenchmarkDeserializeNative(b *testing.B) {

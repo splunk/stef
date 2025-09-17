@@ -274,16 +274,6 @@ func (s *{{ .StructName }}) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
-    {{if .DictName}}
-    if src.isFrozen() {
-        // If src is frozen it means it is safe to share without cloning.
-        return
-    }
-    if dst == nil {
-        dst = new({{.StructName}})
-        dst.init(nil, 0)
-    }
-    {{end}}
     {{- range .Fields -}}
     {{- if .Type.MustClone}}
     {{- if .Optional}}

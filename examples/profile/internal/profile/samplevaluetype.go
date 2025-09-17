@@ -176,6 +176,7 @@ func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
 	c := allocators.SampleValueType.Alloc()
 	*c = SampleValueType{
 
+		//modifiedFields: s.modifiedFields,
 		type_: s.type_,
 		unit:  s.unit,
 	}
@@ -190,38 +191,26 @@ func (s *SampleValueType) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
-
-	if src.isFrozen() {
-		// If src is frozen it means it is safe to share without cloning.
-		return src
-	}
-	if dst == nil {
-		dst = allocators.SampleValueType.Alloc()
-		dst.initAlloc(nil, 0, allocators)
-	}
-
+func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 	dst.SetType(src.type_)
 	dst.SetUnit(src.unit)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) *SampleValueType {
+func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	dst.SetType(src.type_)
 	dst.SetUnit(src.unit)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *SampleValueType) CopyFrom(src *SampleValueType, allocators *Allocators) {
-	copySampleValueType(s, src, allocators)
+func (s *SampleValueType) CopyFrom(src *SampleValueType) {
+	copySampleValueType(s, src)
 }
 
 func (s *SampleValueType) markParentModified() {

@@ -60,7 +60,7 @@ func (e *StringArray) Clone(allocators *Allocators) StringArray {
 }
 
 func (e *StringArray) CloneShared(allocators *Allocators) StringArray {
-	// Clone and CloneShared are the same.
+	// Clone and CloneShared are the same for arrays.
 	return e.Clone(allocators)
 }
 
@@ -106,7 +106,7 @@ func (e *StringArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
+func copyStringArray(dst *StringArray, src *StringArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -133,21 +133,20 @@ func copyStringArray(dst *StringArray, src *StringArray, allocators *Allocators)
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) *StringArray {
+func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Allocators) {
+	dst.parentModifiedFields = &dummyModifiedFields
+
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.

@@ -220,6 +220,7 @@ func (s *Sample) Clone(allocators *Allocators) Sample {
 
 	c := Sample{
 
+		//modifiedFields: s.modifiedFields,
 		metadata:  s.metadata.CloneShared(allocators),
 		locations: s.locations.CloneShared(allocators),
 		values:    s.values.CloneShared(allocators),
@@ -236,28 +237,25 @@ func (s *Sample) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
-
-	copyProfileMetadata(&dst.metadata, &src.metadata, allocators)
-	copyLocationArray(&dst.locations, &src.locations, allocators)
-	copySampleValueArray(&dst.values, &src.values, allocators)
-	copyLabels(&dst.labels, &src.labels, allocators)
-	return dst
+func copySample(dst *Sample, src *Sample) {
+	copyProfileMetadata(&dst.metadata, &src.metadata)
+	copyLocationArray(&dst.locations, &src.locations)
+	copySampleValueArray(&dst.values, &src.values)
+	copyLabels(&dst.labels, &src.labels)
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) *Sample {
+func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) {
 
 	copyToNewProfileMetadata(&dst.metadata, &src.metadata, allocators)
 	copyToNewLocationArray(&dst.locations, &src.locations, allocators)
 	copyToNewSampleValueArray(&dst.values, &src.values, allocators)
 	copyToNewLabels(&dst.labels, &src.labels, allocators)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
-func (s *Sample) CopyFrom(src *Sample, allocators *Allocators) {
-	copySample(s, src, allocators)
+func (s *Sample) CopyFrom(src *Sample) {
+	copySample(s, src)
 }
 
 func (s *Sample) markParentModified() {

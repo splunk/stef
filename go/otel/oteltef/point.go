@@ -242,7 +242,6 @@ func (s *Point) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyPoint(dst *Point, src *Point) {
-
 	dst.SetStartTimestamp(src.startTimestamp)
 	dst.SetTimestamp(src.timestamp)
 	copyPointValue(&dst.value, &src.value)
