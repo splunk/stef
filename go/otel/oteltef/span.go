@@ -530,6 +530,7 @@ func (s *Span) Clone(allocators *Allocators) Span {
 
 	c := Span{
 
+		//modifiedFields: s.modifiedFields,
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,

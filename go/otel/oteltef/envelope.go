@@ -133,6 +133,7 @@ func (s *Envelope) Clone(allocators *Allocators) Envelope {
 
 	c := Envelope{
 
+		//modifiedFields: s.modifiedFields,
 		attributes: s.attributes.CloneShared(allocators),
 	}
 	return c

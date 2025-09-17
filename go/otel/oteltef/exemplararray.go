@@ -143,6 +143,9 @@ func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

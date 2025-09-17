@@ -166,6 +166,7 @@ func (s *SpanStatus) Clone(allocators *Allocators) SpanStatus {
 
 	c := SpanStatus{
 
+		//modifiedFields: s.modifiedFields,
 		message: s.message,
 		code:    s.code,
 	}

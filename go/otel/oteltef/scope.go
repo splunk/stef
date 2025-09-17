@@ -267,6 +267,7 @@ func (s *Scope) Clone(allocators *Allocators) *Scope {
 	c := allocators.Scope.Alloc()
 	*c = Scope{
 
+		//modifiedFields: s.modifiedFields,
 		name:                   s.name,
 		version:                s.version,
 		schemaURL:              s.schemaURL,

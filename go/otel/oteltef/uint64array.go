@@ -137,6 +137,9 @@ func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

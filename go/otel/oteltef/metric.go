@@ -358,6 +358,7 @@ func (s *Metric) Clone(allocators *Allocators) *Metric {
 	c := allocators.Metric.Alloc()
 	*c = Metric{
 
+		//modifiedFields: s.modifiedFields,
 		name:                   s.name,
 		description:            s.description,
 		unit:                   s.unit,

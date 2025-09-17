@@ -244,6 +244,7 @@ func (s *Spans) Clone(allocators *Allocators) Spans {
 
 	c := Spans{
 
+		//modifiedFields: s.modifiedFields,
 		envelope: s.envelope.CloneShared(allocators),
 		resource: s.resource.CloneShared(allocators),
 		scope:    s.scope.CloneShared(allocators),

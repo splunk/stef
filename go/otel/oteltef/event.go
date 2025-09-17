@@ -226,6 +226,7 @@ func (s *Event) Clone(allocators *Allocators) Event {
 
 	c := Event{
 
+		//modifiedFields: s.modifiedFields,
 		name:                   s.name,
 		timeUnixNano:           s.timeUnixNano,
 		attributes:             s.attributes.CloneShared(allocators),

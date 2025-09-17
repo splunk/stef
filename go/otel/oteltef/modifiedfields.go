@@ -26,9 +26,14 @@ func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifi
 }
 
 func (m *modifiedFields) markModified(fieldBit uint64) {
-	if m != nil && m.mask&fieldBit != fieldBit {
+	if m == nil {
+		_ = m
+	}
+
+	if m.mask == 0 {
 		m.markModifiedSlow(fieldBit)
 	}
+	m.mask |= fieldBit
 }
 
 func (m *modifiedFields) isAnyModified() bool {

@@ -310,6 +310,7 @@ func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
 
 	c := HistogramValue{
 
+		//modifiedFields: s.modifiedFields,
 		count:        s.count,
 		sum:          s.sum,
 		min:          s.min,

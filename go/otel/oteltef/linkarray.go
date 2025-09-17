@@ -143,6 +143,9 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLinkArray(dst *LinkArray, src *LinkArray, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

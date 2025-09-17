@@ -255,6 +255,7 @@ func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
 
 	c := Exemplar{
 
+		//modifiedFields: s.modifiedFields,
 		timestamp:          s.timestamp,
 		value:              s.value.CloneShared(allocators),
 		spanID:             s.spanID,

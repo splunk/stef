@@ -205,6 +205,7 @@ func (s *Resource) Clone(allocators *Allocators) *Resource {
 	c := allocators.Resource.Alloc()
 	*c = Resource{
 
+		//modifiedFields: s.modifiedFields,
 		schemaURL:              s.schemaURL,
 		attributes:             s.attributes.CloneShared(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,

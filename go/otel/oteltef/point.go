@@ -224,6 +224,7 @@ func (s *Point) Clone(allocators *Allocators) Point {
 
 	c := Point{
 
+		//modifiedFields: s.modifiedFields,
 		startTimestamp: s.startTimestamp,
 		timestamp:      s.timestamp,
 		value:          s.value.CloneShared(allocators),

@@ -143,6 +143,9 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewEventArray(dst *EventArray, src *EventArray, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

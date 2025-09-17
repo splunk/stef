@@ -195,6 +195,7 @@ func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
 
 	c := SummaryValue{
 
+		//modifiedFields: s.modifiedFields,
 		count:          s.count,
 		sum:            s.sum,
 		quantileValues: s.quantileValues.CloneShared(allocators),

@@ -288,6 +288,7 @@ func (s *Link) Clone(allocators *Allocators) Link {
 
 	c := Link{
 
+		//modifiedFields: s.modifiedFields,
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,

@@ -256,6 +256,7 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
 {{else}}
     c := {{.StructName}}{
 {{end}}
+        //modifiedFields: s.modifiedFields,
         {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.CloneShared(allocators){{else}}s.{{.name}}{{end}},
         {{ end }}
 	}

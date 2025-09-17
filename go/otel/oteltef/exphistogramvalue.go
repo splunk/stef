@@ -432,6 +432,7 @@ func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
 
 	c := ExpHistogramValue{
 
+		//modifiedFields: s.modifiedFields,
 		count:           s.count,
 		sum:             s.sum,
 		min:             s.min,

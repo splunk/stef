@@ -166,6 +166,7 @@ func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
 
 	c := QuantileValue{
 
+		//modifiedFields: s.modifiedFields,
 		quantile: s.quantile,
 		value:    s.value,
 	}

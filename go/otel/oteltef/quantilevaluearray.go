@@ -143,6 +143,9 @@ func copyQuantileValueArray(dst *QuantileValueArray, src *QuantileValueArray) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewQuantileValueArray(dst *QuantileValueArray, src *QuantileValueArray, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

@@ -143,6 +143,9 @@ func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

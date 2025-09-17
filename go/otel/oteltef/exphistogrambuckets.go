@@ -164,6 +164,7 @@ func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets 
 
 	c := ExpHistogramBuckets{
 
+		//modifiedFields: s.modifiedFields,
 		offset:       s.offset,
 		bucketCounts: s.bucketCounts.CloneShared(allocators),
 	}

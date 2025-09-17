@@ -137,6 +137,9 @@ func copyFloat64Array(dst *Float64Array, src *Float64Array) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewFloat64Array(dst *Float64Array, src *Float64Array, allocators *Allocators) {
+	dst.parentModifiedFields = src.parentModifiedFields
+	dst.parentModifiedBit = src.parentModifiedBit
+
 	if len(src.elems) == 0 {
 		return
 	}

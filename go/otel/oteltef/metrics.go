@@ -314,6 +314,7 @@ func (s *Metrics) Clone(allocators *Allocators) Metrics {
 
 	c := Metrics{
 
+		//modifiedFields: s.modifiedFields,
 		envelope:   s.envelope.CloneShared(allocators),
 		metric:     s.metric.CloneShared(allocators),
 		resource:   s.resource.CloneShared(allocators),
