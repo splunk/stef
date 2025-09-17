@@ -29,7 +29,7 @@ type Location struct {
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
 	// refNum is non-zero when the struct is stored in a dictionary.
-	refNum uint64
+	//refNum uint64
 }
 
 const LocationStructName = "Location"
@@ -283,8 +283,9 @@ func copyLocation(dst *Location, src *Location, allocators *Allocators) *Locatio
 			}
 			copyMapping(dst.mapping, src.mapping, allocators)
 		}
+	} else {
+		dst.mapping = nil
 	}
-	copyMapping(dst.mapping, src.mapping, allocators)
 	dst.SetAddress(src.address)
 	copyLineArray(&dst.lines, &src.lines, allocators)
 	dst.SetIsFolded(src.isFolded)
@@ -479,17 +480,15 @@ func (d *LocationEncoderDict) Init(limiter *pkg.SizeLimiter) {
 }
 
 func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
-	if val.refNum != 0 {
-		if val.modifiedFields.isAnyModified() {
-			// The struct was modified since it was added to the dictionary, so refNum
-			// is no longer valid.
-		} else {
-			// Verify that the refNum is still valid. It may become invalid if for example
-			// the dictionaries are reset during encoding and refNums are reused.
-			if int(val.refNum) < len(d.slice) && d.slice[val.refNum] == val {
-				return val.refNum, true
-			}
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+
+		// Verify that the refNum is still valid. It may become invalid if for example
+		// the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
 		}
+
 	}
 	if entry, ok := d.dict.Get(val); ok {
 		return entry.refNum, true
@@ -499,7 +498,7 @@ func (d *LocationEncoderDict) Get(val *Location) (uint64, bool) {
 
 func (d *LocationEncoderDict) Add(val *Location, allocators *Allocators) {
 	refNum := uint64(d.dict.Len())
-	val.refNum = refNum
+	val.modifiedFields.refNum = refNum
 	d.slice = append(d.slice, val)
 
 	clone := val.Clone(allocators)
@@ -624,7 +623,6 @@ func (e *LocationEncoder) Encode(val *Location) {
 	var bitCount uint
 
 	// Check if the Location exists in the dictionary.
-	//refNum := val.refNum
 	if refNum, exists := e.dict.Get(val); exists {
 		// The Location exists, we will reference it.
 		// Indicate a RefNum follows.
@@ -643,11 +641,6 @@ func (e *LocationEncoder) Encode(val *Location) {
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
 	e.dict.Add(val, e.allocators)
-	//valInDict := val // val.Clone(e.allocators)
-	//val.refNum = uint64(len(e.dict.m)+1)
-	//entry := LocationEntry{refNum: uint64(len(e.dict.m)+1), val: valInDict}
-	//e.dict.dict.Set(valInDict, entry)
-	//e.dict.m[val] = val.refNum
 	e.dict.limiter.AddDictElemSize(val.byteSize())
 
 	// Indicate that an encoded Location follows.

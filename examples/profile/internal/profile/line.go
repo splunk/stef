@@ -234,8 +234,9 @@ func copyLine(dst *Line, src *Line, allocators *Allocators) *Line {
 			}
 			copyFunction(dst.function, src.function, allocators)
 		}
+	} else {
+		dst.function = nil
 	}
-	copyFunction(dst.function, src.function, allocators)
 	dst.SetLine(src.line)
 	dst.SetColumn(src.column)
 	return dst

@@ -104,7 +104,7 @@ func TestSampleWriteRead(t *testing.T) {
 				// Write the records
 				allocators := &Allocators{}
 				for i := 0; i < len(records); i++ {
-					if j == 0 && i == 820 {
+					if j == 0 && i == 26 {
 						_ = i
 					}
 					writer.Record.CopyFrom(&records[i], allocators)
@@ -119,7 +119,7 @@ func TestSampleWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
-					if j == 0 && i == 820 {
+					if j == 0 && i == 26 {
 						_ = i
 					}
 					err := reader.Read(pkg.ReadOptions{})

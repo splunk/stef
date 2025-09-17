@@ -203,8 +203,9 @@ func copySampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators)
 			}
 			copySampleValueType(dst.type_, src.type_, allocators)
 		}
+	} else {
+		dst.type_ = nil
 	}
-	copySampleValueType(dst.type_, src.type_, allocators)
 	return dst
 }
 

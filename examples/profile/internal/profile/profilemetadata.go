@@ -406,8 +406,9 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators 
 			}
 			copySampleValueType(dst.periodType, src.periodType, allocators)
 		}
+	} else {
+		dst.periodType = nil
 	}
-	copySampleValueType(dst.periodType, src.periodType, allocators)
 	dst.SetPeriod(src.period)
 	copyStringArray(&dst.comments, &src.comments, allocators)
 	if src.defaultSampleType != nil {
@@ -420,8 +421,9 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators 
 			}
 			copySampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 		}
+	} else {
+		dst.defaultSampleType = nil
 	}
-	copySampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 	return dst
 }
 
