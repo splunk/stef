@@ -133,11 +133,15 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
 		{{- if .ElemType.MustClone}}
+		{{if .DictName}}
 		if src.elems[i].canBeShared() {
 		    dst.elems[i] = src.elems[i]
 		} else {
 		    copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
 		}
+		{{else}}
+		copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+        {{end}}
 		isModified = true
 		{{- else}}
 		if dst.elems[i] != src.elems[i] {
@@ -208,15 +212,19 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
 	{{- if .ElemType.MustClone}}
     // Need to allocate new elements for the part of the array that has grown.
     for j := 0; j<len(dst.elems); j++ {
+        {{if .DictName}}
         if src.elems[j].canBeShared() {
             dst.elems[j] = src.elems[j]
         } else {
+        {{end}}
             // Alloc and init the element.
             dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
             dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
             // Copy the element.
             copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+        {{if .DictName}}
         }
+        {{end}}
     }
 	{{- else}}
 	for i:=0; i < len(dst.elems); i++ {

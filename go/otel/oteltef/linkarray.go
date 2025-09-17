@@ -115,11 +115,9 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyLink(dst.elems[i], src.elems[i])
-		}
+
+		copyLink(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
@@ -152,15 +150,13 @@ func copyToNewLinkArray(dst *LinkArray, src *LinkArray, allocators *Allocators) 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = allocators.Link.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-			// Copy the element.
-			copyToNewLink(dst.elems[j], src.elems[j], allocators)
-		}
+
+		// Alloc and init the element.
+		dst.elems[j] = allocators.Link.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewLink(dst.elems[j], src.elems[j], allocators)
+
 	}
 }
 

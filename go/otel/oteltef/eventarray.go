@@ -115,11 +115,9 @@ func copyEventArray(dst *EventArray, src *EventArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyEvent(dst.elems[i], src.elems[i])
-		}
+
+		copyEvent(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
@@ -152,15 +150,13 @@ func copyToNewEventArray(dst *EventArray, src *EventArray, allocators *Allocator
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		if src.elems[j].canBeShared() {
-			dst.elems[j] = src.elems[j]
-		} else {
-			// Alloc and init the element.
-			dst.elems[j] = allocators.Event.Alloc()
-			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-			// Copy the element.
-			copyToNewEvent(dst.elems[j], src.elems[j], allocators)
-		}
+
+		// Alloc and init the element.
+		dst.elems[j] = allocators.Event.Alloc()
+		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+		// Copy the element.
+		copyToNewEvent(dst.elems[j], src.elems[j], allocators)
+
 	}
 }
 
