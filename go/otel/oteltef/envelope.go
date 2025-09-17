@@ -143,17 +143,15 @@ func (s *Envelope) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyEnvelope(dst *Envelope, src *Envelope) *Envelope {
+func copyEnvelope(dst *Envelope, src *Envelope) {
 
 	copyEnvelopeAttributes(&dst.attributes, &src.attributes)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEnvelope(dst *Envelope, src *Envelope) *Envelope {
+func copyToNewEnvelope(dst *Envelope, src *Envelope) {
 
 	copyToNewEnvelopeAttributes(&dst.attributes, &src.attributes)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -449,7 +449,7 @@ func (s *ExpHistogramValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) *ExpHistogramValue {
+func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -476,11 +476,10 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) *ExpH
 	copyExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) *ExpHistogramValue {
+func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -501,7 +500,6 @@ func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) 
 	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets)
 	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

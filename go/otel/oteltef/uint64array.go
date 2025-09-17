@@ -105,7 +105,7 @@ func (e *Uint64Array) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyUint64Array(dst *Uint64Array, src *Uint64Array) *Uint64Array {
+func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -132,21 +132,18 @@ func copyUint64Array(dst *Uint64Array, src *Uint64Array) *Uint64Array {
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array) *Uint64Array {
+func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array) {
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.

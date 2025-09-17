@@ -178,19 +178,17 @@ func (s *QuantileValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyQuantileValue(dst *QuantileValue, src *QuantileValue) *QuantileValue {
+func copyQuantileValue(dst *QuantileValue, src *QuantileValue) {
 
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue) *QuantileValue {
+func copyToNewQuantileValue(dst *QuantileValue, src *QuantileValue) {
 
 	dst.SetQuantile(src.quantile)
 	dst.SetValue(src.value)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

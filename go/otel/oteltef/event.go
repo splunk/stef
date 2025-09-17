@@ -239,23 +239,21 @@ func (s *Event) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyEvent(dst *Event, src *Event) *Event {
+func copyEvent(dst *Event, src *Event) {
 
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEvent(dst *Event, src *Event) *Event {
+func copyToNewEvent(dst *Event, src *Event) {
 
 	dst.SetName(src.name)
 	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

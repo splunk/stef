@@ -550,7 +550,7 @@ func (s *Span) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySpan(dst *Span, src *Span) *Span {
+func copySpan(dst *Span, src *Span) {
 
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -566,11 +566,10 @@ func copySpan(dst *Span, src *Span) *Span {
 	copyEventArray(&dst.events, &src.events)
 	copyLinkArray(&dst.links, &src.links)
 	copySpanStatus(&dst.status, &src.status)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSpan(dst *Span, src *Span) *Span {
+func copyToNewSpan(dst *Span, src *Span) {
 
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -586,7 +585,6 @@ func copyToNewSpan(dst *Span, src *Span) *Span {
 	copyToNewEventArray(&dst.events, &src.events)
 	copyToNewLinkArray(&dst.links, &src.links)
 	copyToNewSpanStatus(&dst.status, &src.status)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

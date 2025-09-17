@@ -236,23 +236,21 @@ func (s *Point) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyPoint(dst *Point, src *Point) *Point {
+func copyPoint(dst *Point, src *Point) {
 
 	dst.SetStartTimestamp(src.startTimestamp)
 	dst.SetTimestamp(src.timestamp)
 	copyPointValue(&dst.value, &src.value)
 	copyExemplarArray(&dst.exemplars, &src.exemplars)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewPoint(dst *Point, src *Point) *Point {
+func copyToNewPoint(dst *Point, src *Point) {
 
 	dst.SetStartTimestamp(src.startTimestamp)
 	dst.SetTimestamp(src.timestamp)
 	copyToNewPointValue(&dst.value, &src.value)
 	copyToNewExemplarArray(&dst.exemplars, &src.exemplars)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

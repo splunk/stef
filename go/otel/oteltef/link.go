@@ -303,7 +303,7 @@ func (s *Link) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyLink(dst *Link, src *Link) *Link {
+func copyLink(dst *Link, src *Link) {
 
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -311,11 +311,10 @@ func copyLink(dst *Link, src *Link) *Link {
 	dst.SetFlags(src.flags)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLink(dst *Link, src *Link) *Link {
+func copyToNewLink(dst *Link, src *Link) {
 
 	dst.SetTraceID(src.traceID)
 	dst.SetSpanID(src.spanID)
@@ -323,7 +322,6 @@ func copyToNewLink(dst *Link, src *Link) *Link {
 	dst.SetFlags(src.flags)
 	copyToNewAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

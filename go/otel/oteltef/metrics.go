@@ -321,7 +321,7 @@ func (s *Metrics) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyMetrics(dst *Metrics, src *Metrics) *Metrics {
+func copyMetrics(dst *Metrics, src *Metrics) {
 
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.metric != nil {
@@ -365,11 +365,10 @@ func copyMetrics(dst *Metrics, src *Metrics) *Metrics {
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
 	copyPoint(&dst.point, &src.point)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMetrics(dst *Metrics, src *Metrics) *Metrics {
+func copyToNewMetrics(dst *Metrics, src *Metrics) {
 
 	copyToNewEnvelope(&dst.envelope, &src.envelope)
 
@@ -404,7 +403,6 @@ func copyToNewMetrics(dst *Metrics, src *Metrics) *Metrics {
 	}
 	copyToNewAttributes(&dst.attributes, &src.attributes)
 	copyToNewPoint(&dst.point, &src.point)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

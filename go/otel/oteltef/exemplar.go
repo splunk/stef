@@ -268,25 +268,23 @@ func (s *Exemplar) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyExemplar(dst *Exemplar, src *Exemplar) *Exemplar {
+func copyExemplar(dst *Exemplar, src *Exemplar) {
 
 	dst.SetTimestamp(src.timestamp)
 	copyExemplarValue(&dst.value, &src.value)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceID(src.traceID)
 	copyAttributes(&dst.filteredAttributes, &src.filteredAttributes)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExemplar(dst *Exemplar, src *Exemplar) *Exemplar {
+func copyToNewExemplar(dst *Exemplar, src *Exemplar) {
 
 	dst.SetTimestamp(src.timestamp)
 	copyToNewExemplarValue(&dst.value, &src.value)
 	dst.SetSpanID(src.spanID)
 	dst.SetTraceID(src.traceID)
 	copyToNewAttributes(&dst.filteredAttributes, &src.filteredAttributes)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -101,7 +101,7 @@ func (e *LinkArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
+func copyLinkArray(dst *LinkArray, src *LinkArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -114,43 +114,36 @@ func copyLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyLink(dst.elems[i], src.elems[i])
-		}
+
+		copyLink(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]Link, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]Link, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = dst.allocators.Link.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-				copyToNewLink(dst.elems[j], src.elems[j])
-			}
+			copyLink(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
+func copyToNewLinkArray(dst *LinkArray, src *LinkArray) {
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -166,8 +159,6 @@ func copyToNewLinkArray(dst *LinkArray, src *LinkArray) *LinkArray {
 			copyToNewLink(dst.elems[j], src.elems[j])
 		}
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.

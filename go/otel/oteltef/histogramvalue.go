@@ -324,7 +324,7 @@ func (s *HistogramValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyHistogramValue(dst *HistogramValue, src *HistogramValue) *HistogramValue {
+func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -347,11 +347,10 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) *HistogramValu
 
 	copyInt64Array(&dst.bucketCounts, &src.bucketCounts)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue) *HistogramValue {
+func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue) {
 
 	dst.SetCount(src.count)
 	if src.HasSum() {
@@ -368,7 +367,6 @@ func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue) *Histogra
 
 	copyToNewInt64Array(&dst.bucketCounts, &src.bucketCounts)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

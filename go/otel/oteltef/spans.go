@@ -252,7 +252,7 @@ func (s *Spans) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySpans(dst *Spans, src *Spans) *Spans {
+func copySpans(dst *Spans, src *Spans) {
 
 	copyEnvelope(&dst.envelope, &src.envelope)
 	if src.resource != nil {
@@ -282,11 +282,10 @@ func copySpans(dst *Spans, src *Spans) *Spans {
 		dst.scope = nil
 	}
 	copySpan(&dst.span, &src.span)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSpans(dst *Spans, src *Spans) *Spans {
+func copyToNewSpans(dst *Spans, src *Spans) {
 
 	copyToNewEnvelope(&dst.envelope, &src.envelope)
 
@@ -310,7 +309,6 @@ func copyToNewSpans(dst *Spans, src *Spans) *Spans {
 		}
 	}
 	copyToNewSpan(&dst.span, &src.span)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

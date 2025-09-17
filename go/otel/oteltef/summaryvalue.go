@@ -207,21 +207,19 @@ func (s *SummaryValue) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySummaryValue(dst *SummaryValue, src *SummaryValue) *SummaryValue {
+func copySummaryValue(dst *SummaryValue, src *SummaryValue) {
 
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyQuantileValueArray(&dst.quantileValues, &src.quantileValues)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue) *SummaryValue {
+func copyToNewSummaryValue(dst *SummaryValue, src *SummaryValue) {
 
 	dst.SetCount(src.count)
 	dst.SetSum(src.sum)
 	copyToNewQuantileValueArray(&dst.quantileValues, &src.quantileValues)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

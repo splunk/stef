@@ -374,11 +374,11 @@ func (s *Metric) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyMetric(dst *Metric, src *Metric) *Metric {
+func copyMetric(dst *Metric, src *Metric) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 	if dst == nil {
 		dst = src.allocators.Metric.Alloc()
@@ -393,15 +393,14 @@ func copyMetric(dst *Metric, src *Metric) *Metric {
 	copyFloat64Array(&dst.histogramBounds, &src.histogramBounds)
 	dst.SetAggregationTemporality(src.aggregationTemporality)
 	dst.SetMonotonic(src.monotonic)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewMetric(dst *Metric, src *Metric) *Metric {
+func copyToNewMetric(dst *Metric, src *Metric) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	dst.SetName(src.name)
@@ -412,7 +411,6 @@ func copyToNewMetric(dst *Metric, src *Metric) *Metric {
 	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds)
 	dst.SetAggregationTemporality(src.aggregationTemporality)
 	dst.SetMonotonic(src.monotonic)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

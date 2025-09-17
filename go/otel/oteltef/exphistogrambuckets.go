@@ -175,19 +175,17 @@ func (s *ExpHistogramBuckets) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) *ExpHistogramBuckets {
+func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
 
 	dst.SetOffset(src.offset)
 	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) *ExpHistogramBuckets {
+func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets) {
 
 	dst.SetOffset(src.offset)
 	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

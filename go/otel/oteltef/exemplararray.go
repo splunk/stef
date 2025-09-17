@@ -101,7 +101,7 @@ func (e *ExemplarArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) *ExemplarArray {
+func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -114,43 +114,36 @@ func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) *ExemplarArray {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyExemplar(dst.elems[i], src.elems[i])
-		}
+
+		copyExemplar(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]Exemplar, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]Exemplar, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = dst.allocators.Exemplar.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-				copyToNewExemplar(dst.elems[j], src.elems[j])
-			}
+			copyExemplar(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray) *ExemplarArray {
+func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -166,8 +159,6 @@ func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray) *ExemplarArr
 			copyToNewExemplar(dst.elems[j], src.elems[j])
 		}
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.

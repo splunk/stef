@@ -178,19 +178,17 @@ func (s *SpanStatus) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copySpanStatus(dst *SpanStatus, src *SpanStatus) *SpanStatus {
+func copySpanStatus(dst *SpanStatus, src *SpanStatus) {
 
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus) *SpanStatus {
+func copyToNewSpanStatus(dst *SpanStatus, src *SpanStatus) {
 
 	dst.SetMessage(src.message)
 	dst.SetCode(src.code)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.

@@ -101,7 +101,7 @@ func (e *EventArray) markUnmodifiedRecursively() {
 }
 
 // Update from src to dst, overwriting existing data in dst.
-func copyEventArray(dst *EventArray, src *EventArray) *EventArray {
+func copyEventArray(dst *EventArray, src *EventArray) {
 	isModified := false
 
 	minLen := min(len(dst.elems), len(src.elems))
@@ -114,43 +114,36 @@ func copyEventArray(dst *EventArray, src *EventArray) *EventArray {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
-		} else {
-			copyEvent(dst.elems[i], src.elems[i])
-		}
+
+		copyEvent(dst.elems[i], src.elems[i])
+
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
+
 		// Need to allocate new elements for the part of the array that has grown.
 		// Allocate all new elements at once.
-		//elems := make([]Event, len(dst.elems) - minLen)
-		for j := i; j < len(dst.elems); j++ {
+		elems := make([]Event, len(dst.elems)-minLen)
+		for j := range elems {
 			// Init the element.
-			//elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
 			// Point to the allocated element.
-			//dst.elems[i+j] = &elems[j]
+			dst.elems[i+j] = &elems[j]
 			// Copy the element.
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
-			} else {
-				dst.elems[j] = dst.allocators.Event.Alloc()
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit, dst.allocators)
-				copyToNewEvent(dst.elems[j], src.elems[j])
-			}
+			copyEvent(dst.elems[i+j], src.elems[i+j])
 		}
+
 	}
 	if isModified {
 		dst.markModified()
 	}
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewEventArray(dst *EventArray, src *EventArray) *EventArray {
+func copyToNewEventArray(dst *EventArray, src *EventArray) {
 	if len(src.elems) == 0 {
-		return dst
+		return
 	}
 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
@@ -166,8 +159,6 @@ func copyToNewEventArray(dst *EventArray, src *EventArray) *EventArray {
 			copyToNewEvent(dst.elems[j], src.elems[j])
 		}
 	}
-
-	return dst
 }
 
 // Len returns the number of elements in the array.

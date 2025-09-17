@@ -281,11 +281,11 @@ func (s *Scope) byteSize() uint {
 }
 
 // Copy from src to dst, overwriting existing data in dst.
-func copyScope(dst *Scope, src *Scope) *Scope {
+func copyScope(dst *Scope, src *Scope) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 	if dst == nil {
 		dst = src.allocators.Scope.Alloc()
@@ -297,15 +297,14 @@ func copyScope(dst *Scope, src *Scope) *Scope {
 	dst.SetSchemaURL(src.schemaURL)
 	copyAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
-func copyToNewScope(dst *Scope, src *Scope) *Scope {
+func copyToNewScope(dst *Scope, src *Scope) {
 
 	if src.isFrozen() {
 		// If src is frozen it means it is safe to share without cloning.
-		return src
+		return
 	}
 
 	dst.SetName(src.name)
@@ -313,7 +312,6 @@ func copyToNewScope(dst *Scope, src *Scope) *Scope {
 	dst.SetSchemaURL(src.schemaURL)
 	copyToNewAttributes(&dst.attributes, &src.attributes)
 	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
-	return dst
 }
 
 // CopyFrom() performs a deep copy from src.
