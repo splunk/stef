@@ -64,7 +64,6 @@ func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValue) reset() {
-
 	s.val = 0
 	if s.type_ != nil {
 		s.type_.reset()
@@ -76,8 +75,18 @@ func (s *SampleValue) reset() {
 // an array element and the array was expanded.
 func (s *SampleValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.type_.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *SampleValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SampleValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *SampleValue) Val() int64 {
@@ -86,9 +95,9 @@ func (s *SampleValue) Val() int64 {
 
 // SetVal sets the value of Val field.
 func (s *SampleValue) SetVal(v int64) {
-	if !pkg.Int64Equal(s.val, v) {
+	if s.val != v {
 		s.val = v
-		s.markValModified()
+		s.modifiedFields.markModified(fieldModifiedSampleValueVal)
 	}
 }
 
@@ -108,6 +117,20 @@ func (s *SampleValue) Type() *SampleValueType {
 	return s.type_
 }
 
+// SetType sets the value of Type field.
+func (s *SampleValue) SetType(v *SampleValueType) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current type_
+		if v.computeDiff(s.type_) {
+			// It is different. Update to it.
+			s.type_ = v
+			s.modifiedFields.markModified(fieldModifiedSampleValueType)
+		}
+	} else {
+		s.type_.CopyFrom(v)
+	}
+}
+
 func (s *SampleValue) markTypeModified() {
 	s.modifiedFields.markModified(fieldModifiedSampleValueType)
 }
@@ -120,33 +143,51 @@ func (s *SampleValue) IsTypeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSampleValueType != 0
 }
 
-func (s *SampleValue) markModifiedRecursively() {
-
-	s.type_.markModifiedRecursively()
-
+func (s *SampleValue) setModifiedRecursively() {
+	s.type_.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedSampleValueVal |
 			fieldModifiedSampleValueType | 0
 }
 
-func (s *SampleValue) markUnmodifiedRecursively() {
-
-	if s.IsValModified() {
-	}
-
+func (s *SampleValue) setUnmodifiedRecursively() {
 	if s.IsTypeModified() {
-		s.type_.markUnmodifiedRecursively()
+		s.type_.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *SampleValue) computeDiff(val *SampleValue) (ret bool) {
+	// Compare Val field.
+	if s.val != val.val {
+		s.modifiedFields.setModified(fieldModifiedSampleValueVal)
+		ret = true
+	}
+	// Compare Type field.
+	if s.type_.computeDiff(val.type_) {
+		s.modifiedFields.setModified(fieldModifiedSampleValueType)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *SampleValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SampleValue) CloneShared(allocators *Allocators) SampleValue {
+	return s.Clone(allocators)
+}
+
 func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
-
 	c := SampleValue{
-
 		val:   s.val,
-		type_: s.type_.Clone(allocators),
+		type_: s.type_.CloneShared(allocators),
 	}
 	return c
 }
@@ -161,32 +202,34 @@ func (s *SampleValue) byteSize() uint {
 // Copy from src to dst, overwriting existing data in dst.
 func copySampleValue(dst *SampleValue, src *SampleValue) {
 	dst.SetVal(src.val)
-	if src.type_ != nil {
-		if dst.type_ == nil {
-			dst.type_ = &SampleValueType{}
-			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+
+	if src.type_.canBeShared() {
+		if src.type_.computeDiff(dst.type_) {
+			dst.type_ = src.type_
+			dst.markTypeModified()
 		}
+	} else {
 		copySampleValueType(dst.type_, src.type_)
 	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Allocators) {
-	dst.val = src.val
-	if src.type_ != nil {
+	dst.SetVal(src.val)
+
+	if src.type_.canBeShared() {
+		dst.type_ = src.type_
+	} else {
 		dst.type_ = allocators.SampleValueType.Alloc()
 		dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
 		copyToNewSampleValueType(dst.type_, src.type_, allocators)
 	}
+
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *SampleValue) CopyFrom(src *SampleValue) {
 	copySampleValue(s, src)
-}
-
-func (s *SampleValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -215,6 +258,19 @@ func (s *SampleValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Type
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.type_.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.type_ = new(SampleValueType)
+				s.type_.init(&s.modifiedFields, fieldModifiedSampleValueType)
+			} else {
+				s.type_ = s.type_.Clone(&Allocators{})
+			}
+		}
+
 		s.type_.mutateRandom(random, schem)
 	}
 }
@@ -240,26 +296,14 @@ func SampleValueEqual(left, right *SampleValue) bool {
 // CmpSampleValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSampleValue(left, right *SampleValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Val field.
 	if c := pkg.Int64Compare(left.val, right.val); c != 0 {
 		return c
 	}
-
 	// Compare Type field.
 	if c := CmpSampleValueType(left.type_, right.type_); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -268,14 +312,12 @@ type SampleValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	valEncoder encoders.Int64Encoder
-
+	valEncoder      encoders.Int64Encoder
 	type_Encoder    *SampleValueTypeEncoder
 	isTypeRecursive bool // Indicates Type field's type is recursive.
 
@@ -337,7 +379,7 @@ func (e *SampleValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 func (e *SampleValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Val and all subsequent fields are skipped.
@@ -346,11 +388,9 @@ func (e *SampleValueEncoder) Reset() {
 	if e.fieldCount <= 1 {
 		return // Type and all subsequent fields are skipped.
 	}
-
 	if !e.isTypeRecursive {
 		e.type_Encoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -362,11 +402,8 @@ func (e *SampleValueEncoder) Encode(val *SampleValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSampleValueVal |
-				fieldModifiedSampleValueType | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -399,15 +436,12 @@ func (e *SampleValueEncoder) Encode(val *SampleValue) {
 func (e *SampleValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Val field.
 	if e.fieldCount <= 0 {
 		return // Val and subsequent fields are skipped.
 	}
-
 	e.valEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Type field.
 	if e.fieldCount <= 1 {
 		return // Type and subsequent fields are skipped.
@@ -423,13 +457,11 @@ type SampleValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
 	fieldCount uint
-
 	valDecoder encoders.Int64Decoder
 
 	type_Decoder    *SampleValueTypeDecoder
 	isTypeRecursive bool
-
-	allocators *Allocators
+	allocators      *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

@@ -72,7 +72,6 @@ func (s *Sample) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Sample) reset() {
-
 	s.metadata.reset()
 	s.locations.reset()
 	s.values.reset()
@@ -84,11 +83,21 @@ func (s *Sample) reset() {
 // an array element and the array was expanded.
 func (s *Sample) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.metadata.fixParent(&s.modifiedFields)
 	s.locations.fixParent(&s.modifiedFields)
 	s.values.fixParent(&s.modifiedFields)
 	s.labels.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Sample) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Sample) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Sample) Metadata() *ProfileMetadata {
@@ -155,16 +164,11 @@ func (s *Sample) IsLabelsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSampleLabels != 0
 }
 
-func (s *Sample) markModifiedRecursively() {
-
-	s.metadata.markModifiedRecursively()
-
-	s.locations.markModifiedRecursively()
-
-	s.values.markModifiedRecursively()
-
-	s.labels.markModifiedRecursively()
-
+func (s *Sample) setModifiedRecursively() {
+	s.metadata.setModifiedRecursively()
+	s.locations.setModifiedRecursively()
+	s.values.setModifiedRecursively()
+	s.labels.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedSampleMetadata |
 			fieldModifiedSampleLocations |
@@ -172,36 +176,65 @@ func (s *Sample) markModifiedRecursively() {
 			fieldModifiedSampleLabels | 0
 }
 
-func (s *Sample) markUnmodifiedRecursively() {
-
+func (s *Sample) setUnmodifiedRecursively() {
 	if s.IsMetadataModified() {
-		s.metadata.markUnmodifiedRecursively()
+		s.metadata.setUnmodifiedRecursively()
 	}
-
 	if s.IsLocationsModified() {
-		s.locations.markUnmodifiedRecursively()
+		s.locations.setUnmodifiedRecursively()
 	}
-
 	if s.IsValuesModified() {
-		s.values.markUnmodifiedRecursively()
+		s.values.setUnmodifiedRecursively()
 	}
-
 	if s.IsLabelsModified() {
-		s.labels.markUnmodifiedRecursively()
+		s.labels.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Sample) Clone(allocators *Allocators) Sample {
-
-	c := Sample{
-
-		metadata:  s.metadata.Clone(allocators),
-		locations: s.locations.Clone(allocators),
-		values:    s.values.Clone(allocators),
-		labels:    s.labels.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Sample) computeDiff(val *Sample) (ret bool) {
+	// Compare Metadata field.
+	if s.metadata.computeDiff(&val.metadata) {
+		s.modifiedFields.setModified(fieldModifiedSampleMetadata)
+		ret = true
 	}
+	// Compare Locations field.
+	if s.locations.computeDiff(&val.locations) {
+		s.modifiedFields.setModified(fieldModifiedSampleLocations)
+		ret = true
+	}
+	// Compare Values field.
+	if s.values.computeDiff(&val.values) {
+		s.modifiedFields.setModified(fieldModifiedSampleValues)
+		ret = true
+	}
+	// Compare Labels field.
+	if s.labels.computeDiff(&val.labels) {
+		s.modifiedFields.setModified(fieldModifiedSampleLabels)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Sample) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Sample) CloneShared(allocators *Allocators) Sample {
+	return s.Clone(allocators)
+}
+
+func (s *Sample) Clone(allocators *Allocators) Sample {
+	c := Sample{}
+	copyToNewProfileMetadata(&c.metadata, &s.metadata, allocators)
+	copyToNewLocationArray(&c.locations, &s.locations, allocators)
+	copyToNewSampleValueArray(&c.values, &s.values, allocators)
+	copyToNewLabels(&c.labels, &s.labels, allocators)
 	return c
 }
 
@@ -231,10 +264,6 @@ func copyToNewSample(dst *Sample, src *Sample, allocators *Allocators) {
 // CopyFrom() performs a deep copy from src.
 func (s *Sample) CopyFrom(src *Sample) {
 	copySample(s, src)
-}
-
-func (s *Sample) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -310,36 +339,22 @@ func SampleEqual(left, right *Sample) bool {
 // CmpSample performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSample(left, right *Sample) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Metadata field.
 	if c := CmpProfileMetadata(&left.metadata, &right.metadata); c != 0 {
 		return c
 	}
-
 	// Compare Locations field.
 	if c := CmpLocationArray(&left.locations, &right.locations); c != 0 {
 		return c
 	}
-
 	// Compare Values field.
 	if c := CmpSampleValueArray(&left.values, &right.values); c != 0 {
 		return c
 	}
-
 	// Compare Labels field.
 	if c := CmpLabels(&left.labels, &right.labels); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -348,23 +363,19 @@ type SampleEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	metadataEncoder     *ProfileMetadataEncoder
-	isMetadataRecursive bool // Indicates Metadata field's type is recursive.
-
+	metadataEncoder      *ProfileMetadataEncoder
+	isMetadataRecursive  bool // Indicates Metadata field's type is recursive.
 	locationsEncoder     *LocationArrayEncoder
 	isLocationsRecursive bool // Indicates Locations field's type is recursive.
-
-	valuesEncoder     *SampleValueArrayEncoder
-	isValuesRecursive bool // Indicates Values field's type is recursive.
-
-	labelsEncoder     *LabelsEncoder
-	isLabelsRecursive bool // Indicates Labels field's type is recursive.
+	valuesEncoder        *SampleValueArrayEncoder
+	isValuesRecursive    bool // Indicates Values field's type is recursive.
+	labelsEncoder        *LabelsEncoder
+	isLabelsRecursive    bool // Indicates Labels field's type is recursive.
 
 	allocators *Allocators
 
@@ -463,40 +474,32 @@ func (e *SampleEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 func (e *SampleEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Metadata and all subsequent fields are skipped.
 	}
-
 	if !e.isMetadataRecursive {
 		e.metadataEncoder.Reset()
 	}
-
 	if e.fieldCount <= 1 {
 		return // Locations and all subsequent fields are skipped.
 	}
-
 	if !e.isLocationsRecursive {
 		e.locationsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 2 {
 		return // Values and all subsequent fields are skipped.
 	}
-
 	if !e.isValuesRecursive {
 		e.valuesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // Labels and all subsequent fields are skipped.
 	}
-
 	if !e.isLabelsRecursive {
 		e.labelsEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -508,13 +511,8 @@ func (e *SampleEncoder) Encode(val *Sample) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSampleMetadata |
-				fieldModifiedSampleLocations |
-				fieldModifiedSampleValues |
-				fieldModifiedSampleLabels | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -557,7 +555,6 @@ func (e *SampleEncoder) Encode(val *Sample) {
 func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Metadata field.
 	if e.fieldCount <= 0 {
 		return // Metadata and subsequent fields are skipped.
@@ -566,7 +563,6 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.metadataEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Locations field.
 	if e.fieldCount <= 1 {
 		return // Locations and subsequent fields are skipped.
@@ -575,7 +571,6 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.locationsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Values field.
 	if e.fieldCount <= 2 {
 		return // Values and subsequent fields are skipped.
@@ -584,7 +579,6 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.valuesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Labels field.
 	if e.fieldCount <= 3 {
 		return // Labels and subsequent fields are skipped.
@@ -597,23 +591,18 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SampleDecoder implements decoding of Sample
 type SampleDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
-	metadataDecoder     *ProfileMetadataDecoder
-	isMetadataRecursive bool
-
+	buf                  pkg.BitsReader
+	column               *pkg.ReadableColumn
+	fieldCount           uint
+	metadataDecoder      *ProfileMetadataDecoder
+	isMetadataRecursive  bool
 	locationsDecoder     *LocationArrayDecoder
 	isLocationsRecursive bool
-
-	valuesDecoder     *SampleValueArrayDecoder
-	isValuesRecursive bool
-
-	labelsDecoder     *LabelsDecoder
-	isLabelsRecursive bool
-
-	allocators *Allocators
+	valuesDecoder        *SampleValueArrayDecoder
+	isValuesRecursive    bool
+	labelsDecoder        *LabelsDecoder
+	isLabelsRecursive    bool
+	allocators           *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

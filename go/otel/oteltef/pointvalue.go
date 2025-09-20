@@ -124,10 +124,10 @@ func (s *PointValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to PointValueTypeInt64.
 func (s *PointValue) SetInt64(v int64) {
-	if s.typ != PointValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
+	if s.typ != PointValueTypeInt64 || s.int64 != v {
 		s.int64 = v
 		s.typ = PointValueTypeInt64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -139,10 +139,10 @@ func (s *PointValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to PointValueTypeFloat64.
 func (s *PointValue) SetFloat64(v float64) {
-	if s.typ != PointValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
+	if s.typ != PointValueTypeFloat64 || s.float64 != v {
 		s.float64 = v
 		s.typ = PointValueTypeFloat64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -164,14 +164,32 @@ func (s *PointValue) Summary() *SummaryValue {
 	return &s.summary
 }
 
+func (s *PointValue) canBeShared() bool {
+	// Oneof can never be shared.
+	return false
+}
+
+func (s *PointValue) CloneShared(allocators *Allocators) PointValue {
+	// Oneof is not shareable, so CloneShared is just a Clone.
+	return s.Clone(allocators)
+}
+
 func (s *PointValue) Clone(allocators *Allocators) PointValue {
-	return PointValue{
-		int64:        s.int64,
-		float64:      s.float64,
-		histogram:    s.histogram.Clone(allocators),
-		expHistogram: s.expHistogram.Clone(allocators),
-		summary:      s.summary.Clone(allocators),
+	c := PointValue{}
+	c.typ = s.typ
+	switch s.typ {
+	case PointValueTypeInt64:
+		c.int64 = s.int64
+	case PointValueTypeFloat64:
+		c.float64 = s.float64
+	case PointValueTypeHistogram:
+		copyToNewHistogramValue(&c.histogram, &s.histogram, allocators)
+	case PointValueTypeExpHistogram:
+		copyToNewExpHistogramValue(&c.expHistogram, &s.expHistogram, allocators)
+	case PointValueTypeSummary:
+		copyToNewSummaryValue(&c.summary, &s.summary, allocators)
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -198,7 +216,10 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 		dst.SetType(src.typ)
 		copySummaryValue(&dst.summary, &src.summary)
 	case PointValueTypeNone:
-		dst.SetType(src.typ)
+		if dst.typ != PointValueTypeNone {
+			dst.typ = PointValueTypeNone
+			dst.markParentModified()
+		}
 	default:
 		panic("copyPointValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -209,9 +230,15 @@ func copyToNewPointValue(dst *PointValue, src *PointValue, allocators *Allocator
 	dst.typ = src.typ
 	switch src.typ {
 	case PointValueTypeInt64:
-		dst.int64 = src.int64
+		if dst.int64 != src.int64 {
+			dst.int64 = src.int64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case PointValueTypeFloat64:
-		dst.float64 = src.float64
+		if dst.float64 != src.float64 {
+			dst.float64 = src.float64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case PointValueTypeHistogram:
 		copyToNewHistogramValue(&dst.histogram, &src.histogram, allocators)
 	case PointValueTypeExpHistogram:
@@ -233,30 +260,59 @@ func (s *PointValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *PointValue) markModifiedRecursively() {
+func (s *PointValue) setModifiedRecursively() {
 	switch s.typ {
-	case PointValueTypeInt64:
-	case PointValueTypeFloat64:
 	case PointValueTypeHistogram:
-		s.histogram.markModifiedRecursively()
+		s.histogram.setModifiedRecursively()
 	case PointValueTypeExpHistogram:
-		s.expHistogram.markModifiedRecursively()
+		s.expHistogram.setModifiedRecursively()
 	case PointValueTypeSummary:
-		s.summary.markModifiedRecursively()
+		s.summary.setModifiedRecursively()
 	}
 }
 
-func (s *PointValue) markUnmodifiedRecursively() {
+func (s *PointValue) setUnmodifiedRecursively() {
 	switch s.typ {
-	case PointValueTypeInt64:
-	case PointValueTypeFloat64:
 	case PointValueTypeHistogram:
-		s.histogram.markUnmodifiedRecursively()
+		s.histogram.setUnmodifiedRecursively()
 	case PointValueTypeExpHistogram:
-		s.expHistogram.markUnmodifiedRecursively()
+		s.expHistogram.setUnmodifiedRecursively()
 	case PointValueTypeSummary:
-		s.summary.markUnmodifiedRecursively()
+		s.summary.setUnmodifiedRecursively()
 	}
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *PointValue) computeDiff(val *PointValue) (ret bool) {
+	if s.typ == val.typ {
+		switch s.typ {
+		case PointValueTypeInt64:
+			ret = s.int64 != val.int64
+		case PointValueTypeFloat64:
+			ret = s.float64 != val.float64
+		case PointValueTypeHistogram:
+			ret = s.histogram.computeDiff(&val.histogram)
+		case PointValueTypeExpHistogram:
+			ret = s.expHistogram.computeDiff(&val.expHistogram)
+		case PointValueTypeSummary:
+			ret = s.summary.computeDiff(&val.summary)
+		}
+	} else {
+		ret = true
+		switch s.typ {
+		case PointValueTypeHistogram:
+			// val.histogram doesn't exist at all so mark the whole s.histogram subtree as modified.
+			s.histogram.setModifiedRecursively()
+		case PointValueTypeExpHistogram:
+			// val.expHistogram doesn't exist at all so mark the whole s.expHistogram subtree as modified.
+			s.expHistogram.setModifiedRecursively()
+		case PointValueTypeSummary:
+			// val.summary doesn't exist at all so mark the whole s.summary subtree as modified.
+			s.summary.setModifiedRecursively()
+		}
+	}
+	return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -287,16 +343,6 @@ func PointValueEqual(left, right *PointValue) bool {
 // CmpPointValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpPointValue(left, right *PointValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
 	if c != 0 {
 		return c
@@ -367,7 +413,6 @@ type PointValueEncoder struct {
 	fieldCount uint
 
 	// Field encoders.
-
 	int64Encoder encoders.Int64Encoder
 
 	float64Encoder encoders.Float64Encoder
@@ -806,34 +851,19 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	switch dst.typ {
 	case PointValueTypeInt64:
 		// Decode Int64
-		err := d.int64Decoder.Decode(&dst.int64)
-		if err != nil {
-			return err
-		}
+		return d.int64Decoder.Decode(&dst.int64)
 	case PointValueTypeFloat64:
 		// Decode Float64
-		err := d.float64Decoder.Decode(&dst.float64)
-		if err != nil {
-			return err
-		}
+		return d.float64Decoder.Decode(&dst.float64)
 	case PointValueTypeHistogram:
 		// Decode Histogram
-		err := d.histogramDecoder.Decode(&dst.histogram)
-		if err != nil {
-			return err
-		}
+		return d.histogramDecoder.Decode(&dst.histogram)
 	case PointValueTypeExpHistogram:
 		// Decode ExpHistogram
-		err := d.expHistogramDecoder.Decode(&dst.expHistogram)
-		if err != nil {
-			return err
-		}
+		return d.expHistogramDecoder.Decode(&dst.expHistogram)
 	case PointValueTypeSummary:
 		// Decode Summary
-		err := d.summaryDecoder.Decode(&dst.summary)
-		if err != nil {
-			return err
-		}
+		return d.summaryDecoder.Decode(&dst.summary)
 	}
 	return nil
 }

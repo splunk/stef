@@ -11,6 +11,142 @@ import (
 	stefprofile "github.com/splunk/stef/examples/profile/internal/profile"
 )
 
+type converter struct {
+	mappings  []stefprofile.Mapping
+	functions []stefprofile.Function
+	locations []stefprofile.Location
+}
+
+func (c *converter) convertMappings(prof *profile.Profile) {
+	c.mappings = make([]stefprofile.Mapping, len(prof.Mapping)+1)
+	for _, src := range prof.Mapping {
+		dst := &c.mappings[src.ID]
+		dst.Init()
+		dst.SetMemoryStart(src.Start)
+		dst.SetMemoryLimit(src.Limit)
+		dst.SetFileOffset(src.Offset)
+		dst.SetFilename(src.File)
+		dst.SetBuildId(src.BuildID)
+		dst.SetHasFunctions(src.HasFunctions)
+		dst.SetHasFilenames(src.HasFilenames)
+		dst.SetHasLineNumbers(src.HasLineNumbers)
+		dst.SetHasInlineFrames(src.HasInlineFrames)
+		dst.Freeze()
+	}
+}
+
+func (c *converter) convertFunctions(prof *profile.Profile) {
+	c.functions = make([]stefprofile.Function, len(prof.Function)+1)
+	for _, src := range prof.Function {
+		dst := &c.functions[src.ID]
+		dst.Init()
+		dst.SetName(src.Name)
+		dst.SetSystemName(src.SystemName)
+		dst.SetFilename(src.Filename)
+		dst.SetStartLine(uint64(src.StartLine))
+		dst.Freeze()
+	}
+}
+
+func (c *converter) convertLocations(prof *profile.Profile) {
+	c.locations = make([]stefprofile.Location, len(prof.Location)+1)
+	for _, src := range prof.Location {
+		dst := &c.locations[src.ID]
+		dst.Init()
+
+		dst.SetAddress(src.Address)
+		dst.SetIsFolded(src.IsFolded)
+
+		// Convert mapping
+		if src.Mapping != nil {
+			dst.SetMapping(&c.mappings[src.Mapping.ID])
+		}
+
+		// Convert lines
+		lines := dst.Lines()
+		lines.EnsureLen(len(src.Line))
+		for i, line := range src.Line {
+			stefLine := lines.At(i)
+			stefLine.SetLine(uint64(line.Line))
+			stefLine.SetColumn(uint64(line.Column))
+
+			// Convert function
+			if line.Function != nil {
+				stefLine.SetFunction(&c.functions[line.Function.ID])
+			}
+		}
+		dst.Freeze()
+	}
+}
+
+func (c *converter) convertSample(srcSample *profile.Sample, srcProf *profile.Profile, dst *stefprofile.Sample) {
+	// Convert locations
+	locations := dst.Locations()
+	locations.EnsureLen(0)
+	for _, loc := range srcSample.Location {
+		locations.Append(&c.locations[loc.ID])
+	}
+
+	// Convert values
+	values := dst.Values()
+	values.EnsureLen(len(srcSample.Value))
+	for i, value := range srcSample.Value {
+		stefValue := values.At(i)
+		stefValue.SetVal(value)
+
+		// Set value type if available
+		if i < len(srcProf.SampleType) {
+			valueType := stefValue.Type()
+			valueType.SetType(srcProf.SampleType[i].Type)
+			valueType.SetUnit(srcProf.SampleType[i].Unit)
+		}
+	}
+
+	// Convert labels
+	dstLabels := dst.Labels()
+	labelIndex := 0
+
+	// Count total number of labels first
+	totalLabels := 0
+	for _, values := range srcSample.Label {
+		totalLabels += len(values)
+	}
+	for _, values := range srcSample.NumLabel {
+		totalLabels += len(values)
+	}
+
+	// Ensure the labels multimap has enough space
+	dstLabels.EnsureLen(totalLabels)
+
+	// Add string labels
+	for key, values := range srcSample.Label {
+		for _, value := range values {
+			dstLabels.SetKey(labelIndex, key)
+			dstLabelValue := dstLabels.At(labelIndex).Value()
+			dstLabelValue.SetStr(value)
+			labelIndex++
+		}
+	}
+
+	// Add numeric labels
+	for key, values := range srcSample.NumLabel {
+		for _, value := range values {
+			dstLabels.SetKey(labelIndex, key)
+			dstLabelValue := dstLabels.At(labelIndex).Value()
+			numValue := dstLabelValue.Num()
+			numValue.SetVal(value)
+			if len(srcSample.NumUnit) > 0 {
+				// NumUnit is a map in pprof, find the unit for this key
+				if unit, exists := srcSample.NumUnit[key]; exists && len(unit) > 0 {
+					numValue.SetUnit(unit[0])
+				}
+			}
+			dstLabelValue.SetType(stefprofile.LabelValueTypeNum)
+			labelIndex++
+		}
+	}
+}
+
 // convertPprofToStef converts a pprof Profile to STEF format using SampleWriter
 func convertPprofToStef(prof *profile.Profile, dst io.Writer) error {
 	// Create a chunk writer for the destination
@@ -25,9 +161,14 @@ func convertPprofToStef(prof *profile.Profile, dst io.Writer) error {
 	// Convert profile metadata once
 	convertProfileMetadata(prof, writer.Record.Metadata())
 
+	c := converter{}
+	c.convertMappings(prof)
+	c.convertFunctions(prof)
+	c.convertLocations(prof)
+
 	// Convert each sample
 	for _, srcSample := range prof.Sample {
-		convertSample(srcSample, prof, &writer.Record)
+		c.convertSample(srcSample, prof, &writer.Record)
 		if err := writer.Write(); err != nil {
 			return fmt.Errorf("failed to write srcSample: %w", err)
 		}
@@ -78,122 +219,4 @@ func convertProfileMetadata(src *profile.Profile, dst *stefprofile.ProfileMetada
 			comments.Append(comment)
 		}
 	}
-}
-
-// convertSample converts a pprof sample to STEF Sample
-func convertSample(
-	srcSample *profile.Sample, srcProf *profile.Profile,
-	dst *stefprofile.Sample,
-) {
-	// Convert locations
-	locations := dst.Locations()
-	locations.EnsureLen(0)
-	for _, loc := range srcSample.Location {
-		stefLoc := convertLocation(loc)
-		locations.Append(stefLoc)
-	}
-
-	// Convert values
-	values := dst.Values()
-	values.EnsureLen(0)
-	for i, value := range srcSample.Value {
-		stefValue := stefprofile.NewSampleValue()
-		stefValue.SetVal(value)
-
-		// Set value type if available
-		if i < len(srcProf.SampleType) {
-			valueType := stefValue.Type()
-			valueType.SetType(srcProf.SampleType[i].Type)
-			valueType.SetUnit(srcProf.SampleType[i].Unit)
-		}
-
-		values.Append(stefValue)
-	}
-
-	// Convert labels
-	dstLabels := dst.Labels()
-	labelIndex := 0
-
-	// Count total number of labels first
-	totalLabels := 0
-	for _, values := range srcSample.Label {
-		totalLabels += len(values)
-	}
-	for _, values := range srcSample.NumLabel {
-		totalLabels += len(values)
-	}
-
-	// Ensure the labels multimap has enough space
-	dstLabels.EnsureLen(totalLabels)
-
-	// Add string labels
-	for key, values := range srcSample.Label {
-		for _, value := range values {
-			dstLabels.SetKey(labelIndex, key)
-			dstLabelValue := dstLabels.At(labelIndex).Value()
-			dstLabelValue.SetStr(value)
-			labelIndex++
-		}
-	}
-
-	// Add numeric labels
-	for key, values := range srcSample.NumLabel {
-		for _, value := range values {
-			dstLabels.SetKey(labelIndex, key)
-			dstLabelValue := dstLabels.At(labelIndex).Value()
-			numValue := dstLabelValue.Num()
-			numValue.SetVal(value)
-			if len(srcSample.NumUnit) > 0 {
-				// NumUnit is a map in pprof, find the unit for this key
-				if unit, exists := srcSample.NumUnit[key]; exists && len(unit) > 0 {
-					numValue.SetUnit(unit[0])
-				}
-			}
-			dstLabelValue.SetType(stefprofile.LabelValueTypeNum)
-			labelIndex++
-		}
-	}
-}
-
-// convertLocation converts a pprof location to STEF Location
-func convertLocation(loc *profile.Location) *stefprofile.Location {
-	stefLoc := stefprofile.NewLocation()
-
-	stefLoc.SetAddress(loc.Address)
-	stefLoc.SetIsFolded(loc.IsFolded)
-
-	// Convert mapping
-	if loc.Mapping != nil {
-		mapping := stefLoc.Mapping()
-		mapping.SetMemoryStart(loc.Mapping.Start)
-		mapping.SetMemoryLimit(loc.Mapping.Limit)
-		mapping.SetFileOffset(loc.Mapping.Offset)
-		mapping.SetFilename(loc.Mapping.File)
-		mapping.SetBuildId(loc.Mapping.BuildID)
-		mapping.SetHasFunctions(loc.Mapping.HasFunctions)
-		mapping.SetHasFilenames(loc.Mapping.HasFilenames)
-		mapping.SetHasLineNumbers(loc.Mapping.HasLineNumbers)
-		mapping.SetHasInlineFrames(loc.Mapping.HasInlineFrames)
-	}
-
-	// Convert lines
-	lines := stefLoc.Lines()
-	for _, line := range loc.Line {
-		stefLine := stefprofile.NewLine()
-		stefLine.SetLine(uint64(line.Line))
-		stefLine.SetColumn(uint64(line.Column))
-
-		// Convert function
-		if line.Function != nil {
-			function := stefLine.Function()
-			function.SetName(line.Function.Name)
-			function.SetSystemName(line.Function.SystemName)
-			function.SetFilename(line.Function.Filename)
-			function.SetStartLine(uint64(line.Function.StartLine))
-		}
-
-		lines.Append(stefLine)
-	}
-
-	return stefLoc
 }

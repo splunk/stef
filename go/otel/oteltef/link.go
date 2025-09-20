@@ -70,7 +70,6 @@ func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Link) reset() {
-
 	s.traceID = pkg.EmptyBytes
 	s.spanID = pkg.EmptyBytes
 	s.traceState = ""
@@ -84,8 +83,18 @@ func (s *Link) reset() {
 // an array element and the array was expanded.
 func (s *Link) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.attributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Link) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Link) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Link) TraceID() pkg.Bytes {
@@ -94,9 +103,9 @@ func (s *Link) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Link) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
-		s.markTraceIDModified()
+		s.modifiedFields.markModified(fieldModifiedLinkTraceID)
 	}
 }
 
@@ -118,9 +127,9 @@ func (s *Link) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Link) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
-		s.markSpanIDModified()
+		s.modifiedFields.markModified(fieldModifiedLinkSpanID)
 	}
 }
 
@@ -142,9 +151,9 @@ func (s *Link) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Link) SetTraceState(v string) {
-	if !pkg.StringEqual(s.traceState, v) {
+	if s.traceState != v {
 		s.traceState = v
-		s.markTraceStateModified()
+		s.modifiedFields.markModified(fieldModifiedLinkTraceState)
 	}
 }
 
@@ -166,9 +175,9 @@ func (s *Link) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Link) SetFlags(v uint64) {
-	if !pkg.Uint64Equal(s.flags, v) {
+	if s.flags != v {
 		s.flags = v
-		s.markFlagsModified()
+		s.modifiedFields.markModified(fieldModifiedLinkFlags)
 	}
 }
 
@@ -206,9 +215,9 @@ func (s *Link) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Link) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
-		s.markDroppedAttributesCountModified()
+		s.modifiedFields.markModified(fieldModifiedLinkDroppedAttributesCount)
 	}
 }
 
@@ -224,10 +233,8 @@ func (s *Link) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0
 }
 
-func (s *Link) markModifiedRecursively() {
-
-	s.attributes.markModifiedRecursively()
-
+func (s *Link) setModifiedRecursively() {
+	s.attributes.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedLinkTraceID |
 			fieldModifiedLinkSpanID |
@@ -237,41 +244,69 @@ func (s *Link) markModifiedRecursively() {
 			fieldModifiedLinkDroppedAttributesCount | 0
 }
 
-func (s *Link) markUnmodifiedRecursively() {
-
-	if s.IsTraceIDModified() {
-	}
-
-	if s.IsSpanIDModified() {
-	}
-
-	if s.IsTraceStateModified() {
-	}
-
-	if s.IsFlagsModified() {
-	}
-
+func (s *Link) setUnmodifiedRecursively() {
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
-	if s.IsDroppedAttributesCountModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Link) computeDiff(val *Link) (ret bool) {
+	// Compare TraceID field.
+	if s.traceID != val.traceID {
+		s.modifiedFields.setModified(fieldModifiedLinkTraceID)
+		ret = true
+	}
+	// Compare SpanID field.
+	if s.spanID != val.spanID {
+		s.modifiedFields.setModified(fieldModifiedLinkSpanID)
+		ret = true
+	}
+	// Compare TraceState field.
+	if s.traceState != val.traceState {
+		s.modifiedFields.setModified(fieldModifiedLinkTraceState)
+		ret = true
+	}
+	// Compare Flags field.
+	if s.flags != val.flags {
+		s.modifiedFields.setModified(fieldModifiedLinkFlags)
+		ret = true
+	}
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedLinkAttributes)
+		ret = true
+	}
+	// Compare DroppedAttributesCount field.
+	if s.droppedAttributesCount != val.droppedAttributesCount {
+		s.modifiedFields.setModified(fieldModifiedLinkDroppedAttributesCount)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Link) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Link) CloneShared(allocators *Allocators) Link {
+	return s.Clone(allocators)
+}
+
 func (s *Link) Clone(allocators *Allocators) Link {
-
 	c := Link{
-
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
 		flags:                  s.flags,
-		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
 	return c
 }
 
@@ -294,21 +329,17 @@ func copyLink(dst *Link, src *Link) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLink(dst *Link, src *Link, allocators *Allocators) {
-	dst.traceID = src.traceID
-	dst.spanID = src.spanID
-	dst.traceState = src.traceState
-	dst.flags = src.flags
+	dst.SetTraceID(src.traceID)
+	dst.SetSpanID(src.spanID)
+	dst.SetTraceState(src.traceState)
+	dst.SetFlags(src.flags)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Link) CopyFrom(src *Link) {
 	copyLink(s, src)
-}
-
-func (s *Link) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -406,46 +437,30 @@ func LinkEqual(left, right *Link) bool {
 // CmpLink performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLink(left, right *Link) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
-
 	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
-
 	// Compare TraceState field.
 	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
-
 	// Compare Flags field.
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {
 		return c
 	}
-
 	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -454,23 +469,17 @@ type LinkEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	traceIDEncoder encoders.BytesEncoder
-
-	spanIDEncoder encoders.BytesEncoder
-
-	traceStateEncoder encoders.StringEncoder
-
-	flagsEncoder encoders.Uint64Encoder
-
-	attributesEncoder     *AttributesEncoder
-	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
-
+	traceIDEncoder                encoders.BytesEncoder
+	spanIDEncoder                 encoders.BytesEncoder
+	traceStateEncoder             encoders.StringEncoder
+	flagsEncoder                  encoders.Uint64Encoder
+	attributesEncoder             *AttributesEncoder
+	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	allocators *Allocators
@@ -567,7 +576,7 @@ func (e *LinkEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 func (e *LinkEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // TraceID and all subsequent fields are skipped.
@@ -588,11 +597,9 @@ func (e *LinkEncoder) Reset() {
 	if e.fieldCount <= 4 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 5 {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
@@ -608,15 +615,8 @@ func (e *LinkEncoder) Encode(val *Link) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedLinkTraceID |
-				fieldModifiedLinkSpanID |
-				fieldModifiedLinkTraceState |
-				fieldModifiedLinkFlags |
-				fieldModifiedLinkAttributes |
-				fieldModifiedLinkDroppedAttributesCount | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -669,39 +669,30 @@ func (e *LinkEncoder) Encode(val *Link) {
 func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect TraceID field.
 	if e.fieldCount <= 0 {
 		return // TraceID and subsequent fields are skipped.
 	}
-
 	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect SpanID field.
 	if e.fieldCount <= 1 {
 		return // SpanID and subsequent fields are skipped.
 	}
-
 	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect TraceState field.
 	if e.fieldCount <= 2 {
 		return // TraceState and subsequent fields are skipped.
 	}
-
 	e.traceStateEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Flags field.
 	if e.fieldCount <= 3 {
 		return // Flags and subsequent fields are skipped.
 	}
-
 	e.flagsEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Attributes field.
 	if e.fieldCount <= 4 {
 		return // Attributes and subsequent fields are skipped.
@@ -710,22 +701,19 @@ func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 5 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-
 	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // LinkDecoder implements decoding of Link
 type LinkDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf            pkg.BitsReader
+	column         *pkg.ReadableColumn
+	fieldCount     uint
 	traceIDDecoder encoders.BytesDecoder
 
 	spanIDDecoder encoders.BytesDecoder
@@ -734,9 +722,8 @@ type LinkDecoder struct {
 
 	flagsDecoder encoders.Uint64Decoder
 
-	attributesDecoder     *AttributesDecoder
-	isAttributesRecursive bool
-
+	attributesDecoder             *AttributesDecoder
+	isAttributesRecursive         bool
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	allocators *Allocators

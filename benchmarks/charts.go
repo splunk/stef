@@ -21,6 +21,10 @@ type BarOutput struct {
 	enabled bool
 }
 
+func chartsEnabled() bool {
+	return os.Getenv("UPDATE_BENCH_HTML") != ""
+}
+
 func (c *BarOutput) BeginChart(title string, t testing.TB) {
 	c.t = t
 	c.title = title
@@ -124,7 +128,7 @@ func (c *BarOutput) RecordStacked(b *testing.B, encoding string, series string, 
 }
 
 func (c *BarOutput) Begin() {
-	if os.Getenv("UPDATE_BENCH_HTML") == "" {
+	if !chartsEnabled() {
 		return
 	}
 	c.enabled = true

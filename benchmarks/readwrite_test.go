@@ -207,15 +207,15 @@ func copyModified(dst *oteltef.Metrics, src *oteltef.Metrics) {
 	}
 
 	if src.IsResourceModified() {
-		dst.Resource().CopyFrom(src.Resource())
+		dst.SetResource(src.Resource())
 	}
 
 	if src.IsScopeModified() {
-		dst.Scope().CopyFrom(src.Scope())
+		dst.SetScope(src.Scope())
 	}
 
 	if src.IsMetricModified() {
-		dst.Metric().CopyFrom(src.Metric())
+		dst.SetMetric(src.Metric())
 	}
 
 	if src.IsAttributesModified() {

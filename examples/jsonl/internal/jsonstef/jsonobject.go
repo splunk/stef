@@ -52,13 +52,11 @@ func (m *JsonObject) reset() {
 // an array element and the array was expanded.
 func (m *JsonObject) fixParent(parentModifiedFields *modifiedFields) {
 	m.modifiedElems.fixParent(parentModifiedFields)
-}
-
-// Clone() creates a deep copy of JsonObject
-func (m *JsonObject) Clone(allocators *Allocators) JsonObject {
-	clone := JsonObject{}
-	copyToNewJsonObject(&clone, m, allocators)
-	return clone
+	// Fix parents in all previously inited elements to point back to this object.
+	elems := m.elems[:m.initedCount]
+	for i := 0; i < len(elems); i++ {
+		elems[i].value.fixParent(&m.modifiedElems.vals)
+	}
 }
 
 // Len returns the number of elements in the multimap.
@@ -103,17 +101,44 @@ func (m *JsonObject) EnsureLen(newLen int) {
 	}
 }
 
-func (m *JsonObject) markModifiedRecursively() {
+func (m *JsonObject) setModifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
-		m.elems[i].value.markModifiedRecursively()
+		m.elems[i].value.setModifiedRecursively()
 	}
 }
 
-func (m *JsonObject) markUnmodifiedRecursively() {
+func (m *JsonObject) setUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
-		m.elems[i].value.markUnmodifiedRecursively()
+		m.elems[i].value.setUnmodifiedRecursively()
 	}
-	m.modifiedElems.markUnmodifiedAll()
+	m.modifiedElems.setUnmodifiedAll()
+}
+
+// computeDiff compares m to val and returns true if they differ.
+// All fields that are different in m will be marked as modified.
+func (m *JsonObject) computeDiff(val *JsonObject) (ret bool) {
+	if len(m.elems) != len(val.elems) {
+		m.modifiedElems.modifiedLen = true
+		ret = true
+	}
+	minLen := min(len(m.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if m.elems[i].key != val.elems[i].key {
+			ret = true
+			m.modifiedElems.setKeyModified(i)
+		}
+		if m.elems[i].value.computeDiff(&val.elems[i].value) {
+			ret = true
+			m.modifiedElems.setValModified(i)
+		}
+	}
+	for ; i < len(m.elems); i++ {
+		m.modifiedElems.setKeyModified(i)
+		m.modifiedElems.setValModified(i)
+		m.elems[i].value.setModifiedRecursively()
+	}
+	return ret
 }
 
 // SetKey sets the key of the element at index i.
@@ -144,7 +169,6 @@ func copyJsonObject(dst *JsonObject, src *JsonObject) {
 
 		if !JsonValueEqual(&dst.elems[i].value, &src.elems[i].value) {
 			copyJsonValue(&dst.elems[i].value, &src.elems[i].value)
-			dst.modifiedElems.markValModified(i)
 		}
 	}
 }
@@ -314,14 +338,10 @@ func (e *JsonObjectEncoder) Encode(list *JsonObject) {
 
 	// Mark all elems non-modified so that next Encode() correctly
 	// encodes only elems that change after this.
-	list.modifiedElems.markUnmodifiedAll()
+	list.modifiedElems.setUnmodifiedAll()
 }
 
 func (e *JsonObjectEncoder) encodeValuesOnly(list *JsonObject) {
-	if len(list.elems) > 62 {
-		panic("not allowed to encode values-only for length > 62")
-	}
-
 	// The bits that describe the change value are exactly the bits
 	// that are set in modifiedElems.
 	changedValuesBits := list.modifiedElems.vals.mask

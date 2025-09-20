@@ -82,7 +82,6 @@ func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parent
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ProfileMetadata) reset() {
-
 	s.dropFrames = ""
 	s.keepFrames = ""
 	s.timeNanos = 0
@@ -102,10 +101,20 @@ func (s *ProfileMetadata) reset() {
 // an array element and the array was expanded.
 func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.periodType.fixParent(&s.modifiedFields)
 	s.comments.fixParent(&s.modifiedFields)
 	s.defaultSampleType.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *ProfileMetadata) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *ProfileMetadata) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *ProfileMetadata) DropFrames() string {
@@ -114,9 +123,9 @@ func (s *ProfileMetadata) DropFrames() string {
 
 // SetDropFrames sets the value of DropFrames field.
 func (s *ProfileMetadata) SetDropFrames(v string) {
-	if !pkg.StringEqual(s.dropFrames, v) {
+	if s.dropFrames != v {
 		s.dropFrames = v
-		s.markDropFramesModified()
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataDropFrames)
 	}
 }
 
@@ -138,9 +147,9 @@ func (s *ProfileMetadata) KeepFrames() string {
 
 // SetKeepFrames sets the value of KeepFrames field.
 func (s *ProfileMetadata) SetKeepFrames(v string) {
-	if !pkg.StringEqual(s.keepFrames, v) {
+	if s.keepFrames != v {
 		s.keepFrames = v
-		s.markKeepFramesModified()
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataKeepFrames)
 	}
 }
 
@@ -162,9 +171,9 @@ func (s *ProfileMetadata) TimeNanos() int64 {
 
 // SetTimeNanos sets the value of TimeNanos field.
 func (s *ProfileMetadata) SetTimeNanos(v int64) {
-	if !pkg.Int64Equal(s.timeNanos, v) {
+	if s.timeNanos != v {
 		s.timeNanos = v
-		s.markTimeNanosModified()
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataTimeNanos)
 	}
 }
 
@@ -186,9 +195,9 @@ func (s *ProfileMetadata) DurationNanos() int64 {
 
 // SetDurationNanos sets the value of DurationNanos field.
 func (s *ProfileMetadata) SetDurationNanos(v int64) {
-	if !pkg.Int64Equal(s.durationNanos, v) {
+	if s.durationNanos != v {
 		s.durationNanos = v
-		s.markDurationNanosModified()
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataDurationNanos)
 	}
 }
 
@@ -206,6 +215,20 @@ func (s *ProfileMetadata) IsDurationNanosModified() bool {
 
 func (s *ProfileMetadata) PeriodType() *SampleValueType {
 	return s.periodType
+}
+
+// SetPeriodType sets the value of PeriodType field.
+func (s *ProfileMetadata) SetPeriodType(v *SampleValueType) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current periodType
+		if v.computeDiff(s.periodType) {
+			// It is different. Update to it.
+			s.periodType = v
+			s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
+		}
+	} else {
+		s.periodType.CopyFrom(v)
+	}
 }
 
 func (s *ProfileMetadata) markPeriodTypeModified() {
@@ -226,9 +249,9 @@ func (s *ProfileMetadata) Period() int64 {
 
 // SetPeriod sets the value of Period field.
 func (s *ProfileMetadata) SetPeriod(v int64) {
-	if !pkg.Int64Equal(s.period, v) {
+	if s.period != v {
 		s.period = v
-		s.markPeriodModified()
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriod)
 	}
 }
 
@@ -264,6 +287,20 @@ func (s *ProfileMetadata) DefaultSampleType() *SampleValueType {
 	return s.defaultSampleType
 }
 
+// SetDefaultSampleType sets the value of DefaultSampleType field.
+func (s *ProfileMetadata) SetDefaultSampleType(v *SampleValueType) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current defaultSampleType
+		if v.computeDiff(s.defaultSampleType) {
+			// It is different. Update to it.
+			s.defaultSampleType = v
+			s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
+		}
+	} else {
+		s.defaultSampleType.CopyFrom(v)
+	}
+}
+
 func (s *ProfileMetadata) markDefaultSampleTypeModified() {
 	s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
 }
@@ -276,14 +313,10 @@ func (s *ProfileMetadata) IsDefaultSampleTypeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0
 }
 
-func (s *ProfileMetadata) markModifiedRecursively() {
-
-	s.periodType.markModifiedRecursively()
-
-	s.comments.markModifiedRecursively()
-
-	s.defaultSampleType.markModifiedRecursively()
-
+func (s *ProfileMetadata) setModifiedRecursively() {
+	s.periodType.setModifiedRecursively()
+	s.comments.setModifiedRecursively()
+	s.defaultSampleType.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedProfileMetadataDropFrames |
 			fieldModifiedProfileMetadataKeepFrames |
@@ -295,51 +328,87 @@ func (s *ProfileMetadata) markModifiedRecursively() {
 			fieldModifiedProfileMetadataDefaultSampleType | 0
 }
 
-func (s *ProfileMetadata) markUnmodifiedRecursively() {
-
-	if s.IsDropFramesModified() {
-	}
-
-	if s.IsKeepFramesModified() {
-	}
-
-	if s.IsTimeNanosModified() {
-	}
-
-	if s.IsDurationNanosModified() {
-	}
-
+func (s *ProfileMetadata) setUnmodifiedRecursively() {
 	if s.IsPeriodTypeModified() {
-		s.periodType.markUnmodifiedRecursively()
+		s.periodType.setUnmodifiedRecursively()
 	}
-
-	if s.IsPeriodModified() {
-	}
-
 	if s.IsCommentsModified() {
-		s.comments.markUnmodifiedRecursively()
+		s.comments.setUnmodifiedRecursively()
 	}
-
 	if s.IsDefaultSampleTypeModified() {
-		s.defaultSampleType.markUnmodifiedRecursively()
+		s.defaultSampleType.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *ProfileMetadata) computeDiff(val *ProfileMetadata) (ret bool) {
+	// Compare DropFrames field.
+	if s.dropFrames != val.dropFrames {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataDropFrames)
+		ret = true
+	}
+	// Compare KeepFrames field.
+	if s.keepFrames != val.keepFrames {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataKeepFrames)
+		ret = true
+	}
+	// Compare TimeNanos field.
+	if s.timeNanos != val.timeNanos {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataTimeNanos)
+		ret = true
+	}
+	// Compare DurationNanos field.
+	if s.durationNanos != val.durationNanos {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataDurationNanos)
+		ret = true
+	}
+	// Compare PeriodType field.
+	if s.periodType.computeDiff(val.periodType) {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataPeriodType)
+		ret = true
+	}
+	// Compare Period field.
+	if s.period != val.period {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataPeriod)
+		ret = true
+	}
+	// Compare Comments field.
+	if s.comments.computeDiff(&val.comments) {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataComments)
+		ret = true
+	}
+	// Compare DefaultSampleType field.
+	if s.defaultSampleType.computeDiff(val.defaultSampleType) {
+		s.modifiedFields.setModified(fieldModifiedProfileMetadataDefaultSampleType)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *ProfileMetadata) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ProfileMetadata) CloneShared(allocators *Allocators) ProfileMetadata {
+	return s.Clone(allocators)
+}
+
 func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
-
 	c := ProfileMetadata{
-
 		dropFrames:        s.dropFrames,
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.Clone(allocators),
+		periodType:        s.periodType.CloneShared(allocators),
 		period:            s.period,
-		comments:          s.comments.Clone(allocators),
-		defaultSampleType: s.defaultSampleType.Clone(allocators),
+		defaultSampleType: s.defaultSampleType.CloneShared(allocators),
 	}
+	copyToNewStringArray(&c.comments, &s.comments, allocators)
 	return c
 }
 
@@ -356,51 +425,59 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 	dst.SetKeepFrames(src.keepFrames)
 	dst.SetTimeNanos(src.timeNanos)
 	dst.SetDurationNanos(src.durationNanos)
-	if src.periodType != nil {
-		if dst.periodType == nil {
-			dst.periodType = &SampleValueType{}
-			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+
+	if src.periodType.canBeShared() {
+		if src.periodType.computeDiff(dst.periodType) {
+			dst.periodType = src.periodType
+			dst.markPeriodTypeModified()
 		}
+	} else {
 		copySampleValueType(dst.periodType, src.periodType)
 	}
 	dst.SetPeriod(src.period)
 	copyStringArray(&dst.comments, &src.comments)
-	if src.defaultSampleType != nil {
-		if dst.defaultSampleType == nil {
-			dst.defaultSampleType = &SampleValueType{}
-			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+
+	if src.defaultSampleType.canBeShared() {
+		if src.defaultSampleType.computeDiff(dst.defaultSampleType) {
+			dst.defaultSampleType = src.defaultSampleType
+			dst.markDefaultSampleTypeModified()
 		}
+	} else {
 		copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
 	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, allocators *Allocators) {
-	dst.dropFrames = src.dropFrames
-	dst.keepFrames = src.keepFrames
-	dst.timeNanos = src.timeNanos
-	dst.durationNanos = src.durationNanos
-	if src.periodType != nil {
+	dst.SetDropFrames(src.dropFrames)
+	dst.SetKeepFrames(src.keepFrames)
+	dst.SetTimeNanos(src.timeNanos)
+	dst.SetDurationNanos(src.durationNanos)
+
+	if src.periodType.canBeShared() {
+		dst.periodType = src.periodType
+	} else {
 		dst.periodType = allocators.SampleValueType.Alloc()
 		dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 		copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
 	}
-	dst.period = src.period
+
+	dst.SetPeriod(src.period)
 	copyToNewStringArray(&dst.comments, &src.comments, allocators)
-	if src.defaultSampleType != nil {
+
+	if src.defaultSampleType.canBeShared() {
+		dst.defaultSampleType = src.defaultSampleType
+	} else {
 		dst.defaultSampleType = allocators.SampleValueType.Alloc()
 		dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
 	}
+
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
 	copyProfileMetadata(s, src)
-}
-
-func (s *ProfileMetadata) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -450,6 +527,19 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 	}
 	// Maybe mutate PeriodType
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.periodType.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.periodType = new(SampleValueType)
+				s.periodType.init(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+			} else {
+				s.periodType = s.periodType.Clone(&Allocators{})
+			}
+		}
+
 		s.periodType.mutateRandom(random, schem)
 	}
 	if fieldCount <= 5 {
@@ -471,6 +561,19 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 	}
 	// Maybe mutate DefaultSampleType
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.defaultSampleType.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.defaultSampleType = new(SampleValueType)
+				s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+			} else {
+				s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
+			}
+		}
+
 		s.defaultSampleType.mutateRandom(random, schem)
 	}
 }
@@ -520,56 +623,38 @@ func ProfileMetadataEqual(left, right *ProfileMetadata) bool {
 // CmpProfileMetadata performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpProfileMetadata(left, right *ProfileMetadata) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare DropFrames field.
 	if c := strings.Compare(left.dropFrames, right.dropFrames); c != 0 {
 		return c
 	}
-
 	// Compare KeepFrames field.
 	if c := strings.Compare(left.keepFrames, right.keepFrames); c != 0 {
 		return c
 	}
-
 	// Compare TimeNanos field.
 	if c := pkg.Int64Compare(left.timeNanos, right.timeNanos); c != 0 {
 		return c
 	}
-
 	// Compare DurationNanos field.
 	if c := pkg.Int64Compare(left.durationNanos, right.durationNanos); c != 0 {
 		return c
 	}
-
 	// Compare PeriodType field.
 	if c := CmpSampleValueType(left.periodType, right.periodType); c != 0 {
 		return c
 	}
-
 	// Compare Period field.
 	if c := pkg.Int64Compare(left.period, right.period); c != 0 {
 		return c
 	}
-
 	// Compare Comments field.
 	if c := CmpStringArray(&left.comments, &right.comments); c != 0 {
 		return c
 	}
-
 	// Compare DefaultSampleType field.
 	if c := CmpSampleValueType(left.defaultSampleType, right.defaultSampleType); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -578,28 +663,20 @@ type ProfileMetadataEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	dropFramesEncoder encoders.StringDictEncoder
-
-	keepFramesEncoder encoders.StringDictEncoder
-
-	timeNanosEncoder encoders.Int64Encoder
-
-	durationNanosEncoder encoders.Int64Encoder
-
-	periodTypeEncoder     *SampleValueTypeEncoder
-	isPeriodTypeRecursive bool // Indicates PeriodType field's type is recursive.
-
-	periodEncoder encoders.Int64Encoder
-
-	commentsEncoder     *StringArrayEncoder
-	isCommentsRecursive bool // Indicates Comments field's type is recursive.
-
+	dropFramesEncoder            encoders.StringDictEncoder
+	keepFramesEncoder            encoders.StringDictEncoder
+	timeNanosEncoder             encoders.Int64Encoder
+	durationNanosEncoder         encoders.Int64Encoder
+	periodTypeEncoder            *SampleValueTypeEncoder
+	isPeriodTypeRecursive        bool // Indicates PeriodType field's type is recursive.
+	periodEncoder                encoders.Int64Encoder
+	commentsEncoder              *StringArrayEncoder
+	isCommentsRecursive          bool // Indicates Comments field's type is recursive.
 	defaultSampleTypeEncoder     *SampleValueTypeEncoder
 	isDefaultSampleTypeRecursive bool // Indicates DefaultSampleType field's type is recursive.
 
@@ -729,7 +806,7 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 func (e *ProfileMetadataEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // DropFrames and all subsequent fields are skipped.
@@ -750,11 +827,9 @@ func (e *ProfileMetadataEncoder) Reset() {
 	if e.fieldCount <= 4 {
 		return // PeriodType and all subsequent fields are skipped.
 	}
-
 	if !e.isPeriodTypeRecursive {
 		e.periodTypeEncoder.Reset()
 	}
-
 	if e.fieldCount <= 5 {
 		return // Period and all subsequent fields are skipped.
 	}
@@ -762,19 +837,15 @@ func (e *ProfileMetadataEncoder) Reset() {
 	if e.fieldCount <= 6 {
 		return // Comments and all subsequent fields are skipped.
 	}
-
 	if !e.isCommentsRecursive {
 		e.commentsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 7 {
 		return // DefaultSampleType and all subsequent fields are skipped.
 	}
-
 	if !e.isDefaultSampleTypeRecursive {
 		e.defaultSampleTypeEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -786,17 +857,8 @@ func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedProfileMetadataDropFrames |
-				fieldModifiedProfileMetadataKeepFrames |
-				fieldModifiedProfileMetadataTimeNanos |
-				fieldModifiedProfileMetadataDurationNanos |
-				fieldModifiedProfileMetadataPeriodType |
-				fieldModifiedProfileMetadataPeriod |
-				fieldModifiedProfileMetadataComments |
-				fieldModifiedProfileMetadataDefaultSampleType | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -859,39 +921,30 @@ func (e *ProfileMetadataEncoder) Encode(val *ProfileMetadata) {
 func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect DropFrames field.
 	if e.fieldCount <= 0 {
 		return // DropFrames and subsequent fields are skipped.
 	}
-
 	e.dropFramesEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect KeepFrames field.
 	if e.fieldCount <= 1 {
 		return // KeepFrames and subsequent fields are skipped.
 	}
-
 	e.keepFramesEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect TimeNanos field.
 	if e.fieldCount <= 2 {
 		return // TimeNanos and subsequent fields are skipped.
 	}
-
 	e.timeNanosEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect DurationNanos field.
 	if e.fieldCount <= 3 {
 		return // DurationNanos and subsequent fields are skipped.
 	}
-
 	e.durationNanosEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect PeriodType field.
 	if e.fieldCount <= 4 {
 		return // PeriodType and subsequent fields are skipped.
@@ -900,15 +953,12 @@ func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.periodTypeEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Period field.
 	if e.fieldCount <= 5 {
 		return // Period and subsequent fields are skipped.
 	}
-
 	e.periodEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Comments field.
 	if e.fieldCount <= 6 {
 		return // Comments and subsequent fields are skipped.
@@ -917,7 +967,6 @@ func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.commentsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect DefaultSampleType field.
 	if e.fieldCount <= 7 {
 		return // DefaultSampleType and subsequent fields are skipped.
@@ -930,10 +979,9 @@ func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ProfileMetadataDecoder implements decoding of ProfileMetadata
 type ProfileMetadataDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf               pkg.BitsReader
+	column            *pkg.ReadableColumn
+	fieldCount        uint
 	dropFramesDecoder encoders.StringDictDecoder
 
 	keepFramesDecoder encoders.StringDictDecoder
@@ -944,16 +992,13 @@ type ProfileMetadataDecoder struct {
 
 	periodTypeDecoder     *SampleValueTypeDecoder
 	isPeriodTypeRecursive bool
+	periodDecoder         encoders.Int64Decoder
 
-	periodDecoder encoders.Int64Decoder
-
-	commentsDecoder     *StringArrayDecoder
-	isCommentsRecursive bool
-
+	commentsDecoder              *StringArrayDecoder
+	isCommentsRecursive          bool
 	defaultSampleTypeDecoder     *SampleValueTypeDecoder
 	isDefaultSampleTypeRecursive bool
-
-	allocators *Allocators
+	allocators                   *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

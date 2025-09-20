@@ -77,7 +77,7 @@ struct ProfileMetadata {
   PeriodType SampleValueType
   Period     int64
 
-  Comments []string dict(Comment)
+  Comments []string
 
   DefaultSampleType SampleValueType
 }

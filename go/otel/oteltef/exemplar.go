@@ -70,7 +70,6 @@ func (s *Exemplar) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Exemplar) reset() {
-
 	s.timestamp = 0
 	s.value.reset()
 	s.spanID = pkg.EmptyBytes
@@ -83,9 +82,19 @@ func (s *Exemplar) reset() {
 // an array element and the array was expanded.
 func (s *Exemplar) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.value.fixParent(&s.modifiedFields)
 	s.filteredAttributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Exemplar) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Exemplar) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Exemplar) Timestamp() uint64 {
@@ -94,9 +103,9 @@ func (s *Exemplar) Timestamp() uint64 {
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Exemplar) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
-		s.markTimestampModified()
+		s.modifiedFields.markModified(fieldModifiedExemplarTimestamp)
 	}
 }
 
@@ -134,9 +143,9 @@ func (s *Exemplar) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Exemplar) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
-		s.markSpanIDModified()
+		s.modifiedFields.markModified(fieldModifiedExemplarSpanID)
 	}
 }
 
@@ -158,9 +167,9 @@ func (s *Exemplar) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Exemplar) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
-		s.markTraceIDModified()
+		s.modifiedFields.markModified(fieldModifiedExemplarTraceID)
 	}
 }
 
@@ -192,12 +201,9 @@ func (s *Exemplar) IsFilteredAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0
 }
 
-func (s *Exemplar) markModifiedRecursively() {
-
-	s.value.markModifiedRecursively()
-
-	s.filteredAttributes.markModifiedRecursively()
-
+func (s *Exemplar) setModifiedRecursively() {
+	s.value.setModifiedRecursively()
+	s.filteredAttributes.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedExemplarTimestamp |
 			fieldModifiedExemplarValue |
@@ -206,38 +212,66 @@ func (s *Exemplar) markModifiedRecursively() {
 			fieldModifiedExemplarFilteredAttributes | 0
 }
 
-func (s *Exemplar) markUnmodifiedRecursively() {
-
-	if s.IsTimestampModified() {
-	}
-
+func (s *Exemplar) setUnmodifiedRecursively() {
 	if s.IsValueModified() {
-		s.value.markUnmodifiedRecursively()
+		s.value.setUnmodifiedRecursively()
 	}
-
-	if s.IsSpanIDModified() {
-	}
-
-	if s.IsTraceIDModified() {
-	}
-
 	if s.IsFilteredAttributesModified() {
-		s.filteredAttributes.markUnmodifiedRecursively()
+		s.filteredAttributes.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
-
-	c := Exemplar{
-
-		timestamp:          s.timestamp,
-		value:              s.value.Clone(allocators),
-		spanID:             s.spanID,
-		traceID:            s.traceID,
-		filteredAttributes: s.filteredAttributes.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Exemplar) computeDiff(val *Exemplar) (ret bool) {
+	// Compare Timestamp field.
+	if s.timestamp != val.timestamp {
+		s.modifiedFields.setModified(fieldModifiedExemplarTimestamp)
+		ret = true
 	}
+	// Compare Value field.
+	if s.value.computeDiff(&val.value) {
+		s.modifiedFields.setModified(fieldModifiedExemplarValue)
+		ret = true
+	}
+	// Compare SpanID field.
+	if s.spanID != val.spanID {
+		s.modifiedFields.setModified(fieldModifiedExemplarSpanID)
+		ret = true
+	}
+	// Compare TraceID field.
+	if s.traceID != val.traceID {
+		s.modifiedFields.setModified(fieldModifiedExemplarTraceID)
+		ret = true
+	}
+	// Compare FilteredAttributes field.
+	if s.filteredAttributes.computeDiff(&val.filteredAttributes) {
+		s.modifiedFields.setModified(fieldModifiedExemplarFilteredAttributes)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Exemplar) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Exemplar) CloneShared(allocators *Allocators) Exemplar {
+	return s.Clone(allocators)
+}
+
+func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
+	c := Exemplar{
+		timestamp: s.timestamp,
+		spanID:    s.spanID,
+		traceID:   s.traceID,
+	}
+	copyToNewExemplarValue(&c.value, &s.value, allocators)
+	copyToNewAttributes(&c.filteredAttributes, &s.filteredAttributes, allocators)
 	return c
 }
 
@@ -259,20 +293,16 @@ func copyExemplar(dst *Exemplar, src *Exemplar) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExemplar(dst *Exemplar, src *Exemplar, allocators *Allocators) {
-	dst.timestamp = src.timestamp
+	dst.SetTimestamp(src.timestamp)
 	copyToNewExemplarValue(&dst.value, &src.value, allocators)
-	dst.spanID = src.spanID
-	dst.traceID = src.traceID
+	dst.SetSpanID(src.spanID)
+	dst.SetTraceID(src.traceID)
 	copyToNewAttributes(&dst.filteredAttributes, &src.filteredAttributes, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Exemplar) CopyFrom(src *Exemplar) {
 	copyExemplar(s, src)
-}
-
-func (s *Exemplar) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -359,41 +389,26 @@ func ExemplarEqual(left, right *Exemplar) bool {
 // CmpExemplar performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExemplar(left, right *Exemplar) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Timestamp field.
 	if c := pkg.Uint64Compare(left.timestamp, right.timestamp); c != 0 {
 		return c
 	}
-
 	// Compare Value field.
 	if c := CmpExemplarValue(&left.value, &right.value); c != 0 {
 		return c
 	}
-
 	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
-
 	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
-
 	// Compare FilteredAttributes field.
 	if c := CmpAttributes(&left.filteredAttributes, &right.filteredAttributes); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -402,21 +417,16 @@ type ExemplarEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	timestampEncoder encoders.Uint64Encoder
-
-	valueEncoder     *ExemplarValueEncoder
-	isValueRecursive bool // Indicates Value field's type is recursive.
-
-	spanIDEncoder encoders.BytesEncoder
-
-	traceIDEncoder encoders.BytesEncoder
-
+	timestampEncoder              encoders.Uint64Encoder
+	valueEncoder                  *ExemplarValueEncoder
+	isValueRecursive              bool // Indicates Value field's type is recursive.
+	spanIDEncoder                 encoders.BytesEncoder
+	traceIDEncoder                encoders.BytesEncoder
 	filteredAttributesEncoder     *AttributesEncoder
 	isFilteredAttributesRecursive bool // Indicates FilteredAttributes field's type is recursive.
 
@@ -512,7 +522,7 @@ func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 func (e *ExemplarEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Timestamp and all subsequent fields are skipped.
@@ -521,11 +531,9 @@ func (e *ExemplarEncoder) Reset() {
 	if e.fieldCount <= 1 {
 		return // Value and all subsequent fields are skipped.
 	}
-
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
 	}
-
 	if e.fieldCount <= 2 {
 		return // SpanID and all subsequent fields are skipped.
 	}
@@ -537,11 +545,9 @@ func (e *ExemplarEncoder) Reset() {
 	if e.fieldCount <= 4 {
 		return // FilteredAttributes and all subsequent fields are skipped.
 	}
-
 	if !e.isFilteredAttributesRecursive {
 		e.filteredAttributesEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -553,14 +559,8 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedExemplarTimestamp |
-				fieldModifiedExemplarValue |
-				fieldModifiedExemplarSpanID |
-				fieldModifiedExemplarTraceID |
-				fieldModifiedExemplarFilteredAttributes | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -608,15 +608,12 @@ func (e *ExemplarEncoder) Encode(val *Exemplar) {
 func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Timestamp field.
 	if e.fieldCount <= 0 {
 		return // Timestamp and subsequent fields are skipped.
 	}
-
 	e.timestampEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Value field.
 	if e.fieldCount <= 1 {
 		return // Value and subsequent fields are skipped.
@@ -625,23 +622,18 @@ func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect SpanID field.
 	if e.fieldCount <= 2 {
 		return // SpanID and subsequent fields are skipped.
 	}
-
 	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect TraceID field.
 	if e.fieldCount <= 3 {
 		return // TraceID and subsequent fields are skipped.
 	}
-
 	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect FilteredAttributes field.
 	if e.fieldCount <= 4 {
 		return // FilteredAttributes and subsequent fields are skipped.
@@ -654,23 +646,20 @@ func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ExemplarDecoder implements decoding of Exemplar
 type ExemplarDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf              pkg.BitsReader
+	column           *pkg.ReadableColumn
+	fieldCount       uint
 	timestampDecoder encoders.Uint64Decoder
 
 	valueDecoder     *ExemplarValueDecoder
 	isValueRecursive bool
-
-	spanIDDecoder encoders.BytesDecoder
+	spanIDDecoder    encoders.BytesDecoder
 
 	traceIDDecoder encoders.BytesDecoder
 
 	filteredAttributesDecoder     *AttributesDecoder
 	isFilteredAttributesRecursive bool
-
-	allocators *Allocators
+	allocators                    *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

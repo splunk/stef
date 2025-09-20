@@ -66,7 +66,6 @@ func (s *Function) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Function) reset() {
-
 	s.name = ""
 	s.systemName = ""
 	s.filename = ""
@@ -78,7 +77,17 @@ func (s *Function) reset() {
 // an array element and the array was expanded.
 func (s *Function) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Function) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Function) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Function) Name() string {
@@ -87,9 +96,9 @@ func (s *Function) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Function) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
-		s.markNameModified()
+		s.modifiedFields.markModified(fieldModifiedFunctionName)
 	}
 }
 
@@ -111,9 +120,9 @@ func (s *Function) SystemName() string {
 
 // SetSystemName sets the value of SystemName field.
 func (s *Function) SetSystemName(v string) {
-	if !pkg.StringEqual(s.systemName, v) {
+	if s.systemName != v {
 		s.systemName = v
-		s.markSystemNameModified()
+		s.modifiedFields.markModified(fieldModifiedFunctionSystemName)
 	}
 }
 
@@ -135,9 +144,9 @@ func (s *Function) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Function) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
-		s.markFilenameModified()
+		s.modifiedFields.markModified(fieldModifiedFunctionFilename)
 	}
 }
 
@@ -159,9 +168,9 @@ func (s *Function) StartLine() uint64 {
 
 // SetStartLine sets the value of StartLine field.
 func (s *Function) SetStartLine(v uint64) {
-	if !pkg.Uint64Equal(s.startLine, v) {
+	if s.startLine != v {
 		s.startLine = v
-		s.markStartLineModified()
+		s.modifiedFields.markModified(fieldModifiedFunctionStartLine)
 	}
 }
 
@@ -177,8 +186,7 @@ func (s *Function) IsStartLineModified() bool {
 	return s.modifiedFields.mask&fieldModifiedFunctionStartLine != 0
 }
 
-func (s *Function) markModifiedRecursively() {
-
+func (s *Function) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedFunctionName |
 			fieldModifiedFunctionSystemName |
@@ -186,28 +194,54 @@ func (s *Function) markModifiedRecursively() {
 			fieldModifiedFunctionStartLine | 0
 }
 
-func (s *Function) markUnmodifiedRecursively() {
-
-	if s.IsNameModified() {
-	}
-
-	if s.IsSystemNameModified() {
-	}
-
-	if s.IsFilenameModified() {
-	}
-
-	if s.IsStartLineModified() {
-	}
-
+func (s *Function) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Function) Clone(allocators *Allocators) *Function {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Function) computeDiff(val *Function) (ret bool) {
+	// Compare Name field.
+	if s.name != val.name {
+		s.modifiedFields.setModified(fieldModifiedFunctionName)
+		ret = true
+	}
+	// Compare SystemName field.
+	if s.systemName != val.systemName {
+		s.modifiedFields.setModified(fieldModifiedFunctionSystemName)
+		ret = true
+	}
+	// Compare Filename field.
+	if s.filename != val.filename {
+		s.modifiedFields.setModified(fieldModifiedFunctionFilename)
+		ret = true
+	}
+	// Compare StartLine field.
+	if s.startLine != val.startLine {
+		s.modifiedFields.setModified(fieldModifiedFunctionStartLine)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Function) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Function) CloneShared(allocators *Allocators) *Function {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *Function) Clone(allocators *Allocators) *Function {
 	c := allocators.Function.Alloc()
 	*c = Function{
-
 		name:       s.name,
 		systemName: s.systemName,
 		filename:   s.filename,
@@ -233,19 +267,15 @@ func copyFunction(dst *Function, src *Function) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewFunction(dst *Function, src *Function, allocators *Allocators) {
-	dst.name = src.name
-	dst.systemName = src.systemName
-	dst.filename = src.filename
-	dst.startLine = src.startLine
+	dst.SetName(src.name)
+	dst.SetSystemName(src.systemName)
+	dst.SetFilename(src.filename)
+	dst.SetStartLine(src.startLine)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Function) CopyFrom(src *Function) {
 	copyFunction(s, src)
-}
-
-func (s *Function) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -321,6 +351,7 @@ func FunctionEqual(left, right *Function) bool {
 // CmpFunction performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpFunction(left, right *Function) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -330,27 +361,22 @@ func CmpFunction(left, right *Function) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
-
 	// Compare SystemName field.
 	if c := strings.Compare(left.systemName, right.systemName); c != 0 {
 		return c
 	}
-
 	// Compare Filename field.
 	if c := strings.Compare(left.filename, right.filename); c != 0 {
 		return c
 	}
-
 	// Compare StartLine field.
 	if c := pkg.Uint64Compare(left.startLine, right.startLine); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -359,47 +385,65 @@ type FunctionEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	nameEncoder encoders.StringDictEncoder
-
+	nameEncoder       encoders.StringDictEncoder
 	systemNameEncoder encoders.StringDictEncoder
+	filenameEncoder   encoders.StringDictEncoder
+	startLineEncoder  encoders.Uint64Encoder
 
-	filenameEncoder encoders.StringDictEncoder
-
-	startLineEncoder encoders.Uint64Encoder
-
-	dict       *FunctionEncoderDict
 	allocators *Allocators
+	dict       *FunctionEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type FunctionEntry struct {
-	refNum uint64
-	val    *Function
-}
-
 // FunctionEncoderDict is the dictionary used by FunctionEncoder
 type FunctionEncoderDict struct {
-	dict    b.Tree[*Function, FunctionEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*Function, uint32] // Searchable map of items seen in the past.
+	slice      []*Function               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *FunctionEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Function, FunctionEntry](CmpFunction)
-	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
+	d.dict = *b.TreeNew[*Function, uint32](CmpFunction)
+	d.slice = make([]*Function, 1) // refNum 0 is reserved for nil Function
+	d.dict.Set(nil, 0)             // nil Function is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *FunctionEncoderDict) Get(val *Function) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *FunctionEncoderDict) Add(val *Function) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *FunctionEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, FunctionEntry{}) // nil Function is RefNum 0
+	d.dict.Set(nil, 0) // nil Function is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -411,8 +455,9 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.FunctionEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.Function
 	e.allocators = &state.Allocators
+	e.dict = &state.Function
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -466,7 +511,7 @@ func (e *FunctionEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 func (e *FunctionEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Name and all subsequent fields are skipped.
@@ -491,28 +536,24 @@ func (e *FunctionEncoder) Encode(val *Function) {
 	var bitCount uint
 
 	// Check if the Function exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Function exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The Function does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = FunctionEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded Function follows.
 	e.buf.WriteBit(1)
@@ -523,13 +564,8 @@ func (e *FunctionEncoder) Encode(val *Function) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedFunctionName |
-				fieldModifiedFunctionSystemName |
-				fieldModifiedFunctionFilename |
-				fieldModifiedFunctionStartLine | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -572,46 +608,37 @@ func (e *FunctionEncoder) Encode(val *Function) {
 func (e *FunctionEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-
 	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect SystemName field.
 	if e.fieldCount <= 1 {
 		return // SystemName and subsequent fields are skipped.
 	}
-
 	e.systemNameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Filename field.
 	if e.fieldCount <= 2 {
 		return // Filename and subsequent fields are skipped.
 	}
-
 	e.filenameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect StartLine field.
 	if e.fieldCount <= 3 {
 		return // StartLine and subsequent fields are skipped.
 	}
-
 	e.startLineEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // FunctionDecoder implements decoding of Function
 type FunctionDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	fieldCount  uint
 	nameDecoder encoders.StringDictDecoder
 
 	systemNameDecoder encoders.StringDictDecoder
@@ -620,8 +647,7 @@ type FunctionDecoder struct {
 
 	startLineDecoder encoders.Uint64Decoder
 
-	dict *FunctionDecoderDict
-
+	dict       *FunctionDecoderDict
 	allocators *Allocators
 }
 
@@ -779,6 +805,10 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

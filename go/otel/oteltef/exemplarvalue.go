@@ -103,10 +103,10 @@ func (s *ExemplarValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to ExemplarValueTypeInt64.
 func (s *ExemplarValue) SetInt64(v int64) {
-	if s.typ != ExemplarValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
+	if s.typ != ExemplarValueTypeInt64 || s.int64 != v {
 		s.int64 = v
 		s.typ = ExemplarValueTypeInt64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -118,18 +118,33 @@ func (s *ExemplarValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to ExemplarValueTypeFloat64.
 func (s *ExemplarValue) SetFloat64(v float64) {
-	if s.typ != ExemplarValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
+	if s.typ != ExemplarValueTypeFloat64 || s.float64 != v {
 		s.float64 = v
 		s.typ = ExemplarValueTypeFloat64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
+func (s *ExemplarValue) canBeShared() bool {
+	// Oneof can never be shared.
+	return false
+}
+
+func (s *ExemplarValue) CloneShared(allocators *Allocators) ExemplarValue {
+	// Oneof is not shareable, so CloneShared is just a Clone.
+	return s.Clone(allocators)
+}
+
 func (s *ExemplarValue) Clone(allocators *Allocators) ExemplarValue {
-	return ExemplarValue{
-		int64:   s.int64,
-		float64: s.float64,
+	c := ExemplarValue{}
+	c.typ = s.typ
+	switch s.typ {
+	case ExemplarValueTypeInt64:
+		c.int64 = s.int64
+	case ExemplarValueTypeFloat64:
+		c.float64 = s.float64
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -147,7 +162,10 @@ func copyExemplarValue(dst *ExemplarValue, src *ExemplarValue) {
 	case ExemplarValueTypeFloat64:
 		dst.SetFloat64(src.float64)
 	case ExemplarValueTypeNone:
-		dst.SetType(src.typ)
+		if dst.typ != ExemplarValueTypeNone {
+			dst.typ = ExemplarValueTypeNone
+			dst.markParentModified()
+		}
 	default:
 		panic("copyExemplarValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -158,9 +176,15 @@ func copyToNewExemplarValue(dst *ExemplarValue, src *ExemplarValue, allocators *
 	dst.typ = src.typ
 	switch src.typ {
 	case ExemplarValueTypeInt64:
-		dst.int64 = src.int64
+		if dst.int64 != src.int64 {
+			dst.int64 = src.int64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case ExemplarValueTypeFloat64:
-		dst.float64 = src.float64
+		if dst.float64 != src.float64 {
+			dst.float64 = src.float64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case ExemplarValueTypeNone:
 	default:
 		panic("copyExemplarValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -176,18 +200,32 @@ func (s *ExemplarValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *ExemplarValue) markModifiedRecursively() {
+func (s *ExemplarValue) setModifiedRecursively() {
 	switch s.typ {
-	case ExemplarValueTypeInt64:
-	case ExemplarValueTypeFloat64:
 	}
 }
 
-func (s *ExemplarValue) markUnmodifiedRecursively() {
+func (s *ExemplarValue) setUnmodifiedRecursively() {
 	switch s.typ {
-	case ExemplarValueTypeInt64:
-	case ExemplarValueTypeFloat64:
 	}
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *ExemplarValue) computeDiff(val *ExemplarValue) (ret bool) {
+	if s.typ == val.typ {
+		switch s.typ {
+		case ExemplarValueTypeInt64:
+			ret = s.int64 != val.int64
+		case ExemplarValueTypeFloat64:
+			ret = s.float64 != val.float64
+		}
+	} else {
+		ret = true
+		switch s.typ {
+		}
+	}
+	return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -212,16 +250,6 @@ func ExemplarValueEqual(left, right *ExemplarValue) bool {
 // CmpExemplarValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExemplarValue(left, right *ExemplarValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
 	if c != 0 {
 		return c
@@ -274,7 +302,6 @@ type ExemplarValueEncoder struct {
 	fieldCount uint
 
 	// Field encoders.
-
 	int64Encoder encoders.Int64Encoder
 
 	float64Encoder encoders.Float64Encoder
@@ -493,16 +520,10 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	switch dst.typ {
 	case ExemplarValueTypeInt64:
 		// Decode Int64
-		err := d.int64Decoder.Decode(&dst.int64)
-		if err != nil {
-			return err
-		}
+		return d.int64Decoder.Decode(&dst.int64)
 	case ExemplarValueTypeFloat64:
 		// Decode Float64
-		err := d.float64Decoder.Decode(&dst.float64)
-		if err != nil {
-			return err
-		}
+		return d.float64Decoder.Decode(&dst.float64)
 	}
 	return nil
 }

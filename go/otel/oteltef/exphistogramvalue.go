@@ -89,7 +89,6 @@ func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, pare
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramValue) reset() {
-
 	s.count = 0
 	s.sum = 0.0
 	s.min = 0.0
@@ -106,9 +105,19 @@ func (s *ExpHistogramValue) reset() {
 // an array element and the array was expanded.
 func (s *ExpHistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.positiveBuckets.fixParent(&s.modifiedFields)
 	s.negativeBuckets.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *ExpHistogramValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *ExpHistogramValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *ExpHistogramValue) Count() uint64 {
@@ -117,9 +126,9 @@ func (s *ExpHistogramValue) Count() uint64 {
 
 // SetCount sets the value of Count field.
 func (s *ExpHistogramValue) SetCount(v uint64) {
-	if !pkg.Uint64Equal(s.count, v) {
+	if s.count != v {
 		s.count = v
-		s.markCountModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueCount)
 	}
 }
 
@@ -141,9 +150,9 @@ func (s *ExpHistogramValue) Sum() float64 {
 
 // SetSum sets the value of Sum field.
 func (s *ExpHistogramValue) SetSum(v float64) {
-	if !pkg.Float64Equal(s.sum, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueSum == 0 {
+	if s.sum != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueSum == 0 {
 		s.sum = v
-		s.markSumModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueSum)
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueSum
 	}
 }
@@ -179,9 +188,9 @@ func (s *ExpHistogramValue) Min() float64 {
 
 // SetMin sets the value of Min field.
 func (s *ExpHistogramValue) SetMin(v float64) {
-	if !pkg.Float64Equal(s.min, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMin == 0 {
+	if s.min != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueMin == 0 {
 		s.min = v
-		s.markMinModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueMin)
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMin
 	}
 }
@@ -217,9 +226,9 @@ func (s *ExpHistogramValue) Max() float64 {
 
 // SetMax sets the value of Max field.
 func (s *ExpHistogramValue) SetMax(v float64) {
-	if !pkg.Float64Equal(s.max, v) || s.optionalFieldsPresent&fieldPresentExpHistogramValueMax == 0 {
+	if s.max != v || s.optionalFieldsPresent&fieldPresentExpHistogramValueMax == 0 {
 		s.max = v
-		s.markMaxModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueMax)
 		s.optionalFieldsPresent |= fieldPresentExpHistogramValueMax
 	}
 }
@@ -255,9 +264,9 @@ func (s *ExpHistogramValue) Scale() int64 {
 
 // SetScale sets the value of Scale field.
 func (s *ExpHistogramValue) SetScale(v int64) {
-	if !pkg.Int64Equal(s.scale, v) {
+	if s.scale != v {
 		s.scale = v
-		s.markScaleModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueScale)
 	}
 }
 
@@ -279,9 +288,9 @@ func (s *ExpHistogramValue) ZeroCount() uint64 {
 
 // SetZeroCount sets the value of ZeroCount field.
 func (s *ExpHistogramValue) SetZeroCount(v uint64) {
-	if !pkg.Uint64Equal(s.zeroCount, v) {
+	if s.zeroCount != v {
 		s.zeroCount = v
-		s.markZeroCountModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueZeroCount)
 	}
 }
 
@@ -335,9 +344,9 @@ func (s *ExpHistogramValue) ZeroThreshold() float64 {
 
 // SetZeroThreshold sets the value of ZeroThreshold field.
 func (s *ExpHistogramValue) SetZeroThreshold(v float64) {
-	if !pkg.Float64Equal(s.zeroThreshold, v) {
+	if s.zeroThreshold != v {
 		s.zeroThreshold = v
-		s.markZeroThresholdModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramValueZeroThreshold)
 	}
 }
 
@@ -353,12 +362,9 @@ func (s *ExpHistogramValue) IsZeroThresholdModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0
 }
 
-func (s *ExpHistogramValue) markModifiedRecursively() {
-
-	s.positiveBuckets.markModifiedRecursively()
-
-	s.negativeBuckets.markModifiedRecursively()
-
+func (s *ExpHistogramValue) setModifiedRecursively() {
+	s.positiveBuckets.setModifiedRecursively()
+	s.negativeBuckets.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedExpHistogramValueCount |
 			fieldModifiedExpHistogramValueSum |
@@ -371,54 +377,132 @@ func (s *ExpHistogramValue) markModifiedRecursively() {
 			fieldModifiedExpHistogramValueZeroThreshold | 0
 }
 
-func (s *ExpHistogramValue) markUnmodifiedRecursively() {
-
-	if s.IsCountModified() {
-	}
-
-	if s.IsSumModified() {
-	}
-
-	if s.IsMinModified() {
-	}
-
-	if s.IsMaxModified() {
-	}
-
-	if s.IsScaleModified() {
-	}
-
-	if s.IsZeroCountModified() {
-	}
-
+func (s *ExpHistogramValue) setUnmodifiedRecursively() {
 	if s.IsPositiveBucketsModified() {
-		s.positiveBuckets.markUnmodifiedRecursively()
+		s.positiveBuckets.setUnmodifiedRecursively()
 	}
-
 	if s.IsNegativeBucketsModified() {
-		s.negativeBuckets.markUnmodifiedRecursively()
+		s.negativeBuckets.setUnmodifiedRecursively()
 	}
-
-	if s.IsZeroThresholdModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
-
-	c := ExpHistogramValue{
-
-		count:           s.count,
-		sum:             s.sum,
-		min:             s.min,
-		max:             s.max,
-		scale:           s.scale,
-		zeroCount:       s.zeroCount,
-		positiveBuckets: s.positiveBuckets.Clone(allocators),
-		negativeBuckets: s.negativeBuckets.Clone(allocators),
-		zeroThreshold:   s.zeroThreshold,
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *ExpHistogramValue) computeDiff(val *ExpHistogramValue) (ret bool) {
+	// Compare Count field.
+	if s.count != val.count {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueCount)
+		ret = true
 	}
+	// Compare Sum field.
+	sSumPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	valSumPresent := val.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
+	if !sSumPresent {
+		if valSumPresent {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueSum)
+			ret = true
+		}
+	} else if !valSumPresent {
+		//  Sum is not present in val, so we can consider all of s.Sum to be modified.
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueSum)
+		ret = true
+	} else {
+		// Sum is present in both places, compare the values.
+		if s.sum != val.sum {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueSum)
+			ret = true
+		}
+	}
+	// Compare Min field.
+	sMinPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	valMinPresent := val.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
+	if !sMinPresent {
+		if valMinPresent {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueMin)
+			ret = true
+		}
+	} else if !valMinPresent {
+		//  Min is not present in val, so we can consider all of s.Min to be modified.
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueMin)
+		ret = true
+	} else {
+		// Min is present in both places, compare the values.
+		if s.min != val.min {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueMin)
+			ret = true
+		}
+	}
+	// Compare Max field.
+	sMaxPresent := s.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	valMaxPresent := val.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
+	if !sMaxPresent {
+		if valMaxPresent {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueMax)
+			ret = true
+		}
+	} else if !valMaxPresent {
+		//  Max is not present in val, so we can consider all of s.Max to be modified.
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueMax)
+		ret = true
+	} else {
+		// Max is present in both places, compare the values.
+		if s.max != val.max {
+			s.modifiedFields.setModified(fieldModifiedExpHistogramValueMax)
+			ret = true
+		}
+	}
+	// Compare Scale field.
+	if s.scale != val.scale {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueScale)
+		ret = true
+	}
+	// Compare ZeroCount field.
+	if s.zeroCount != val.zeroCount {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueZeroCount)
+		ret = true
+	}
+	// Compare PositiveBuckets field.
+	if s.positiveBuckets.computeDiff(&val.positiveBuckets) {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValuePositiveBuckets)
+		ret = true
+	}
+	// Compare NegativeBuckets field.
+	if s.negativeBuckets.computeDiff(&val.negativeBuckets) {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueNegativeBuckets)
+		ret = true
+	}
+	// Compare ZeroThreshold field.
+	if s.zeroThreshold != val.zeroThreshold {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramValueZeroThreshold)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *ExpHistogramValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ExpHistogramValue) CloneShared(allocators *Allocators) ExpHistogramValue {
+	return s.Clone(allocators)
+}
+
+func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
+	c := ExpHistogramValue{
+		count:         s.count,
+		sum:           s.sum,
+		min:           s.min,
+		max:           s.max,
+		scale:         s.scale,
+		zeroCount:     s.zeroCount,
+		zeroThreshold: s.zeroThreshold,
+	}
+	copyToNewExpHistogramBuckets(&c.positiveBuckets, &s.positiveBuckets, allocators)
+	copyToNewExpHistogramBuckets(&c.negativeBuckets, &s.negativeBuckets, allocators)
 	return c
 }
 
@@ -460,7 +544,7 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, allocators *Allocators) {
-	dst.count = src.count
+	dst.SetCount(src.count)
 	if src.HasSum() {
 		dst.SetSum(src.sum)
 	}
@@ -473,21 +557,17 @@ func copyToNewExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue, 
 		dst.SetMax(src.max)
 	}
 
-	dst.scale = src.scale
-	dst.zeroCount = src.zeroCount
+	dst.SetScale(src.scale)
+	dst.SetZeroCount(src.zeroCount)
 	copyToNewExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets, allocators)
 	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &src.negativeBuckets, allocators)
-	dst.zeroThreshold = src.zeroThreshold
+	dst.SetZeroThreshold(src.zeroThreshold)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *ExpHistogramValue) CopyFrom(src *ExpHistogramValue) {
 	copyExpHistogramValue(s, src)
-}
-
-func (s *ExpHistogramValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -642,21 +722,10 @@ func ExpHistogramValueEqual(left, right *ExpHistogramValue) bool {
 // CmpExpHistogramValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Count field.
 	if c := pkg.Uint64Compare(left.count, right.count); c != 0 {
 		return c
 	}
-
 	// Compare Sum field.
 	leftSumPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
 	rightSumPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0
@@ -669,7 +738,6 @@ func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
 	if c := pkg.Float64Compare(left.sum, right.sum); c != 0 {
 		return c
 	}
-
 	// Compare Min field.
 	leftMinPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
 	rightMinPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0
@@ -682,7 +750,6 @@ func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
 	if c := pkg.Float64Compare(left.min, right.min); c != 0 {
 		return c
 	}
-
 	// Compare Max field.
 	leftMaxPresent := left.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
 	rightMaxPresent := right.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0
@@ -695,32 +762,26 @@ func CmpExpHistogramValue(left, right *ExpHistogramValue) int {
 	if c := pkg.Float64Compare(left.max, right.max); c != 0 {
 		return c
 	}
-
 	// Compare Scale field.
 	if c := pkg.Int64Compare(left.scale, right.scale); c != 0 {
 		return c
 	}
-
 	// Compare ZeroCount field.
 	if c := pkg.Uint64Compare(left.zeroCount, right.zeroCount); c != 0 {
 		return c
 	}
-
 	// Compare PositiveBuckets field.
 	if c := CmpExpHistogramBuckets(&left.positiveBuckets, &right.positiveBuckets); c != 0 {
 		return c
 	}
-
 	// Compare NegativeBuckets field.
 	if c := CmpExpHistogramBuckets(&left.negativeBuckets, &right.negativeBuckets); c != 0 {
 		return c
 	}
-
 	// Compare ZeroThreshold field.
 	if c := pkg.Float64Compare(left.zeroThreshold, right.zeroThreshold); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -729,31 +790,22 @@ type ExpHistogramValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	countEncoder encoders.Uint64Encoder
-
-	sumEncoder encoders.Float64Encoder
-
-	minEncoder encoders.Float64Encoder
-
-	maxEncoder encoders.Float64Encoder
-
-	scaleEncoder encoders.Int64Encoder
-
-	zeroCountEncoder encoders.Uint64Encoder
-
+	countEncoder               encoders.Uint64Encoder
+	sumEncoder                 encoders.Float64Encoder
+	minEncoder                 encoders.Float64Encoder
+	maxEncoder                 encoders.Float64Encoder
+	scaleEncoder               encoders.Int64Encoder
+	zeroCountEncoder           encoders.Uint64Encoder
 	positiveBucketsEncoder     *ExpHistogramBucketsEncoder
 	isPositiveBucketsRecursive bool // Indicates PositiveBuckets field's type is recursive.
-
 	negativeBucketsEncoder     *ExpHistogramBucketsEncoder
 	isNegativeBucketsRecursive bool // Indicates NegativeBuckets field's type is recursive.
-
-	zeroThresholdEncoder encoders.Float64Encoder
+	zeroThresholdEncoder       encoders.Float64Encoder
 
 	allocators *Allocators
 
@@ -883,7 +935,7 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 func (e *ExpHistogramValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Count and all subsequent fields are skipped.
@@ -912,19 +964,15 @@ func (e *ExpHistogramValueEncoder) Reset() {
 	if e.fieldCount <= 6 {
 		return // PositiveBuckets and all subsequent fields are skipped.
 	}
-
 	if !e.isPositiveBucketsRecursive {
 		e.positiveBucketsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 7 {
 		return // NegativeBuckets and all subsequent fields are skipped.
 	}
-
 	if !e.isNegativeBucketsRecursive {
 		e.negativeBucketsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 8 {
 		return // ZeroThreshold and all subsequent fields are skipped.
 	}
@@ -940,18 +988,8 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedExpHistogramValueCount |
-				fieldModifiedExpHistogramValueSum |
-				fieldModifiedExpHistogramValueMin |
-				fieldModifiedExpHistogramValueMax |
-				fieldModifiedExpHistogramValueScale |
-				fieldModifiedExpHistogramValueZeroCount |
-				fieldModifiedExpHistogramValuePositiveBuckets |
-				fieldModifiedExpHistogramValueNegativeBuckets |
-				fieldModifiedExpHistogramValueZeroThreshold | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -1026,55 +1064,42 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Count field.
 	if e.fieldCount <= 0 {
 		return // Count and subsequent fields are skipped.
 	}
-
 	e.countEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Sum field.
 	if e.fieldCount <= 1 {
 		return // Sum and subsequent fields are skipped.
 	}
-
 	e.sumEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Min field.
 	if e.fieldCount <= 2 {
 		return // Min and subsequent fields are skipped.
 	}
-
 	e.minEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Max field.
 	if e.fieldCount <= 3 {
 		return // Max and subsequent fields are skipped.
 	}
-
 	e.maxEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Scale field.
 	if e.fieldCount <= 4 {
 		return // Scale and subsequent fields are skipped.
 	}
-
 	e.scaleEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect ZeroCount field.
 	if e.fieldCount <= 5 {
 		return // ZeroCount and subsequent fields are skipped.
 	}
-
 	e.zeroCountEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect PositiveBuckets field.
 	if e.fieldCount <= 6 {
 		return // PositiveBuckets and subsequent fields are skipped.
@@ -1083,7 +1108,6 @@ func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 		e.positiveBucketsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect NegativeBuckets field.
 	if e.fieldCount <= 7 {
 		return // NegativeBuckets and subsequent fields are skipped.
@@ -1092,22 +1116,19 @@ func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 		e.negativeBucketsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect ZeroThreshold field.
 	if e.fieldCount <= 8 {
 		return // ZeroThreshold and subsequent fields are skipped.
 	}
-
 	e.zeroThresholdEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // ExpHistogramValueDecoder implements decoding of ExpHistogramValue
 type ExpHistogramValueDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf          pkg.BitsReader
+	column       *pkg.ReadableColumn
+	fieldCount   uint
 	countDecoder encoders.Uint64Decoder
 
 	sumDecoder encoders.Float64Decoder
@@ -1122,11 +1143,9 @@ type ExpHistogramValueDecoder struct {
 
 	positiveBucketsDecoder     *ExpHistogramBucketsDecoder
 	isPositiveBucketsRecursive bool
-
 	negativeBucketsDecoder     *ExpHistogramBucketsDecoder
 	isNegativeBucketsRecursive bool
-
-	zeroThresholdDecoder encoders.Float64Decoder
+	zeroThresholdDecoder       encoders.Float64Decoder
 
 	allocators *Allocators
 }

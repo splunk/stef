@@ -140,6 +140,9 @@ func BenchmarkDeserialization(b *testing.B) {
 						recCount++
 					}
 				}
+				if recCount != len(prof.Sample) {
+					b.Fatalf("record count mismatch: got %d, want %d", recCount, len(prof.Sample))
+				}
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
 			},
 		)
@@ -190,7 +193,7 @@ func BenchmarkSerialization(b *testing.B) {
 
 		b.Run(
 			"file="+file.Name()+"/format=stef", func(b *testing.B) {
-				// Count records
+				// Pre-read records
 				r := bytes.NewReader(stefData)
 				reader, err := stefprofile.NewSampleReader(r)
 				if err != nil {
@@ -202,13 +205,18 @@ func BenchmarkSerialization(b *testing.B) {
 					if err := reader.Read(pkg.ReadOptions{}); err != nil {
 						break
 					}
+					records[recCount].Init()
 					records[recCount].CopyFrom(&reader.Record)
 					recCount++
+				}
+				if recCount != len(prof.Sample) {
+					b.Fatalf("record count mismatch: got %d, want %d", recCount, len(prof.Sample))
 				}
 				b.ResetTimer()
 				var dst bytes.Buffer
 				for i := 0; i < b.N; i++ {
 					dst.Reset()
+					//err = convertPprofToStef(prof, &dst)
 					chunkWriter := pkg.NewWrapChunkWriter(&dst)
 
 					// Create sample writer
@@ -229,6 +237,78 @@ func BenchmarkSerialization(b *testing.B) {
 					}
 				}
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/sample")
+			},
+		)
+	}
+}
+
+func BenchmarkCopy(b *testing.B) {
+	dir := "testdata"
+	files, err := ioutil.ReadDir(dir)
+	require.NoError(b, err, "failed to read testdata dir")
+	for _, file := range files {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".prof" {
+			continue
+		}
+		path := filepath.Join(dir, file.Name())
+		freader, err := os.Open(path)
+		require.NoError(b, err)
+		defer func() { freader.Close() }()
+
+		gz, err := gzip.NewReader(freader)
+		pprofData, err := io.ReadAll(gz)
+		require.NoError(b, err)
+
+		// Parse the profile using profile.Parse
+		prof, err := pprof.ParseUncompressed(pprofData)
+		require.NoError(b, err)
+		require.NotNil(b, prof)
+
+		buf := bytes.NewBuffer(nil)
+		err = convertPprofToStef(prof, buf)
+		require.NoError(b, err)
+		stefData := buf.Bytes()
+
+		b.Run(
+			"file="+file.Name()+"/format=stef", func(b *testing.B) {
+				var dst bytes.Buffer
+				recCount := 0
+				for i := 0; i < b.N; i++ {
+					dst.Reset()
+					r := bytes.NewReader(stefData)
+					reader, err := stefprofile.NewSampleReader(r)
+					if err != nil {
+						b.Fatalf("failed to create STEF reader: %v", err)
+					}
+
+					chunkWriter := pkg.NewWrapChunkWriter(&dst)
+
+					// Create sample writer
+					writer, err := stefprofile.NewSampleWriter(chunkWriter, pkg.WriterOptions{})
+					if err != nil {
+						b.Fatalf("failed to create srcSample writer: %s", err)
+					}
+
+					recCount = 0
+					for {
+						if err := reader.Read(pkg.ReadOptions{}); err != nil {
+							break
+						}
+						writer.Record.CopyFrom(&reader.Record)
+						if err := writer.Write(); err != nil {
+							b.Fatalf("failed to write srcSample: %v", err)
+						}
+						recCount++
+					}
+					if recCount != len(prof.Sample) {
+						b.Fatalf("record count mismatch: got %d, want %d", recCount, len(prof.Sample))
+					}
+					err = writer.Flush()
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+				b.ReportMetric(float64((b.Elapsed()).Nanoseconds())/float64(b.N*recCount), "ns/sample")
 			},
 		)
 	}

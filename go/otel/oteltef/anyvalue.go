@@ -123,10 +123,10 @@ func (s *AnyValue) String() string {
 
 // SetString sets the value to the specified value and sets the type to AnyValueTypeString.
 func (s *AnyValue) SetString(v string) {
-	if s.typ != AnyValueTypeString || !pkg.StringEqual(s.string, v) {
+	if s.typ != AnyValueTypeString || s.string != v {
 		s.string = v
 		s.typ = AnyValueTypeString
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -138,10 +138,10 @@ func (s *AnyValue) Bool() bool {
 
 // SetBool sets the value to the specified value and sets the type to AnyValueTypeBool.
 func (s *AnyValue) SetBool(v bool) {
-	if s.typ != AnyValueTypeBool || !pkg.BoolEqual(s.bool, v) {
+	if s.typ != AnyValueTypeBool || s.bool != v {
 		s.bool = v
 		s.typ = AnyValueTypeBool
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -153,10 +153,10 @@ func (s *AnyValue) Int64() int64 {
 
 // SetInt64 sets the value to the specified value and sets the type to AnyValueTypeInt64.
 func (s *AnyValue) SetInt64(v int64) {
-	if s.typ != AnyValueTypeInt64 || !pkg.Int64Equal(s.int64, v) {
+	if s.typ != AnyValueTypeInt64 || s.int64 != v {
 		s.int64 = v
 		s.typ = AnyValueTypeInt64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -168,10 +168,10 @@ func (s *AnyValue) Float64() float64 {
 
 // SetFloat64 sets the value to the specified value and sets the type to AnyValueTypeFloat64.
 func (s *AnyValue) SetFloat64(v float64) {
-	if s.typ != AnyValueTypeFloat64 || !pkg.Float64Equal(s.float64, v) {
+	if s.typ != AnyValueTypeFloat64 || s.float64 != v {
 		s.float64 = v
 		s.typ = AnyValueTypeFloat64
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -195,23 +195,43 @@ func (s *AnyValue) Bytes() pkg.Bytes {
 
 // SetBytes sets the value to the specified value and sets the type to AnyValueTypeBytes.
 func (s *AnyValue) SetBytes(v pkg.Bytes) {
-	if s.typ != AnyValueTypeBytes || !pkg.BytesEqual(s.bytes, v) {
+	if s.typ != AnyValueTypeBytes || s.bytes != v {
 		s.bytes = v
 		s.typ = AnyValueTypeBytes
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
+func (s *AnyValue) canBeShared() bool {
+	// Oneof can never be shared.
+	return false
+}
+
+func (s *AnyValue) CloneShared(allocators *Allocators) *AnyValue {
+	// Oneof is not shareable, so CloneShared is just a Clone.
+	return s.Clone(allocators)
+}
+
 func (s *AnyValue) Clone(allocators *Allocators) *AnyValue {
-	return &AnyValue{
-		string:  s.string,
-		bool:    s.bool,
-		int64:   s.int64,
-		float64: s.float64,
-		array:   s.array.Clone(allocators),
-		kVList:  s.kVList.Clone(allocators),
-		bytes:   s.bytes,
+	c := allocators.AnyValue.Alloc()
+	c.typ = s.typ
+	switch s.typ {
+	case AnyValueTypeString:
+		c.string = s.string
+	case AnyValueTypeBool:
+		c.bool = s.bool
+	case AnyValueTypeInt64:
+		c.int64 = s.int64
+	case AnyValueTypeFloat64:
+		c.float64 = s.float64
+	case AnyValueTypeArray:
+		copyToNewAnyValueArray(&c.array, &s.array, allocators)
+	case AnyValueTypeKVList:
+		copyToNewKeyValueList(&c.kVList, &s.kVList, allocators)
+	case AnyValueTypeBytes:
+		c.bytes = s.bytes
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -241,7 +261,10 @@ func copyAnyValue(dst *AnyValue, src *AnyValue) {
 	case AnyValueTypeBytes:
 		dst.SetBytes(src.bytes)
 	case AnyValueTypeNone:
-		dst.SetType(src.typ)
+		if dst.typ != AnyValueTypeNone {
+			dst.typ = AnyValueTypeNone
+			dst.markParentModified()
+		}
 	default:
 		panic("copyAnyValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -252,19 +275,34 @@ func copyToNewAnyValue(dst *AnyValue, src *AnyValue, allocators *Allocators) {
 	dst.typ = src.typ
 	switch src.typ {
 	case AnyValueTypeString:
-		dst.string = src.string
+		if dst.string != src.string {
+			dst.string = src.string
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case AnyValueTypeBool:
-		dst.bool = src.bool
+		if dst.bool != src.bool {
+			dst.bool = src.bool
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case AnyValueTypeInt64:
-		dst.int64 = src.int64
+		if dst.int64 != src.int64 {
+			dst.int64 = src.int64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case AnyValueTypeFloat64:
-		dst.float64 = src.float64
+		if dst.float64 != src.float64 {
+			dst.float64 = src.float64
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case AnyValueTypeArray:
 		copyToNewAnyValueArray(&dst.array, &src.array, allocators)
 	case AnyValueTypeKVList:
 		copyToNewKeyValueList(&dst.kVList, &src.kVList, allocators)
 	case AnyValueTypeBytes:
-		dst.bytes = src.bytes
+		if dst.bytes != src.bytes {
+			dst.bytes = src.bytes
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case AnyValueTypeNone:
 	default:
 		panic("copyAnyValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -280,32 +318,56 @@ func (s *AnyValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *AnyValue) markModifiedRecursively() {
+func (s *AnyValue) setModifiedRecursively() {
 	switch s.typ {
-	case AnyValueTypeString:
-	case AnyValueTypeBool:
-	case AnyValueTypeInt64:
-	case AnyValueTypeFloat64:
 	case AnyValueTypeArray:
-		s.array.markModifiedRecursively()
+		s.array.setModifiedRecursively()
 	case AnyValueTypeKVList:
-		s.kVList.markModifiedRecursively()
-	case AnyValueTypeBytes:
+		s.kVList.setModifiedRecursively()
 	}
 }
 
-func (s *AnyValue) markUnmodifiedRecursively() {
+func (s *AnyValue) setUnmodifiedRecursively() {
 	switch s.typ {
-	case AnyValueTypeString:
-	case AnyValueTypeBool:
-	case AnyValueTypeInt64:
-	case AnyValueTypeFloat64:
 	case AnyValueTypeArray:
-		s.array.markUnmodifiedRecursively()
+		s.array.setUnmodifiedRecursively()
 	case AnyValueTypeKVList:
-		s.kVList.markUnmodifiedRecursively()
-	case AnyValueTypeBytes:
+		s.kVList.setUnmodifiedRecursively()
 	}
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *AnyValue) computeDiff(val *AnyValue) (ret bool) {
+	if s.typ == val.typ {
+		switch s.typ {
+		case AnyValueTypeString:
+			ret = s.string != val.string
+		case AnyValueTypeBool:
+			ret = s.bool != val.bool
+		case AnyValueTypeInt64:
+			ret = s.int64 != val.int64
+		case AnyValueTypeFloat64:
+			ret = s.float64 != val.float64
+		case AnyValueTypeArray:
+			ret = s.array.computeDiff(&val.array)
+		case AnyValueTypeKVList:
+			ret = s.kVList.computeDiff(&val.kVList)
+		case AnyValueTypeBytes:
+			ret = s.bytes != val.bytes
+		}
+	} else {
+		ret = true
+		switch s.typ {
+		case AnyValueTypeArray:
+			// val.array doesn't exist at all so mark the whole s.array subtree as modified.
+			s.array.setModifiedRecursively()
+		case AnyValueTypeKVList:
+			// val.kVList doesn't exist at all so mark the whole s.kVList subtree as modified.
+			s.kVList.setModifiedRecursively()
+		}
+	}
+	return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -340,16 +402,6 @@ func AnyValueEqual(left, right *AnyValue) bool {
 // CmpAnyValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpAnyValue(left, right *AnyValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
 	if c != 0 {
 		return c
@@ -432,7 +484,6 @@ type AnyValueEncoder struct {
 	fieldCount uint
 
 	// Field encoders.
-
 	stringEncoder encoders.StringDictEncoder
 
 	boolEncoder encoders.BoolEncoder
@@ -932,46 +983,25 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 	switch dst.typ {
 	case AnyValueTypeString:
 		// Decode String
-		err := d.stringDecoder.Decode(&dst.string)
-		if err != nil {
-			return err
-		}
+		return d.stringDecoder.Decode(&dst.string)
 	case AnyValueTypeBool:
 		// Decode Bool
-		err := d.boolDecoder.Decode(&dst.bool)
-		if err != nil {
-			return err
-		}
+		return d.boolDecoder.Decode(&dst.bool)
 	case AnyValueTypeInt64:
 		// Decode Int64
-		err := d.int64Decoder.Decode(&dst.int64)
-		if err != nil {
-			return err
-		}
+		return d.int64Decoder.Decode(&dst.int64)
 	case AnyValueTypeFloat64:
 		// Decode Float64
-		err := d.float64Decoder.Decode(&dst.float64)
-		if err != nil {
-			return err
-		}
+		return d.float64Decoder.Decode(&dst.float64)
 	case AnyValueTypeArray:
 		// Decode Array
-		err := d.arrayDecoder.Decode(&dst.array)
-		if err != nil {
-			return err
-		}
+		return d.arrayDecoder.Decode(&dst.array)
 	case AnyValueTypeKVList:
 		// Decode KVList
-		err := d.kVListDecoder.Decode(&dst.kVList)
-		if err != nil {
-			return err
-		}
+		return d.kVListDecoder.Decode(&dst.kVList)
 	case AnyValueTypeBytes:
 		// Decode Bytes
-		err := d.bytesDecoder.Decode(&dst.bytes)
-		if err != nil {
-			return err
-		}
+		return d.bytesDecoder.Decode(&dst.bytes)
 	}
 	return nil
 }

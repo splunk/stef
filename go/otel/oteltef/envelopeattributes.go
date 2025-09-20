@@ -52,13 +52,10 @@ func (m *EnvelopeAttributes) reset() {
 // an array element and the array was expanded.
 func (m *EnvelopeAttributes) fixParent(parentModifiedFields *modifiedFields) {
 	m.modifiedElems.fixParent(parentModifiedFields)
-}
-
-// Clone() creates a deep copy of EnvelopeAttributes
-func (m *EnvelopeAttributes) Clone(allocators *Allocators) EnvelopeAttributes {
-	clone := EnvelopeAttributes{}
-	copyToNewEnvelopeAttributes(&clone, m, allocators)
-	return clone
+	// Fix parents in all previously inited elements to point back to this object.
+	elems := m.elems[:m.initedCount]
+	for i := 0; i < len(elems); i++ {
+	}
 }
 
 // Len returns the number of elements in the multimap.
@@ -99,15 +96,41 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 	}
 }
 
-func (m *EnvelopeAttributes) markModifiedRecursively() {
+func (m *EnvelopeAttributes) setModifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 	}
 }
 
-func (m *EnvelopeAttributes) markUnmodifiedRecursively() {
+func (m *EnvelopeAttributes) setUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 	}
-	m.modifiedElems.markUnmodifiedAll()
+	m.modifiedElems.setUnmodifiedAll()
+}
+
+// computeDiff compares m to val and returns true if they differ.
+// All fields that are different in m will be marked as modified.
+func (m *EnvelopeAttributes) computeDiff(val *EnvelopeAttributes) (ret bool) {
+	if len(m.elems) != len(val.elems) {
+		m.modifiedElems.modifiedLen = true
+		ret = true
+	}
+	minLen := min(len(m.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if m.elems[i].key != val.elems[i].key {
+			ret = true
+			m.modifiedElems.setKeyModified(i)
+		}
+		if m.elems[i].value != val.elems[i].value {
+			ret = true
+			m.modifiedElems.setValModified(i)
+		}
+	}
+	for ; i < len(m.elems); i++ {
+		m.modifiedElems.setKeyModified(i)
+		m.modifiedElems.setValModified(i)
+	}
+	return ret
 }
 
 func (m *EnvelopeAttributes) Append(k string, v pkg.Bytes) {
@@ -313,14 +336,10 @@ func (e *EnvelopeAttributesEncoder) Encode(list *EnvelopeAttributes) {
 
 	// Mark all elems non-modified so that next Encode() correctly
 	// encodes only elems that change after this.
-	list.modifiedElems.markUnmodifiedAll()
+	list.modifiedElems.setUnmodifiedAll()
 }
 
 func (e *EnvelopeAttributesEncoder) encodeValuesOnly(list *EnvelopeAttributes) {
-	if len(list.elems) > 62 {
-		panic("not allowed to encode values-only for length > 62")
-	}
-
 	// The bits that describe the change value are exactly the bits
 	// that are set in modifiedElems.
 	changedValuesBits := list.modifiedElems.vals.mask

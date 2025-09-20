@@ -47,11 +47,9 @@ func (e *Uint64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-// Clone() creates a deep copy of Uint64Array
-func (e *Uint64Array) Clone(allocators *Allocators) Uint64Array {
-	var clone Uint64Array
-	copyToNewUint64Array(&clone, e, allocators)
-	return clone
+func (e *Uint64Array) canBeShared() bool {
+	// An array can never be shared.
+	return false
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -87,12 +85,28 @@ func (e *Uint64Array) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *Uint64Array) markModifiedRecursively() {
+func (e *Uint64Array) setModifiedRecursively() {
 
 }
 
-func (e *Uint64Array) markUnmodifiedRecursively() {
+func (e *Uint64Array) setUnmodifiedRecursively() {
 
+}
+
+// computeDiff compares e and val and returns true if they differ.
+// All fields that are different in e will be marked as modified.
+func (e *Uint64Array) computeDiff(val *Uint64Array) (ret bool) {
+	if len(e.elems) != len(val.elems) {
+		ret = true
+	}
+	minLen := min(len(e.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if e.elems[i] != val.elems[i] {
+			ret = true
+		}
+	}
+	return ret
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -199,11 +213,8 @@ func CmpUint64Array(left, right *Uint64Array) int {
 	}
 	for i := range left.elems {
 		fc := pkg.Uint64Compare(left.elems[i], right.elems[i])
-		if fc < 0 {
-			return -1
-		}
-		if fc > 0 {
-			return 1
+		if fc != 0 {
+			return fc
 		}
 	}
 	return 0

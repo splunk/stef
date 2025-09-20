@@ -60,7 +60,6 @@ func (s *NumValue) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *NumValue) reset() {
-
 	s.val = 0
 	s.unit = ""
 }
@@ -70,7 +69,17 @@ func (s *NumValue) reset() {
 // an array element and the array was expanded.
 func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *NumValue) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *NumValue) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *NumValue) Val() int64 {
@@ -79,9 +88,9 @@ func (s *NumValue) Val() int64 {
 
 // SetVal sets the value of Val field.
 func (s *NumValue) SetVal(v int64) {
-	if !pkg.Int64Equal(s.val, v) {
+	if s.val != v {
 		s.val = v
-		s.markValModified()
+		s.modifiedFields.markModified(fieldModifiedNumValueVal)
 	}
 }
 
@@ -103,9 +112,9 @@ func (s *NumValue) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *NumValue) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
-		s.markUnitModified()
+		s.modifiedFields.markModified(fieldModifiedNumValueUnit)
 	}
 }
 
@@ -121,28 +130,45 @@ func (s *NumValue) IsUnitModified() bool {
 	return s.modifiedFields.mask&fieldModifiedNumValueUnit != 0
 }
 
-func (s *NumValue) markModifiedRecursively() {
-
+func (s *NumValue) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedNumValueVal |
 			fieldModifiedNumValueUnit | 0
 }
 
-func (s *NumValue) markUnmodifiedRecursively() {
-
-	if s.IsValModified() {
-	}
-
-	if s.IsUnitModified() {
-	}
-
+func (s *NumValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *NumValue) computeDiff(val *NumValue) (ret bool) {
+	// Compare Val field.
+	if s.val != val.val {
+		s.modifiedFields.setModified(fieldModifiedNumValueVal)
+		ret = true
+	}
+	// Compare Unit field.
+	if s.unit != val.unit {
+		s.modifiedFields.setModified(fieldModifiedNumValueUnit)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *NumValue) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *NumValue) CloneShared(allocators *Allocators) NumValue {
+	return s.Clone(allocators)
+}
+
 func (s *NumValue) Clone(allocators *Allocators) NumValue {
-
 	c := NumValue{
-
 		val:  s.val,
 		unit: s.unit,
 	}
@@ -164,17 +190,13 @@ func copyNumValue(dst *NumValue, src *NumValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewNumValue(dst *NumValue, src *NumValue, allocators *Allocators) {
-	dst.val = src.val
-	dst.unit = src.unit
+	dst.SetVal(src.val)
+	dst.SetUnit(src.unit)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *NumValue) CopyFrom(src *NumValue) {
 	copyNumValue(s, src)
-}
-
-func (s *NumValue) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -228,26 +250,14 @@ func NumValueEqual(left, right *NumValue) bool {
 // CmpNumValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpNumValue(left, right *NumValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Val field.
 	if c := pkg.Int64Compare(left.val, right.val); c != 0 {
 		return c
 	}
-
 	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -256,14 +266,12 @@ type NumValueEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	valEncoder encoders.Int64Encoder
-
+	valEncoder  encoders.Int64Encoder
 	unitEncoder encoders.StringDictEncoder
 
 	allocators *Allocators
@@ -317,7 +325,7 @@ func (e *NumValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 func (e *NumValueEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Val and all subsequent fields are skipped.
@@ -338,11 +346,8 @@ func (e *NumValueEncoder) Encode(val *NumValue) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedNumValueVal |
-				fieldModifiedNumValueUnit | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -375,20 +380,16 @@ func (e *NumValueEncoder) Encode(val *NumValue) {
 func (e *NumValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Val field.
 	if e.fieldCount <= 0 {
 		return // Val and subsequent fields are skipped.
 	}
-
 	e.valEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Unit field.
 	if e.fieldCount <= 1 {
 		return // Unit and subsequent fields are skipped.
 	}
-
 	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
@@ -398,7 +399,6 @@ type NumValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
 	fieldCount uint
-
 	valDecoder encoders.Int64Decoder
 
 	unitDecoder encoders.StringDictDecoder

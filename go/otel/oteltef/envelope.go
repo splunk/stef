@@ -60,7 +60,6 @@ func (s *Envelope) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Envelope) reset() {
-
 	s.attributes.reset()
 }
 
@@ -69,8 +68,18 @@ func (s *Envelope) reset() {
 // an array element and the array was expanded.
 func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.attributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Envelope) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Envelope) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Envelope) Attributes() *EnvelopeAttributes {
@@ -89,29 +98,44 @@ func (s *Envelope) IsAttributesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0
 }
 
-func (s *Envelope) markModifiedRecursively() {
-
-	s.attributes.markModifiedRecursively()
-
+func (s *Envelope) setModifiedRecursively() {
+	s.attributes.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedEnvelopeAttributes | 0
 }
 
-func (s *Envelope) markUnmodifiedRecursively() {
-
+func (s *Envelope) setUnmodifiedRecursively() {
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Envelope) Clone(allocators *Allocators) Envelope {
-
-	c := Envelope{
-
-		attributes: s.attributes.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Envelope) computeDiff(val *Envelope) (ret bool) {
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedEnvelopeAttributes)
+		ret = true
 	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Envelope) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Envelope) CloneShared(allocators *Allocators) Envelope {
+	return s.Clone(allocators)
+}
+
+func (s *Envelope) Clone(allocators *Allocators) Envelope {
+	c := Envelope{}
+	copyToNewEnvelopeAttributes(&c.attributes, &s.attributes, allocators)
 	return c
 }
 
@@ -135,10 +159,6 @@ func copyToNewEnvelope(dst *Envelope, src *Envelope, allocators *Allocators) {
 // CopyFrom() performs a deep copy from src.
 func (s *Envelope) CopyFrom(src *Envelope) {
 	copyEnvelope(s, src)
-}
-
-func (s *Envelope) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -181,21 +201,10 @@ func EnvelopeEqual(left, right *Envelope) bool {
 // CmpEnvelope performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpEnvelope(left, right *Envelope) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Attributes field.
 	if c := CmpEnvelopeAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -204,11 +213,10 @@ type EnvelopeEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	attributesEncoder     *EnvelopeAttributesEncoder
 	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
@@ -262,16 +270,14 @@ func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 func (e *EnvelopeEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -283,10 +289,8 @@ func (e *EnvelopeEncoder) Encode(val *Envelope) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedEnvelopeAttributes | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -314,7 +318,6 @@ func (e *EnvelopeEncoder) Encode(val *Envelope) {
 func (e *EnvelopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Attributes field.
 	if e.fieldCount <= 0 {
 		return // Attributes and subsequent fields are skipped.
@@ -327,14 +330,12 @@ func (e *EnvelopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // EnvelopeDecoder implements decoding of Envelope
 type EnvelopeDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                   pkg.BitsReader
+	column                *pkg.ReadableColumn
+	fieldCount            uint
 	attributesDecoder     *EnvelopeAttributesDecoder
 	isAttributesRecursive bool
-
-	allocators *Allocators
+	allocators            *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

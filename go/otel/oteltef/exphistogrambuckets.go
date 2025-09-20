@@ -62,7 +62,6 @@ func (s *ExpHistogramBuckets) initAlloc(parentModifiedFields *modifiedFields, pa
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramBuckets) reset() {
-
 	s.offset = 0
 	s.bucketCounts.reset()
 }
@@ -72,8 +71,18 @@ func (s *ExpHistogramBuckets) reset() {
 // an array element and the array was expanded.
 func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.bucketCounts.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *ExpHistogramBuckets) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *ExpHistogramBuckets) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *ExpHistogramBuckets) Offset() int64 {
@@ -82,9 +91,9 @@ func (s *ExpHistogramBuckets) Offset() int64 {
 
 // SetOffset sets the value of Offset field.
 func (s *ExpHistogramBuckets) SetOffset(v int64) {
-	if !pkg.Int64Equal(s.offset, v) {
+	if s.offset != v {
 		s.offset = v
-		s.markOffsetModified()
+		s.modifiedFields.markModified(fieldModifiedExpHistogramBucketsOffset)
 	}
 }
 
@@ -116,34 +125,52 @@ func (s *ExpHistogramBuckets) IsBucketCountsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0
 }
 
-func (s *ExpHistogramBuckets) markModifiedRecursively() {
-
-	s.bucketCounts.markModifiedRecursively()
-
+func (s *ExpHistogramBuckets) setModifiedRecursively() {
+	s.bucketCounts.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedExpHistogramBucketsOffset |
 			fieldModifiedExpHistogramBucketsBucketCounts | 0
 }
 
-func (s *ExpHistogramBuckets) markUnmodifiedRecursively() {
-
-	if s.IsOffsetModified() {
-	}
-
+func (s *ExpHistogramBuckets) setUnmodifiedRecursively() {
 	if s.IsBucketCountsModified() {
-		s.bucketCounts.markUnmodifiedRecursively()
+		s.bucketCounts.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
-
-	c := ExpHistogramBuckets{
-
-		offset:       s.offset,
-		bucketCounts: s.bucketCounts.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *ExpHistogramBuckets) computeDiff(val *ExpHistogramBuckets) (ret bool) {
+	// Compare Offset field.
+	if s.offset != val.offset {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramBucketsOffset)
+		ret = true
 	}
+	// Compare BucketCounts field.
+	if s.bucketCounts.computeDiff(&val.bucketCounts) {
+		s.modifiedFields.setModified(fieldModifiedExpHistogramBucketsBucketCounts)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *ExpHistogramBuckets) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *ExpHistogramBuckets) CloneShared(allocators *Allocators) ExpHistogramBuckets {
+	return s.Clone(allocators)
+}
+
+func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
+	c := ExpHistogramBuckets{
+		offset: s.offset,
+	}
+	copyToNewUint64Array(&c.bucketCounts, &s.bucketCounts, allocators)
 	return c
 }
 
@@ -162,17 +189,13 @@ func copyExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets)
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewExpHistogramBuckets(dst *ExpHistogramBuckets, src *ExpHistogramBuckets, allocators *Allocators) {
-	dst.offset = src.offset
+	dst.SetOffset(src.offset)
 	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *ExpHistogramBuckets) CopyFrom(src *ExpHistogramBuckets) {
 	copyExpHistogramBuckets(s, src)
-}
-
-func (s *ExpHistogramBuckets) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -226,26 +249,14 @@ func ExpHistogramBucketsEqual(left, right *ExpHistogramBuckets) bool {
 // CmpExpHistogramBuckets performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExpHistogramBuckets(left, right *ExpHistogramBuckets) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Offset field.
 	if c := pkg.Int64Compare(left.offset, right.offset); c != 0 {
 		return c
 	}
-
 	// Compare BucketCounts field.
 	if c := CmpUint64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -254,14 +265,12 @@ type ExpHistogramBucketsEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	offsetEncoder encoders.Int64Encoder
-
+	offsetEncoder           encoders.Int64Encoder
 	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
@@ -323,7 +332,7 @@ func (e *ExpHistogramBucketsEncoder) Init(state *WriterState, columns *pkg.Write
 func (e *ExpHistogramBucketsEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Offset and all subsequent fields are skipped.
@@ -332,11 +341,9 @@ func (e *ExpHistogramBucketsEncoder) Reset() {
 	if e.fieldCount <= 1 {
 		return // BucketCounts and all subsequent fields are skipped.
 	}
-
 	if !e.isBucketCountsRecursive {
 		e.bucketCountsEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -348,11 +355,8 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedExpHistogramBucketsOffset |
-				fieldModifiedExpHistogramBucketsBucketCounts | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -385,15 +389,12 @@ func (e *ExpHistogramBucketsEncoder) Encode(val *ExpHistogramBuckets) {
 func (e *ExpHistogramBucketsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Offset field.
 	if e.fieldCount <= 0 {
 		return // Offset and subsequent fields are skipped.
 	}
-
 	e.offsetEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect BucketCounts field.
 	if e.fieldCount <= 1 {
 		return // BucketCounts and subsequent fields are skipped.
@@ -406,16 +407,14 @@ func (e *ExpHistogramBucketsEncoder) CollectColumns(columnSet *pkg.WriteColumnSe
 
 // ExpHistogramBucketsDecoder implements decoding of ExpHistogramBuckets
 type ExpHistogramBucketsDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf           pkg.BitsReader
+	column        *pkg.ReadableColumn
+	fieldCount    uint
 	offsetDecoder encoders.Int64Decoder
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool
-
-	allocators *Allocators
+	allocators              *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

@@ -92,7 +92,6 @@ func (s *Span) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Span) reset() {
-
 	s.traceID = pkg.EmptyBytes
 	s.spanID = pkg.EmptyBytes
 	s.traceState = ""
@@ -114,11 +113,21 @@ func (s *Span) reset() {
 // an array element and the array was expanded.
 func (s *Span) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.attributes.fixParent(&s.modifiedFields)
 	s.events.fixParent(&s.modifiedFields)
 	s.links.fixParent(&s.modifiedFields)
 	s.status.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Span) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Span) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Span) TraceID() pkg.Bytes {
@@ -127,9 +136,9 @@ func (s *Span) TraceID() pkg.Bytes {
 
 // SetTraceID sets the value of TraceID field.
 func (s *Span) SetTraceID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.traceID, v) {
+	if s.traceID != v {
 		s.traceID = v
-		s.markTraceIDModified()
+		s.modifiedFields.markModified(fieldModifiedSpanTraceID)
 	}
 }
 
@@ -151,9 +160,9 @@ func (s *Span) SpanID() pkg.Bytes {
 
 // SetSpanID sets the value of SpanID field.
 func (s *Span) SetSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.spanID, v) {
+	if s.spanID != v {
 		s.spanID = v
-		s.markSpanIDModified()
+		s.modifiedFields.markModified(fieldModifiedSpanSpanID)
 	}
 }
 
@@ -175,9 +184,9 @@ func (s *Span) TraceState() string {
 
 // SetTraceState sets the value of TraceState field.
 func (s *Span) SetTraceState(v string) {
-	if !pkg.StringEqual(s.traceState, v) {
+	if s.traceState != v {
 		s.traceState = v
-		s.markTraceStateModified()
+		s.modifiedFields.markModified(fieldModifiedSpanTraceState)
 	}
 }
 
@@ -199,9 +208,9 @@ func (s *Span) ParentSpanID() pkg.Bytes {
 
 // SetParentSpanID sets the value of ParentSpanID field.
 func (s *Span) SetParentSpanID(v pkg.Bytes) {
-	if !pkg.BytesEqual(s.parentSpanID, v) {
+	if s.parentSpanID != v {
 		s.parentSpanID = v
-		s.markParentSpanIDModified()
+		s.modifiedFields.markModified(fieldModifiedSpanParentSpanID)
 	}
 }
 
@@ -223,9 +232,9 @@ func (s *Span) Flags() uint64 {
 
 // SetFlags sets the value of Flags field.
 func (s *Span) SetFlags(v uint64) {
-	if !pkg.Uint64Equal(s.flags, v) {
+	if s.flags != v {
 		s.flags = v
-		s.markFlagsModified()
+		s.modifiedFields.markModified(fieldModifiedSpanFlags)
 	}
 }
 
@@ -247,9 +256,9 @@ func (s *Span) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Span) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
-		s.markNameModified()
+		s.modifiedFields.markModified(fieldModifiedSpanName)
 	}
 }
 
@@ -271,9 +280,9 @@ func (s *Span) Kind() uint64 {
 
 // SetKind sets the value of Kind field.
 func (s *Span) SetKind(v uint64) {
-	if !pkg.Uint64Equal(s.kind, v) {
+	if s.kind != v {
 		s.kind = v
-		s.markKindModified()
+		s.modifiedFields.markModified(fieldModifiedSpanKind)
 	}
 }
 
@@ -295,9 +304,9 @@ func (s *Span) StartTimeUnixNano() uint64 {
 
 // SetStartTimeUnixNano sets the value of StartTimeUnixNano field.
 func (s *Span) SetStartTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.startTimeUnixNano, v) {
+	if s.startTimeUnixNano != v {
 		s.startTimeUnixNano = v
-		s.markStartTimeUnixNanoModified()
+		s.modifiedFields.markModified(fieldModifiedSpanStartTimeUnixNano)
 	}
 }
 
@@ -319,9 +328,9 @@ func (s *Span) EndTimeUnixNano() uint64 {
 
 // SetEndTimeUnixNano sets the value of EndTimeUnixNano field.
 func (s *Span) SetEndTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.endTimeUnixNano, v) {
+	if s.endTimeUnixNano != v {
 		s.endTimeUnixNano = v
-		s.markEndTimeUnixNanoModified()
+		s.modifiedFields.markModified(fieldModifiedSpanEndTimeUnixNano)
 	}
 }
 
@@ -359,9 +368,9 @@ func (s *Span) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Span) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
-		s.markDroppedAttributesCountModified()
+		s.modifiedFields.markModified(fieldModifiedSpanDroppedAttributesCount)
 	}
 }
 
@@ -425,16 +434,11 @@ func (s *Span) IsStatusModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanStatus != 0
 }
 
-func (s *Span) markModifiedRecursively() {
-
-	s.attributes.markModifiedRecursively()
-
-	s.events.markModifiedRecursively()
-
-	s.links.markModifiedRecursively()
-
-	s.status.markModifiedRecursively()
-
+func (s *Span) setModifiedRecursively() {
+	s.attributes.setModifiedRecursively()
+	s.events.setModifiedRecursively()
+	s.links.setModifiedRecursively()
+	s.status.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedSpanTraceID |
 			fieldModifiedSpanSpanID |
@@ -452,61 +456,111 @@ func (s *Span) markModifiedRecursively() {
 			fieldModifiedSpanStatus | 0
 }
 
-func (s *Span) markUnmodifiedRecursively() {
-
-	if s.IsTraceIDModified() {
-	}
-
-	if s.IsSpanIDModified() {
-	}
-
-	if s.IsTraceStateModified() {
-	}
-
-	if s.IsParentSpanIDModified() {
-	}
-
-	if s.IsFlagsModified() {
-	}
-
-	if s.IsNameModified() {
-	}
-
-	if s.IsKindModified() {
-	}
-
-	if s.IsStartTimeUnixNanoModified() {
-	}
-
-	if s.IsEndTimeUnixNanoModified() {
-	}
-
+func (s *Span) setUnmodifiedRecursively() {
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
-	if s.IsDroppedAttributesCountModified() {
-	}
-
 	if s.IsEventsModified() {
-		s.events.markUnmodifiedRecursively()
+		s.events.setUnmodifiedRecursively()
 	}
-
 	if s.IsLinksModified() {
-		s.links.markUnmodifiedRecursively()
+		s.links.setUnmodifiedRecursively()
 	}
-
 	if s.IsStatusModified() {
-		s.status.markUnmodifiedRecursively()
+		s.status.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Span) computeDiff(val *Span) (ret bool) {
+	// Compare TraceID field.
+	if s.traceID != val.traceID {
+		s.modifiedFields.setModified(fieldModifiedSpanTraceID)
+		ret = true
+	}
+	// Compare SpanID field.
+	if s.spanID != val.spanID {
+		s.modifiedFields.setModified(fieldModifiedSpanSpanID)
+		ret = true
+	}
+	// Compare TraceState field.
+	if s.traceState != val.traceState {
+		s.modifiedFields.setModified(fieldModifiedSpanTraceState)
+		ret = true
+	}
+	// Compare ParentSpanID field.
+	if s.parentSpanID != val.parentSpanID {
+		s.modifiedFields.setModified(fieldModifiedSpanParentSpanID)
+		ret = true
+	}
+	// Compare Flags field.
+	if s.flags != val.flags {
+		s.modifiedFields.setModified(fieldModifiedSpanFlags)
+		ret = true
+	}
+	// Compare Name field.
+	if s.name != val.name {
+		s.modifiedFields.setModified(fieldModifiedSpanName)
+		ret = true
+	}
+	// Compare Kind field.
+	if s.kind != val.kind {
+		s.modifiedFields.setModified(fieldModifiedSpanKind)
+		ret = true
+	}
+	// Compare StartTimeUnixNano field.
+	if s.startTimeUnixNano != val.startTimeUnixNano {
+		s.modifiedFields.setModified(fieldModifiedSpanStartTimeUnixNano)
+		ret = true
+	}
+	// Compare EndTimeUnixNano field.
+	if s.endTimeUnixNano != val.endTimeUnixNano {
+		s.modifiedFields.setModified(fieldModifiedSpanEndTimeUnixNano)
+		ret = true
+	}
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedSpanAttributes)
+		ret = true
+	}
+	// Compare DroppedAttributesCount field.
+	if s.droppedAttributesCount != val.droppedAttributesCount {
+		s.modifiedFields.setModified(fieldModifiedSpanDroppedAttributesCount)
+		ret = true
+	}
+	// Compare Events field.
+	if s.events.computeDiff(&val.events) {
+		s.modifiedFields.setModified(fieldModifiedSpanEvents)
+		ret = true
+	}
+	// Compare Links field.
+	if s.links.computeDiff(&val.links) {
+		s.modifiedFields.setModified(fieldModifiedSpanLinks)
+		ret = true
+	}
+	// Compare Status field.
+	if s.status.computeDiff(&val.status) {
+		s.modifiedFields.setModified(fieldModifiedSpanStatus)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Span) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Span) CloneShared(allocators *Allocators) Span {
+	return s.Clone(allocators)
+}
+
 func (s *Span) Clone(allocators *Allocators) Span {
-
 	c := Span{
-
 		traceID:                s.traceID,
 		spanID:                 s.spanID,
 		traceState:             s.traceState,
@@ -516,12 +570,12 @@ func (s *Span) Clone(allocators *Allocators) Span {
 		kind:                   s.kind,
 		startTimeUnixNano:      s.startTimeUnixNano,
 		endTimeUnixNano:        s.endTimeUnixNano,
-		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
-		events:                 s.events.Clone(allocators),
-		links:                  s.links.Clone(allocators),
-		status:                 s.status.Clone(allocators),
 	}
+	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
+	copyToNewEventArray(&c.events, &s.events, allocators)
+	copyToNewLinkArray(&c.links, &s.links, allocators)
+	copyToNewSpanStatus(&c.status, &s.status, allocators)
 	return c
 }
 
@@ -552,17 +606,17 @@ func copySpan(dst *Span, src *Span) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
-	dst.traceID = src.traceID
-	dst.spanID = src.spanID
-	dst.traceState = src.traceState
-	dst.parentSpanID = src.parentSpanID
-	dst.flags = src.flags
-	dst.name = src.name
-	dst.kind = src.kind
-	dst.startTimeUnixNano = src.startTimeUnixNano
-	dst.endTimeUnixNano = src.endTimeUnixNano
+	dst.SetTraceID(src.traceID)
+	dst.SetSpanID(src.spanID)
+	dst.SetTraceState(src.traceState)
+	dst.SetParentSpanID(src.parentSpanID)
+	dst.SetFlags(src.flags)
+	dst.SetName(src.name)
+	dst.SetKind(src.kind)
+	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
+	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 	copyToNewEventArray(&dst.events, &src.events, allocators)
 	copyToNewLinkArray(&dst.links, &src.links, allocators)
 	copyToNewSpanStatus(&dst.status, &src.status, allocators)
@@ -571,10 +625,6 @@ func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
 // CopyFrom() performs a deep copy from src.
 func (s *Span) CopyFrom(src *Span) {
 	copySpan(s, src)
-}
-
-func (s *Span) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -760,86 +810,62 @@ func SpanEqual(left, right *Span) bool {
 // CmpSpan performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSpan(left, right *Span) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare TraceID field.
 	if c := pkg.BytesCompare(left.traceID, right.traceID); c != 0 {
 		return c
 	}
-
 	// Compare SpanID field.
 	if c := pkg.BytesCompare(left.spanID, right.spanID); c != 0 {
 		return c
 	}
-
 	// Compare TraceState field.
 	if c := strings.Compare(left.traceState, right.traceState); c != 0 {
 		return c
 	}
-
 	// Compare ParentSpanID field.
 	if c := pkg.BytesCompare(left.parentSpanID, right.parentSpanID); c != 0 {
 		return c
 	}
-
 	// Compare Flags field.
 	if c := pkg.Uint64Compare(left.flags, right.flags); c != 0 {
 		return c
 	}
-
 	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
-
 	// Compare Kind field.
 	if c := pkg.Uint64Compare(left.kind, right.kind); c != 0 {
 		return c
 	}
-
 	// Compare StartTimeUnixNano field.
 	if c := pkg.Uint64Compare(left.startTimeUnixNano, right.startTimeUnixNano); c != 0 {
 		return c
 	}
-
 	// Compare EndTimeUnixNano field.
 	if c := pkg.Uint64Compare(left.endTimeUnixNano, right.endTimeUnixNano); c != 0 {
 		return c
 	}
-
 	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
-
 	// Compare Events field.
 	if c := CmpEventArray(&left.events, &right.events); c != 0 {
 		return c
 	}
-
 	// Compare Links field.
 	if c := CmpLinkArray(&left.links, &right.links); c != 0 {
 		return c
 	}
-
 	// Compare Status field.
 	if c := CmpSpanStatus(&left.status, &right.status); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -848,43 +874,29 @@ type SpanEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	traceIDEncoder encoders.BytesEncoder
-
-	spanIDEncoder encoders.BytesEncoder
-
-	traceStateEncoder encoders.StringEncoder
-
-	parentSpanIDEncoder encoders.BytesEncoder
-
-	flagsEncoder encoders.Uint64Encoder
-
-	nameEncoder encoders.StringDictEncoder
-
-	kindEncoder encoders.Uint64Encoder
-
-	startTimeUnixNanoEncoder encoders.Uint64Encoder
-
-	endTimeUnixNanoEncoder encoders.Uint64Encoder
-
-	attributesEncoder     *AttributesEncoder
-	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
-
+	traceIDEncoder                encoders.BytesEncoder
+	spanIDEncoder                 encoders.BytesEncoder
+	traceStateEncoder             encoders.StringEncoder
+	parentSpanIDEncoder           encoders.BytesEncoder
+	flagsEncoder                  encoders.Uint64Encoder
+	nameEncoder                   encoders.StringDictEncoder
+	kindEncoder                   encoders.Uint64Encoder
+	startTimeUnixNanoEncoder      encoders.Uint64Encoder
+	endTimeUnixNanoEncoder        encoders.Uint64Encoder
+	attributesEncoder             *AttributesEncoder
+	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
 	droppedAttributesCountEncoder encoders.Uint64Encoder
-
-	eventsEncoder     *EventArrayEncoder
-	isEventsRecursive bool // Indicates Events field's type is recursive.
-
-	linksEncoder     *LinkArrayEncoder
-	isLinksRecursive bool // Indicates Links field's type is recursive.
-
-	statusEncoder     *SpanStatusEncoder
-	isStatusRecursive bool // Indicates Status field's type is recursive.
+	eventsEncoder                 *EventArrayEncoder
+	isEventsRecursive             bool // Indicates Events field's type is recursive.
+	linksEncoder                  *LinkArrayEncoder
+	isLinksRecursive              bool // Indicates Links field's type is recursive.
+	statusEncoder                 *SpanStatusEncoder
+	isStatusRecursive             bool // Indicates Status field's type is recursive.
 
 	allocators *Allocators
 
@@ -1073,7 +1085,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 func (e *SpanEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // TraceID and all subsequent fields are skipped.
@@ -1114,11 +1126,9 @@ func (e *SpanEncoder) Reset() {
 	if e.fieldCount <= 9 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 10 {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
@@ -1126,27 +1136,21 @@ func (e *SpanEncoder) Reset() {
 	if e.fieldCount <= 11 {
 		return // Events and all subsequent fields are skipped.
 	}
-
 	if !e.isEventsRecursive {
 		e.eventsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 12 {
 		return // Links and all subsequent fields are skipped.
 	}
-
 	if !e.isLinksRecursive {
 		e.linksEncoder.Reset()
 	}
-
 	if e.fieldCount <= 13 {
 		return // Status and all subsequent fields are skipped.
 	}
-
 	if !e.isStatusRecursive {
 		e.statusEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -1158,23 +1162,8 @@ func (e *SpanEncoder) Encode(val *Span) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSpanTraceID |
-				fieldModifiedSpanSpanID |
-				fieldModifiedSpanTraceState |
-				fieldModifiedSpanParentSpanID |
-				fieldModifiedSpanFlags |
-				fieldModifiedSpanName |
-				fieldModifiedSpanKind |
-				fieldModifiedSpanStartTimeUnixNano |
-				fieldModifiedSpanEndTimeUnixNano |
-				fieldModifiedSpanAttributes |
-				fieldModifiedSpanDroppedAttributesCount |
-				fieldModifiedSpanEvents |
-				fieldModifiedSpanLinks |
-				fieldModifiedSpanStatus | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -1267,79 +1256,60 @@ func (e *SpanEncoder) Encode(val *Span) {
 func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect TraceID field.
 	if e.fieldCount <= 0 {
 		return // TraceID and subsequent fields are skipped.
 	}
-
 	e.traceIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect SpanID field.
 	if e.fieldCount <= 1 {
 		return // SpanID and subsequent fields are skipped.
 	}
-
 	e.spanIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect TraceState field.
 	if e.fieldCount <= 2 {
 		return // TraceState and subsequent fields are skipped.
 	}
-
 	e.traceStateEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect ParentSpanID field.
 	if e.fieldCount <= 3 {
 		return // ParentSpanID and subsequent fields are skipped.
 	}
-
 	e.parentSpanIDEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Flags field.
 	if e.fieldCount <= 4 {
 		return // Flags and subsequent fields are skipped.
 	}
-
 	e.flagsEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Name field.
 	if e.fieldCount <= 5 {
 		return // Name and subsequent fields are skipped.
 	}
-
 	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Kind field.
 	if e.fieldCount <= 6 {
 		return // Kind and subsequent fields are skipped.
 	}
-
 	e.kindEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect StartTimeUnixNano field.
 	if e.fieldCount <= 7 {
 		return // StartTimeUnixNano and subsequent fields are skipped.
 	}
-
 	e.startTimeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect EndTimeUnixNano field.
 	if e.fieldCount <= 8 {
 		return // EndTimeUnixNano and subsequent fields are skipped.
 	}
-
 	e.endTimeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Attributes field.
 	if e.fieldCount <= 9 {
 		return // Attributes and subsequent fields are skipped.
@@ -1348,15 +1318,12 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 10 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-
 	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Events field.
 	if e.fieldCount <= 11 {
 		return // Events and subsequent fields are skipped.
@@ -1365,7 +1332,6 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.eventsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Links field.
 	if e.fieldCount <= 12 {
 		return // Links and subsequent fields are skipped.
@@ -1374,7 +1340,6 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.linksEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Status field.
 	if e.fieldCount <= 13 {
 		return // Status and subsequent fields are skipped.
@@ -1387,10 +1352,9 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpanDecoder implements decoding of Span
 type SpanDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf            pkg.BitsReader
+	column         *pkg.ReadableColumn
+	fieldCount     uint
 	traceIDDecoder encoders.BytesDecoder
 
 	spanIDDecoder encoders.BytesDecoder
@@ -1409,21 +1373,17 @@ type SpanDecoder struct {
 
 	endTimeUnixNanoDecoder encoders.Uint64Decoder
 
-	attributesDecoder     *AttributesDecoder
-	isAttributesRecursive bool
-
+	attributesDecoder             *AttributesDecoder
+	isAttributesRecursive         bool
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	eventsDecoder     *EventArrayDecoder
 	isEventsRecursive bool
-
-	linksDecoder     *LinkArrayDecoder
-	isLinksRecursive bool
-
+	linksDecoder      *LinkArrayDecoder
+	isLinksRecursive  bool
 	statusDecoder     *SpanStatusDecoder
 	isStatusRecursive bool
-
-	allocators *Allocators
+	allocators        *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

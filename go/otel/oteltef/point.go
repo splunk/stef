@@ -68,7 +68,6 @@ func (s *Point) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Point) reset() {
-
 	s.startTimestamp = 0
 	s.timestamp = 0
 	s.value.reset()
@@ -80,9 +79,19 @@ func (s *Point) reset() {
 // an array element and the array was expanded.
 func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.value.fixParent(&s.modifiedFields)
 	s.exemplars.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Point) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Point) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Point) StartTimestamp() uint64 {
@@ -91,9 +100,9 @@ func (s *Point) StartTimestamp() uint64 {
 
 // SetStartTimestamp sets the value of StartTimestamp field.
 func (s *Point) SetStartTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.startTimestamp, v) {
+	if s.startTimestamp != v {
 		s.startTimestamp = v
-		s.markStartTimestampModified()
+		s.modifiedFields.markModified(fieldModifiedPointStartTimestamp)
 	}
 }
 
@@ -115,9 +124,9 @@ func (s *Point) Timestamp() uint64 {
 
 // SetTimestamp sets the value of Timestamp field.
 func (s *Point) SetTimestamp(v uint64) {
-	if !pkg.Uint64Equal(s.timestamp, v) {
+	if s.timestamp != v {
 		s.timestamp = v
-		s.markTimestampModified()
+		s.modifiedFields.markModified(fieldModifiedPointTimestamp)
 	}
 }
 
@@ -165,12 +174,9 @@ func (s *Point) IsExemplarsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedPointExemplars != 0
 }
 
-func (s *Point) markModifiedRecursively() {
-
-	s.value.markModifiedRecursively()
-
-	s.exemplars.markModifiedRecursively()
-
+func (s *Point) setModifiedRecursively() {
+	s.value.setModifiedRecursively()
+	s.exemplars.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedPointStartTimestamp |
 			fieldModifiedPointTimestamp |
@@ -178,34 +184,60 @@ func (s *Point) markModifiedRecursively() {
 			fieldModifiedPointExemplars | 0
 }
 
-func (s *Point) markUnmodifiedRecursively() {
-
-	if s.IsStartTimestampModified() {
-	}
-
-	if s.IsTimestampModified() {
-	}
-
+func (s *Point) setUnmodifiedRecursively() {
 	if s.IsValueModified() {
-		s.value.markUnmodifiedRecursively()
+		s.value.setUnmodifiedRecursively()
 	}
-
 	if s.IsExemplarsModified() {
-		s.exemplars.markUnmodifiedRecursively()
+		s.exemplars.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Point) computeDiff(val *Point) (ret bool) {
+	// Compare StartTimestamp field.
+	if s.startTimestamp != val.startTimestamp {
+		s.modifiedFields.setModified(fieldModifiedPointStartTimestamp)
+		ret = true
+	}
+	// Compare Timestamp field.
+	if s.timestamp != val.timestamp {
+		s.modifiedFields.setModified(fieldModifiedPointTimestamp)
+		ret = true
+	}
+	// Compare Value field.
+	if s.value.computeDiff(&val.value) {
+		s.modifiedFields.setModified(fieldModifiedPointValue)
+		ret = true
+	}
+	// Compare Exemplars field.
+	if s.exemplars.computeDiff(&val.exemplars) {
+		s.modifiedFields.setModified(fieldModifiedPointExemplars)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Point) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Point) CloneShared(allocators *Allocators) Point {
+	return s.Clone(allocators)
+}
+
 func (s *Point) Clone(allocators *Allocators) Point {
-
 	c := Point{
-
 		startTimestamp: s.startTimestamp,
 		timestamp:      s.timestamp,
-		value:          s.value.Clone(allocators),
-		exemplars:      s.exemplars.Clone(allocators),
 	}
+	copyToNewPointValue(&c.value, &s.value, allocators)
+	copyToNewExemplarArray(&c.exemplars, &s.exemplars, allocators)
 	return c
 }
 
@@ -226,8 +258,8 @@ func copyPoint(dst *Point, src *Point) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewPoint(dst *Point, src *Point, allocators *Allocators) {
-	dst.startTimestamp = src.startTimestamp
-	dst.timestamp = src.timestamp
+	dst.SetStartTimestamp(src.startTimestamp)
+	dst.SetTimestamp(src.timestamp)
 	copyToNewPointValue(&dst.value, &src.value, allocators)
 	copyToNewExemplarArray(&dst.exemplars, &src.exemplars, allocators)
 }
@@ -235,10 +267,6 @@ func copyToNewPoint(dst *Point, src *Point, allocators *Allocators) {
 // CopyFrom() performs a deep copy from src.
 func (s *Point) CopyFrom(src *Point) {
 	copyPoint(s, src)
-}
-
-func (s *Point) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -314,36 +342,22 @@ func PointEqual(left, right *Point) bool {
 // CmpPoint performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpPoint(left, right *Point) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare StartTimestamp field.
 	if c := pkg.Uint64Compare(left.startTimestamp, right.startTimestamp); c != 0 {
 		return c
 	}
-
 	// Compare Timestamp field.
 	if c := pkg.Uint64Compare(left.timestamp, right.timestamp); c != 0 {
 		return c
 	}
-
 	// Compare Value field.
 	if c := CmpPointValue(&left.value, &right.value); c != 0 {
 		return c
 	}
-
 	// Compare Exemplars field.
 	if c := CmpExemplarArray(&left.exemplars, &right.exemplars); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -352,21 +366,17 @@ type PointEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	startTimestampEncoder encoders.Uint64Encoder
-
-	timestampEncoder encoders.Uint64Encoder
-
-	valueEncoder     *PointValueEncoder
-	isValueRecursive bool // Indicates Value field's type is recursive.
-
-	exemplarsEncoder     *ExemplarArrayEncoder
-	isExemplarsRecursive bool // Indicates Exemplars field's type is recursive.
+	timestampEncoder      encoders.Uint64Encoder
+	valueEncoder          *PointValueEncoder
+	isValueRecursive      bool // Indicates Value field's type is recursive.
+	exemplarsEncoder      *ExemplarArrayEncoder
+	isExemplarsRecursive  bool // Indicates Exemplars field's type is recursive.
 
 	allocators *Allocators
 
@@ -451,7 +461,7 @@ func (e *PointEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 func (e *PointEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // StartTimestamp and all subsequent fields are skipped.
@@ -464,19 +474,15 @@ func (e *PointEncoder) Reset() {
 	if e.fieldCount <= 2 {
 		return // Value and all subsequent fields are skipped.
 	}
-
 	if !e.isValueRecursive {
 		e.valueEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // Exemplars and all subsequent fields are skipped.
 	}
-
 	if !e.isExemplarsRecursive {
 		e.exemplarsEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -488,13 +494,8 @@ func (e *PointEncoder) Encode(val *Point) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedPointStartTimestamp |
-				fieldModifiedPointTimestamp |
-				fieldModifiedPointValue |
-				fieldModifiedPointExemplars | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -537,23 +538,18 @@ func (e *PointEncoder) Encode(val *Point) {
 func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect StartTimestamp field.
 	if e.fieldCount <= 0 {
 		return // StartTimestamp and subsequent fields are skipped.
 	}
-
 	e.startTimestampEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Timestamp field.
 	if e.fieldCount <= 1 {
 		return // Timestamp and subsequent fields are skipped.
 	}
-
 	e.timestampEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Value field.
 	if e.fieldCount <= 2 {
 		return // Value and subsequent fields are skipped.
@@ -562,7 +558,6 @@ func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Exemplars field.
 	if e.fieldCount <= 3 {
 		return // Exemplars and subsequent fields are skipped.
@@ -575,21 +570,18 @@ func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // PointDecoder implements decoding of Point
 type PointDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                   pkg.BitsReader
+	column                *pkg.ReadableColumn
+	fieldCount            uint
 	startTimestampDecoder encoders.Uint64Decoder
 
 	timestampDecoder encoders.Uint64Decoder
 
-	valueDecoder     *PointValueDecoder
-	isValueRecursive bool
-
+	valueDecoder         *PointValueDecoder
+	isValueRecursive     bool
 	exemplarsDecoder     *ExemplarArrayDecoder
 	isExemplarsRecursive bool
-
-	allocators *Allocators
+	allocators           *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

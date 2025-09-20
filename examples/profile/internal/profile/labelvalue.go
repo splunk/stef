@@ -108,10 +108,10 @@ func (s *LabelValue) Str() string {
 
 // SetStr sets the value to the specified value and sets the type to LabelValueTypeStr.
 func (s *LabelValue) SetStr(v string) {
-	if s.typ != LabelValueTypeStr || !pkg.StringEqual(s.str, v) {
+	if s.typ != LabelValueTypeStr || s.str != v {
 		s.str = v
 		s.typ = LabelValueTypeStr
-		s.markParentModified()
+		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
 
@@ -121,11 +121,26 @@ func (s *LabelValue) Num() *NumValue {
 	return &s.num
 }
 
+func (s *LabelValue) canBeShared() bool {
+	// Oneof can never be shared.
+	return false
+}
+
+func (s *LabelValue) CloneShared(allocators *Allocators) LabelValue {
+	// Oneof is not shareable, so CloneShared is just a Clone.
+	return s.Clone(allocators)
+}
+
 func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
-	return LabelValue{
-		str: s.str,
-		num: s.num.Clone(allocators),
+	c := LabelValue{}
+	c.typ = s.typ
+	switch s.typ {
+	case LabelValueTypeStr:
+		c.str = s.str
+	case LabelValueTypeNum:
+		copyToNewNumValue(&c.num, &s.num, allocators)
 	}
+	return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -144,7 +159,10 @@ func copyLabelValue(dst *LabelValue, src *LabelValue) {
 		dst.SetType(src.typ)
 		copyNumValue(&dst.num, &src.num)
 	case LabelValueTypeNone:
-		dst.SetType(src.typ)
+		if dst.typ != LabelValueTypeNone {
+			dst.typ = LabelValueTypeNone
+			dst.markParentModified()
+		}
 	default:
 		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
 	}
@@ -155,7 +173,10 @@ func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocator
 	dst.typ = src.typ
 	switch src.typ {
 	case LabelValueTypeStr:
-		dst.str = src.str
+		if dst.str != src.str {
+			dst.str = src.str
+			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+		}
 	case LabelValueTypeNum:
 		copyToNewNumValue(&dst.num, &src.num, allocators)
 	case LabelValueTypeNone:
@@ -173,20 +194,39 @@ func (s *LabelValue) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *LabelValue) markModifiedRecursively() {
+func (s *LabelValue) setModifiedRecursively() {
 	switch s.typ {
-	case LabelValueTypeStr:
 	case LabelValueTypeNum:
-		s.num.markModifiedRecursively()
+		s.num.setModifiedRecursively()
 	}
 }
 
-func (s *LabelValue) markUnmodifiedRecursively() {
+func (s *LabelValue) setUnmodifiedRecursively() {
 	switch s.typ {
-	case LabelValueTypeStr:
 	case LabelValueTypeNum:
-		s.num.markUnmodifiedRecursively()
+		s.num.setUnmodifiedRecursively()
 	}
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *LabelValue) computeDiff(val *LabelValue) (ret bool) {
+	if s.typ == val.typ {
+		switch s.typ {
+		case LabelValueTypeStr:
+			ret = s.str != val.str
+		case LabelValueTypeNum:
+			ret = s.num.computeDiff(&val.num)
+		}
+	} else {
+		ret = true
+		switch s.typ {
+		case LabelValueTypeNum:
+			// val.num doesn't exist at all so mark the whole s.num subtree as modified.
+			s.num.setModifiedRecursively()
+		}
+	}
+	return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -211,16 +251,6 @@ func LabelValueEqual(left, right *LabelValue) bool {
 // CmpLabelValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLabelValue(left, right *LabelValue) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
 	if c != 0 {
 		return c
@@ -273,7 +303,6 @@ type LabelValueEncoder struct {
 	fieldCount uint
 
 	// Field encoders.
-
 	strEncoder encoders.StringDictEncoder
 
 	numEncoder     *NumValueEncoder
@@ -521,16 +550,10 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 	switch dst.typ {
 	case LabelValueTypeStr:
 		// Decode Str
-		err := d.strDecoder.Decode(&dst.str)
-		if err != nil {
-			return err
-		}
+		return d.strDecoder.Decode(&dst.str)
 	case LabelValueTypeNum:
 		// Decode Num
-		err := d.numDecoder.Decode(&dst.num)
-		if err != nil {
-			return err
-		}
+		return d.numDecoder.Decode(&dst.num)
 	}
 	return nil
 }

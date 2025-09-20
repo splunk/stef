@@ -13,7 +13,6 @@ type ReaderState struct {
 
 	// Dictionaries
 	BuildID         encoders.StringDictDecoderDict
-	Comment         encoders.StringDictDecoderDict
 	Filename        encoders.StringDictDecoderDict
 	Function        FunctionDecoderDict
 	FunctionName    encoders.StringDictDecoderDict
@@ -49,7 +48,6 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 	d.StructFieldCounts.Init(overrideSchema)
 
 	d.BuildID.Init()
-	d.Comment.Init()
 	d.Filename.Init()
 	d.Function.Init()
 	d.FunctionName.Init()
@@ -66,7 +64,6 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 // started with RestartDictionaries flag.
 func (d *ReaderState) ResetDicts() {
 	d.BuildID.Reset()
-	d.Comment.Reset()
 	d.Filename.Reset()
 	d.Function.Reset()
 	d.FunctionName.Reset()

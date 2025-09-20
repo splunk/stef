@@ -76,7 +76,6 @@ func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Spans) reset() {
-
 	s.envelope.reset()
 	if s.resource != nil {
 		s.resource.reset()
@@ -92,11 +91,21 @@ func (s *Spans) reset() {
 // an array element and the array was expanded.
 func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.envelope.fixParent(&s.modifiedFields)
 	s.resource.fixParent(&s.modifiedFields)
 	s.scope.fixParent(&s.modifiedFields)
 	s.span.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Spans) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Spans) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Spans) Envelope() *Envelope {
@@ -119,6 +128,20 @@ func (s *Spans) Resource() *Resource {
 	return s.resource
 }
 
+// SetResource sets the value of Resource field.
+func (s *Spans) SetResource(v *Resource) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current resource
+		if v.computeDiff(s.resource) {
+			// It is different. Update to it.
+			s.resource = v
+			s.modifiedFields.markModified(fieldModifiedSpansResource)
+		}
+	} else {
+		s.resource.CopyFrom(v)
+	}
+}
+
 func (s *Spans) markResourceModified() {
 	s.modifiedFields.markModified(fieldModifiedSpansResource)
 }
@@ -133,6 +156,20 @@ func (s *Spans) IsResourceModified() bool {
 
 func (s *Spans) Scope() *Scope {
 	return s.scope
+}
+
+// SetScope sets the value of Scope field.
+func (s *Spans) SetScope(v *Scope) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current scope
+		if v.computeDiff(s.scope) {
+			// It is different. Update to it.
+			s.scope = v
+			s.modifiedFields.markModified(fieldModifiedSpansScope)
+		}
+	} else {
+		s.scope.CopyFrom(v)
+	}
 }
 
 func (s *Spans) markScopeModified() {
@@ -163,16 +200,11 @@ func (s *Spans) IsSpanModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpansSpan != 0
 }
 
-func (s *Spans) markModifiedRecursively() {
-
-	s.envelope.markModifiedRecursively()
-
-	s.resource.markModifiedRecursively()
-
-	s.scope.markModifiedRecursively()
-
-	s.span.markModifiedRecursively()
-
+func (s *Spans) setModifiedRecursively() {
+	s.envelope.setModifiedRecursively()
+	s.resource.setModifiedRecursively()
+	s.scope.setModifiedRecursively()
+	s.span.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedSpansEnvelope |
 			fieldModifiedSpansResource |
@@ -180,36 +212,66 @@ func (s *Spans) markModifiedRecursively() {
 			fieldModifiedSpansSpan | 0
 }
 
-func (s *Spans) markUnmodifiedRecursively() {
-
+func (s *Spans) setUnmodifiedRecursively() {
 	if s.IsEnvelopeModified() {
-		s.envelope.markUnmodifiedRecursively()
+		s.envelope.setUnmodifiedRecursively()
 	}
-
 	if s.IsResourceModified() {
-		s.resource.markUnmodifiedRecursively()
+		s.resource.setUnmodifiedRecursively()
 	}
-
 	if s.IsScopeModified() {
-		s.scope.markUnmodifiedRecursively()
+		s.scope.setUnmodifiedRecursively()
 	}
-
 	if s.IsSpanModified() {
-		s.span.markUnmodifiedRecursively()
+		s.span.setUnmodifiedRecursively()
 	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Spans) Clone(allocators *Allocators) Spans {
-
-	c := Spans{
-
-		envelope: s.envelope.Clone(allocators),
-		resource: s.resource.Clone(allocators),
-		scope:    s.scope.Clone(allocators),
-		span:     s.span.Clone(allocators),
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Spans) computeDiff(val *Spans) (ret bool) {
+	// Compare Envelope field.
+	if s.envelope.computeDiff(&val.envelope) {
+		s.modifiedFields.setModified(fieldModifiedSpansEnvelope)
+		ret = true
 	}
+	// Compare Resource field.
+	if s.resource.computeDiff(val.resource) {
+		s.modifiedFields.setModified(fieldModifiedSpansResource)
+		ret = true
+	}
+	// Compare Scope field.
+	if s.scope.computeDiff(val.scope) {
+		s.modifiedFields.setModified(fieldModifiedSpansScope)
+		ret = true
+	}
+	// Compare Span field.
+	if s.span.computeDiff(&val.span) {
+		s.modifiedFields.setModified(fieldModifiedSpansSpan)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Spans) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Spans) CloneShared(allocators *Allocators) Spans {
+	return s.Clone(allocators)
+}
+
+func (s *Spans) Clone(allocators *Allocators) Spans {
+	c := Spans{
+		resource: s.resource.CloneShared(allocators),
+		scope:    s.scope.CloneShared(allocators),
+	}
+	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
+	copyToNewSpan(&c.span, &s.span, allocators)
 	return c
 }
 
@@ -223,18 +285,22 @@ func (s *Spans) byteSize() uint {
 // Copy from src to dst, overwriting existing data in dst.
 func copySpans(dst *Spans, src *Spans) {
 	copyEnvelope(&dst.envelope, &src.envelope)
-	if src.resource != nil {
-		if dst.resource == nil {
-			dst.resource = &Resource{}
-			dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+
+	if src.resource.canBeShared() {
+		if src.resource.computeDiff(dst.resource) {
+			dst.resource = src.resource
+			dst.markResourceModified()
 		}
+	} else {
 		copyResource(dst.resource, src.resource)
 	}
-	if src.scope != nil {
-		if dst.scope == nil {
-			dst.scope = &Scope{}
-			dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+
+	if src.scope.canBeShared() {
+		if src.scope.computeDiff(dst.scope) {
+			dst.scope = src.scope
+			dst.markScopeModified()
 		}
+	} else {
 		copyScope(dst.scope, src.scope)
 	}
 	copySpan(&dst.span, &src.span)
@@ -243,26 +309,29 @@ func copySpans(dst *Spans, src *Spans) {
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
 	copyToNewEnvelope(&dst.envelope, &src.envelope, allocators)
-	if src.resource != nil {
+
+	if src.resource.canBeShared() {
+		dst.resource = src.resource
+	} else {
 		dst.resource = allocators.Resource.Alloc()
 		dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
 		copyToNewResource(dst.resource, src.resource, allocators)
 	}
-	if src.scope != nil {
+
+	if src.scope.canBeShared() {
+		dst.scope = src.scope
+	} else {
 		dst.scope = allocators.Scope.Alloc()
 		dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
 		copyToNewScope(dst.scope, src.scope, allocators)
 	}
+
 	copyToNewSpan(&dst.span, &src.span, allocators)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Spans) CopyFrom(src *Spans) {
 	copySpans(s, src)
-}
-
-func (s *Spans) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -291,6 +360,19 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Resource
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.resource.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.resource = new(Resource)
+				s.resource.init(&s.modifiedFields, fieldModifiedSpansResource)
+			} else {
+				s.resource = s.resource.Clone(&Allocators{})
+			}
+		}
+
 		s.resource.mutateRandom(random, schem)
 	}
 	if fieldCount <= 2 {
@@ -298,6 +380,19 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Scope
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.scope.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.scope = new(Scope)
+				s.scope.init(&s.modifiedFields, fieldModifiedSpansScope)
+			} else {
+				s.scope = s.scope.Clone(&Allocators{})
+			}
+		}
+
 		s.scope.mutateRandom(random, schem)
 	}
 	if fieldCount <= 3 {
@@ -338,36 +433,22 @@ func SpansEqual(left, right *Spans) bool {
 // CmpSpans performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSpans(left, right *Spans) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Envelope field.
 	if c := CmpEnvelope(&left.envelope, &right.envelope); c != 0 {
 		return c
 	}
-
 	// Compare Resource field.
 	if c := CmpResource(left.resource, right.resource); c != 0 {
 		return c
 	}
-
 	// Compare Scope field.
 	if c := CmpScope(left.scope, right.scope); c != 0 {
 		return c
 	}
-
 	// Compare Span field.
 	if c := CmpSpan(&left.span, &right.span); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -376,23 +457,19 @@ type SpansEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	envelopeEncoder     *EnvelopeEncoder
 	isEnvelopeRecursive bool // Indicates Envelope field's type is recursive.
-
 	resourceEncoder     *ResourceEncoder
 	isResourceRecursive bool // Indicates Resource field's type is recursive.
-
-	scopeEncoder     *ScopeEncoder
-	isScopeRecursive bool // Indicates Scope field's type is recursive.
-
-	spanEncoder     *SpanEncoder
-	isSpanRecursive bool // Indicates Span field's type is recursive.
+	scopeEncoder        *ScopeEncoder
+	isScopeRecursive    bool // Indicates Scope field's type is recursive.
+	spanEncoder         *SpanEncoder
+	isSpanRecursive     bool // Indicates Span field's type is recursive.
 
 	allocators *Allocators
 
@@ -491,40 +568,32 @@ func (e *SpansEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 func (e *SpansEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Envelope and all subsequent fields are skipped.
 	}
-
 	if !e.isEnvelopeRecursive {
 		e.envelopeEncoder.Reset()
 	}
-
 	if e.fieldCount <= 1 {
 		return // Resource and all subsequent fields are skipped.
 	}
-
 	if !e.isResourceRecursive {
 		e.resourceEncoder.Reset()
 	}
-
 	if e.fieldCount <= 2 {
 		return // Scope and all subsequent fields are skipped.
 	}
-
 	if !e.isScopeRecursive {
 		e.scopeEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // Span and all subsequent fields are skipped.
 	}
-
 	if !e.isSpanRecursive {
 		e.spanEncoder.Reset()
 	}
-
 }
 
 // Encode encodes val into buf
@@ -536,13 +605,8 @@ func (e *SpansEncoder) Encode(val *Spans) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSpansEnvelope |
-				fieldModifiedSpansResource |
-				fieldModifiedSpansScope |
-				fieldModifiedSpansSpan | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -585,7 +649,6 @@ func (e *SpansEncoder) Encode(val *Spans) {
 func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Envelope field.
 	if e.fieldCount <= 0 {
 		return // Envelope and subsequent fields are skipped.
@@ -594,7 +657,6 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.envelopeEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Resource field.
 	if e.fieldCount <= 1 {
 		return // Resource and subsequent fields are skipped.
@@ -603,7 +665,6 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.resourceEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Scope field.
 	if e.fieldCount <= 2 {
 		return // Scope and subsequent fields are skipped.
@@ -612,7 +673,6 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.scopeEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Span field.
 	if e.fieldCount <= 3 {
 		return // Span and subsequent fields are skipped.
@@ -625,23 +685,18 @@ func (e *SpansEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpansDecoder implements decoding of Spans
 type SpansDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                 pkg.BitsReader
+	column              *pkg.ReadableColumn
+	fieldCount          uint
 	envelopeDecoder     *EnvelopeDecoder
 	isEnvelopeRecursive bool
-
 	resourceDecoder     *ResourceDecoder
 	isResourceRecursive bool
-
-	scopeDecoder     *ScopeDecoder
-	isScopeRecursive bool
-
-	spanDecoder     *SpanDecoder
-	isSpanRecursive bool
-
-	allocators *Allocators
+	scopeDecoder        *ScopeDecoder
+	isScopeRecursive    bool
+	spanDecoder         *SpanDecoder
+	isSpanRecursive     bool
+	allocators          *Allocators
 }
 
 // Init is called once in the lifetime of the stream.

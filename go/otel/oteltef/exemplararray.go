@@ -45,11 +45,9 @@ func (e *ExemplarArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-// Clone() creates a deep copy of ExemplarArray
-func (e *ExemplarArray) Clone(allocators *Allocators) ExemplarArray {
-	var clone ExemplarArray
-	copyToNewExemplarArray(&clone, e, allocators)
-	return clone
+func (e *ExemplarArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -77,18 +75,37 @@ func (e *ExemplarArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *ExemplarArray) markModifiedRecursively() {
+func (e *ExemplarArray) setModifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
+		e.elems[i].setModifiedRecursively()
 	}
 
 }
 
-func (e *ExemplarArray) markUnmodifiedRecursively() {
+func (e *ExemplarArray) setUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
-		e.elems[i].markUnmodifiedRecursively()
+		e.elems[i].setUnmodifiedRecursively()
 	}
 
+}
+
+// computeDiff compares e and val and returns true if they differ.
+// All fields that are different in e will be marked as modified.
+func (e *ExemplarArray) computeDiff(val *ExemplarArray) (ret bool) {
+	if len(e.elems) != len(val.elems) {
+		ret = true
+	}
+	minLen := min(len(e.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if e.elems[i].computeDiff(val.elems[i]) {
+			ret = true
+		}
+	}
+	for ; i < len(e.elems); i++ {
+		e.elems[i].setModifiedRecursively()
+	}
+	return ret
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -105,21 +122,23 @@ func copyExemplarArray(dst *ExemplarArray, src *ExemplarArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyExemplar(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyExemplar(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
-		// Need to allocate new elements for the part of the array that has grown.
-		// Allocate all new elements at once.
-		elems := make([]Exemplar, len(dst.elems)-minLen)
-		for j := range elems {
-			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
-			// Copy the element.
-			copyExemplar(dst.elems[i+j], src.elems[i+j])
+		for j := i; j < len(dst.elems); j++ {
+			if src.elems[j].canBeShared() {
+				dst.elems[j] = src.elems[i]
+			} else {
+				dst.elems[j] = new(Exemplar)
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+				copyExemplar(dst.elems[j], src.elems[j])
+			}
 		}
 	}
 	if isModified {
@@ -136,11 +155,15 @@ func copyToNewExemplarArray(dst *ExemplarArray, src *ExemplarArray, allocators *
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Exemplar.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewExemplar(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.Exemplar.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewExemplar(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 }
 
@@ -216,11 +239,8 @@ func CmpExemplarArray(left, right *ExemplarArray) int {
 	}
 	for i := range left.elems {
 		fc := CmpExemplar(left.elems[i], right.elems[i])
-		if fc < 0 {
-			return -1
-		}
-		if fc > 0 {
-			return 1
+		if fc != 0 {
+			return fc
 		}
 	}
 	return 0

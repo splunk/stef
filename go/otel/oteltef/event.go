@@ -66,7 +66,6 @@ func (s *Event) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Event) reset() {
-
 	s.name = ""
 	s.timeUnixNano = 0
 	s.attributes.reset()
@@ -78,8 +77,18 @@ func (s *Event) reset() {
 // an array element and the array was expanded.
 func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.attributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Event) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Event) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Event) Name() string {
@@ -88,9 +97,9 @@ func (s *Event) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Event) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
-		s.markNameModified()
+		s.modifiedFields.markModified(fieldModifiedEventName)
 	}
 }
 
@@ -112,9 +121,9 @@ func (s *Event) TimeUnixNano() uint64 {
 
 // SetTimeUnixNano sets the value of TimeUnixNano field.
 func (s *Event) SetTimeUnixNano(v uint64) {
-	if !pkg.Uint64Equal(s.timeUnixNano, v) {
+	if s.timeUnixNano != v {
 		s.timeUnixNano = v
-		s.markTimeUnixNanoModified()
+		s.modifiedFields.markModified(fieldModifiedEventTimeUnixNano)
 	}
 }
 
@@ -152,9 +161,9 @@ func (s *Event) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Event) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
-		s.markDroppedAttributesCountModified()
+		s.modifiedFields.markModified(fieldModifiedEventDroppedAttributesCount)
 	}
 }
 
@@ -170,10 +179,8 @@ func (s *Event) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0
 }
 
-func (s *Event) markModifiedRecursively() {
-
-	s.attributes.markModifiedRecursively()
-
+func (s *Event) setModifiedRecursively() {
+	s.attributes.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedEventName |
 			fieldModifiedEventTimeUnixNano |
@@ -181,33 +188,57 @@ func (s *Event) markModifiedRecursively() {
 			fieldModifiedEventDroppedAttributesCount | 0
 }
 
-func (s *Event) markUnmodifiedRecursively() {
-
-	if s.IsNameModified() {
-	}
-
-	if s.IsTimeUnixNanoModified() {
-	}
-
+func (s *Event) setUnmodifiedRecursively() {
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
-	if s.IsDroppedAttributesCountModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Event) computeDiff(val *Event) (ret bool) {
+	// Compare Name field.
+	if s.name != val.name {
+		s.modifiedFields.setModified(fieldModifiedEventName)
+		ret = true
+	}
+	// Compare TimeUnixNano field.
+	if s.timeUnixNano != val.timeUnixNano {
+		s.modifiedFields.setModified(fieldModifiedEventTimeUnixNano)
+		ret = true
+	}
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedEventAttributes)
+		ret = true
+	}
+	// Compare DroppedAttributesCount field.
+	if s.droppedAttributesCount != val.droppedAttributesCount {
+		s.modifiedFields.setModified(fieldModifiedEventDroppedAttributesCount)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Event) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Event) CloneShared(allocators *Allocators) Event {
+	return s.Clone(allocators)
+}
+
 func (s *Event) Clone(allocators *Allocators) Event {
-
 	c := Event{
-
 		name:                   s.name,
 		timeUnixNano:           s.timeUnixNano,
-		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
 	return c
 }
 
@@ -228,19 +259,15 @@ func copyEvent(dst *Event, src *Event) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewEvent(dst *Event, src *Event, allocators *Allocators) {
-	dst.name = src.name
-	dst.timeUnixNano = src.timeUnixNano
+	dst.SetName(src.name)
+	dst.SetTimeUnixNano(src.timeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Event) CopyFrom(src *Event) {
 	copyEvent(s, src)
-}
-
-func (s *Event) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -316,36 +343,22 @@ func EventEqual(left, right *Event) bool {
 // CmpEvent performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpEvent(left, right *Event) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
-
 	// Compare TimeUnixNano field.
 	if c := pkg.Uint64Compare(left.timeUnixNano, right.timeUnixNano); c != 0 {
 		return c
 	}
-
 	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -354,19 +367,15 @@ type EventEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	nameEncoder encoders.StringDictEncoder
-
-	timeUnixNanoEncoder encoders.Uint64Encoder
-
-	attributesEncoder     *AttributesEncoder
-	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
-
+	nameEncoder                   encoders.StringDictEncoder
+	timeUnixNanoEncoder           encoders.Uint64Encoder
+	attributesEncoder             *AttributesEncoder
+	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
 	allocators *Allocators
@@ -445,7 +454,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 func (e *EventEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Name and all subsequent fields are skipped.
@@ -458,11 +467,9 @@ func (e *EventEncoder) Reset() {
 	if e.fieldCount <= 2 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
@@ -478,13 +485,8 @@ func (e *EventEncoder) Encode(val *Event) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedEventName |
-				fieldModifiedEventTimeUnixNano |
-				fieldModifiedEventAttributes |
-				fieldModifiedEventDroppedAttributesCount | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -527,23 +529,18 @@ func (e *EventEncoder) Encode(val *Event) {
 func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-
 	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect TimeUnixNano field.
 	if e.fieldCount <= 1 {
 		return // TimeUnixNano and subsequent fields are skipped.
 	}
-
 	e.timeUnixNanoEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Attributes field.
 	if e.fieldCount <= 2 {
 		return // Attributes and subsequent fields are skipped.
@@ -552,29 +549,25 @@ func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 3 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-
 	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // EventDecoder implements decoding of Event
 type EventDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	fieldCount  uint
 	nameDecoder encoders.StringDictDecoder
 
 	timeUnixNanoDecoder encoders.Uint64Decoder
 
-	attributesDecoder     *AttributesDecoder
-	isAttributesRecursive bool
-
+	attributesDecoder             *AttributesDecoder
+	isAttributesRecursive         bool
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
 	allocators *Allocators
