@@ -45,11 +45,9 @@ func (e *LineArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-// Clone() creates a deep copy of LineArray
-func (e *LineArray) Clone(allocators *Allocators) LineArray {
-	var clone LineArray
-	copyToNewLineArray(&clone, e, allocators)
-	return clone
+func (e *LineArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -77,18 +75,37 @@ func (e *LineArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *LineArray) markModifiedRecursively() {
+func (e *LineArray) setModifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
-		e.elems[i].markModifiedRecursively()
+		e.elems[i].setModifiedRecursively()
 	}
 
 }
 
-func (e *LineArray) markUnmodifiedRecursively() {
+func (e *LineArray) setUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
-		e.elems[i].markUnmodifiedRecursively()
+		e.elems[i].setUnmodifiedRecursively()
 	}
 
+}
+
+// computeDiff compares e and val and returns true if they differ.
+// All fields that are different in e will be marked as modified.
+func (e *LineArray) computeDiff(val *LineArray) (ret bool) {
+	if len(e.elems) != len(val.elems) {
+		ret = true
+	}
+	minLen := min(len(e.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if e.elems[i].computeDiff(val.elems[i]) {
+			ret = true
+		}
+	}
+	for ; i < len(e.elems); i++ {
+		e.elems[i].setModifiedRecursively()
+	}
+	return ret
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -105,21 +122,23 @@ func copyLineArray(dst *LineArray, src *LineArray) {
 
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
-		copyLine(dst.elems[i], src.elems[i])
+		if src.elems[i].canBeShared() {
+			dst.elems[i] = src.elems[i]
+		} else {
+			copyLine(dst.elems[i], src.elems[i])
+		}
 		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
-		// Need to allocate new elements for the part of the array that has grown.
-		// Allocate all new elements at once.
-		elems := make([]Line, len(dst.elems)-minLen)
-		for j := range elems {
-			// Init the element.
-			elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-			// Point to the allocated element.
-			dst.elems[i+j] = &elems[j]
-			// Copy the element.
-			copyLine(dst.elems[i+j], src.elems[i+j])
+		for j := i; j < len(dst.elems); j++ {
+			if src.elems[j].canBeShared() {
+				dst.elems[j] = src.elems[i]
+			} else {
+				dst.elems[j] = new(Line)
+				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
+				copyLine(dst.elems[j], src.elems[j])
+			}
 		}
 	}
 	if isModified {
@@ -136,11 +155,15 @@ func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) 
 	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
-		// Alloc and init the element.
-		dst.elems[j] = allocators.Line.Alloc()
-		dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
-		// Copy the element.
-		copyToNewLine(dst.elems[j], src.elems[j], allocators)
+		if src.elems[j].canBeShared() {
+			dst.elems[j] = src.elems[j]
+		} else {
+			// Alloc and init the element.
+			dst.elems[j] = allocators.Line.Alloc()
+			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
+			// Copy the element.
+			copyToNewLine(dst.elems[j], src.elems[j], allocators)
+		}
 	}
 }
 
@@ -216,11 +239,8 @@ func CmpLineArray(left, right *LineArray) int {
 	}
 	for i := range left.elems {
 		fc := CmpLine(left.elems[i], right.elems[i])
-		if fc < 0 {
-			return -1
-		}
-		if fc > 0 {
-			return 1
+		if fc != 0 {
+			return fc
 		}
 	}
 	return 0

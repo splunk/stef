@@ -122,7 +122,8 @@ func (m *ByScope) ByMetric(
 func (m *ByMetric) ByAttrs(attrs *oteltef.Attributes) *Points {
 	elem, exists := m.byAttrs.Get(attrs)
 	if !exists {
-		clone := attrs.Clone(m.allocators)
+		var clone oteltef.Attributes
+		clone.CopyFrom(attrs)
 		elem = &Points{}
 		m.byAttrs.Set(&clone, elem)
 	}

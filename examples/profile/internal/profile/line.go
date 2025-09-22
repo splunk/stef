@@ -66,7 +66,6 @@ func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Line) reset() {
-
 	if s.function != nil {
 		s.function.reset()
 	}
@@ -79,12 +78,36 @@ func (s *Line) reset() {
 // an array element and the array was expanded.
 func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.function.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Line) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Line) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Line) Function() *Function {
 	return s.function
+}
+
+// SetFunction sets the value of Function field.
+func (s *Line) SetFunction(v *Function) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current function
+		if v.computeDiff(s.function) {
+			// It is different. Update to it.
+			s.function = v
+			s.modifiedFields.markModified(fieldModifiedLineFunction)
+		}
+	} else {
+		s.function.CopyFrom(v)
+	}
 }
 
 func (s *Line) markFunctionModified() {
@@ -105,9 +128,9 @@ func (s *Line) Line() uint64 {
 
 // SetLine sets the value of Line field.
 func (s *Line) SetLine(v uint64) {
-	if !pkg.Uint64Equal(s.line, v) {
+	if s.line != v {
 		s.line = v
-		s.markLineModified()
+		s.modifiedFields.markModified(fieldModifiedLineLine)
 	}
 }
 
@@ -129,9 +152,9 @@ func (s *Line) Column() uint64 {
 
 // SetColumn sets the value of Column field.
 func (s *Line) SetColumn(v uint64) {
-	if !pkg.Uint64Equal(s.column, v) {
+	if s.column != v {
 		s.column = v
-		s.markColumnModified()
+		s.modifiedFields.markModified(fieldModifiedLineColumn)
 	}
 }
 
@@ -147,36 +170,56 @@ func (s *Line) IsColumnModified() bool {
 	return s.modifiedFields.mask&fieldModifiedLineColumn != 0
 }
 
-func (s *Line) markModifiedRecursively() {
-
-	s.function.markModifiedRecursively()
-
+func (s *Line) setModifiedRecursively() {
+	s.function.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedLineFunction |
 			fieldModifiedLineLine |
 			fieldModifiedLineColumn | 0
 }
 
-func (s *Line) markUnmodifiedRecursively() {
-
+func (s *Line) setUnmodifiedRecursively() {
 	if s.IsFunctionModified() {
-		s.function.markUnmodifiedRecursively()
+		s.function.setUnmodifiedRecursively()
 	}
-
-	if s.IsLineModified() {
-	}
-
-	if s.IsColumnModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Line) computeDiff(val *Line) (ret bool) {
+	// Compare Function field.
+	if s.function.computeDiff(val.function) {
+		s.modifiedFields.setModified(fieldModifiedLineFunction)
+		ret = true
+	}
+	// Compare Line field.
+	if s.line != val.line {
+		s.modifiedFields.setModified(fieldModifiedLineLine)
+		ret = true
+	}
+	// Compare Column field.
+	if s.column != val.column {
+		s.modifiedFields.setModified(fieldModifiedLineColumn)
+		ret = true
+	}
+	return ret
+}
+
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Line) canBeShared() bool {
+	return false
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Line) CloneShared(allocators *Allocators) Line {
+	return s.Clone(allocators)
+}
+
 func (s *Line) Clone(allocators *Allocators) Line {
-
 	c := Line{
-
-		function: s.function.Clone(allocators),
+		function: s.function.CloneShared(allocators),
 		line:     s.line,
 		column:   s.column,
 	}
@@ -192,11 +235,13 @@ func (s *Line) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyLine(dst *Line, src *Line) {
-	if src.function != nil {
-		if dst.function == nil {
-			dst.function = &Function{}
-			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+
+	if src.function.canBeShared() {
+		if src.function.computeDiff(dst.function) {
+			dst.function = src.function
+			dst.markFunctionModified()
 		}
+	} else {
 		copyFunction(dst.function, src.function)
 	}
 	dst.SetLine(src.line)
@@ -205,22 +250,22 @@ func copyLine(dst *Line, src *Line) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
-	if src.function != nil {
+
+	if src.function.canBeShared() {
+		dst.function = src.function
+	} else {
 		dst.function = allocators.Function.Alloc()
 		dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
 		copyToNewFunction(dst.function, src.function, allocators)
 	}
-	dst.line = src.line
-	dst.column = src.column
+
+	dst.SetLine(src.line)
+	dst.SetColumn(src.column)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Line) CopyFrom(src *Line) {
 	copyLine(s, src)
-}
-
-func (s *Line) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -242,6 +287,19 @@ func (s *Line) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Function
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.function.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.function = new(Function)
+				s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
+			} else {
+				s.function = s.function.Clone(&Allocators{})
+			}
+		}
+
 		s.function.mutateRandom(random, schem)
 	}
 	if fieldCount <= 1 {
@@ -285,31 +343,18 @@ func LineEqual(left, right *Line) bool {
 // CmpLine performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLine(left, right *Line) int {
-	if left == nil {
-		if right == nil {
-			return 0
-		}
-		return -1
-	}
-	if right == nil {
-		return 1
-	}
-
 	// Compare Function field.
 	if c := CmpFunction(left.function, right.function); c != 0 {
 		return c
 	}
-
 	// Compare Line field.
 	if c := pkg.Uint64Compare(left.line, right.line); c != 0 {
 		return c
 	}
-
 	// Compare Column field.
 	if c := pkg.Uint64Compare(left.column, right.column); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -318,18 +363,15 @@ type LineEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	functionEncoder     *FunctionEncoder
 	isFunctionRecursive bool // Indicates Function field's type is recursive.
-
-	lineEncoder encoders.Uint64Encoder
-
-	columnEncoder encoders.Uint64Encoder
+	lineEncoder         encoders.Uint64Encoder
+	columnEncoder       encoders.Uint64Encoder
 
 	allocators *Allocators
 
@@ -398,16 +440,14 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 func (e *LineEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Function and all subsequent fields are skipped.
 	}
-
 	if !e.isFunctionRecursive {
 		e.functionEncoder.Reset()
 	}
-
 	if e.fieldCount <= 1 {
 		return // Line and all subsequent fields are skipped.
 	}
@@ -427,12 +467,8 @@ func (e *LineEncoder) Encode(val *Line) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedLineFunction |
-				fieldModifiedLineLine |
-				fieldModifiedLineColumn | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -470,7 +506,6 @@ func (e *LineEncoder) Encode(val *Line) {
 func (e *LineEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Function field.
 	if e.fieldCount <= 0 {
 		return // Function and subsequent fields are skipped.
@@ -479,34 +514,28 @@ func (e *LineEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.functionEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Line field.
 	if e.fieldCount <= 1 {
 		return // Line and subsequent fields are skipped.
 	}
-
 	e.lineEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Column field.
 	if e.fieldCount <= 2 {
 		return // Column and subsequent fields are skipped.
 	}
-
 	e.columnEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // LineDecoder implements decoding of Line
 type LineDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                 pkg.BitsReader
+	column              *pkg.ReadableColumn
+	fieldCount          uint
 	functionDecoder     *FunctionDecoder
 	isFunctionRecursive bool
-
-	lineDecoder encoders.Uint64Decoder
+	lineDecoder         encoders.Uint64Decoder
 
 	columnDecoder encoders.Uint64Decoder
 

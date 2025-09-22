@@ -147,20 +147,45 @@ func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName }}Type{{.Name}}.
 func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.Exported}}) {
-    if s.typ!={{$.StructName }}Type{{.Name}} || !{{ .Type.EqualFunc }}(s.{{.name}}, {{.Type.ToStorage "v"}}) {
+    if s.typ!={{$.StructName }}Type{{.Name}} || s.{{.name}} != {{.Type.ToStorage "v"}} {
 		s.{{.name}} = {{.Type.ToStorage "v"}}
 		s.typ = {{$.StructName }}Type{{.Name}}
-        s.markParentModified()
+        s.parentModifiedFields.markModified(s.parentModifiedBit)
     }
 }
 {{end}}
 {{ end }}
 
+func (s *{{ .StructName }}) canBeShared() bool {
+    // Oneof can never be shared.
+    return false
+}
+
+func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+    // Oneof is not shareable, so CloneShared is just a Clone.
+    return s.Clone(allocators)
+}
+
 func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-	return {{if .Type.Flags.StoreByPtr}}&{{end}}{{ .StructName }}{
-        {{ range .Fields }}{{.name}}: {{if .Type.MustClone}}s.{{.name}}.Clone(allocators){{else}}s.{{.name}}{{end}},
-        {{ end }}
+{{- if .Type.Flags.StoreByPtr}}
+    c := allocators.{{.StructName}}.Alloc()
+{{- else}}
+    c := {{.StructName}}{}
+{{- end}}
+    c.typ = s.typ
+    switch s.typ {
+    {{- range .Fields }}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.IsPrimitive}}
+        c.{{.name}} = s.{{.name}}
+        {{- else if .Type.Flags.StoreByPtr}}
+        c.{{.name}} = s.{{.name}}.CloneShared(allocators)
+        {{- else}}
+        copyToNew{{.Type.Storage}}({{if .Type.Flags.TakePtr}}&{{end}}c.{{.name}}, {{if .Type.Flags.TakePtr}}&{{end}}s.{{.name}}, allocators)
+        {{- end}}
+    {{- end }}
 	}
+    return c
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -186,7 +211,11 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
         dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
         {{- end}}
     {{- end}}
-    case {{ $.StructName }}TypeNone: dst.SetType(src.typ)
+    case {{ $.StructName }}TypeNone:
+        if dst.typ != {{ $.StructName }}TypeNone {
+            dst.typ = {{ $.StructName }}TypeNone
+            dst.markParentModified()
+        }
     default: panic("copy{{.StructName}}: unexpected type: " + fmt.Sprint(src.typ))
     }
 }
@@ -206,7 +235,10 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
             {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
             {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
         {{- else}}
-        dst.{{.name}} = src.{{.name}}
+        if dst.{{.name}} != src.{{.name}} {
+            dst.{{.name}} = src.{{.name}}
+            dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+        }
         {{- end}}
     {{- end}}
     case {{ $.StructName }}TypeNone:
@@ -223,26 +255,55 @@ func (s* {{.StructName}}) markParentModified() {
 	s.parentModifiedFields.markModified(s.parentModifiedBit)
 }
 
-func (s *{{ $.StructName }}) markModifiedRecursively() {
+func (s *{{ $.StructName }}) setModifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}
-        case {{ $.StructName }}Type{{.Name}}:
         {{- if not .Type.IsPrimitive}}
-            s.{{.name}}.markModifiedRecursively()
+        case {{ $.StructName }}Type{{.Name}}:
+            s.{{.name}}.setModifiedRecursively()
         {{- end}}
     {{- end}}
     }
 }
 
-func (s *{{ $.StructName }}) markUnmodifiedRecursively() {
+func (s *{{ $.StructName }}) setUnmodifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}
-        case {{ $.StructName }}Type{{.Name}}:
         {{- if not .Type.IsPrimitive}}
-            s.{{.name}}.markUnmodifiedRecursively()
+        case {{ $.StructName }}Type{{.Name}}:
+            s.{{.name}}.setUnmodifiedRecursively()
         {{- end}}
     {{- end}}
     }
+}
+
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *{{ $.StructName }}) computeDiff(val *{{ $.StructName }}) (ret bool) {
+    if s.typ == val.typ {
+        switch s.typ {
+        {{- range .Fields}}
+        case {{ $.StructName }}Type{{.Name}}:
+            {{- if .Type.IsPrimitive}}
+            ret = s.{{.name}} != val.{{.name}}
+            {{- else}}
+            ret = s.{{.name}}.computeDiff({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+            {{- end}}
+        {{- end }}
+        }
+    } else {
+        ret = true
+        switch s.typ {
+        {{- range .Fields}}
+        {{- if not .Type.IsPrimitive}}
+        case {{ $.StructName }}Type{{.Name}}:
+            // val.{{.name}} doesn't exist at all so mark the whole s.{{.name}} subtree as modified.
+            s.{{.name}}.setModifiedRecursively()
+        {{- end}}
+        {{- end }}
+        }
+    }
+    return ret
 }
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
@@ -271,16 +332,6 @@ func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
 // Cmp{{.StructName}} performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
-    if left == nil {
-        if right == nil {
-            return 0
-        }
-        return -1
-    }
-    if right == nil {
-        return 1
-    }
-
     c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
     if c != 0 {
         return c
@@ -337,13 +388,14 @@ type {{ .StructName }}Encoder struct {
     fieldCount uint
 
     // Field encoders.
-    {{ range .Fields }}
+    {{- range .Fields }}
     {{.name}}Encoder {{if not .IsPrimitive}}*{{end}}{{ .Type.EncoderType }}Encoder
     {{if not .IsPrimitive}}is{{.Name}}Recursive bool // Indicates {{.Name}} field's type is recursive.
     {{end}}
     {{- end }}
-    {{if .DictName}}
-	dict *{{ .StructName }}EncoderDict{{end}}
+    {{- if .DictName}}
+	dict *{{ .StructName }}EncoderDict
+	{{- end}}
 }
 
 {{if .DictName}}
@@ -621,10 +673,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
             dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
         }
         {{end}}
-        err := d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
-        if err != nil {
-            return err
-        }
+        return d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
     {{- end }}
     }
 	return nil

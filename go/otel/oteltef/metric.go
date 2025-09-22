@@ -78,7 +78,6 @@ func (s *Metric) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metric) reset() {
-
 	s.name = ""
 	s.description = ""
 	s.unit = ""
@@ -94,9 +93,19 @@ func (s *Metric) reset() {
 // an array element and the array was expanded.
 func (s *Metric) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.metadata.fixParent(&s.modifiedFields)
 	s.histogramBounds.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Metric) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Metric) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Metric) Name() string {
@@ -105,9 +114,9 @@ func (s *Metric) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Metric) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
-		s.markNameModified()
+		s.modifiedFields.markModified(fieldModifiedMetricName)
 	}
 }
 
@@ -129,9 +138,9 @@ func (s *Metric) Description() string {
 
 // SetDescription sets the value of Description field.
 func (s *Metric) SetDescription(v string) {
-	if !pkg.StringEqual(s.description, v) {
+	if s.description != v {
 		s.description = v
-		s.markDescriptionModified()
+		s.modifiedFields.markModified(fieldModifiedMetricDescription)
 	}
 }
 
@@ -153,9 +162,9 @@ func (s *Metric) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *Metric) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
-		s.markUnitModified()
+		s.modifiedFields.markModified(fieldModifiedMetricUnit)
 	}
 }
 
@@ -177,9 +186,9 @@ func (s *Metric) Type() MetricType {
 
 // SetType sets the value of Type field.
 func (s *Metric) SetType(v MetricType) {
-	if !pkg.Uint64Equal(s.type_, uint64(v)) {
+	if s.type_ != uint64(v) {
 		s.type_ = uint64(v)
-		s.markTypeModified()
+		s.modifiedFields.markModified(fieldModifiedMetricType)
 	}
 }
 
@@ -233,9 +242,9 @@ func (s *Metric) AggregationTemporality() uint64 {
 
 // SetAggregationTemporality sets the value of AggregationTemporality field.
 func (s *Metric) SetAggregationTemporality(v uint64) {
-	if !pkg.Uint64Equal(s.aggregationTemporality, v) {
+	if s.aggregationTemporality != v {
 		s.aggregationTemporality = v
-		s.markAggregationTemporalityModified()
+		s.modifiedFields.markModified(fieldModifiedMetricAggregationTemporality)
 	}
 }
 
@@ -257,9 +266,9 @@ func (s *Metric) Monotonic() bool {
 
 // SetMonotonic sets the value of Monotonic field.
 func (s *Metric) SetMonotonic(v bool) {
-	if !pkg.BoolEqual(s.monotonic, v) {
+	if s.monotonic != v {
 		s.monotonic = v
-		s.markMonotonicModified()
+		s.modifiedFields.markModified(fieldModifiedMetricMonotonic)
 	}
 }
 
@@ -275,12 +284,9 @@ func (s *Metric) IsMonotonicModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricMonotonic != 0
 }
 
-func (s *Metric) markModifiedRecursively() {
-
-	s.metadata.markModifiedRecursively()
-
-	s.histogramBounds.markModifiedRecursively()
-
+func (s *Metric) setModifiedRecursively() {
+	s.metadata.setModifiedRecursively()
+	s.histogramBounds.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedMetricName |
 			fieldModifiedMetricDescription |
@@ -292,51 +298,89 @@ func (s *Metric) markModifiedRecursively() {
 			fieldModifiedMetricMonotonic | 0
 }
 
-func (s *Metric) markUnmodifiedRecursively() {
-
-	if s.IsNameModified() {
-	}
-
-	if s.IsDescriptionModified() {
-	}
-
-	if s.IsUnitModified() {
-	}
-
-	if s.IsTypeModified() {
-	}
-
+func (s *Metric) setUnmodifiedRecursively() {
 	if s.IsMetadataModified() {
-		s.metadata.markUnmodifiedRecursively()
+		s.metadata.setUnmodifiedRecursively()
 	}
-
 	if s.IsHistogramBoundsModified() {
-		s.histogramBounds.markUnmodifiedRecursively()
+		s.histogramBounds.setUnmodifiedRecursively()
 	}
-
-	if s.IsAggregationTemporalityModified() {
-	}
-
-	if s.IsMonotonicModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Metric) Clone(allocators *Allocators) *Metric {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Metric) computeDiff(val *Metric) (ret bool) {
+	// Compare Name field.
+	if s.name != val.name {
+		s.modifiedFields.setModified(fieldModifiedMetricName)
+		ret = true
+	}
+	// Compare Description field.
+	if s.description != val.description {
+		s.modifiedFields.setModified(fieldModifiedMetricDescription)
+		ret = true
+	}
+	// Compare Unit field.
+	if s.unit != val.unit {
+		s.modifiedFields.setModified(fieldModifiedMetricUnit)
+		ret = true
+	}
+	// Compare Type field.
+	if s.type_ != val.type_ {
+		s.modifiedFields.setModified(fieldModifiedMetricType)
+		ret = true
+	}
+	// Compare Metadata field.
+	if s.metadata.computeDiff(&val.metadata) {
+		s.modifiedFields.setModified(fieldModifiedMetricMetadata)
+		ret = true
+	}
+	// Compare HistogramBounds field.
+	if s.histogramBounds.computeDiff(&val.histogramBounds) {
+		s.modifiedFields.setModified(fieldModifiedMetricHistogramBounds)
+		ret = true
+	}
+	// Compare AggregationTemporality field.
+	if s.aggregationTemporality != val.aggregationTemporality {
+		s.modifiedFields.setModified(fieldModifiedMetricAggregationTemporality)
+		ret = true
+	}
+	// Compare Monotonic field.
+	if s.monotonic != val.monotonic {
+		s.modifiedFields.setModified(fieldModifiedMetricMonotonic)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Metric) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Metric) CloneShared(allocators *Allocators) *Metric {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *Metric) Clone(allocators *Allocators) *Metric {
 	c := allocators.Metric.Alloc()
 	*c = Metric{
-
 		name:                   s.name,
 		description:            s.description,
 		unit:                   s.unit,
 		type_:                  s.type_,
-		metadata:               s.metadata.Clone(allocators),
-		histogramBounds:        s.histogramBounds.Clone(allocators),
 		aggregationTemporality: s.aggregationTemporality,
 		monotonic:              s.monotonic,
 	}
+	copyToNewAttributes(&c.metadata, &s.metadata, allocators)
+	copyToNewFloat64Array(&c.histogramBounds, &s.histogramBounds, allocators)
 	return c
 }
 
@@ -361,23 +405,19 @@ func copyMetric(dst *Metric, src *Metric) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewMetric(dst *Metric, src *Metric, allocators *Allocators) {
-	dst.name = src.name
-	dst.description = src.description
-	dst.unit = src.unit
-	dst.type_ = src.type_
+	dst.SetName(src.name)
+	dst.SetDescription(src.description)
+	dst.SetUnit(src.unit)
+	dst.SetType(MetricType(src.type_))
 	copyToNewAttributes(&dst.metadata, &src.metadata, allocators)
 	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds, allocators)
-	dst.aggregationTemporality = src.aggregationTemporality
-	dst.monotonic = src.monotonic
+	dst.SetAggregationTemporality(src.aggregationTemporality)
+	dst.SetMonotonic(src.monotonic)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Metric) CopyFrom(src *Metric) {
 	copyMetric(s, src)
-}
-
-func (s *Metric) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -497,6 +537,7 @@ func MetricEqual(left, right *Metric) bool {
 // CmpMetric performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpMetric(left, right *Metric) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -506,47 +547,38 @@ func CmpMetric(left, right *Metric) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
-
 	// Compare Description field.
 	if c := strings.Compare(left.description, right.description); c != 0 {
 		return c
 	}
-
 	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
-
 	// Compare Type field.
 	if c := pkg.Uint64Compare(left.type_, right.type_); c != 0 {
 		return c
 	}
-
 	// Compare Metadata field.
 	if c := CmpAttributes(&left.metadata, &right.metadata); c != 0 {
 		return c
 	}
-
 	// Compare HistogramBounds field.
 	if c := CmpFloat64Array(&left.histogramBounds, &right.histogramBounds); c != 0 {
 		return c
 	}
-
 	// Compare AggregationTemporality field.
 	if c := pkg.Uint64Compare(left.aggregationTemporality, right.aggregationTemporality); c != 0 {
 		return c
 	}
-
 	// Compare Monotonic field.
 	if c := pkg.BoolCompare(left.monotonic, right.monotonic); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -555,57 +587,71 @@ type MetricEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	nameEncoder encoders.StringDictEncoder
-
-	descriptionEncoder encoders.StringDictEncoder
-
-	unitEncoder encoders.StringDictEncoder
-
-	type_Encoder encoders.Uint64Encoder
-
-	metadataEncoder     *AttributesEncoder
-	isMetadataRecursive bool // Indicates Metadata field's type is recursive.
-
-	histogramBoundsEncoder     *Float64ArrayEncoder
-	isHistogramBoundsRecursive bool // Indicates HistogramBounds field's type is recursive.
-
+	nameEncoder                   encoders.StringDictEncoder
+	descriptionEncoder            encoders.StringDictEncoder
+	unitEncoder                   encoders.StringDictEncoder
+	type_Encoder                  encoders.Uint64Encoder
+	metadataEncoder               *AttributesEncoder
+	isMetadataRecursive           bool // Indicates Metadata field's type is recursive.
+	histogramBoundsEncoder        *Float64ArrayEncoder
+	isHistogramBoundsRecursive    bool // Indicates HistogramBounds field's type is recursive.
 	aggregationTemporalityEncoder encoders.Uint64Encoder
+	monotonicEncoder              encoders.BoolEncoder
 
-	monotonicEncoder encoders.BoolEncoder
-
-	dict       *MetricEncoderDict
 	allocators *Allocators
+	dict       *MetricEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type MetricEntry struct {
-	refNum uint64
-	val    *Metric
-}
-
 // MetricEncoderDict is the dictionary used by MetricEncoder
 type MetricEncoderDict struct {
-	dict    b.Tree[*Metric, MetricEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*Metric, uint32] // Searchable map of items seen in the past.
+	slice      []*Metric               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *MetricEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Metric, MetricEntry](CmpMetric)
-	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
+	d.dict = *b.TreeNew[*Metric, uint32](CmpMetric)
+	d.slice = make([]*Metric, 1) // refNum 0 is reserved for nil Metric
+	d.dict.Set(nil, 0)           // nil Metric is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *MetricEncoderDict) Get(val *Metric) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *MetricEncoderDict) Add(val *Metric) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *MetricEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, MetricEntry{}) // nil Metric is RefNum 0
+	d.dict.Set(nil, 0) // nil Metric is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -617,8 +663,9 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 	defer func() { state.MetricEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.Metric
 	e.allocators = &state.Allocators
+	e.dict = &state.Metric
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -722,7 +769,7 @@ func (e *MetricEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) er
 func (e *MetricEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Name and all subsequent fields are skipped.
@@ -743,19 +790,15 @@ func (e *MetricEncoder) Reset() {
 	if e.fieldCount <= 4 {
 		return // Metadata and all subsequent fields are skipped.
 	}
-
 	if !e.isMetadataRecursive {
 		e.metadataEncoder.Reset()
 	}
-
 	if e.fieldCount <= 5 {
 		return // HistogramBounds and all subsequent fields are skipped.
 	}
-
 	if !e.isHistogramBoundsRecursive {
 		e.histogramBoundsEncoder.Reset()
 	}
-
 	if e.fieldCount <= 6 {
 		return // AggregationTemporality and all subsequent fields are skipped.
 	}
@@ -771,28 +814,24 @@ func (e *MetricEncoder) Encode(val *Metric) {
 	var bitCount uint
 
 	// Check if the Metric exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Metric exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The Metric does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = MetricEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded Metric follows.
 	e.buf.WriteBit(1)
@@ -803,17 +842,8 @@ func (e *MetricEncoder) Encode(val *Metric) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedMetricName |
-				fieldModifiedMetricDescription |
-				fieldModifiedMetricUnit |
-				fieldModifiedMetricType |
-				fieldModifiedMetricMetadata |
-				fieldModifiedMetricHistogramBounds |
-				fieldModifiedMetricAggregationTemporality |
-				fieldModifiedMetricMonotonic | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -876,39 +906,30 @@ func (e *MetricEncoder) Encode(val *Metric) {
 func (e *MetricEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-
 	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Description field.
 	if e.fieldCount <= 1 {
 		return // Description and subsequent fields are skipped.
 	}
-
 	e.descriptionEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Unit field.
 	if e.fieldCount <= 2 {
 		return // Unit and subsequent fields are skipped.
 	}
-
 	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Type field.
 	if e.fieldCount <= 3 {
 		return // Type and subsequent fields are skipped.
 	}
-
 	e.type_Encoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Metadata field.
 	if e.fieldCount <= 4 {
 		return // Metadata and subsequent fields are skipped.
@@ -917,7 +938,6 @@ func (e *MetricEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.metadataEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect HistogramBounds field.
 	if e.fieldCount <= 5 {
 		return // HistogramBounds and subsequent fields are skipped.
@@ -926,30 +946,25 @@ func (e *MetricEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.histogramBoundsEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect AggregationTemporality field.
 	if e.fieldCount <= 6 {
 		return // AggregationTemporality and subsequent fields are skipped.
 	}
-
 	e.aggregationTemporalityEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Monotonic field.
 	if e.fieldCount <= 7 {
 		return // Monotonic and subsequent fields are skipped.
 	}
-
 	e.monotonicEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // MetricDecoder implements decoding of Metric
 type MetricDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	fieldCount  uint
 	nameDecoder encoders.StringDictDecoder
 
 	descriptionDecoder encoders.StringDictDecoder
@@ -958,18 +973,15 @@ type MetricDecoder struct {
 
 	type_Decoder encoders.Uint64Decoder
 
-	metadataDecoder     *AttributesDecoder
-	isMetadataRecursive bool
-
-	histogramBoundsDecoder     *Float64ArrayDecoder
-	isHistogramBoundsRecursive bool
-
+	metadataDecoder               *AttributesDecoder
+	isMetadataRecursive           bool
+	histogramBoundsDecoder        *Float64ArrayDecoder
+	isHistogramBoundsRecursive    bool
 	aggregationTemporalityDecoder encoders.Uint64Decoder
 
 	monotonicDecoder encoders.BoolDecoder
 
-	dict *MetricDecoderDict
-
+	dict       *MetricDecoderDict
 	allocators *Allocators
 }
 
@@ -1249,6 +1261,10 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

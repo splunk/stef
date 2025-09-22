@@ -62,7 +62,6 @@ func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parent
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValueType) reset() {
-
 	s.type_ = ""
 	s.unit = ""
 }
@@ -72,7 +71,17 @@ func (s *SampleValueType) reset() {
 // an array element and the array was expanded.
 func (s *SampleValueType) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *SampleValueType) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *SampleValueType) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *SampleValueType) Type() string {
@@ -81,9 +90,9 @@ func (s *SampleValueType) Type() string {
 
 // SetType sets the value of Type field.
 func (s *SampleValueType) SetType(v string) {
-	if !pkg.StringEqual(s.type_, v) {
+	if s.type_ != v {
 		s.type_ = v
-		s.markTypeModified()
+		s.modifiedFields.markModified(fieldModifiedSampleValueTypeType)
 	}
 }
 
@@ -105,9 +114,9 @@ func (s *SampleValueType) Unit() string {
 
 // SetUnit sets the value of Unit field.
 func (s *SampleValueType) SetUnit(v string) {
-	if !pkg.StringEqual(s.unit, v) {
+	if s.unit != v {
 		s.unit = v
-		s.markUnitModified()
+		s.modifiedFields.markModified(fieldModifiedSampleValueTypeUnit)
 	}
 }
 
@@ -123,29 +132,50 @@ func (s *SampleValueType) IsUnitModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0
 }
 
-func (s *SampleValueType) markModifiedRecursively() {
-
+func (s *SampleValueType) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedSampleValueTypeType |
 			fieldModifiedSampleValueTypeUnit | 0
 }
 
-func (s *SampleValueType) markUnmodifiedRecursively() {
-
-	if s.IsTypeModified() {
-	}
-
-	if s.IsUnitModified() {
-	}
-
+func (s *SampleValueType) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *SampleValueType) computeDiff(val *SampleValueType) (ret bool) {
+	// Compare Type field.
+	if s.type_ != val.type_ {
+		s.modifiedFields.setModified(fieldModifiedSampleValueTypeType)
+		ret = true
+	}
+	// Compare Unit field.
+	if s.unit != val.unit {
+		s.modifiedFields.setModified(fieldModifiedSampleValueTypeUnit)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *SampleValueType) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *SampleValueType) CloneShared(allocators *Allocators) *SampleValueType {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
 	c := allocators.SampleValueType.Alloc()
 	*c = SampleValueType{
-
 		type_: s.type_,
 		unit:  s.unit,
 	}
@@ -167,17 +197,13 @@ func copySampleValueType(dst *SampleValueType, src *SampleValueType) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewSampleValueType(dst *SampleValueType, src *SampleValueType, allocators *Allocators) {
-	dst.type_ = src.type_
-	dst.unit = src.unit
+	dst.SetType(src.type_)
+	dst.SetUnit(src.unit)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *SampleValueType) CopyFrom(src *SampleValueType) {
 	copySampleValueType(s, src)
-}
-
-func (s *SampleValueType) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -231,6 +257,7 @@ func SampleValueTypeEqual(left, right *SampleValueType) bool {
 // CmpSampleValueType performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSampleValueType(left, right *SampleValueType) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -240,17 +267,14 @@ func CmpSampleValueType(left, right *SampleValueType) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare Type field.
 	if c := strings.Compare(left.type_, right.type_); c != 0 {
 		return c
 	}
-
 	// Compare Unit field.
 	if c := strings.Compare(left.unit, right.unit); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -259,43 +283,63 @@ type SampleValueTypeEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	type_Encoder encoders.StringEncoder
+	unitEncoder  encoders.StringEncoder
 
-	unitEncoder encoders.StringEncoder
-
-	dict       *SampleValueTypeEncoderDict
 	allocators *Allocators
+	dict       *SampleValueTypeEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type SampleValueTypeEntry struct {
-	refNum uint64
-	val    *SampleValueType
-}
-
 // SampleValueTypeEncoderDict is the dictionary used by SampleValueTypeEncoder
 type SampleValueTypeEncoderDict struct {
-	dict    b.Tree[*SampleValueType, SampleValueTypeEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*SampleValueType, uint32] // Searchable map of items seen in the past.
+	slice      []*SampleValueType               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *SampleValueTypeEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*SampleValueType, SampleValueTypeEntry](CmpSampleValueType)
-	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
+	d.dict = *b.TreeNew[*SampleValueType, uint32](CmpSampleValueType)
+	d.slice = make([]*SampleValueType, 1) // refNum 0 is reserved for nil SampleValueType
+	d.dict.Set(nil, 0)                    // nil SampleValueType is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *SampleValueTypeEncoderDict) Get(val *SampleValueType) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *SampleValueTypeEncoderDict) Add(val *SampleValueType) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *SampleValueTypeEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, SampleValueTypeEntry{}) // nil SampleValueType is RefNum 0
+	d.dict.Set(nil, 0) // nil SampleValueType is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -307,8 +351,9 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	defer func() { state.SampleValueTypeEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.SampleValueType
 	e.allocators = &state.Allocators
+	e.dict = &state.SampleValueType
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -344,7 +389,7 @@ func (e *SampleValueTypeEncoder) Init(state *WriterState, columns *pkg.WriteColu
 func (e *SampleValueTypeEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Type and all subsequent fields are skipped.
@@ -361,28 +406,24 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 	var bitCount uint
 
 	// Check if the SampleValueType exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The SampleValueType exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The SampleValueType does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = SampleValueTypeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded SampleValueType follows.
 	e.buf.WriteBit(1)
@@ -393,11 +434,8 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedSampleValueTypeType |
-				fieldModifiedSampleValueTypeUnit | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -430,36 +468,30 @@ func (e *SampleValueTypeEncoder) Encode(val *SampleValueType) {
 func (e *SampleValueTypeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Type field.
 	if e.fieldCount <= 0 {
 		return // Type and subsequent fields are skipped.
 	}
-
 	e.type_Encoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Unit field.
 	if e.fieldCount <= 1 {
 		return // Unit and subsequent fields are skipped.
 	}
-
 	e.unitEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // SampleValueTypeDecoder implements decoding of SampleValueType
 type SampleValueTypeDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf          pkg.BitsReader
+	column       *pkg.ReadableColumn
+	fieldCount   uint
 	type_Decoder encoders.StringDecoder
 
 	unitDecoder encoders.StringDecoder
 
-	dict *SampleValueTypeDecoderDict
-
+	dict       *SampleValueTypeDecoderDict
 	allocators *Allocators
 }
 
@@ -571,6 +603,10 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

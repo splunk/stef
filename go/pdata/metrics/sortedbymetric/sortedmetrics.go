@@ -4,7 +4,6 @@ import (
 	"io"
 	"slices"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"modernc.org/b/v2"
 
@@ -26,12 +25,14 @@ type ByMetric struct {
 	//encoder    *anyvalue.Encoder
 	otlp2tef   *otlptools.Otlp2Stef
 	byResource *b.Tree[*oteltef.Resource, *ByResource]
+	allocators *oteltef.Allocators
 }
 
 type ByResource struct {
 	//encoder  *anyvalue.Encoder
-	otlp2tef *otlptools.Otlp2Stef
-	byScope  *b.Tree[*oteltef.Scope, *ByScope]
+	otlp2tef   *otlptools.Otlp2Stef
+	byScope    *b.Tree[*oteltef.Scope, *ByScope]
+	allocators *oteltef.Allocators
 }
 
 type Points []*oteltef.Point
@@ -45,7 +46,8 @@ func (p Points) SortValues() {
 }
 
 type ByScope struct {
-	byAttrs *b.Tree[*oteltef.Attributes, *Points]
+	byAttrs    *b.Tree[*oteltef.Attributes, *Points]
+	allocators *oteltef.Allocators
 }
 
 func NewSortedMetrics() *SortedTree {
@@ -56,13 +58,13 @@ func (s *SortedTree) ToTef(writer *oteltef.MetricsWriter) error {
 	i := 0
 	err := s.Iter(
 		func(metric *oteltef.Metric, byMetric *ByMetric) error {
-			writer.Record.Metric().CopyFrom(metric)
+			writer.Record.SetMetric(metric)
 			err := byMetric.Iter(
 				func(resource *oteltef.Resource, byResource *ByResource) error {
-					writer.Record.Resource().CopyFrom(resource)
+					writer.Record.SetResource(resource)
 					err := byResource.Iter(
 						func(scope *oteltef.Scope, byScope *ByScope) error {
-							writer.Record.Scope().CopyFrom(scope)
+							writer.Record.SetScope(scope)
 							err := byScope.Iter(
 								func(attrs *oteltef.Attributes, points *Points) error {
 									writer.Record.Attributes().CopyFrom(attrs)
@@ -153,13 +155,14 @@ func (s *SortedTree) Iter(f func(metric *oteltef.Metric, byMetric *ByMetric) err
 	return nil
 }
 
-func (m *ByMetric) ByResource(resource pcommon.Resource, schemaUrl string) *ByResource {
-	var res oteltef.Resource
-	m.otlp2tef.ResourceSorted(&res, resource, schemaUrl)
-	elem, exists := m.byResource.Get(&res)
+func (m *ByMetric) ByResource(res *oteltef.Resource) *ByResource {
+	elem, exists := m.byResource.Get(res)
 	if !exists {
-		elem = &ByResource{otlp2tef: m.otlp2tef, byScope: b.TreeNew[*oteltef.Scope, *ByScope](oteltef.CmpScope)}
-		m.byResource.Set(&res, elem)
+		elem = &ByResource{
+			otlp2tef: m.otlp2tef, byScope: b.TreeNew[*oteltef.Scope, *ByScope](oteltef.CmpScope),
+			allocators: m.allocators,
+		}
+		m.byResource.Set(res, elem)
 	}
 	return elem
 }
@@ -195,13 +198,14 @@ func (m *ByMetric) Iter(f func(resource *oteltef.Resource, byResource *ByResourc
 	return nil
 }
 
-func (m *ByResource) ByScope(scope pcommon.InstrumentationScope, schemaUrl string) *ByScope {
-	var dst oteltef.Scope
-	m.otlp2tef.ScopeSorted(&dst, scope, schemaUrl)
-	elem, exists := m.byScope.Get(&dst)
+func (m *ByResource) ByScope(dst *oteltef.Scope) *ByScope {
+	elem, exists := m.byScope.Get(dst)
 	if !exists {
-		elem = &ByScope{byAttrs: b.TreeNew[*oteltef.Attributes, *Points](oteltef.CmpAttributes)}
-		m.byScope.Set(&dst, elem)
+		elem = &ByScope{
+			byAttrs:    b.TreeNew[*oteltef.Attributes, *Points](oteltef.CmpAttributes),
+			allocators: m.allocators,
+		}
+		m.byScope.Set(dst, elem)
 	}
 	return elem
 }

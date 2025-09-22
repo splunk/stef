@@ -10,11 +10,21 @@ type modifiedFields struct {
 	// in its containing parent struct. To be able to do that we keep a pointer to parent
 	// and the bit to set.
 
-	// parent's modifiedFields
+	// modifiedFields of the parent struct or nil if this is a root struct.
 	parent *modifiedFields
 
 	// the bit that corresponds to this struct's field in the parent struct
 	parentBit uint64
+
+	// refNum into dictionary for dict-based structs. This value is set when the struct
+	// added into the dictionary during encoding. When the same struct is attempted to
+	// be encoded again refNum is used a fast lookup in the dictionary instead of
+	// doing a slow full lookup by value. See EncoderDict.Add/Get methods.
+	refNum uint32
+
+	// Frozen objects cannot be modified by the user.
+	// Internal data structures used for bookkeeping such as the "mask" may still be modified.
+	frozen bool
 }
 
 func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -22,10 +32,18 @@ func (m *modifiedFields) init(parentModifiedFields *modifiedFields, parentModifi
 	m.parentBit = parentModifiedBit
 }
 
+// markModified marks the field corresponding to fieldBit as modified and goes up the
+// chain of parents and modifies each child as modified in its parent as well.
 func (m *modifiedFields) markModified(fieldBit uint64) {
 	if m != nil && m.mask&fieldBit != fieldBit {
 		m.markModifiedSlow(fieldBit)
 	}
+}
+
+// setModified sets the field corresponding to fieldBit as modified. Unlike markModified,
+// it does not propagate the modification to parent structs.
+func (m *modifiedFields) setModified(fieldBit uint64) {
+	m.mask |= fieldBit
 }
 
 func (m *modifiedFields) isAnyModified() bool {
@@ -38,12 +56,22 @@ func (m *modifiedFields) markParentModified() {
 }
 
 func (m *modifiedFields) markModifiedSlow(fieldBit uint64) {
+	if m.frozen {
+		panic("attempt to modify a frozen struct")
+	}
+	// Reset refNum on modification. Since the object has changed, the refNum is no longer valid.
+	m.refNum = 0
 	m.mask |= fieldBit
 	child := m
 	parent := m.parent
 	for parent != nil {
+		if parent.frozen {
+			panic("attempt to modify a frozen struct")
+		}
+
 		if parent.mask&child.parentBit == 0 {
 			parent.mask |= child.parentBit
+			parent.refNum = 0
 			child = parent
 			parent = parent.parent
 		} else {
@@ -52,7 +80,15 @@ func (m *modifiedFields) markModifiedSlow(fieldBit uint64) {
 	}
 }
 
-func (m *modifiedFields) markUnmodifiedAll() {
+func (m *modifiedFields) freeze() {
+	m.frozen = true
+}
+
+func (m *modifiedFields) isFrozen() bool {
+	return m.frozen
+}
+
+func (m *modifiedFields) setUnmodifiedAll() {
 	m.mask = 0
 }
 
@@ -108,9 +144,29 @@ func (m *modifiedFieldsMultimap) markValModified(index int) {
 	}
 }
 
-func (m *modifiedFieldsMultimap) markUnmodifiedAll() {
-	m.keys.markUnmodifiedAll()
-	m.vals.markUnmodifiedAll()
+// setKeyModified sets the field corresponding to fieldBit as modified. Unlike markModified,
+// it does not propagate the modification to parent structs.
+func (m *modifiedFieldsMultimap) setKeyModified(index int) {
+	if index >= 64 {
+		m.keys.mask |= ^uint64(0)
+	} else {
+		m.keys.mask |= 1 << index
+	}
+}
+
+// setValModified sets the field corresponding to fieldBit as modified. Unlike markModified,
+// it does not propagate the modification to parent structs.
+func (m *modifiedFieldsMultimap) setValModified(index int) {
+	if index >= 64 {
+		m.vals.mask |= ^uint64(0)
+	} else {
+		m.vals.mask |= 1 << index
+	}
+}
+
+func (m *modifiedFieldsMultimap) setUnmodifiedAll() {
+	m.keys.setUnmodifiedAll()
+	m.vals.setUnmodifiedAll()
 	m.modifiedLen = false
 }
 

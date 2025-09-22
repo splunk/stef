@@ -70,7 +70,6 @@ func (s *Scope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Scope) reset() {
-
 	s.name = ""
 	s.version = ""
 	s.schemaURL = ""
@@ -83,8 +82,18 @@ func (s *Scope) reset() {
 // an array element and the array was expanded.
 func (s *Scope) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.attributes.fixParent(&s.modifiedFields)
+}
+
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Scope) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Scope) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Scope) Name() string {
@@ -93,9 +102,9 @@ func (s *Scope) Name() string {
 
 // SetName sets the value of Name field.
 func (s *Scope) SetName(v string) {
-	if !pkg.StringEqual(s.name, v) {
+	if s.name != v {
 		s.name = v
-		s.markNameModified()
+		s.modifiedFields.markModified(fieldModifiedScopeName)
 	}
 }
 
@@ -117,9 +126,9 @@ func (s *Scope) Version() string {
 
 // SetVersion sets the value of Version field.
 func (s *Scope) SetVersion(v string) {
-	if !pkg.StringEqual(s.version, v) {
+	if s.version != v {
 		s.version = v
-		s.markVersionModified()
+		s.modifiedFields.markModified(fieldModifiedScopeVersion)
 	}
 }
 
@@ -141,9 +150,9 @@ func (s *Scope) SchemaURL() string {
 
 // SetSchemaURL sets the value of SchemaURL field.
 func (s *Scope) SetSchemaURL(v string) {
-	if !pkg.StringEqual(s.schemaURL, v) {
+	if s.schemaURL != v {
 		s.schemaURL = v
-		s.markSchemaURLModified()
+		s.modifiedFields.markModified(fieldModifiedScopeSchemaURL)
 	}
 }
 
@@ -181,9 +190,9 @@ func (s *Scope) DroppedAttributesCount() uint64 {
 
 // SetDroppedAttributesCount sets the value of DroppedAttributesCount field.
 func (s *Scope) SetDroppedAttributesCount(v uint64) {
-	if !pkg.Uint64Equal(s.droppedAttributesCount, v) {
+	if s.droppedAttributesCount != v {
 		s.droppedAttributesCount = v
-		s.markDroppedAttributesCountModified()
+		s.modifiedFields.markModified(fieldModifiedScopeDroppedAttributesCount)
 	}
 }
 
@@ -199,10 +208,8 @@ func (s *Scope) IsDroppedAttributesCountModified() bool {
 	return s.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0
 }
 
-func (s *Scope) markModifiedRecursively() {
-
-	s.attributes.markModifiedRecursively()
-
+func (s *Scope) setModifiedRecursively() {
+	s.attributes.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedScopeName |
 			fieldModifiedScopeVersion |
@@ -211,38 +218,68 @@ func (s *Scope) markModifiedRecursively() {
 			fieldModifiedScopeDroppedAttributesCount | 0
 }
 
-func (s *Scope) markUnmodifiedRecursively() {
-
-	if s.IsNameModified() {
-	}
-
-	if s.IsVersionModified() {
-	}
-
-	if s.IsSchemaURLModified() {
-	}
-
+func (s *Scope) setUnmodifiedRecursively() {
 	if s.IsAttributesModified() {
-		s.attributes.markUnmodifiedRecursively()
+		s.attributes.setUnmodifiedRecursively()
 	}
-
-	if s.IsDroppedAttributesCountModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Scope) Clone(allocators *Allocators) *Scope {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Scope) computeDiff(val *Scope) (ret bool) {
+	// Compare Name field.
+	if s.name != val.name {
+		s.modifiedFields.setModified(fieldModifiedScopeName)
+		ret = true
+	}
+	// Compare Version field.
+	if s.version != val.version {
+		s.modifiedFields.setModified(fieldModifiedScopeVersion)
+		ret = true
+	}
+	// Compare SchemaURL field.
+	if s.schemaURL != val.schemaURL {
+		s.modifiedFields.setModified(fieldModifiedScopeSchemaURL)
+		ret = true
+	}
+	// Compare Attributes field.
+	if s.attributes.computeDiff(&val.attributes) {
+		s.modifiedFields.setModified(fieldModifiedScopeAttributes)
+		ret = true
+	}
+	// Compare DroppedAttributesCount field.
+	if s.droppedAttributesCount != val.droppedAttributesCount {
+		s.modifiedFields.setModified(fieldModifiedScopeDroppedAttributesCount)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Scope) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Scope) CloneShared(allocators *Allocators) *Scope {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *Scope) Clone(allocators *Allocators) *Scope {
 	c := allocators.Scope.Alloc()
 	*c = Scope{
-
 		name:                   s.name,
 		version:                s.version,
 		schemaURL:              s.schemaURL,
-		attributes:             s.attributes.Clone(allocators),
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
+	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
 	return c
 }
 
@@ -264,20 +301,16 @@ func copyScope(dst *Scope, src *Scope) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewScope(dst *Scope, src *Scope, allocators *Allocators) {
-	dst.name = src.name
-	dst.version = src.version
-	dst.schemaURL = src.schemaURL
+	dst.SetName(src.name)
+	dst.SetVersion(src.version)
+	dst.SetSchemaURL(src.schemaURL)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
-	dst.droppedAttributesCount = src.droppedAttributesCount
+	dst.SetDroppedAttributesCount(src.droppedAttributesCount)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Scope) CopyFrom(src *Scope) {
 	copyScope(s, src)
-}
-
-func (s *Scope) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -364,6 +397,7 @@ func ScopeEqual(left, right *Scope) bool {
 // CmpScope performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpScope(left, right *Scope) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -373,32 +407,26 @@ func CmpScope(left, right *Scope) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare Name field.
 	if c := strings.Compare(left.name, right.name); c != 0 {
 		return c
 	}
-
 	// Compare Version field.
 	if c := strings.Compare(left.version, right.version); c != 0 {
 		return c
 	}
-
 	// Compare SchemaURL field.
 	if c := strings.Compare(left.schemaURL, right.schemaURL); c != 0 {
 		return c
 	}
-
 	// Compare Attributes field.
 	if c := CmpAttributes(&left.attributes, &right.attributes); c != 0 {
 		return c
 	}
-
 	// Compare DroppedAttributesCount field.
 	if c := pkg.Uint64Compare(left.droppedAttributesCount, right.droppedAttributesCount); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -407,50 +435,67 @@ type ScopeEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	nameEncoder encoders.StringDictEncoder
-
-	versionEncoder encoders.StringDictEncoder
-
-	schemaURLEncoder encoders.StringDictEncoder
-
-	attributesEncoder     *AttributesEncoder
-	isAttributesRecursive bool // Indicates Attributes field's type is recursive.
-
+	nameEncoder                   encoders.StringDictEncoder
+	versionEncoder                encoders.StringDictEncoder
+	schemaURLEncoder              encoders.StringDictEncoder
+	attributesEncoder             *AttributesEncoder
+	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
 	droppedAttributesCountEncoder encoders.Uint64Encoder
 
-	dict       *ScopeEncoderDict
 	allocators *Allocators
+	dict       *ScopeEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type ScopeEntry struct {
-	refNum uint64
-	val    *Scope
-}
-
 // ScopeEncoderDict is the dictionary used by ScopeEncoder
 type ScopeEncoderDict struct {
-	dict    b.Tree[*Scope, ScopeEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*Scope, uint32] // Searchable map of items seen in the past.
+	slice      []*Scope               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *ScopeEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Scope, ScopeEntry](CmpScope)
-	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
+	d.dict = *b.TreeNew[*Scope, uint32](CmpScope)
+	d.slice = make([]*Scope, 1) // refNum 0 is reserved for nil Scope
+	d.dict.Set(nil, 0)          // nil Scope is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *ScopeEncoderDict) Get(val *Scope) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *ScopeEncoderDict) Add(val *Scope) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *ScopeEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, ScopeEntry{}) // nil Scope is RefNum 0
+	d.dict.Set(nil, 0) // nil Scope is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -462,8 +507,9 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	defer func() { state.ScopeEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.Scope
 	e.allocators = &state.Allocators
+	e.dict = &state.Scope
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -533,7 +579,7 @@ func (e *ScopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 func (e *ScopeEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Name and all subsequent fields are skipped.
@@ -550,11 +596,9 @@ func (e *ScopeEncoder) Reset() {
 	if e.fieldCount <= 3 {
 		return // Attributes and all subsequent fields are skipped.
 	}
-
 	if !e.isAttributesRecursive {
 		e.attributesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 4 {
 		return // DroppedAttributesCount and all subsequent fields are skipped.
 	}
@@ -566,28 +610,24 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 	var bitCount uint
 
 	// Check if the Scope exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Scope exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The Scope does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = ScopeEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded Scope follows.
 	e.buf.WriteBit(1)
@@ -598,14 +638,8 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedScopeName |
-				fieldModifiedScopeVersion |
-				fieldModifiedScopeSchemaURL |
-				fieldModifiedScopeAttributes |
-				fieldModifiedScopeDroppedAttributesCount | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -653,31 +687,24 @@ func (e *ScopeEncoder) Encode(val *Scope) {
 func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Name field.
 	if e.fieldCount <= 0 {
 		return // Name and subsequent fields are skipped.
 	}
-
 	e.nameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Version field.
 	if e.fieldCount <= 1 {
 		return // Version and subsequent fields are skipped.
 	}
-
 	e.versionEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect SchemaURL field.
 	if e.fieldCount <= 2 {
 		return // SchemaURL and subsequent fields are skipped.
 	}
-
 	e.schemaURLEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Attributes field.
 	if e.fieldCount <= 3 {
 		return // Attributes and subsequent fields are skipped.
@@ -686,35 +713,30 @@ func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.attributesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect DroppedAttributesCount field.
 	if e.fieldCount <= 4 {
 		return // DroppedAttributesCount and subsequent fields are skipped.
 	}
-
 	e.droppedAttributesCountEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // ScopeDecoder implements decoding of Scope
 type ScopeDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf         pkg.BitsReader
+	column      *pkg.ReadableColumn
+	fieldCount  uint
 	nameDecoder encoders.StringDictDecoder
 
 	versionDecoder encoders.StringDictDecoder
 
 	schemaURLDecoder encoders.StringDictDecoder
 
-	attributesDecoder     *AttributesDecoder
-	isAttributesRecursive bool
-
+	attributesDecoder             *AttributesDecoder
+	isAttributesRecursive         bool
 	droppedAttributesCountDecoder encoders.Uint64Decoder
 
-	dict *ScopeDecoderDict
-
+	dict       *ScopeDecoderDict
 	allocators *Allocators
 }
 
@@ -910,6 +932,10 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

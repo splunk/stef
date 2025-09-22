@@ -72,7 +72,6 @@ func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Location) reset() {
-
 	if s.mapping != nil {
 		s.mapping.reset()
 	}
@@ -86,13 +85,37 @@ func (s *Location) reset() {
 // an array element and the array was expanded.
 func (s *Location) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
-
 	s.mapping.fixParent(&s.modifiedFields)
 	s.lines.fixParent(&s.modifiedFields)
 }
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Location) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Location) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
+}
+
 func (s *Location) Mapping() *Mapping {
 	return s.mapping
+}
+
+// SetMapping sets the value of Mapping field.
+func (s *Location) SetMapping(v *Mapping) {
+	if v.canBeShared() {
+		// v can be shared by pointer. Compute its difference from current mapping
+		if v.computeDiff(s.mapping) {
+			// It is different. Update to it.
+			s.mapping = v
+			s.modifiedFields.markModified(fieldModifiedLocationMapping)
+		}
+	} else {
+		s.mapping.CopyFrom(v)
+	}
 }
 
 func (s *Location) markMappingModified() {
@@ -113,9 +136,9 @@ func (s *Location) Address() uint64 {
 
 // SetAddress sets the value of Address field.
 func (s *Location) SetAddress(v uint64) {
-	if !pkg.Uint64Equal(s.address, v) {
+	if s.address != v {
 		s.address = v
-		s.markAddressModified()
+		s.modifiedFields.markModified(fieldModifiedLocationAddress)
 	}
 }
 
@@ -153,9 +176,9 @@ func (s *Location) IsFolded() bool {
 
 // SetIsFolded sets the value of IsFolded field.
 func (s *Location) SetIsFolded(v bool) {
-	if !pkg.BoolEqual(s.isFolded, v) {
+	if s.isFolded != v {
 		s.isFolded = v
-		s.markIsFoldedModified()
+		s.modifiedFields.markModified(fieldModifiedLocationIsFolded)
 	}
 }
 
@@ -171,12 +194,9 @@ func (s *Location) IsIsFoldedModified() bool {
 	return s.modifiedFields.mask&fieldModifiedLocationIsFolded != 0
 }
 
-func (s *Location) markModifiedRecursively() {
-
-	s.mapping.markModifiedRecursively()
-
-	s.lines.markModifiedRecursively()
-
+func (s *Location) setModifiedRecursively() {
+	s.mapping.setModifiedRecursively()
+	s.lines.setModifiedRecursively()
 	s.modifiedFields.mask =
 		fieldModifiedLocationMapping |
 			fieldModifiedLocationAddress |
@@ -184,35 +204,65 @@ func (s *Location) markModifiedRecursively() {
 			fieldModifiedLocationIsFolded | 0
 }
 
-func (s *Location) markUnmodifiedRecursively() {
-
+func (s *Location) setUnmodifiedRecursively() {
 	if s.IsMappingModified() {
-		s.mapping.markUnmodifiedRecursively()
+		s.mapping.setUnmodifiedRecursively()
 	}
-
-	if s.IsAddressModified() {
-	}
-
 	if s.IsLinesModified() {
-		s.lines.markUnmodifiedRecursively()
+		s.lines.setUnmodifiedRecursively()
 	}
-
-	if s.IsIsFoldedModified() {
-	}
-
 	s.modifiedFields.mask = 0
 }
 
-func (s *Location) Clone(allocators *Allocators) *Location {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Location) computeDiff(val *Location) (ret bool) {
+	// Compare Mapping field.
+	if s.mapping.computeDiff(val.mapping) {
+		s.modifiedFields.setModified(fieldModifiedLocationMapping)
+		ret = true
+	}
+	// Compare Address field.
+	if s.address != val.address {
+		s.modifiedFields.setModified(fieldModifiedLocationAddress)
+		ret = true
+	}
+	// Compare Lines field.
+	if s.lines.computeDiff(&val.lines) {
+		s.modifiedFields.setModified(fieldModifiedLocationLines)
+		ret = true
+	}
+	// Compare IsFolded field.
+	if s.isFolded != val.isFolded {
+		s.modifiedFields.setModified(fieldModifiedLocationIsFolded)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Location) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Location) CloneShared(allocators *Allocators) *Location {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *Location) Clone(allocators *Allocators) *Location {
 	c := allocators.Location.Alloc()
 	*c = Location{
-
-		mapping:  s.mapping.Clone(allocators),
+		mapping:  s.mapping.CloneShared(allocators),
 		address:  s.address,
-		lines:    s.lines.Clone(allocators),
 		isFolded: s.isFolded,
 	}
+	copyToNewLineArray(&c.lines, &s.lines, allocators)
 	return c
 }
 
@@ -225,11 +275,13 @@ func (s *Location) byteSize() uint {
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyLocation(dst *Location, src *Location) {
-	if src.mapping != nil {
-		if dst.mapping == nil {
-			dst.mapping = &Mapping{}
-			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+
+	if src.mapping.canBeShared() {
+		if src.mapping.computeDiff(dst.mapping) {
+			dst.mapping = src.mapping
+			dst.markMappingModified()
 		}
+	} else {
 		copyMapping(dst.mapping, src.mapping)
 	}
 	dst.SetAddress(src.address)
@@ -239,23 +291,23 @@ func copyLocation(dst *Location, src *Location) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) {
-	if src.mapping != nil {
+
+	if src.mapping.canBeShared() {
+		dst.mapping = src.mapping
+	} else {
 		dst.mapping = allocators.Mapping.Alloc()
 		dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
 		copyToNewMapping(dst.mapping, src.mapping, allocators)
 	}
-	dst.address = src.address
+
+	dst.SetAddress(src.address)
 	copyToNewLineArray(&dst.lines, &src.lines, allocators)
-	dst.isFolded = src.isFolded
+	dst.SetIsFolded(src.isFolded)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Location) CopyFrom(src *Location) {
 	copyLocation(s, src)
-}
-
-func (s *Location) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -277,6 +329,19 @@ func (s *Location) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Mapping
 	if random.IntN(randRange) == 0 {
+		if random.IntN(10) == 0 {
+			// Freeze and replace with a clone to test frozen object dictionary handling.
+			s.mapping.Freeze()
+			if random.IntN(10) == 0 {
+				// Reset to brand new object once in a while to test the code path
+				// where a dict-based is not mutated, but created from scratch.
+				s.mapping = new(Mapping)
+				s.mapping.init(&s.modifiedFields, fieldModifiedLocationMapping)
+			} else {
+				s.mapping = s.mapping.Clone(&Allocators{})
+			}
+		}
+
 		s.mapping.mutateRandom(random, schem)
 	}
 	if fieldCount <= 1 {
@@ -331,6 +396,7 @@ func LocationEqual(left, right *Location) bool {
 // CmpLocation performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLocation(left, right *Location) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -340,27 +406,22 @@ func CmpLocation(left, right *Location) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare Mapping field.
 	if c := CmpMapping(left.mapping, right.mapping); c != 0 {
 		return c
 	}
-
 	// Compare Address field.
 	if c := pkg.Uint64Compare(left.address, right.address); c != 0 {
 		return c
 	}
-
 	// Compare Lines field.
 	if c := CmpLineArray(&left.lines, &right.lines); c != 0 {
 		return c
 	}
-
 	// Compare IsFolded field.
 	if c := pkg.BoolCompare(left.isFolded, right.isFolded); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -369,49 +430,67 @@ type LocationEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
 	mappingEncoder     *MappingEncoder
 	isMappingRecursive bool // Indicates Mapping field's type is recursive.
+	addressEncoder     encoders.Uint64Encoder
+	linesEncoder       *LineArrayEncoder
+	isLinesRecursive   bool // Indicates Lines field's type is recursive.
+	isFoldedEncoder    encoders.BoolEncoder
 
-	addressEncoder encoders.Uint64Encoder
-
-	linesEncoder     *LineArrayEncoder
-	isLinesRecursive bool // Indicates Lines field's type is recursive.
-
-	isFoldedEncoder encoders.BoolEncoder
-
-	dict       *LocationEncoderDict
 	allocators *Allocators
+	dict       *LocationEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type LocationEntry struct {
-	refNum uint64
-	val    *Location
-}
-
 // LocationEncoderDict is the dictionary used by LocationEncoder
 type LocationEncoderDict struct {
-	dict    b.Tree[*Location, LocationEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*Location, uint32] // Searchable map of items seen in the past.
+	slice      []*Location               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *LocationEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Location, LocationEntry](CmpLocation)
-	d.dict.Set(nil, LocationEntry{}) // nil Location is RefNum 0
+	d.dict = *b.TreeNew[*Location, uint32](CmpLocation)
+	d.slice = make([]*Location, 1) // refNum 0 is reserved for nil Location
+	d.dict.Set(nil, 0)             // nil Location is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *LocationEncoderDict) Get(val *Location) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *LocationEncoderDict) Add(val *Location) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *LocationEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, LocationEntry{}) // nil Location is RefNum 0
+	d.dict.Set(nil, 0) // nil Location is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -423,8 +502,9 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	defer func() { state.LocationEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.Location
 	e.allocators = &state.Allocators
+	e.dict = &state.Location
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -492,16 +572,14 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 func (e *LocationEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // Mapping and all subsequent fields are skipped.
 	}
-
 	if !e.isMappingRecursive {
 		e.mappingEncoder.Reset()
 	}
-
 	if e.fieldCount <= 1 {
 		return // Address and all subsequent fields are skipped.
 	}
@@ -509,11 +587,9 @@ func (e *LocationEncoder) Reset() {
 	if e.fieldCount <= 2 {
 		return // Lines and all subsequent fields are skipped.
 	}
-
 	if !e.isLinesRecursive {
 		e.linesEncoder.Reset()
 	}
-
 	if e.fieldCount <= 3 {
 		return // IsFolded and all subsequent fields are skipped.
 	}
@@ -525,28 +601,24 @@ func (e *LocationEncoder) Encode(val *Location) {
 	var bitCount uint
 
 	// Check if the Location exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Location exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The Location does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = LocationEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded Location follows.
 	e.buf.WriteBit(1)
@@ -557,13 +629,8 @@ func (e *LocationEncoder) Encode(val *Location) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedLocationMapping |
-				fieldModifiedLocationAddress |
-				fieldModifiedLocationLines |
-				fieldModifiedLocationIsFolded | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -606,7 +673,6 @@ func (e *LocationEncoder) Encode(val *Location) {
 func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect Mapping field.
 	if e.fieldCount <= 0 {
 		return // Mapping and subsequent fields are skipped.
@@ -615,15 +681,12 @@ func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.mappingEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect Address field.
 	if e.fieldCount <= 1 {
 		return // Address and subsequent fields are skipped.
 	}
-
 	e.addressEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Lines field.
 	if e.fieldCount <= 2 {
 		return // Lines and subsequent fields are skipped.
@@ -632,34 +695,28 @@ func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 		e.linesEncoder.CollectColumns(columnSet.At(colIdx))
 		colIdx++
 	}
-
 	// Collect IsFolded field.
 	if e.fieldCount <= 3 {
 		return // IsFolded and subsequent fields are skipped.
 	}
-
 	e.isFoldedEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // LocationDecoder implements decoding of Location
 type LocationDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                pkg.BitsReader
+	column             *pkg.ReadableColumn
+	fieldCount         uint
 	mappingDecoder     *MappingDecoder
 	isMappingRecursive bool
-
-	addressDecoder encoders.Uint64Decoder
+	addressDecoder     encoders.Uint64Decoder
 
 	linesDecoder     *LineArrayDecoder
 	isLinesRecursive bool
+	isFoldedDecoder  encoders.BoolDecoder
 
-	isFoldedDecoder encoders.BoolDecoder
-
-	dict *LocationDecoderDict
-
+	dict       *LocationDecoderDict
 	allocators *Allocators
 }
 
@@ -852,6 +909,10 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }

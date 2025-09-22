@@ -47,11 +47,9 @@ func (e *StringArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
-// Clone() creates a deep copy of StringArray
-func (e *StringArray) Clone(allocators *Allocators) StringArray {
-	var clone StringArray
-	copyToNewStringArray(&clone, e, allocators)
-	return clone
+func (e *StringArray) canBeShared() bool {
+	// An array can never be shared.
+	return false
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -87,12 +85,28 @@ func (e *StringArray) markModified() {
 	e.parentModifiedFields.markModified(e.parentModifiedBit)
 }
 
-func (e *StringArray) markModifiedRecursively() {
+func (e *StringArray) setModifiedRecursively() {
 
 }
 
-func (e *StringArray) markUnmodifiedRecursively() {
+func (e *StringArray) setUnmodifiedRecursively() {
 
+}
+
+// computeDiff compares e and val and returns true if they differ.
+// All fields that are different in e will be marked as modified.
+func (e *StringArray) computeDiff(val *StringArray) (ret bool) {
+	if len(e.elems) != len(val.elems) {
+		ret = true
+	}
+	minLen := min(len(e.elems), len(val.elems))
+	i := 0
+	for ; i < minLen; i++ {
+		if e.elems[i] != val.elems[i] {
+			ret = true
+		}
+	}
+	return ret
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -199,11 +213,8 @@ func CmpStringArray(left, right *StringArray) int {
 	}
 	for i := range left.elems {
 		fc := strings.Compare(left.elems[i], right.elems[i])
-		if fc < 0 {
-			return -1
-		}
-		if fc > 0 {
-			return 1
+		if fc != 0 {
+			return fc
 		}
 	}
 	return 0
@@ -236,7 +247,7 @@ func (a *StringArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 type StringArrayEncoder struct {
 	buf         pkg.BitsWriter
 	limiter     *pkg.SizeLimiter
-	elemEncoder *encoders.StringDictEncoder
+	elemEncoder *encoders.StringEncoder
 	isRecursive bool
 	state       *WriterState
 }
@@ -245,8 +256,8 @@ func (e *StringArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	e.state = state
 	e.limiter = &state.limiter
 
-	e.elemEncoder = new(encoders.StringDictEncoder)
-	if err := e.elemEncoder.Init(&e.state.Comment, e.limiter, columns.AddSubColumn()); err != nil {
+	e.elemEncoder = new(encoders.StringEncoder)
+	if err := e.elemEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
 
@@ -286,7 +297,7 @@ func (e *StringArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type StringArrayDecoder struct {
 	buf         pkg.BitsReader
 	column      *pkg.ReadableColumn
-	elemDecoder *encoders.StringDictDecoder
+	elemDecoder *encoders.StringDecoder
 	isRecursive bool
 	allocators  *Allocators
 }
@@ -294,8 +305,8 @@ type StringArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *StringArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.elemDecoder = new(encoders.StringDictDecoder)
-	err := d.elemDecoder.Init(&state.Comment, columns.AddSubColumn())
+	d.elemDecoder = new(encoders.StringDecoder)
+	err := d.elemDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err
 	}

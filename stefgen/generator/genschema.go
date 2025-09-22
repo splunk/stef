@@ -584,7 +584,7 @@ func (r *genArrayTypeRef) IsPrimitive() bool {
 }
 
 func (r *genArrayTypeRef) DictName() string {
-	return r.ElemType.DictName()
+	return ""
 }
 
 func (r *genArrayTypeRef) DictTypeNamePrefix() string {

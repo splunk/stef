@@ -76,7 +76,6 @@ func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModified
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Mapping) reset() {
-
 	s.memoryStart = 0
 	s.memoryLimit = 0
 	s.fileOffset = 0
@@ -93,7 +92,17 @@ func (s *Mapping) reset() {
 // an array element and the array was expanded.
 func (s *Mapping) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
+}
 
+// Freeze the struct. Any attempt to modify it after this will panic.
+// This marks the struct as eligible for safely sharing by pointer without cloning,
+// which can improve encoding performance.
+func (s *Mapping) Freeze() {
+	s.modifiedFields.freeze()
+}
+
+func (s *Mapping) isFrozen() bool {
+	return s.modifiedFields.isFrozen()
 }
 
 func (s *Mapping) MemoryStart() uint64 {
@@ -102,9 +111,9 @@ func (s *Mapping) MemoryStart() uint64 {
 
 // SetMemoryStart sets the value of MemoryStart field.
 func (s *Mapping) SetMemoryStart(v uint64) {
-	if !pkg.Uint64Equal(s.memoryStart, v) {
+	if s.memoryStart != v {
 		s.memoryStart = v
-		s.markMemoryStartModified()
+		s.modifiedFields.markModified(fieldModifiedMappingMemoryStart)
 	}
 }
 
@@ -126,9 +135,9 @@ func (s *Mapping) MemoryLimit() uint64 {
 
 // SetMemoryLimit sets the value of MemoryLimit field.
 func (s *Mapping) SetMemoryLimit(v uint64) {
-	if !pkg.Uint64Equal(s.memoryLimit, v) {
+	if s.memoryLimit != v {
 		s.memoryLimit = v
-		s.markMemoryLimitModified()
+		s.modifiedFields.markModified(fieldModifiedMappingMemoryLimit)
 	}
 }
 
@@ -150,9 +159,9 @@ func (s *Mapping) FileOffset() uint64 {
 
 // SetFileOffset sets the value of FileOffset field.
 func (s *Mapping) SetFileOffset(v uint64) {
-	if !pkg.Uint64Equal(s.fileOffset, v) {
+	if s.fileOffset != v {
 		s.fileOffset = v
-		s.markFileOffsetModified()
+		s.modifiedFields.markModified(fieldModifiedMappingFileOffset)
 	}
 }
 
@@ -174,9 +183,9 @@ func (s *Mapping) Filename() string {
 
 // SetFilename sets the value of Filename field.
 func (s *Mapping) SetFilename(v string) {
-	if !pkg.StringEqual(s.filename, v) {
+	if s.filename != v {
 		s.filename = v
-		s.markFilenameModified()
+		s.modifiedFields.markModified(fieldModifiedMappingFilename)
 	}
 }
 
@@ -198,9 +207,9 @@ func (s *Mapping) BuildId() string {
 
 // SetBuildId sets the value of BuildId field.
 func (s *Mapping) SetBuildId(v string) {
-	if !pkg.StringEqual(s.buildId, v) {
+	if s.buildId != v {
 		s.buildId = v
-		s.markBuildIdModified()
+		s.modifiedFields.markModified(fieldModifiedMappingBuildId)
 	}
 }
 
@@ -222,9 +231,9 @@ func (s *Mapping) HasFunctions() bool {
 
 // SetHasFunctions sets the value of HasFunctions field.
 func (s *Mapping) SetHasFunctions(v bool) {
-	if !pkg.BoolEqual(s.hasFunctions, v) {
+	if s.hasFunctions != v {
 		s.hasFunctions = v
-		s.markHasFunctionsModified()
+		s.modifiedFields.markModified(fieldModifiedMappingHasFunctions)
 	}
 }
 
@@ -246,9 +255,9 @@ func (s *Mapping) HasFilenames() bool {
 
 // SetHasFilenames sets the value of HasFilenames field.
 func (s *Mapping) SetHasFilenames(v bool) {
-	if !pkg.BoolEqual(s.hasFilenames, v) {
+	if s.hasFilenames != v {
 		s.hasFilenames = v
-		s.markHasFilenamesModified()
+		s.modifiedFields.markModified(fieldModifiedMappingHasFilenames)
 	}
 }
 
@@ -270,9 +279,9 @@ func (s *Mapping) HasLineNumbers() bool {
 
 // SetHasLineNumbers sets the value of HasLineNumbers field.
 func (s *Mapping) SetHasLineNumbers(v bool) {
-	if !pkg.BoolEqual(s.hasLineNumbers, v) {
+	if s.hasLineNumbers != v {
 		s.hasLineNumbers = v
-		s.markHasLineNumbersModified()
+		s.modifiedFields.markModified(fieldModifiedMappingHasLineNumbers)
 	}
 }
 
@@ -294,9 +303,9 @@ func (s *Mapping) HasInlineFrames() bool {
 
 // SetHasInlineFrames sets the value of HasInlineFrames field.
 func (s *Mapping) SetHasInlineFrames(v bool) {
-	if !pkg.BoolEqual(s.hasInlineFrames, v) {
+	if s.hasInlineFrames != v {
 		s.hasInlineFrames = v
-		s.markHasInlineFramesModified()
+		s.modifiedFields.markModified(fieldModifiedMappingHasInlineFrames)
 	}
 }
 
@@ -312,8 +321,7 @@ func (s *Mapping) IsHasInlineFramesModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0
 }
 
-func (s *Mapping) markModifiedRecursively() {
-
+func (s *Mapping) setModifiedRecursively() {
 	s.modifiedFields.mask =
 		fieldModifiedMappingMemoryStart |
 			fieldModifiedMappingMemoryLimit |
@@ -326,43 +334,79 @@ func (s *Mapping) markModifiedRecursively() {
 			fieldModifiedMappingHasInlineFrames | 0
 }
 
-func (s *Mapping) markUnmodifiedRecursively() {
-
-	if s.IsMemoryStartModified() {
-	}
-
-	if s.IsMemoryLimitModified() {
-	}
-
-	if s.IsFileOffsetModified() {
-	}
-
-	if s.IsFilenameModified() {
-	}
-
-	if s.IsBuildIdModified() {
-	}
-
-	if s.IsHasFunctionsModified() {
-	}
-
-	if s.IsHasFilenamesModified() {
-	}
-
-	if s.IsHasLineNumbersModified() {
-	}
-
-	if s.IsHasInlineFramesModified() {
-	}
-
+func (s *Mapping) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
-func (s *Mapping) Clone(allocators *Allocators) *Mapping {
+// computeDiff compares s and val and returns true if they differ.
+// All fields that are different in s will be marked as modified.
+func (s *Mapping) computeDiff(val *Mapping) (ret bool) {
+	// Compare MemoryStart field.
+	if s.memoryStart != val.memoryStart {
+		s.modifiedFields.setModified(fieldModifiedMappingMemoryStart)
+		ret = true
+	}
+	// Compare MemoryLimit field.
+	if s.memoryLimit != val.memoryLimit {
+		s.modifiedFields.setModified(fieldModifiedMappingMemoryLimit)
+		ret = true
+	}
+	// Compare FileOffset field.
+	if s.fileOffset != val.fileOffset {
+		s.modifiedFields.setModified(fieldModifiedMappingFileOffset)
+		ret = true
+	}
+	// Compare Filename field.
+	if s.filename != val.filename {
+		s.modifiedFields.setModified(fieldModifiedMappingFilename)
+		ret = true
+	}
+	// Compare BuildId field.
+	if s.buildId != val.buildId {
+		s.modifiedFields.setModified(fieldModifiedMappingBuildId)
+		ret = true
+	}
+	// Compare HasFunctions field.
+	if s.hasFunctions != val.hasFunctions {
+		s.modifiedFields.setModified(fieldModifiedMappingHasFunctions)
+		ret = true
+	}
+	// Compare HasFilenames field.
+	if s.hasFilenames != val.hasFilenames {
+		s.modifiedFields.setModified(fieldModifiedMappingHasFilenames)
+		ret = true
+	}
+	// Compare HasLineNumbers field.
+	if s.hasLineNumbers != val.hasLineNumbers {
+		s.modifiedFields.setModified(fieldModifiedMappingHasLineNumbers)
+		ret = true
+	}
+	// Compare HasInlineFrames field.
+	if s.hasInlineFrames != val.hasInlineFrames {
+		s.modifiedFields.setModified(fieldModifiedMappingHasInlineFrames)
+		ret = true
+	}
+	return ret
+}
 
+// canBeShared returns true if s is safe to share by pointer without cloning (for example if s is frozen).
+func (s *Mapping) canBeShared() bool {
+	return s.isFrozen()
+}
+
+// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// (for example if s is frozen).
+func (s *Mapping) CloneShared(allocators *Allocators) *Mapping {
+	if s.isFrozen() {
+		// If s is frozen it means it is safe to share without cloning.
+		return s
+	}
+	return s.Clone(allocators)
+}
+
+func (s *Mapping) Clone(allocators *Allocators) *Mapping {
 	c := allocators.Mapping.Alloc()
 	*c = Mapping{
-
 		memoryStart:     s.memoryStart,
 		memoryLimit:     s.memoryLimit,
 		fileOffset:      s.fileOffset,
@@ -398,24 +442,20 @@ func copyMapping(dst *Mapping, src *Mapping) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewMapping(dst *Mapping, src *Mapping, allocators *Allocators) {
-	dst.memoryStart = src.memoryStart
-	dst.memoryLimit = src.memoryLimit
-	dst.fileOffset = src.fileOffset
-	dst.filename = src.filename
-	dst.buildId = src.buildId
-	dst.hasFunctions = src.hasFunctions
-	dst.hasFilenames = src.hasFilenames
-	dst.hasLineNumbers = src.hasLineNumbers
-	dst.hasInlineFrames = src.hasInlineFrames
+	dst.SetMemoryStart(src.memoryStart)
+	dst.SetMemoryLimit(src.memoryLimit)
+	dst.SetFileOffset(src.fileOffset)
+	dst.SetFilename(src.filename)
+	dst.SetBuildId(src.buildId)
+	dst.SetHasFunctions(src.hasFunctions)
+	dst.SetHasFilenames(src.hasFilenames)
+	dst.SetHasLineNumbers(src.hasLineNumbers)
+	dst.SetHasInlineFrames(src.hasInlineFrames)
 }
 
 // CopyFrom() performs a deep copy from src.
 func (s *Mapping) CopyFrom(src *Mapping) {
 	copyMapping(s, src)
-}
-
-func (s *Mapping) markParentModified() {
-	s.modifiedFields.parent.markModified(s.modifiedFields.parentBit)
 }
 
 // mutateRandom mutates fields in a random, deterministic manner using
@@ -546,6 +586,7 @@ func MappingEqual(left, right *Mapping) bool {
 // CmpMapping performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpMapping(left, right *Mapping) int {
+	// Dict-based structs may be nil, so check for that first.
 	if left == nil {
 		if right == nil {
 			return 0
@@ -555,52 +596,42 @@ func CmpMapping(left, right *Mapping) int {
 	if right == nil {
 		return 1
 	}
-
 	// Compare MemoryStart field.
 	if c := pkg.Uint64Compare(left.memoryStart, right.memoryStart); c != 0 {
 		return c
 	}
-
 	// Compare MemoryLimit field.
 	if c := pkg.Uint64Compare(left.memoryLimit, right.memoryLimit); c != 0 {
 		return c
 	}
-
 	// Compare FileOffset field.
 	if c := pkg.Uint64Compare(left.fileOffset, right.fileOffset); c != 0 {
 		return c
 	}
-
 	// Compare Filename field.
 	if c := strings.Compare(left.filename, right.filename); c != 0 {
 		return c
 	}
-
 	// Compare BuildId field.
 	if c := strings.Compare(left.buildId, right.buildId); c != 0 {
 		return c
 	}
-
 	// Compare HasFunctions field.
 	if c := pkg.BoolCompare(left.hasFunctions, right.hasFunctions); c != 0 {
 		return c
 	}
-
 	// Compare HasFilenames field.
 	if c := pkg.BoolCompare(left.hasFilenames, right.hasFilenames); c != 0 {
 		return c
 	}
-
 	// Compare HasLineNumbers field.
 	if c := pkg.BoolCompare(left.hasLineNumbers, right.hasLineNumbers); c != 0 {
 		return c
 	}
-
 	// Compare HasInlineFrames field.
 	if c := pkg.BoolCompare(left.hasInlineFrames, right.hasInlineFrames); c != 0 {
 		return c
 	}
-
 	return 0
 }
 
@@ -609,57 +640,70 @@ type MappingEncoder struct {
 	buf     pkg.BitsWriter
 	limiter *pkg.SizeLimiter
 
-	// forceModifiedFields is set to true if the next encoding operation
-	// must write all fields, whether they are modified or no.
-	// This is used after frame restarts so that the data can be decoded
-	// from the frame start.
-	forceModifiedFields bool
+	// forceModifiedFields is set to a mask to force the next encoding operation
+	// write the fields, whether they are modified or no. This is used after frame
+	// restarts so that the data can be decoded from the frame start.
+	forceModifiedFields uint64
 
-	memoryStartEncoder encoders.Uint64Encoder
-
-	memoryLimitEncoder encoders.Uint64Encoder
-
-	fileOffsetEncoder encoders.Uint64Encoder
-
-	filenameEncoder encoders.StringDictEncoder
-
-	buildIdEncoder encoders.StringDictEncoder
-
-	hasFunctionsEncoder encoders.BoolEncoder
-
-	hasFilenamesEncoder encoders.BoolEncoder
-
-	hasLineNumbersEncoder encoders.BoolEncoder
-
+	memoryStartEncoder     encoders.Uint64Encoder
+	memoryLimitEncoder     encoders.Uint64Encoder
+	fileOffsetEncoder      encoders.Uint64Encoder
+	filenameEncoder        encoders.StringDictEncoder
+	buildIdEncoder         encoders.StringDictEncoder
+	hasFunctionsEncoder    encoders.BoolEncoder
+	hasFilenamesEncoder    encoders.BoolEncoder
+	hasLineNumbersEncoder  encoders.BoolEncoder
 	hasInlineFramesEncoder encoders.BoolEncoder
 
-	dict       *MappingEncoderDict
 	allocators *Allocators
+	dict       *MappingEncoderDict
 
 	keepFieldMask uint64
 	fieldCount    uint
 }
 
-type MappingEntry struct {
-	refNum uint64
-	val    *Mapping
-}
-
 // MappingEncoderDict is the dictionary used by MappingEncoder
 type MappingEncoderDict struct {
-	dict    b.Tree[*Mapping, MappingEntry]
-	limiter *pkg.SizeLimiter
+	dict       b.Tree[*Mapping, uint32] // Searchable map of items seen in the past.
+	slice      []*Mapping               // The same items in order of RefNum.
+	allocators *Allocators
+	limiter    *pkg.SizeLimiter
 }
 
 func (d *MappingEncoderDict) Init(limiter *pkg.SizeLimiter) {
-	d.dict = *b.TreeNew[*Mapping, MappingEntry](CmpMapping)
-	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
+	d.dict = *b.TreeNew[*Mapping, uint32](CmpMapping)
+	d.slice = make([]*Mapping, 1) // refNum 0 is reserved for nil Mapping
+	d.dict.Set(nil, 0)            // nil Mapping is RefNum 0
 	d.limiter = limiter
+}
+
+func (d *MappingEncoderDict) Get(val *Mapping) (uint32, bool) {
+	refNum := val.modifiedFields.refNum
+	if refNum != 0 {
+		// We have a cached refNum, verify that it is still valid. It may become invalid
+		// if for example the dictionaries are reset during encoding and refNums are reused.
+		if int(refNum) < len(d.slice) && d.slice[refNum] == val {
+			return refNum, true
+		}
+	}
+	return d.dict.Get(val)
+}
+
+func (d *MappingEncoderDict) Add(val *Mapping) {
+	refNum := uint32(d.dict.Len())     // Obtain a new refNum.
+	val.modifiedFields.refNum = refNum // Cache the refNum
+	d.slice = append(d.slice, val)     // Remember the value by refNum.
+
+	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
+	d.dict.Set(clone, refNum)
+	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *MappingEncoderDict) Reset() {
 	d.dict.Clear()
-	d.dict.Set(nil, MappingEntry{}) // nil Mapping is RefNum 0
+	d.dict.Set(nil, 0) // nil Mapping is RefNum 0
+	d.slice = d.slice[:1]
 }
 
 func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -671,8 +715,9 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 	defer func() { state.MappingEncoder = nil }()
 
 	e.limiter = &state.limiter
-	e.dict = &state.Mapping
 	e.allocators = &state.Allocators
+	e.dict = &state.Mapping
+	e.dict.allocators = e.allocators
 
 	// Number of fields in the output data schema.
 	var err error
@@ -771,7 +816,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 func (e *MappingEncoder) Reset() {
 	// Since we are resetting the state of encoder make sure the next Encode()
 	// call forcedly writes all fields and does not attempt to skip.
-	e.forceModifiedFields = true
+	e.forceModifiedFields = e.keepFieldMask
 
 	if e.fieldCount <= 0 {
 		return // MemoryStart and all subsequent fields are skipped.
@@ -816,28 +861,24 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 	var bitCount uint
 
 	// Check if the Mapping exists in the dictionary.
-	entry, exists := e.dict.dict.Get(val)
-	if exists {
+	if refNum, exists := e.dict.Get(val); exists {
 		// The Mapping exists, we will reference it.
 		// Indicate a RefNum follows.
 		e.buf.WriteBit(0)
 		// Encode refNum.
-		bitCount = e.buf.WriteUvarintCompact(entry.refNum)
+		bitCount = e.buf.WriteUvarintCompact(uint64(refNum))
 
 		// Account written bits in the limiter.
 		e.limiter.AddFrameBits(1 + bitCount)
 
 		// Mark all fields non-modified recursively so that next Encode() correctly
 		// encodes only fields that change after this.
-		val.markUnmodifiedRecursively()
+		val.setUnmodifiedRecursively()
 		return
 	}
 
 	// The Mapping does not exist in the dictionary. Add it to the dictionary.
-	valInDict := val.Clone(e.allocators)
-	entry = MappingEntry{refNum: uint64(e.dict.dict.Len()), val: valInDict}
-	e.dict.dict.Set(valInDict, entry)
-	e.dict.limiter.AddDictElemSize(valInDict.byteSize())
+	e.dict.Add(val)
 
 	// Indicate that an encoded Mapping follows.
 	e.buf.WriteBit(1)
@@ -848,18 +889,8 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 
 	// If forceModifiedFields we need to set to 1 all bits so that we
 	// force writing of all fields.
-	if e.forceModifiedFields {
-		fieldMask =
-			fieldModifiedMappingMemoryStart |
-				fieldModifiedMappingMemoryLimit |
-				fieldModifiedMappingFileOffset |
-				fieldModifiedMappingFilename |
-				fieldModifiedMappingBuildId |
-				fieldModifiedMappingHasFunctions |
-				fieldModifiedMappingHasFilenames |
-				fieldModifiedMappingHasLineNumbers |
-				fieldModifiedMappingHasInlineFrames | 0
-	}
+	fieldMask |= e.forceModifiedFields
+	e.forceModifiedFields = 0
 
 	// Only write fields that we want to write. See Init() for keepFieldMask.
 	fieldMask &= e.keepFieldMask
@@ -927,86 +958,67 @@ func (e *MappingEncoder) Encode(val *Mapping) {
 func (e *MappingEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBits(&e.buf)
 	colIdx := 0
-
 	// Collect MemoryStart field.
 	if e.fieldCount <= 0 {
 		return // MemoryStart and subsequent fields are skipped.
 	}
-
 	e.memoryStartEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect MemoryLimit field.
 	if e.fieldCount <= 1 {
 		return // MemoryLimit and subsequent fields are skipped.
 	}
-
 	e.memoryLimitEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect FileOffset field.
 	if e.fieldCount <= 2 {
 		return // FileOffset and subsequent fields are skipped.
 	}
-
 	e.fileOffsetEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect Filename field.
 	if e.fieldCount <= 3 {
 		return // Filename and subsequent fields are skipped.
 	}
-
 	e.filenameEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect BuildId field.
 	if e.fieldCount <= 4 {
 		return // BuildId and subsequent fields are skipped.
 	}
-
 	e.buildIdEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect HasFunctions field.
 	if e.fieldCount <= 5 {
 		return // HasFunctions and subsequent fields are skipped.
 	}
-
 	e.hasFunctionsEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect HasFilenames field.
 	if e.fieldCount <= 6 {
 		return // HasFilenames and subsequent fields are skipped.
 	}
-
 	e.hasFilenamesEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect HasLineNumbers field.
 	if e.fieldCount <= 7 {
 		return // HasLineNumbers and subsequent fields are skipped.
 	}
-
 	e.hasLineNumbersEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
-
 	// Collect HasInlineFrames field.
 	if e.fieldCount <= 8 {
 		return // HasInlineFrames and subsequent fields are skipped.
 	}
-
 	e.hasInlineFramesEncoder.CollectColumns(columnSet.At(colIdx))
 	colIdx++
 }
 
 // MappingDecoder implements decoding of Mapping
 type MappingDecoder struct {
-	buf        pkg.BitsReader
-	column     *pkg.ReadableColumn
-	fieldCount uint
-
+	buf                pkg.BitsReader
+	column             *pkg.ReadableColumn
+	fieldCount         uint
 	memoryStartDecoder encoders.Uint64Decoder
 
 	memoryLimitDecoder encoders.Uint64Decoder
@@ -1025,8 +1037,7 @@ type MappingDecoder struct {
 
 	hasInlineFramesDecoder encoders.BoolDecoder
 
-	dict *MappingDecoderDict
-
+	dict       *MappingDecoderDict
 	allocators *Allocators
 }
 
@@ -1299,6 +1310,10 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 	}
 
 	d.dict.dict = append(d.dict.dict, val)
+	// Freeze the value. It is now in the dictionary and must not be modified.
+	// This also improves performance of any encode operations that use this
+	// value as it can be safely shared in encoder's dictionary without cloning.
+	val.Freeze()
 
 	return nil
 }
