@@ -153,7 +153,7 @@ public class ToolsTest {
 
     private static final String packageFull = "{{ .PackageName }}";
     private static final String packageName = packageFull.substring(packageFull.lastIndexOf(".")+1);
-    private static String goPkgDir = "../stefgen/generator/testdata/out/"+packageName+".stef/"+packageName;
+    private static String goPkgDir = "../stefc/generator/testdata/out/"+packageName+".stef/"+packageName;
 
     // runGoTest runs the Go test tool with the specified command line flags in the given directory.
     private int runGoTest(String inDir, String... command) throws Exception {

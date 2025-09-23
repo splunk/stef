@@ -1,0 +1,188 @@
+// This is Otel/STEF schema: a representation of OpenTelemetry data model
+// as STEF records. Data model is virtually a direct mapping from OpenTelemetry
+// Protobuf IDL for metrics and traces, see: https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto
+// TODO: add Logs and Profiles.
+
+package com.example.oteltef
+
+multimap Attributes {
+  key string dict(AttributeKey)
+  value AnyValue
+}
+
+multimap EnvelopeAttributes {
+  key string
+  value bytes
+}
+
+multimap KeyValueList {
+  key string
+  value AnyValue
+}
+
+struct Resource dict(Resource) {
+  // All SchemaURL fields use the same (shared) dict.
+  SchemaURL string dict(SchemaURL)
+  Attributes Attributes
+  DroppedAttributesCount uint64
+}
+
+// Point represents a metric data point.
+struct Point {
+  StartTimestamp uint64
+  Timestamp uint64
+  Value PointValue
+  Exemplars []Exemplar
+}
+
+struct Span {
+  TraceID bytes
+  SpanID bytes
+  TraceState string
+  ParentSpanID bytes
+  Flags uint64
+  Name string dict(SpanName)
+  Kind uint64
+  StartTimeUnixNano uint64
+  EndTimeUnixNano uint64
+  Attributes Attributes
+  DroppedAttributesCount uint64
+  Events []Event
+  Links []Link
+  Status SpanStatus
+}
+
+oneof PointValue {
+  Int64 int64
+  Float64 float64
+  Histogram HistogramValue
+  ExpHistogram ExpHistogramValue
+  Summary SummaryValue
+}
+
+struct Metric dict(Metric) {
+  Name string dict(MetricName)
+  Description string dict(MetricDescription)
+  Unit string dict(MetricUnit)
+  Type MetricType
+  Metadata Attributes
+  HistogramBounds []float64
+  AggregationTemporality uint64
+  Monotonic bool
+}
+
+enum MetricType {
+	Gauge = 0
+	Sum = 1
+	Histogram = 2
+	ExpHistogram = 3
+	Summary = 4
+}
+
+struct Metrics root {
+  Envelope Envelope
+  Metric Metric
+  Resource Resource
+  Scope Scope
+  Attributes Attributes
+  Point Point
+}
+
+struct Scope dict(Scope) {
+  Name string dict(ScopeName)
+  Version string dict(ScopeVersion)
+  SchemaURL string dict(SchemaURL)
+  Attributes Attributes
+  DroppedAttributesCount uint64
+}
+
+struct Link {
+  TraceID bytes
+  SpanID bytes
+  TraceState string
+  Flags uint64
+  Attributes Attributes
+  DroppedAttributesCount uint64
+}
+
+struct HistogramValue {
+  Count int64
+  Sum float64 optional
+  Min float64 optional
+  Max float64 optional
+  BucketCounts []int64 // TODO: use uint64
+}
+
+struct ExpHistogramValue {
+  Count uint64
+  Sum float64 optional
+  Min float64 optional
+  Max float64 optional
+  Scale int64
+  ZeroCount uint64
+  PositiveBuckets ExpHistogramBuckets
+  NegativeBuckets ExpHistogramBuckets
+  ZeroThreshold float64
+}
+
+struct ExpHistogramBuckets {
+  Offset int64
+  BucketCounts []uint64
+}
+
+struct SummaryValue {
+  Count uint64
+  Sum float64
+  QuantileValues []QuantileValue
+}
+
+struct QuantileValue {
+  Quantile float64
+  Value float64
+}
+
+oneof AnyValue {
+  String string dict(AnyValueString)
+  Bool bool
+  Int64 int64
+  Float64 float64
+  Array []AnyValue
+  KVList KeyValueList
+  Bytes bytes
+}
+
+struct Event {
+  Name string dict(SpanEventName)
+  TimeUnixNano uint64
+  Attributes Attributes
+  DroppedAttributesCount uint64
+}
+
+struct SpanStatus {
+  Message string
+  Code uint64
+}
+
+struct Spans root {
+  Envelope Envelope
+  Resource Resource
+  Scope Scope
+  Span Span
+}
+
+struct Envelope {
+  Attributes EnvelopeAttributes
+}
+
+struct Exemplar {
+  Timestamp uint64
+  Value ExemplarValue
+  SpanID bytes
+  TraceID bytes
+  FilteredAttributes Attributes
+}
+
+oneof ExemplarValue {
+  Int64 int64
+  Float64 float64
+}

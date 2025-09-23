@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stefgen - STEF Code Generator</title>
+  <title>Stefc - STEF Compiler</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
@@ -11,7 +11,7 @@
 </head>
 <body>
   <header>
-    <h1>Stefgen</h1>
+    <h1>Stefc</h1>
     <nav>
       <a href="./index.html">Home</a>
       <a href="https://github.com/splunk/stef">GitHub</a>
@@ -19,16 +19,16 @@
     </nav>
   </header>
   <main>
-    <p><strong>Stefgen</strong> is a command-line code generator that takes STEF schema files as input and generates type-safe serialization and deserialization code for multiple programming languages. It parses STEF schema definitions and produces optimized code that can efficiently read and write STEF-encoded data.</p>
+    <p><strong>Stefc</strong> is a command-line compiler and code generator that takes STEF schema files as input and generates type-safe serialization and deserialization code for multiple programming languages. It parses STEF schema definitions and produces optimized code that can efficiently read and write STEF-encoded data.</p>
 
     <h2>Installation</h2>
-    <p>Build stefgen from source:</p>
-    <pre><code class="language-bash">cd stefgen
+    <p>Build stefc from source:</p>
+    <pre><code class="language-bash">cd stefc
 make build</code></pre>
-    <p>This will create the <code>stefgen</code> binary in the <code>bin/</code> directory.</p>
+    <p>This will create the <code>stefc</code> binary in the <code>bin/</code> directory.</p>
 
     <h2>Usage</h2>
-    <pre><code class="language-bash">stefgen [flags] &lt;path-to-schema-file&gt;</code></pre>
+    <pre><code class="language-bash">stefc [flags] &lt;path-to-schema-file&gt;</code></pre>
 
     <h2>Command Line Arguments</h2>
     <table>
@@ -72,19 +72,19 @@ make build</code></pre>
 
     <h3>Generate Go Code</h3>
     <pre><code class="language-bash"># Generate Go code from a STEF schema
-stefgen -lang=go -outdir=./generated schema.stef</code></pre>
+stefc -lang=go -outdir=./generated schema.stef</code></pre>
 
     <h3>Generate Java Code</h3>
     <pre><code class="language-bash"># Generate Java code with separate test directory
-stefgen -lang=java -outdir=./src/main/java -testoutdir=./src/test/java schema.stef</code></pre>
+stefc -lang=java -outdir=./src/main/java -testoutdir=./src/test/java schema.stef</code></pre>
 
     <h3>Generate Java Code (Simple)</h3>
     <pre><code class="language-bash"># Generate Java code with tests in same directory
-stefgen -lang=java -outdir=./java-gen schema.stef</code></pre>
+stefc -lang=java -outdir=./java-gen schema.stef</code></pre>
 
     <h2>Generated Code Structure</h2>
 
-    <p>stefgen creates:</p>
+    <p>stefc creates:</p>
     <ul>
       <li>Struct, oneof and multimap definitions matching your STEF schema</li>
       <li>Type-safe accessors for all fields</li>
@@ -105,7 +105,7 @@ struct User root {
 }</code></pre>
 
     <h3>2. Generate Code</h3>
-    <pre><code class="language-bash">stefgen -lang=go -outdir=./generated user.stef</code></pre>
+    <pre><code class="language-bash">stefc -lang=go -outdir=./generated user.stef</code></pre>
 
     <h3>3. Use Generated Code</h3>
     <p>The generated Go code can then be imported and used in your application:</p>

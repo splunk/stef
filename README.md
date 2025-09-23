@@ -13,7 +13,7 @@ and fast serialization. See some
 - [go/otel](./go/otel): Otel/STEF protocol schema and generated code in Go.
 - [go/pdata](./go/pdata): Collector pdata <-> Otel/STEF converters.
 - [stef-spec](./stef-spec): STEF Specification and Protobuf definitions.
-- [stefgen](./stefgen): Generates serializers from STEF schema.
+- [stefc](./stefc): STEF Compiler to generate serializers from STEF schema.
 
 ## Splunk Copyright Notice
 

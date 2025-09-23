@@ -1,0 +1,83 @@
+// STEF equivalent schema for pprof profile.proto (https://github.com/google/pprof/blob/main/proto/profile.proto)
+
+package com.example.profile
+
+struct Sample root {
+  Metadata  ProfileMetadata
+  Locations []Location
+  Values    []SampleValue
+  Labels    Labels
+}
+
+struct Location dict(Location) {
+  Mapping   Mapping
+  Address   uint64
+  Lines     []Line
+  IsFolded  bool
+}
+
+struct Mapping dict(Mapping) {
+  MemoryStart uint64
+  MemoryLimit uint64
+  FileOffset  uint64
+  Filename    string dict(Filename)
+  BuildId     string dict(BuildID)
+
+  HasFunctions     bool
+  HasFilenames     bool
+  HasLineNumbers   bool
+  HasInlineFrames  bool
+}
+
+struct Line {
+  Function Function
+  Line     uint64
+  Column   uint64
+}
+
+struct Function dict(Function) {
+  Name       string dict(FunctionName)
+  SystemName string dict(SystemName)
+  Filename   string dict(Filename)
+  StartLine  uint64
+}
+
+multimap Labels {
+  key   string dict(LabelKey)
+  value LabelValue
+}
+
+oneof LabelValue {
+  Str string dict(LabelValue)
+  Num NumValue
+}
+
+struct NumValue {
+  Val  int64
+  Unit string dict(NumValueUnit)
+}
+
+struct SampleValue {
+  Val  int64
+  Type SampleValueType
+}
+
+struct SampleValueType dict(SampleValueType) {
+  Type string
+  Unit string
+}
+
+struct ProfileMetadata {
+  DropFrames string dict(FunctionName)
+  KeepFrames string dict(FunctionName)
+
+  TimeNanos     int64
+  DurationNanos int64
+
+  PeriodType SampleValueType
+  Period     int64
+
+  Comments []string
+
+  DefaultSampleType SampleValueType
+}

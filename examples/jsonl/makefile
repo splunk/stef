@@ -10,8 +10,8 @@ build:
 
 .PHONY: generate
 generate:
-	cd ../../stefgen && make build
-	../../stefgen/bin/stefgen --lang=go --outdir=internal jsonl.stef
+	cd ../../stefc && make build
+	../../stefc/bin/stefc --lang=go --outdir=internal jsonl.stef
 	mkdir -p internal/jsonpb
 	protoc --go_out=internal/jsonpb --go_opt=paths=source_relative jsonl.proto
 

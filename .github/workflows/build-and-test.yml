@@ -133,7 +133,7 @@ jobs:
 
       - name: Generate Java code from test schemas
         run: |
-          cd stefgen/generator
+          cd stefc/generator
           go test -run TestGenerate
 
       - name: Gradle test

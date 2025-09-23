@@ -9,7 +9,7 @@ import (
 	"path"
 
 	"github.com/splunk/stef/go/pkg/idl"
-	"github.com/splunk/stef/stefgen/generator"
+	"github.com/splunk/stef/stefc/generator"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	flag.Parse()
 
 	if flag.NArg() < 1 {
-		fmt.Println("Usage: stefgen [flags] <path-to-schema-file>")
+		fmt.Println("Usage: stefc [flags] <path-to-schema-file>")
 		os.Exit(-1)
 	}
 

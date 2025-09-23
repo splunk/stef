@@ -7,7 +7,7 @@ endef
 
 .PHONY: default
 default:
-	cd stefgen && make
+	cd stefc && make
 	cd go/pkg && make
 	cd go/grpc && make
 	cd go/otel && make
@@ -18,7 +18,7 @@ default:
 
 .PHONY: all
 all: docs-validate
-	cd stefgen && make all
+	cd stefc && make all
 	cd go/pkg && make all
 	cd go/grpc && make all
 	cd go/otel && make all
@@ -29,7 +29,7 @@ all: docs-validate
 
 .PHONY: build-ci
 build-ci: docs-install-deps docs-validate
-	cd stefgen && make all
+	cd stefc && make all
 	cd go/pkg && make all
 	cd go/grpc && make
 	cd go/otel && make all
@@ -53,7 +53,7 @@ prepver: verifyver
 				   && go mod edit -require=github.com/splunk/stef/go/grpc@${VERSION} && go mod tidy
 	cd go/pdata    && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
 				   && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION} && go mod tidy
-	cd stefgen     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
+	cd stefc     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd examples/jsonl && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
 	cd otelcol     && go mod tidy
 	cd benchmarks  && go mod tidy
