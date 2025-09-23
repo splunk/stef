@@ -11,10 +11,10 @@ import java.io.IOException;
 class {{ .StructName }}Decoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private {{.StructName}} lastValPtr;
-    private {{.StructName}} lastVal = new {{.StructName}}();
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
     private int fieldCount;
-    private {{.StructName}}.Type prevType;
+    // Number of bits needed to encode the type (including None type).
+    private int typeBitCount;
 
     // Field decoders.
     {{range .Fields}}
@@ -34,11 +34,9 @@ class {{ .StructName }}Decoder {
         state.{{.StructName}}Decoder = this;
 
         try {
-            prevType = {{.StructName}}.Type.TypeNone;
             this.fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
+            this.typeBitCount = Integer.SIZE - Integer.numberOfLeadingZeros(this.fieldCount+1);
             this.column = columns.getColumn();
-            this.lastVal.init(null, 0);
-            this.lastValPtr = this.lastVal;
             {{- if .DictName}}
             this.dict = state.get{{.DictName}}();
             {{- end}}
@@ -86,7 +84,6 @@ class {{ .StructName }}Decoder {
     }
 
     public void reset() {
-        prevType = {{.StructName}}.Type.TypeNone;
         {{ range $i, $e := .Fields }}
         if (fieldCount <= {{$i}}) {
             return; // {{.Name}} and all subsequent fields are skipped.
@@ -104,18 +101,18 @@ class {{ .StructName }}Decoder {
     // Decode decodes a value from the buffer into dst.
     public {{.StructName}} decode({{.StructName}} dst) throws IOException {
         // Read type delta
-        long typeDelta = this.buf.readVarintCompact();
-        long typ = prevType.getValue() + typeDelta;
+        long typ = this.buf.readBits(typeBitCount);
         if (typ < 0 || typ >= {{.StructName}}.Type.values().length) {
             throw new IOException("Invalid oneof type");
         }
         {{.StructName}}.Type newType = {{.StructName}}.Type.values()[(int)typ];
         if (dst.typ != newType) {
             dst.typ = newType;
+            // The type changed, we need to reset the contained value so that
+            // it does not contain carry-over data from a previous record that
+            // was of this same type.
             dst.resetContained();
         }
-        prevType = dst.typ;
-        this.lastValPtr = dst;
         // Decode selected field
         switch (dst.typ) {
         {{- range .Fields }}

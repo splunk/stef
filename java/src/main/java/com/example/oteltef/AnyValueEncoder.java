@@ -12,8 +12,10 @@ import java.io.IOException;
 class AnyValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private AnyValue.Type prevType;
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
     private int fieldCount;
+    // Number of bits needed to encode the type (including None type).
+    private int typeBitCount;
 
     // Field encoders.
     
@@ -41,10 +43,10 @@ class AnyValueEncoder {
         state.AnyValueEncoder = this;
 
         try {
-            prevType = AnyValue.Type.TypeNone;
             this.limiter = state.getLimiter();
 
             this.fieldCount = state.getStructFieldCounts().getAnyValueFieldCount();
+            this.typeBitCount = Integer.SIZE - Integer.numberOfLeadingZeros(this.fieldCount+1);
             
             // Init encoder for String field.
             if (this.fieldCount <= 0) {
@@ -106,7 +108,6 @@ class AnyValueEncoder {
     }
 
     public void reset() {
-        prevType = AnyValue.Type.TypeNone;
         
         if (fieldCount <= 0) {
             return; // String and all subsequent fields are skipped.
@@ -148,8 +149,6 @@ class AnyValueEncoder {
 
     // Encode encodes val into buf
     public void encode(AnyValue val) throws IOException {
-        int oldLen = buf.bitCount();
-
         AnyValue.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.
@@ -157,13 +156,10 @@ class AnyValueEncoder {
         }
 
         // Compute type delta. 0 means the type is the same as the last time.
-        int typDelta = typ.getValue() - prevType.getValue();
-        prevType = typ;
-        buf.writeVarintCompact(typDelta);
+        buf.writeBits(typ.getValue(), typeBitCount);
 
         // Account written bits in the limiter.
-        int newLen = buf.bitCount();
-        limiter.addFrameBits(newLen-oldLen);
+        limiter.addFrameBits(typeBitCount);
 
         // Encode currently selected field.
         switch (typ) {

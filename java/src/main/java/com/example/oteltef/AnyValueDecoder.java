@@ -12,10 +12,10 @@ import java.io.IOException;
 class AnyValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private AnyValue lastValPtr;
-    private AnyValue lastVal = new AnyValue();
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
     private int fieldCount;
-    private AnyValue.Type prevType;
+    // Number of bits needed to encode the type (including None type).
+    private int typeBitCount;
 
     // Field decoders.
     
@@ -44,11 +44,9 @@ class AnyValueDecoder {
         state.AnyValueDecoder = this;
 
         try {
-            prevType = AnyValue.Type.TypeNone;
             this.fieldCount = state.getStructFieldCounts().getAnyValueFieldCount();
+            this.typeBitCount = Integer.SIZE - Integer.numberOfLeadingZeros(this.fieldCount+1);
             this.column = columns.getColumn();
-            this.lastVal.init(null, 0);
-            this.lastValPtr = this.lastVal;
             Exception err = null;
             
             if (this.fieldCount <= 0) {
@@ -150,7 +148,6 @@ class AnyValueDecoder {
     }
 
     public void reset() {
-        prevType = AnyValue.Type.TypeNone;
         
         if (fieldCount <= 0) {
             return; // String and all subsequent fields are skipped.
@@ -189,18 +186,18 @@ class AnyValueDecoder {
     // Decode decodes a value from the buffer into dst.
     public AnyValue decode(AnyValue dst) throws IOException {
         // Read type delta
-        long typeDelta = this.buf.readVarintCompact();
-        long typ = prevType.getValue() + typeDelta;
+        long typ = this.buf.readBits(typeBitCount);
         if (typ < 0 || typ >= AnyValue.Type.values().length) {
             throw new IOException("Invalid oneof type");
         }
         AnyValue.Type newType = AnyValue.Type.values()[(int)typ];
         if (dst.typ != newType) {
             dst.typ = newType;
+            // The type changed, we need to reset the contained value so that
+            // it does not contain carry-over data from a previous record that
+            // was of this same type.
             dst.resetContained();
         }
-        prevType = dst.typ;
-        this.lastValPtr = dst;
         // Decode selected field
         switch (dst.typ) {
         case TypeString:

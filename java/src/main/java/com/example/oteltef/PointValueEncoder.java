@@ -12,8 +12,10 @@ import java.io.IOException;
 class PointValueEncoder {
     private BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private PointValue.Type prevType;
+    // fieldCount is the number of fields, i.e. the number of types in this oneof.
     private int fieldCount;
+    // Number of bits needed to encode the type (including None type).
+    private int typeBitCount;
 
     // Field encoders.
     
@@ -37,10 +39,10 @@ class PointValueEncoder {
         state.PointValueEncoder = this;
 
         try {
-            prevType = PointValue.Type.TypeNone;
             this.limiter = state.getLimiter();
 
             this.fieldCount = state.getStructFieldCounts().getPointValueFieldCount();
+            this.typeBitCount = Integer.SIZE - Integer.numberOfLeadingZeros(this.fieldCount+1);
             
             // Init encoder for Int64 field.
             if (this.fieldCount <= 0) {
@@ -96,7 +98,6 @@ class PointValueEncoder {
     }
 
     public void reset() {
-        prevType = PointValue.Type.TypeNone;
         
         if (fieldCount <= 0) {
             return; // Int64 and all subsequent fields are skipped.
@@ -134,8 +135,6 @@ class PointValueEncoder {
 
     // Encode encodes val into buf
     public void encode(PointValue val) throws IOException {
-        int oldLen = buf.bitCount();
-
         PointValue.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.
@@ -143,13 +142,10 @@ class PointValueEncoder {
         }
 
         // Compute type delta. 0 means the type is the same as the last time.
-        int typDelta = typ.getValue() - prevType.getValue();
-        prevType = typ;
-        buf.writeVarintCompact(typDelta);
+        buf.writeBits(typ.getValue(), typeBitCount);
 
         // Account written bits in the limiter.
-        int newLen = buf.bitCount();
-        limiter.addFrameBits(newLen-oldLen);
+        limiter.addFrameBits(typeBitCount);
 
         // Encode currently selected field.
         switch (typ) {

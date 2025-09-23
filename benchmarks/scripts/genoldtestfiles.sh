@@ -14,7 +14,7 @@ TMPDIR=$(mktemp -d)
 cp ./gentestfiles.sh "$TMPDIR/"
 
 # Checkout the base branch to compare to
-BASE_BRANCH=21f498a293dbdf6e29c75385ba0043dc0f5e4009
+BASE_BRANCH=tigran/oneofcodec # Change this to the main branch commit after tigran/oneofcodec is merged.
 git -c advice.detachedHead=false checkout $BASE_BRANCH
 
 # Convert/generate the files.
