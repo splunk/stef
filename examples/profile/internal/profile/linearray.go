@@ -306,20 +306,16 @@ func (e *LineArrayEncoder) Reset() {
 }
 
 func (e *LineArrayEncoder) Encode(arr *LineArray) {
-	oldBitLen := e.buf.BitCount()
-
 	// Write the length of the array.
 	newLen := len(arr.elems)
-	e.buf.WriteUvarintCompact(uint64(newLen))
+	bitCount := e.buf.WriteUvarintCompact(uint64(newLen))
 
 	// Encode the elements of the array.
 	for i := 0; i < newLen; i++ {
 		e.elemEncoder.Encode(arr.elems[i])
 	}
 
-	// Account written bits in the limiter.
-	newBitLen := e.buf.BitCount()
-	e.limiter.AddFrameBits(newBitLen - oldBitLen)
+	e.limiter.AddFrameBits(bitCount)
 }
 
 func (e *LineArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
