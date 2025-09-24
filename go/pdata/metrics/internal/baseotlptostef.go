@@ -11,12 +11,12 @@ import (
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
 
-type BaseOTLPToSTEF struct {
+type BaseOtlpToStef struct {
 	TempAttrs oteltef.Attributes
 	Otlp2tef  otlptools.Otlp2Stef
 }
 
-func (c *BaseOTLPToSTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
+func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
@@ -35,7 +35,7 @@ func (c *BaseOTLPToSTEF) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.Num
 	}
 }
 
-func (c *BaseOTLPToSTEF) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric.ExemplarSlice) {
+func (c *BaseOtlpToStef) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric.ExemplarSlice) {
 	dst.EnsureLen(src.Len())
 
 	for i := 0; i < src.Len(); i++ {
@@ -65,7 +65,7 @@ func (c *BaseOTLPToSTEF) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetri
 	}
 }
 
-func (c *BaseOTLPToSTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.HistogramDataPoint) error {
+func (c *BaseOtlpToStef) ConvertHistogram(dst *oteltef.Point, src pmetric.HistogramDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
@@ -113,7 +113,7 @@ func (c *BaseOTLPToSTEF) ConvertHistogram(dst *oteltef.Point, src pmetric.Histog
 	return nil
 }
 
-func (c *BaseOTLPToSTEF) ConvertExpHistogram(dst *oteltef.Point, src pmetric.ExponentialHistogramDataPoint) error {
+func (c *BaseOtlpToStef) ConvertExpHistogram(dst *oteltef.Point, src pmetric.ExponentialHistogramDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
@@ -154,7 +154,7 @@ func (c *BaseOTLPToSTEF) ConvertExpHistogram(dst *oteltef.Point, src pmetric.Exp
 	return nil
 }
 
-func (c *BaseOTLPToSTEF) ConvertSummary(dst *oteltef.Point, src pmetric.SummaryDataPoint) error {
+func (c *BaseOtlpToStef) ConvertSummary(dst *oteltef.Point, src pmetric.SummaryDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
