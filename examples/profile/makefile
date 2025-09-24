@@ -10,8 +10,8 @@ build:
 
 .PHONY: generate
 generate:
-	cd ../../stefgen && make build
-	../../stefgen/bin/stefgen --lang=go --outdir=internal profile.stef
+	cd ../../stefc && make build
+	../../stefc/bin/stefc --lang=go --outdir=internal profile.stef
 
 .PHONY: benchmark
 benchmark:

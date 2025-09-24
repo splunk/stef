@@ -1,4 +1,4 @@
-module github.com/splunk/stef/stefgen
+module github.com/splunk/stef/stefc
 
 go 1.22.7
 

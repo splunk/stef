@@ -9,5 +9,5 @@ test:
 	go test -v ./... -bench . -benchtime 1ms
 
 build:
-	go build -o bin/stefgen main.go
+	go build -o bin/stefc main.go
 	
