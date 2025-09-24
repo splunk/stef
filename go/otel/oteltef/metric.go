@@ -236,14 +236,14 @@ func (s *Metric) IsHistogramBoundsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricHistogramBounds != 0
 }
 
-func (s *Metric) AggregationTemporality() uint64 {
-	return s.aggregationTemporality
+func (s *Metric) AggregationTemporality() AggregationTemporality {
+	return AggregationTemporality(s.aggregationTemporality)
 }
 
 // SetAggregationTemporality sets the value of AggregationTemporality field.
-func (s *Metric) SetAggregationTemporality(v uint64) {
-	if s.aggregationTemporality != v {
-		s.aggregationTemporality = v
+func (s *Metric) SetAggregationTemporality(v AggregationTemporality) {
+	if s.aggregationTemporality != uint64(v) {
+		s.aggregationTemporality = uint64(v)
 		s.modifiedFields.markModified(fieldModifiedMetricAggregationTemporality)
 	}
 }
@@ -399,7 +399,7 @@ func copyMetric(dst *Metric, src *Metric) {
 	dst.SetType(MetricType(src.type_))
 	copyAttributes(&dst.metadata, &src.metadata)
 	copyFloat64Array(&dst.histogramBounds, &src.histogramBounds)
-	dst.SetAggregationTemporality(src.aggregationTemporality)
+	dst.SetAggregationTemporality(AggregationTemporality(src.aggregationTemporality))
 	dst.SetMonotonic(src.monotonic)
 }
 
@@ -411,7 +411,7 @@ func copyToNewMetric(dst *Metric, src *Metric, allocators *Allocators) {
 	dst.SetType(MetricType(src.type_))
 	copyToNewAttributes(&dst.metadata, &src.metadata, allocators)
 	copyToNewFloat64Array(&dst.histogramBounds, &src.histogramBounds, allocators)
-	dst.SetAggregationTemporality(src.aggregationTemporality)
+	dst.SetAggregationTemporality(AggregationTemporality(src.aggregationTemporality))
 	dst.SetMonotonic(src.monotonic)
 }
 
@@ -481,7 +481,7 @@ func (s *Metric) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate AggregationTemporality
 	if random.IntN(randRange) == 0 {
-		s.SetAggregationTemporality(pkg.Uint64Random(random))
+		s.SetAggregationTemporality(AggregationTemporality(pkg.Uint64Random(random) % 3))
 	}
 	if fieldCount <= 7 {
 		return // Monotonic and all subsequent fields are skipped.

@@ -23,7 +23,7 @@ class HistogramValueDecoder {
     private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
     private Float64Decoder maxDecoder;
     private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
-    private Int64ArrayDecoder bucketCountsDecoder;
+    private Uint64ArrayDecoder bucketCountsDecoder;
     private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
@@ -63,12 +63,12 @@ class HistogramValueDecoder {
             if (this.fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            if (state.Int64ArrayDecoder != null) {
+            if (state.Uint64ArrayDecoder != null) {
                 // Recursion detected, use the existing decoder.
-                bucketCountsDecoder = state.Int64ArrayDecoder;
+                bucketCountsDecoder = state.Uint64ArrayDecoder;
                 isBucketCountsRecursive = true; // Mark that we are using a recursive decoder.
             } else {
-                bucketCountsDecoder = new Int64ArrayDecoder();
+                bucketCountsDecoder = new Uint64ArrayDecoder();
                 bucketCountsDecoder.init(state, columns.addSubColumn());
             }
         } finally {
@@ -172,7 +172,7 @@ class HistogramValueDecoder {
         if ((val.modifiedFields.mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
             // Field is changed and is present, decode it.
             if (val.bucketCounts == null) {
-                val.bucketCounts = new Int64Array(val.modifiedFields, HistogramValue.fieldModifiedBucketCounts);
+                val.bucketCounts = new Uint64Array(val.modifiedFields, HistogramValue.fieldModifiedBucketCounts);
             }
             val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }

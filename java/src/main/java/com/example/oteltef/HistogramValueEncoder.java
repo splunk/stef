@@ -28,7 +28,7 @@ class HistogramValueEncoder {
     private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
     private Float64Encoder maxEncoder;
     private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
-    private Int64ArrayEncoder bucketCountsEncoder;
+    private Uint64ArrayEncoder bucketCountsEncoder;
     private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
     
 
@@ -76,12 +76,12 @@ class HistogramValueEncoder {
             if (this.fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
-            if (state.Int64ArrayEncoder != null) {
+            if (state.Uint64ArrayEncoder != null) {
                 // Recursion detected, use the existing encoder.
-                bucketCountsEncoder = state.Int64ArrayEncoder;
+                bucketCountsEncoder = state.Uint64ArrayEncoder;
                 isBucketCountsRecursive = true;
             } else {
-                bucketCountsEncoder = new Int64ArrayEncoder();
+                bucketCountsEncoder = new Uint64ArrayEncoder();
                 bucketCountsEncoder.init(state, columns.addSubColumn());
             }
         } finally {

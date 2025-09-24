@@ -67,7 +67,7 @@ struct Metric dict(Metric) {
   Type MetricType
   Metadata Attributes
   HistogramBounds []float64
-  AggregationTemporality uint64
+  AggregationTemporality AggregationTemporality
   Monotonic bool
 }
 
@@ -77,6 +77,12 @@ enum MetricType {
 	Histogram = 2
 	ExpHistogram = 3
 	Summary = 4
+}
+
+enum AggregationTemporality {
+    Unspecified = 0
+    Delta = 1
+    Cumulative = 2
 }
 
 struct Metrics root {
@@ -110,7 +116,7 @@ struct HistogramValue {
   Sum float64 optional
   Min float64 optional
   Max float64 optional
-  BucketCounts []int64 // TODO: use uint64
+  BucketCounts []uint64
 }
 
 struct ExpHistogramValue {

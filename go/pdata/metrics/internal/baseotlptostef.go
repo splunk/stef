@@ -16,6 +16,19 @@ type BaseOtlpToStef struct {
 	Otlp2tef  otlptools.Otlp2Stef
 }
 
+func AggregationTemporalityToStef(flags pmetric.AggregationTemporality) oteltef.AggregationTemporality {
+	switch flags {
+	case pmetric.AggregationTemporalityDelta:
+		return oteltef.AggregationTemporalityDelta
+	case pmetric.AggregationTemporalityCumulative:
+		return oteltef.AggregationTemporalityCumulative
+	case pmetric.AggregationTemporalityUnspecified:
+		return oteltef.AggregationTemporalityUnspecified
+	default:
+		panic("unexpected aggregation temporality")
+	}
+}
+
 func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
@@ -103,12 +116,7 @@ func (c *BaseOtlpToStef) ConvertHistogram(dst *oteltef.Point, src pmetric.Histog
 		)
 	}
 
-	srcCounts := src.BucketCounts().AsRaw()
-	counts := make([]int64, len(srcCounts))
-	for j := 0; j < len(srcCounts); j++ {
-		counts[j] = int64(srcCounts[j])
-	}
-	dstHistogram.BucketCounts().CopyFromSlice(counts)
+	dstHistogram.BucketCounts().CopyFromSlice(src.BucketCounts().AsRaw())
 
 	return nil
 }
@@ -182,11 +190,5 @@ func expBucketsToStef(
 	dst *oteltef.ExpHistogramBuckets, src pmetric.ExponentialHistogramDataPointBuckets,
 ) {
 	dst.SetOffset(int64(src.Offset()))
-
-	srcCounts := src.BucketCounts().AsRaw()
-	counts := make([]uint64, len(srcCounts))
-	for j := 0; j < len(srcCounts); j++ {
-		counts[j] = srcCounts[j]
-	}
-	dst.BucketCounts().CopyFromSlice(counts)
+	dst.BucketCounts().CopyFromSlice(src.BucketCounts().AsRaw())
 }

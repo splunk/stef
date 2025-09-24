@@ -34,14 +34,14 @@ func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *oteltef.Metric
 				case pmetric.MetricTypeGauge:
 					err = d.writeNumeric(writer, m.Gauge().DataPoints())
 				case pmetric.MetricTypeSum:
-					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.Sum().AggregationTemporality())))
+					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.Sum().AggregationTemporality()))
 					writer.Record.Metric().SetMonotonic(m.Sum().IsMonotonic())
 					err = d.writeNumeric(writer, m.Sum().DataPoints())
 				case pmetric.MetricTypeHistogram:
-					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.Histogram().AggregationTemporality())))
+					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.Histogram().AggregationTemporality()))
 					err = d.writeHistogram(writer, m.Histogram().DataPoints())
 				case pmetric.MetricTypeExponentialHistogram:
-					writer.Record.Metric().SetAggregationTemporality(uint64(convertTemporality(m.ExponentialHistogram().AggregationTemporality())))
+					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.ExponentialHistogram().AggregationTemporality()))
 					err = d.writeExpHistogram(writer, m.ExponentialHistogram().DataPoints())
 				case pmetric.MetricTypeSummary:
 					err = d.writeSummary(writer, m.Summary().DataPoints())
@@ -55,19 +55,6 @@ func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *oteltef.Metric
 		}
 	}
 	return nil
-}
-
-func convertTemporality(temporality pmetric.AggregationTemporality) internal.MetricFlags {
-	switch temporality {
-	case pmetric.AggregationTemporalityCumulative:
-		return internal.MetricTemporalityCumulative
-	case pmetric.AggregationTemporalityDelta:
-		return internal.MetricTemporalityDelta
-	case pmetric.AggregationTemporalityUnspecified:
-		return internal.MetricTemporalityUnspecified
-	default:
-		panic("unhandled default case")
-	}
 }
 
 func metricType(typ pmetric.MetricType) oteltef.MetricType {

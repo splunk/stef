@@ -23,7 +23,7 @@ type HistogramValue struct {
 	sum          float64
 	min          float64
 	max          float64
-	bucketCounts Int64Array
+	bucketCounts Uint64Array
 
 	// modifiedFields keeps track of which fields are modified.
 	modifiedFields modifiedFields
@@ -243,7 +243,7 @@ func (s *HistogramValue) IsMaxModified() bool {
 	return s.modifiedFields.mask&fieldModifiedHistogramValueMax != 0
 }
 
-func (s *HistogramValue) BucketCounts() *Int64Array {
+func (s *HistogramValue) BucketCounts() *Uint64Array {
 	return &s.bucketCounts
 }
 
@@ -367,7 +367,7 @@ func (s *HistogramValue) Clone(allocators *Allocators) HistogramValue {
 		min:   s.min,
 		max:   s.max,
 	}
-	copyToNewInt64Array(&c.bucketCounts, &s.bucketCounts, allocators)
+	copyToNewUint64Array(&c.bucketCounts, &s.bucketCounts, allocators)
 	return c
 }
 
@@ -399,7 +399,7 @@ func copyHistogramValue(dst *HistogramValue, src *HistogramValue) {
 		dst.UnsetMax()
 	}
 
-	copyInt64Array(&dst.bucketCounts, &src.bucketCounts)
+	copyUint64Array(&dst.bucketCounts, &src.bucketCounts)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
@@ -418,7 +418,7 @@ func copyToNewHistogramValue(dst *HistogramValue, src *HistogramValue, allocator
 		dst.SetMax(src.max)
 	}
 
-	copyToNewInt64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
+	copyToNewUint64Array(&dst.bucketCounts, &src.bucketCounts, allocators)
 	dst.optionalFieldsPresent = src.optionalFieldsPresent
 }
 
@@ -576,7 +576,7 @@ func CmpHistogramValue(left, right *HistogramValue) int {
 		return c
 	}
 	// Compare BucketCounts field.
-	if c := CmpInt64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
+	if c := CmpUint64Array(&left.bucketCounts, &right.bucketCounts); c != 0 {
 		return c
 	}
 	return 0
@@ -596,7 +596,7 @@ type HistogramValueEncoder struct {
 	sumEncoder              encoders.Float64Encoder
 	minEncoder              encoders.Float64Encoder
 	maxEncoder              encoders.Float64Encoder
-	bucketCountsEncoder     *Int64ArrayEncoder
+	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
 	allocators *Allocators
@@ -666,12 +666,12 @@ func (e *HistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColum
 	if e.fieldCount <= 4 {
 		return nil // BucketCounts and all subsequent fields are skipped.
 	}
-	if state.Int64ArrayEncoder != nil {
+	if state.Uint64ArrayEncoder != nil {
 		// Recursion detected, use the existing encoder.
-		e.bucketCountsEncoder = state.Int64ArrayEncoder
+		e.bucketCountsEncoder = state.Uint64ArrayEncoder
 		e.isBucketCountsRecursive = true
 	} else {
-		e.bucketCountsEncoder = new(Int64ArrayEncoder)
+		e.bucketCountsEncoder = new(Uint64ArrayEncoder)
 		err = e.bucketCountsEncoder.Init(state, columns.AddSubColumn())
 	}
 	if err != nil {
@@ -822,7 +822,7 @@ type HistogramValueDecoder struct {
 
 	maxDecoder encoders.Float64Decoder
 
-	bucketCountsDecoder     *Int64ArrayDecoder
+	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool
 	allocators              *Allocators
 }
@@ -878,12 +878,12 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	if d.fieldCount <= 4 {
 		return nil // BucketCounts and subsequent fields are skipped.
 	}
-	if state.Int64ArrayDecoder != nil {
+	if state.Uint64ArrayDecoder != nil {
 		// Recursion detected, use the existing decoder.
-		d.bucketCountsDecoder = state.Int64ArrayDecoder
+		d.bucketCountsDecoder = state.Uint64ArrayDecoder
 		d.isBucketCountsRecursive = true // Mark that we are using a recursive decoder.
 	} else {
-		d.bucketCountsDecoder = new(Int64ArrayDecoder)
+		d.bucketCountsDecoder = new(Uint64ArrayDecoder)
 		err = d.bucketCountsDecoder.Init(state, columns.AddSubColumn())
 	}
 	if err != nil {
