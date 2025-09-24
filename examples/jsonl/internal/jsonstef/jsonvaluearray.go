@@ -123,21 +123,25 @@ func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 	// Copy elements in the part of the array that already had the necessary room.
 	for ; i < minLen; i++ {
 		if src.elems[i].canBeShared() {
-			dst.elems[i] = src.elems[i]
+			if src.elems[i].computeDiff(dst.elems[i]) {
+				dst.elems[i] = src.elems[i]
+				isModified = true
+			}
 		} else {
 			copyJsonValue(dst.elems[i], src.elems[i])
+			isModified = true
 		}
-		isModified = true
 	}
 	if minLen < len(dst.elems) {
 		isModified = true
-		for j := i; j < len(dst.elems); j++ {
-			if src.elems[j].canBeShared() {
-				dst.elems[j] = src.elems[i]
+		for ; i < len(dst.elems); i++ {
+			if src.elems[i].canBeShared() {
+				dst.elems[i] = src.elems[i]
+				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[j] = new(JsonValue)
-				dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-				copyJsonValue(dst.elems[j], src.elems[j])
+				dst.elems[i] = new(JsonValue)
+				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+				copyJsonValue(dst.elems[i], src.elems[i])
 			}
 		}
 	}

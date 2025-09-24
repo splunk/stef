@@ -81,6 +81,77 @@ func TestConvertToStef(t *testing.T) {
 	}
 }
 
+func TestWriteTwice(t *testing.T) {
+	// Read and parse pprof
+	file, err := os.Open("testdata/deser_stef.prof")
+	require.NoError(t, err)
+	defer func() { file.Close() }()
+
+	gz, err := gzip.NewReader(file)
+	pprofData, err := io.ReadAll(gz)
+	require.NoError(t, err)
+
+	originalProf, err := pprof.ParseUncompressed(pprofData)
+	require.NoError(t, err)
+	require.NotNil(t, originalProf)
+
+	// Convert pprof to stef
+	buf := bytes.NewBuffer(nil)
+	err = convertPprofToStef(originalProf, buf)
+	require.NoError(t, err)
+	stefData := buf.Bytes()
+
+	// Read all stef records into memory
+	r := bytes.NewReader(stefData)
+	reader, err := stefprofile.NewSampleReader(r)
+	require.NoError(t, err)
+	recCount := 0
+	records := make([]stefprofile.Sample, len(originalProf.Sample))
+	for {
+		if err := reader.Read(pkg.ReadOptions{}); err != nil {
+			break
+		}
+		records[recCount].Init()
+		records[recCount].CopyFrom(&reader.Record)
+		recCount++
+	}
+	require.Equal(t, recCount, len(originalProf.Sample))
+
+	var dst bytes.Buffer
+	var totalRecWritten int
+
+	// Repeat twice. We previously had a bug when only the first write worked.
+	// This verifies the bug fix.
+	for i := 0; i < 2; i++ {
+		dst.Reset()
+		chunkWriter := pkg.NewWrapChunkWriter(&dst)
+
+		// Create sample writer
+		writer, err := stefprofile.NewSampleWriter(chunkWriter, pkg.WriterOptions{})
+		require.NoError(t, err)
+
+		// Write all records that were read before
+		for j := 0; j < recCount; j++ {
+			writer.Record.CopyFrom(&records[j])
+			err := writer.Write()
+			require.NoError(t, err)
+			totalRecWritten++
+		}
+		err = writer.Flush()
+		require.NoError(t, err)
+
+		// Convert back to pprof
+		convertedProf, err := convertStefToPprof(&dst)
+		require.NoError(t, err)
+
+		// And verify all is correct.
+		equal, diff := isEqualPprof(originalProf, convertedProf)
+		if !equal {
+			t.Errorf("Round-trip conversion failed: %s", diff)
+		}
+	}
+}
+
 func BenchmarkDeserialization(b *testing.B) {
 	dir := "testdata"
 	files, err := ioutil.ReadDir(dir)

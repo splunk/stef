@@ -11,13 +11,13 @@ import (
 	stefprofile "github.com/splunk/stef/examples/profile/internal/profile"
 )
 
-type converter struct {
+type pprof2stef struct {
 	mappings  []stefprofile.Mapping
 	functions []stefprofile.Function
 	locations []stefprofile.Location
 }
 
-func (c *converter) convertMappings(prof *profile.Profile) {
+func (c *pprof2stef) convertMappings(prof *profile.Profile) {
 	c.mappings = make([]stefprofile.Mapping, len(prof.Mapping)+1)
 	for _, src := range prof.Mapping {
 		dst := &c.mappings[src.ID]
@@ -35,7 +35,7 @@ func (c *converter) convertMappings(prof *profile.Profile) {
 	}
 }
 
-func (c *converter) convertFunctions(prof *profile.Profile) {
+func (c *pprof2stef) convertFunctions(prof *profile.Profile) {
 	c.functions = make([]stefprofile.Function, len(prof.Function)+1)
 	for _, src := range prof.Function {
 		dst := &c.functions[src.ID]
@@ -48,7 +48,7 @@ func (c *converter) convertFunctions(prof *profile.Profile) {
 	}
 }
 
-func (c *converter) convertLocations(prof *profile.Profile) {
+func (c *pprof2stef) convertLocations(prof *profile.Profile) {
 	c.locations = make([]stefprofile.Location, len(prof.Location)+1)
 	for _, src := range prof.Location {
 		dst := &c.locations[src.ID]
@@ -79,7 +79,7 @@ func (c *converter) convertLocations(prof *profile.Profile) {
 	}
 }
 
-func (c *converter) convertSample(srcSample *profile.Sample, srcProf *profile.Profile, dst *stefprofile.Sample) {
+func (c *pprof2stef) convertSample(srcSample *profile.Sample, srcProf *profile.Profile, dst *stefprofile.Sample) {
 	// Convert locations
 	locations := dst.Locations()
 	locations.EnsureLen(0)
@@ -133,6 +133,7 @@ func (c *converter) convertSample(srcSample *profile.Sample, srcProf *profile.Pr
 		for _, value := range values {
 			dstLabels.SetKey(labelIndex, key)
 			dstLabelValue := dstLabels.At(labelIndex).Value()
+			dstLabelValue.SetType(stefprofile.LabelValueTypeNum)
 			numValue := dstLabelValue.Num()
 			numValue.SetVal(value)
 			if len(srcSample.NumUnit) > 0 {
@@ -141,7 +142,6 @@ func (c *converter) convertSample(srcSample *profile.Sample, srcProf *profile.Pr
 					numValue.SetUnit(unit[0])
 				}
 			}
-			dstLabelValue.SetType(stefprofile.LabelValueTypeNum)
 			labelIndex++
 		}
 	}
@@ -161,7 +161,7 @@ func convertPprofToStef(prof *profile.Profile, dst io.Writer) error {
 	// Convert profile metadata once
 	convertProfileMetadata(prof, writer.Record.Metadata())
 
-	c := converter{}
+	c := pprof2stef{}
 	c.convertMappings(prof)
 	c.convertFunctions(prof)
 	c.convertLocations(prof)
