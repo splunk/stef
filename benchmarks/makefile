@@ -67,4 +67,4 @@ bench-stat: bench-stat-cli
 
 .PHONY: update-charts
 update-charts:
-	UPDATE_BENCH_HTML=1 go test -run TestMetricsSize\|TestMetricsMultipart -bench \(alizeNative\|Pdata\)
+	UPDATE_BENCH_HTML=1 go test -run TestMetricsSize\|Multipart -bench \(alizeNative\|Pdata\) -benchtime=5s

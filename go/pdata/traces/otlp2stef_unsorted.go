@@ -79,7 +79,7 @@ func (d *OtlpToStefUnsorted) Convert(src ptrace.Traces, writer *oteltef.SpansWri
 
 			for k := 0; k < smm.Spans().Len(); k++ {
 				m := smm.Spans().At(k)
-				span2span(m, writer.Record.Span(), otlp2stef)
+				span2span(m, writer.Record.Span(), otlp2stef, d.Sorted)
 				if err := writer.Write(); err != nil {
 					return err
 				}
@@ -117,7 +117,7 @@ func sortSpans(spans ptrace.SpanSlice) {
 	)
 }
 
-func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef) {
+func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef, sorted bool) {
 	dst.SetTraceID(pkg.Bytes(src.TraceID().String()))
 	dst.SetSpanID(pkg.Bytes(src.SpanID().String()))
 	dst.SetParentSpanID(pkg.Bytes(src.ParentSpanID().String()))
@@ -127,7 +127,11 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef
 	dst.SetEndTimeUnixNano(uint64(src.EndTimestamp()))
 	dst.SetKind(uint64(src.Kind()))
 	dst.SetTraceState(src.TraceState().AsRaw())
-	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
+	if sorted {
+		otlp2tef.MapSorted(src.Attributes(), dst.Attributes())
+	} else {
+		otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
+	}
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 
 	dst.Status().SetCode(uint64(src.Status().Code()))
