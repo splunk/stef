@@ -48,6 +48,10 @@ endif
 RELEASE_MODULES := go/pkg go/grpc go/otel go/pdata
 ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile otelcol benchmarks
 
+.PHONY: gotidy
+gotidy:
+	$(foreach gomod,$(ALL_MODULES),$(call exec-command,cd $(gomod) && go mod tidy))
+
 .PHONY: prepver
 prepver: verifyver
 	echo Updating to version ${VERSION}
