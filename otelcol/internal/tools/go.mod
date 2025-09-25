@@ -1,8 +1,6 @@
 module github.com/splunk/stefcol/internal/tools
 
-go 1.21.0
-
-toolchain go1.22.4
+go 1.23.2
 
 require (
 	github.com/client9/misspell v0.3.4
