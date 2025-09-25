@@ -45,25 +45,27 @@ ifndef VERSION
 		@exit 1
 endif
 
+RELEASE_MODULES := go/pkg go/grpc go/otel go/pdata
+ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile otelcol benchmarks
+
 .PHONY: prepver
 prepver: verifyver
 	echo Updating to version ${VERSION}
-	cd go/grpc     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
+	cd go/grpc     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION}
 	cd go/otel     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
-				   && go mod edit -require=github.com/splunk/stef/go/grpc@${VERSION} && go mod tidy
+	               && go mod edit -require=github.com/splunk/stef/go/grpc@${VERSION}
 	cd go/pdata    && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} \
-				   && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION} && go mod tidy
-	cd stefc     && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
-	cd examples/jsonl && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION} && go mod tidy
-	cd otelcol     && go mod tidy
-	cd benchmarks  && go mod tidy
-
-MODULES := go/pkg go/grpc go/otel go/pdata
+	               && go mod edit -require=github.com/splunk/stef/go/otel@${VERSION}
+	cd stefc       && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION}
+	cd stefc/generator/testdata && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION}
+	cd examples/jsonl && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION}
+	cd examples/profile && go mod edit -require=github.com/splunk/stef/go/pkg@${VERSION}
+	$(foreach gomod,$(ALL_MODULES),$(call exec-command,cd $(gomod) && go mod tidy))
 
 .PHONY: releasever
 releasever: verifyver
 	echo Tagging version $(VERSION)
-	$(foreach gomod,$(MODULES),$(call exec-command,git tag $(gomod)/$(VERSION) && git push origin $(gomod)/$(VERSION)))
+	$(foreach gomod,$(RELEASE_MODULES),$(call exec-command,git tag $(gomod)/$(VERSION) && git push origin $(gomod)/$(VERSION)))
 
 # Docs validation targets
 .PHONY: docs-validate docs-validate-html docs-validate-css docs-check-links docs-install-deps
