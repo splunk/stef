@@ -1,6 +1,6 @@
 module github.com/splunk/stef/benchmarks
 
-go 1.22.7
+go 1.23
 
 toolchain go1.23.2
 
@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/pdata v1.19.0
 	golang.org/x/text v0.18.0
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/protobuf v1.36.9
 	modernc.org/b/v2 v2.1.0
 )
 
