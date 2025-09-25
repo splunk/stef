@@ -147,11 +147,14 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	for ; i < minLen; i++ {
 		{{- if .ElemType.MustClone}}
 		if src.elems[i].canBeShared() {
-		    dst.elems[i] = src.elems[i]
+			if src.elems[i].computeDiff(dst.elems[i]) {
+				dst.elems[i] = src.elems[i]
+				isModified = true
+			}
 		} else {
 		    copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+    		isModified = true
 		}
-		isModified = true
 		{{- else}}
 		if dst.elems[i] != src.elems[i] {
 			dst.elems[i] = src.elems[i]
@@ -163,13 +166,14 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	{{- if .ElemType.MustClone}}
 	if minLen < len(dst.elems) {
 		isModified = true
-		for j := i; j < len(dst.elems); j++ {
-			if src.elems[j].canBeShared() {
-                dst.elems[j] = src.elems[i]
-            } else {
-    			dst.elems[j] = new({{.ElemType.Storage}})
-	    		dst.elems[j].init(dst.parentModifiedFields, dst.parentModifiedBit)
-		    	copy{{.ElemType.TypeName}}(dst.elems[j], src.elems[j])
+		for ; i < len(dst.elems); i++ {
+			if src.elems[i].canBeShared() {
+				dst.elems[i] = src.elems[i]
+				dst.elems[i].setModifiedRecursively()
+			} else {
+    			dst.elems[i] = new({{.ElemType.Storage}})
+	    		dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+		    	copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
 		    }
 		}
 	}
