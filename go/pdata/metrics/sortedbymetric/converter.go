@@ -35,7 +35,9 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 				metric := sms.Metrics().At(k)
 				switch metric.Type() {
 				case pmetric.MetricTypeGauge:
-					c.covertNumberDataPoints(sm, resource, scope, metric, metric.Gauge().DataPoints(), 0)
+					c.covertNumberDataPoints(
+						sm, resource, scope, metric, metric.Gauge().DataPoints(), internal.MetricFlags{},
+					)
 				case pmetric.MetricTypeSum:
 					c.covertNumberDataPoints(
 						sm, resource, scope, metric, metric.Sum().DataPoints(),
@@ -71,22 +73,10 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 }
 
 func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality) internal.MetricFlags {
-	var flags internal.MetricFlags
-	if monotonic {
-		flags |= internal.MetricMonotonic
+	return internal.MetricFlags{
+		Monotonic:   monotonic,
+		Temporality: internal.AggregationTemporalityToStef(temporality),
 	}
-
-	switch temporality {
-	case pmetric.AggregationTemporalityDelta:
-		flags |= internal.MetricTemporalityDelta
-	case pmetric.AggregationTemporalityCumulative:
-		flags |= internal.MetricTemporalityCumulative
-	case pmetric.AggregationTemporalityUnspecified:
-		flags |= internal.MetricTemporalityUnspecified
-	default:
-		panic("Unknown temporality value")
-	}
-	return flags
 }
 
 func (c *converter) covertNumberDataPoints(
@@ -224,7 +214,7 @@ func (c *converter) covertSummaryDataPoints(
 ) error {
 	var byMetric *ByMetric
 	var byScope *ByScope
-	flags := internal.MetricFlags(0) // No monotonic/temporality for summary
+	flags := internal.MetricFlags{} // No monotonic/temporality for summary
 	srcPoints := summary.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {

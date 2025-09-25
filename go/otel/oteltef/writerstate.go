@@ -43,7 +43,6 @@ type WriterState struct {
 	ExpHistogramValueEncoder   *ExpHistogramValueEncoder
 	Float64ArrayEncoder        *Float64ArrayEncoder
 	HistogramValueEncoder      *HistogramValueEncoder
-	Int64ArrayEncoder          *Int64ArrayEncoder
 	KeyValueListEncoder        *KeyValueListEncoder
 	LinkEncoder                *LinkEncoder
 	LinkArrayEncoder           *LinkArrayEncoder

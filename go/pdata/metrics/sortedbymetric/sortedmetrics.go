@@ -116,10 +116,9 @@ func metric2metric(
 	dst.SetDescription(metric.Description())
 	dst.SetUnit(metric.Unit())
 	dst.SetType(metricType)
-	//dst.SetFlags(uint64(flags))
 	dst.HistogramBounds().CopyFromSlice(histogramBounds)
-	dst.SetMonotonic(flags&internal.MetricMonotonic != 0)
-	dst.SetAggregationTemporality(uint64(flags & internal.MetricTemporalityMask))
+	dst.SetMonotonic(flags.Monotonic)
+	dst.SetAggregationTemporality(flags.Temporality)
 
 	return &dst
 }

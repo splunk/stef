@@ -17,7 +17,7 @@ public class HistogramValue {
     double sum;
     double min;
     double max;
-    Int64Array bucketCounts;
+    Uint64Array bucketCounts;
 
     // modifiedFields keeps track of which fields are modified.
     final ModifiedFields modifiedFields = new ModifiedFields();
@@ -59,7 +59,7 @@ public class HistogramValue {
         sum = 0.0;
         min = 0.0;
         max = 0.0;
-        bucketCounts = new Int64Array(modifiedFields, fieldModifiedBucketCounts);
+        bucketCounts = new Uint64Array(modifiedFields, fieldModifiedBucketCounts);
     }
 
     void reset() {
@@ -209,7 +209,7 @@ public class HistogramValue {
         return (this.modifiedFields.mask & fieldModifiedMax) != 0;
     }
     
-    public Int64Array getBucketCounts() {
+    public Uint64Array getBucketCounts() {
         return this.bucketCounts;
     }
 
@@ -402,7 +402,7 @@ public class HistogramValue {
         }
         
         // Compare BucketCounts field.
-        c = Int64Array.compare(left.bucketCounts, right.bucketCounts);
+        c = Uint64Array.compare(left.bucketCounts, right.bucketCounts);
         if (c != 0) {
             return c;
         }

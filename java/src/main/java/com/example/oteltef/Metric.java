@@ -207,14 +207,14 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedHistogramBounds) != 0;
     }
     
-    public long getAggregationTemporality() {
-        return aggregationTemporality;
+    public AggregationTemporality getAggregationTemporality() {
+        return AggregationTemporality.fromValue(aggregationTemporality);
     }
 
     // setAggregationTemporality sets the value of AggregationTemporality field.
-    public void setAggregationTemporality(long v) {
-        if (!Types.Uint64Equal(this.aggregationTemporality, v)) {
-            this.aggregationTemporality = v;
+    public void setAggregationTemporality(AggregationTemporality v) {
+        if (!Types.Uint64Equal(this.aggregationTemporality, v.getValue())) {
+            this.aggregationTemporality = v.getValue();
             this.markAggregationTemporalityModified();
         }
     }
@@ -454,7 +454,7 @@ public class Metric {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setAggregationTemporality(Types.Uint64Random(random));
+            this.setAggregationTemporality(AggregationTemporality.fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 3));
         }
         
         if (random.nextInt(fieldCount) == 0) {

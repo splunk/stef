@@ -41,7 +41,6 @@ type ReaderState struct {
 	ExpHistogramValueDecoder   *ExpHistogramValueDecoder
 	Float64ArrayDecoder        *Float64ArrayDecoder
 	HistogramValueDecoder      *HistogramValueDecoder
-	Int64ArrayDecoder          *Int64ArrayDecoder
 	KeyValueListDecoder        *KeyValueListDecoder
 	LinkDecoder                *LinkDecoder
 	LinkArrayDecoder           *LinkArrayDecoder
