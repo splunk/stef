@@ -486,10 +486,15 @@ func (d *ScopeEncoderDict) Add(val *Scope) {
 	val.modifiedFields.refNum = refNum // Cache the refNum
 	d.slice = append(d.slice, val)     // Remember the value by refNum.
 
+	d.limiter.AddDictElemSize(val.byteSize())
+	if val.isFrozen() {
+		// If val is frozen it means it is safe to share without cloning.
+		d.dict.Set(val, refNum)
+		return
+	}
 	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
 	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
 	d.dict.Set(clone, refNum)
-	d.limiter.AddDictElemSize(val.byteSize())
 }
 
 func (d *ScopeEncoderDict) Reset() {
