@@ -49,6 +49,7 @@ func TestGenerate(t *testing.T) {
 
 				// Run tests in the generated code
 				cmd := exec.Command("go", "test", "-v", genGo.OutputDir+"/...")
+				cmd.Dir = genGo.OutputDir
 				stdoutStderr, err := cmd.CombinedOutput()
 				if err != nil {
 					fmt.Printf("%s\n", stdoutStderr)

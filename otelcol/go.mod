@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/splunk/stef/go/grpc v0.0.7
+	github.com/splunk/stef/go/grpc v0.0.8
 	github.com/splunk/stef/go/pdata v0.0.0
 	go.opentelemetry.io/collector v0.120.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.26.0
@@ -26,8 +26,8 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.120.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.120.0
 	github.com/open-telemetry/otel-arrow v0.24.0
-	github.com/splunk/stef/go/otel v0.0.7
-	github.com/splunk/stef/go/pkg v0.0.7
+	github.com/splunk/stef/go/otel v0.0.8
+	github.com/splunk/stef/go/pkg v0.0.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v0.120.0
 	go.opentelemetry.io/collector/component/componentstatus v0.120.0

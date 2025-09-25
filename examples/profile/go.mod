@@ -6,7 +6,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/pprof v0.0.0-20250630185457-6e76a2b096b5
 	github.com/klauspost/compress v1.17.8
-	github.com/splunk/stef/go/pkg v0.0.6
+	github.com/splunk/stef/go/pkg v0.0.8
 	github.com/stretchr/testify v1.10.0
 	modernc.org/b/v2 v2.1.4
 )
