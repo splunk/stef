@@ -22,77 +22,9 @@ import (
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/oteltef"
-	converters "github.com/splunk/stef/go/pdata/traces"
+	"github.com/splunk/stef/go/pdata/traces"
 	"github.com/splunk/stef/go/pkg"
 )
-
-func TestTracesMultipart(t *testing.T) {
-	u := ptrace.ProtoUnmarshaler{}
-
-	fileNames := []string{"testdata/astronomy-oteltraces.zst", "testdata/hipstershop-oteltraces.zst"}
-
-	for _, fileName := range fileNames {
-		fmt.Println("======= " + fileName)
-
-		var otlpParts [][]byte
-		traces, err := testutils.ReadMultipartOTLPFileGeneric(
-			fileName, func(data []byte) (any, error) {
-				otlpParts = append(otlpParts, data)
-				return u.UnmarshalTraces(data)
-			},
-		)
-		require.NoError(t, err)
-
-		compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}
-		sorteds := []bool{false, true}
-
-		for _, sorted := range sorteds {
-			if sorted {
-				fmt.Println("Sorted")
-			} else {
-				fmt.Println("Unsorted")
-			}
-
-			for _, compression := range compressions {
-
-				outputBuf := &pkg.MemChunkWriter{}
-				writer, err := oteltef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
-				require.NoError(t, err)
-
-				converter := converters.OtlpToStefUnsorted{Sorted: sorted}
-
-				otlpSize := 0
-				for i := 0; i < len(traces); i++ {
-					err = converter.Convert(traces[i].(ptrace.Traces), writer)
-					require.NoError(t, err)
-
-					err = writer.Flush()
-					require.NoError(t, err)
-
-					if compression == pkg.CompressionNone {
-						otlpSize += len(otlpParts[i])
-					} else {
-						otlpZstd := testutils.CompressZstd(otlpParts[i])
-						otlpSize += len(otlpZstd)
-					}
-				}
-
-				stefSize := len(outputBuf.Bytes())
-
-				if compression == pkg.CompressionZstd {
-					fmt.Println("zstd")
-				} else {
-					fmt.Println("none")
-				}
-				fmt.Printf("Traces OTLP: %8d\n", otlpSize)
-				fmt.Printf("Traces STEF: %8d\n", stefSize)
-				fmt.Printf(
-					"Ratio:       %8.2f\n", float64(otlpSize)/float64(stefSize),
-				)
-			}
-		}
-	}
-}
 
 func replaceExt(fname string, ext string) string {
 	idx := strings.Index(fname, ".")
@@ -270,7 +202,7 @@ func TestMetricsMultipart(t *testing.T) {
 
 	compressions := []string{"none", "zstd"}
 
-	chart.BeginSection("Size Benchmarks - Many Batches, Multipart")
+	chart.BeginSection("Size - Many Batches, Multipart Metrics")
 
 	for _, compression := range compressions {
 		for _, dataset := range datasets {
@@ -374,4 +306,96 @@ func stefCompression2str(compression pkg.Compression) any {
 		return "zstd"
 	}
 	panic("unknown compression")
+}
+
+func TestTracesMultipart(t *testing.T) {
+	u := ptrace.ProtoUnmarshaler{}
+
+	fileNames := []string{"astronomy-oteltraces", "hipstershop-oteltraces"}
+
+	chart.BeginSection("Size - Many Batches, Multipart Traces")
+
+	for _, fileName := range fileNames {
+		fmt.Println("======= " + fileName)
+
+		var otlpParts [][]byte
+		traceData, err := testutils.ReadMultipartOTLPFileGeneric(
+			"testdata/"+fileName+".zst", func(data []byte) (any, error) {
+				otlpParts = append(otlpParts, data)
+				return u.UnmarshalTraces(data)
+			},
+		)
+		require.NoError(t, err)
+
+		compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}
+		sorteds := []bool{false, true}
+
+		for _, compression := range compressions {
+			var compressionStr string
+			if compression == pkg.CompressionZstd {
+				compressionStr = "zstd"
+			} else {
+				compressionStr = "none"
+			}
+			fmt.Println(compressionStr)
+
+			chart.BeginChart("Dataset: "+fileName, t)
+
+			otlpSize := 0
+			for i := 0; i < len(traceData); i++ {
+				if compression == pkg.CompressionNone {
+					otlpSize += len(otlpParts[i])
+				} else {
+					otlpZstd := testutils.CompressZstd(otlpParts[i])
+					otlpSize += len(otlpZstd)
+				}
+			}
+
+			chart.Record(
+				nil, "OTLP", "Size in bytes, compression="+compressionStr,
+				float64(otlpSize),
+			)
+
+			for _, sorted := range sorteds {
+				var sortedStr string
+				if sorted {
+					sortedStr = "Sorted"
+				} else {
+					sortedStr = "Unsorted"
+				}
+				fmt.Println(sortedStr)
+
+				outputBuf := &pkg.MemChunkWriter{}
+				writer, err := oteltef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
+				require.NoError(t, err)
+
+				converter := traces.OtlpToStefUnsorted{Sorted: sorted}
+
+				for i := 0; i < len(traceData); i++ {
+					err = converter.Convert(traceData[i].(ptrace.Traces), writer)
+					require.NoError(t, err)
+
+					err = writer.Flush()
+					require.NoError(t, err)
+				}
+
+				stefSize := len(outputBuf.Bytes())
+
+				fmt.Printf("Traces OTLP: %8d\n", otlpSize)
+				fmt.Printf("Traces STEF: %8d\n", stefSize)
+				fmt.Printf(
+					"Ratio:       %8.2f\n", float64(otlpSize)/float64(stefSize),
+				)
+
+				chart.Record(
+					nil, "STEF "+sortedStr, "Size in bytes, compression="+compressionStr,
+					float64(stefSize),
+				)
+			}
+			chart.EndChart(
+				"Bytes",
+				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
+			)
+		}
+	}
 }
