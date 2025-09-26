@@ -42,6 +42,10 @@ func (d *BytesDictDecoderDict) Init() {
 	(*StringDictDecoderDict)(d).Init()
 }
 
+func (d *BytesDictDecoderDict) Reset() {
+	(*StringDictDecoderDict)(d).Reset()
+}
+
 func (d *BytesDictDecoder) Continue() {
 	d.StringDictDecoder.Continue()
 }

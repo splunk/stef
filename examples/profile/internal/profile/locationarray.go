@@ -139,7 +139,7 @@ func copyLocationArray(dst *LocationArray, src *LocationArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(Location)
+				dst.elems[i] = &Location{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyLocation(dst.elems[i], src.elems[i])
 			}

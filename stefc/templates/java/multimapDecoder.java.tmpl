@@ -36,7 +36,7 @@ class {{ .MultimapName }}Decoder {
                 keyDecoder = state.{{.Key.Type.EncoderType}}Decoder;
                 isKeyRecursive = true;
             } else {
-                keyDecoder = new({{.Key.Type.EncoderType}}Decoder);
+                keyDecoder = new {{.Key.Type.EncoderType}}Decoder();
                 keyDecoder.init(state, columns.addSubColumn());
             }
             {{- end}}

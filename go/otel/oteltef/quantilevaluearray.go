@@ -139,7 +139,7 @@ func copyQuantileValueArray(dst *QuantileValueArray, src *QuantileValueArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(QuantileValue)
+				dst.elems[i] = &QuantileValue{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyQuantileValue(dst.elems[i], src.elems[i])
 			}

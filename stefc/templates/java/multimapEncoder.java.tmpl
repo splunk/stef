@@ -37,7 +37,7 @@ class {{ .MultimapName }}Encoder {
                 keyEncoder = state.{{.Key.Type.EncoderType}}Encoder;
                 isKeyRecursive = true;
             } else {
-                keyEncoder = new({{.Key.Type.EncoderType}}Encoder);
+                keyEncoder = new {{.Key.Type.EncoderType}}Encoder();
                 keyEncoder.init(state, columns.addSubColumn());
             }
             {{- end}}

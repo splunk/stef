@@ -1,0 +1,152 @@
+package com.example.gentest.all_features
+
+struct MainRoot root {
+  AllTypes AllTypes
+  AllArrays AllArrays
+  AllTypesDicts AllTypesDicts
+  RecurseRootViaArray []MainRoot
+  RecurseRootViaOptional MainRoot optional
+}
+
+struct AllTypes {
+  B bool
+  I64 int64
+  U64 uint64
+  F64 float64
+  S string
+  By bytes
+  O AllInOneOff
+  So StructWithOptionals
+  Sr StructRecurseSelf
+  Srmo StructRecurseMutualViaOptional1
+  AllMultimaps AllMultimaps
+  E1 Enum1
+  // E2 EnumWithGaps // TODO: This does not work in Java.
+}
+
+struct AllTypesDicts {
+  B bool
+  I64 int64
+  U64 uint64
+  F64 float64
+  S string dict(S)
+  By bytes dict(B)
+  StructDict StructDict
+  //OneofDict OneofDict // TODO: this does not work.
+}
+
+struct StructWithOptionals {
+  B bool optional
+  I64 int64 optional
+  U64 uint64 optional
+  F64 float64 optional
+  S string optional
+  By bytes optional
+  // AllMultimaps AllMultimaps optional // TODO: This does not work.
+  // O AllInOneOff optional // TODO: This does not work.
+  // AllArrays AllArrays optional // TODO: This does not work.
+  E Enum1 optional
+}
+
+struct AllArrays {
+  B []bool
+  I64 []int64
+  U64 []uint64
+  F64 []float64
+  S []string
+  // By []bytes // TODO: this does not work in Java.
+  M []StringStringMultimap
+}
+
+struct AllMultimaps {
+  SSM StringStringMultimap
+  IIM IntIntMultimap
+  ISM IntStructMultimap
+  SSM2 StructStructMultimap
+  // SAM StructArrayMultimap // See bug comment below.
+  SSMD StringStringMultimapDict
+  //SSMDC StringStringMultimapDictComplex
+}
+
+multimap StringStringMultimap {
+  key string
+  value string
+}
+
+multimap IntIntMultimap {
+  key int64
+  value int64
+}
+
+multimap IntStructMultimap {
+  key int64
+  value StructRecurseSelf
+}
+
+multimap StructStructMultimap {
+  key StructRecurseSelf
+  value StructRecurseSelf
+}
+
+multimap StringStringMultimapDict {
+  key string dict(KeyString)
+  value string dict(ValueString)
+}
+
+//multimap StringStringMultimapDictComplex {
+//  key StructDict // This does not work. Must fix a bug to allow dict-struct as key or value.
+//  value OneofDict
+//}
+
+//multimap StructArrayMultimap {
+//  key StructRecurseSelf
+//  value []StructWithOptionals // This does not work. Must fix a bug.
+//}
+
+oneof AllInOneOff {
+  B bool
+  I64 int64
+  U64 uint64
+  F64 float64
+  S string
+  By bytes
+  Ba []bool
+  I64a []int64
+  U64a []uint64
+  F64a []float64
+  Sa []string
+  // Bya []bytes // TODO: this does not work in Java.
+}
+
+struct StructRecurseMutualViaOptional1 {
+  RStruct2 StructRecurseMutualViaOptional2 optional
+}
+
+struct StructRecurseMutualViaOptional2 {
+  RStruct1 StructRecurseMutualViaOptional1 optional
+}
+
+struct StructRecurseSelf {
+  Val int64
+  Struct []StructRecurseSelf
+}
+
+struct StructDict dict(StructDict) {
+  Val string
+}
+
+//oneof OneofDict dict(OneofDict) { // TODO: dict for oneofs is not yet implemented
+//  Val string
+//}
+
+enum Enum1 {
+    A = 0
+    B = 1
+    C = 2
+}
+
+enum EnumWithGaps { // TODO: This does not work in Java.
+    A = 1
+    B = 2
+    C = 5
+}

@@ -11,6 +11,9 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
+
 // JsonObject is a multimap, (aka an associative array or a list) of key value
 // pairs from string to JsonValue.
 type JsonObject struct {
@@ -57,6 +60,11 @@ func (m *JsonObject) fixParent(parentModifiedFields *modifiedFields) {
 	for i := 0; i < len(elems); i++ {
 		elems[i].value.fixParent(&m.modifiedElems.vals)
 	}
+}
+
+func (m *JsonObject) canBeShared() bool {
+	// Multimap can never be shared.
+	return false
 }
 
 // Len returns the number of elements in the multimap.

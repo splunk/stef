@@ -139,7 +139,7 @@ func copyJsonValueArray(dst *JsonValueArray, src *JsonValueArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(JsonValue)
+				dst.elems[i] = &JsonValue{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyJsonValue(dst.elems[i], src.elems[i])
 			}

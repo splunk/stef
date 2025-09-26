@@ -100,9 +100,8 @@ func (p *Parser) parseStruct() (*schema.Struct, error) {
 
 	p.lexer.Next()
 
-	str := &schema.Struct{
-		Name: structName,
-	}
+	str := schema.NewStruct()
+	str.Name = structName
 	p.schema.Structs[str.Name] = str
 
 	if err := p.parseStructModifiers(str); err != nil {
@@ -264,8 +263,14 @@ func (p *Parser) parseStructField(str *schema.Struct) (error, bool) {
 		return nil, false
 	}
 
-	str.Fields = append(str.Fields, &schema.StructField{Name: p.lexer.Ident()})
-	field := str.Fields[len(str.Fields)-1]
+	fieldName := p.lexer.Ident()
+
+	if str.HasField(fieldName) {
+		return p.error("duplicate field name: " + fieldName), false
+	}
+
+	field := &schema.StructField{Name: fieldName}
+	str.AddField(field)
 
 	p.lexer.Next()
 
@@ -333,6 +338,16 @@ func (p *Parser) parseFieldType(field *schema.FieldType) error {
 	// Parse type modifiers
 	switch p.lexer.Token() {
 	case tDict:
+		if ft.Primitive != nil {
+			switch ft.Primitive.Type {
+			case schema.PrimitiveTypeString:
+			case schema.PrimitiveTypeBytes:
+			// ok
+			default:
+				return p.error("only string or bytes can have dict modifier")
+			}
+		}
+
 		dictName, err := p.parseDictModifier()
 		if err != nil {
 			return err

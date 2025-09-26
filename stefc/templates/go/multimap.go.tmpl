@@ -11,6 +11,9 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
+
 // {{ .MultimapName }} is a multimap, (aka an associative array or a list) of key value
 // pairs from {{.Key.Type.TypeName}} to {{.Value.Type.TypeName}}.
 type {{ .MultimapName }} struct {
@@ -62,6 +65,11 @@ func (m *{{.MultimapName}}) fixParent(parentModifiedFields *modifiedFields) {
         elems[i].value.fixParent(&m.modifiedElems.vals)
         {{- end}}
     }
+}
+
+func (m *{{.MultimapName}}) canBeShared() bool {
+    // Multimap can never be shared.
+    return false
 }
 
 // Len returns the number of elements in the multimap.
@@ -291,7 +299,7 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 			return false
 		}
 		{{- else }}
-		if !e.elems[i].IsEqual(&val.elems[i]) {
+		if !e.elems[i].key.IsEqual(&val.elems[i].key) {
 			return false
 		}
 		{{- end}}

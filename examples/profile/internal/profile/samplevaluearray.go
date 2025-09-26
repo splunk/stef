@@ -139,7 +139,7 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(SampleValue)
+				dst.elems[i] = &SampleValue{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copySampleValue(dst.elems[i], src.elems[i])
 			}

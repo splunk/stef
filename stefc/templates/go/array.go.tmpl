@@ -118,7 +118,7 @@ func (e *{{ .ArrayName }}) computeDiff(val *{{ .ArrayName }}) (ret bool) {
 		{{- if .ElemType.IsPrimitive }}
 		if e.elems[i] != val.elems[i] {
 		{{- else }}
-		if e.elems[i].computeDiff(val.elems[i]) {
+		if e.elems[i].computeDiff({{if not .IsStructType}}&{{end}}val.elems[i]) {
 		{{- end}}
 			ret = true
 		}
@@ -147,12 +147,12 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 	for ; i < minLen; i++ {
 		{{- if .ElemType.MustClone}}
 		if src.elems[i].canBeShared() {
-			if src.elems[i].computeDiff(dst.elems[i]) {
+			if src.elems[i].computeDiff({{if not .IsStructType}}&{{end}}dst.elems[i]) {
 				dst.elems[i] = src.elems[i]
 				isModified = true
 			}
 		} else {
-		    copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		    copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
     		isModified = true
 		}
 		{{- else}}
@@ -171,9 +171,9 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-    			dst.elems[i] = new({{.ElemType.Storage}})
+    			dst.elems[i] = {{if .IsStructType}}&{{end}}{{.ElemType.Storage}}{}
 	    		dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
-		    	copy{{.ElemType.TypeName}}(dst.elems[i], src.elems[i])
+		    	copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
 		    }
 		}
 	}
@@ -205,10 +205,10 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
             dst.elems[j] = src.elems[j]
         } else {
             // Alloc and init the element.
-            dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc()
+            {{if .IsStructType}}dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc(){{end}}
             dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
             // Copy the element.
-            copyToNew{{.ElemType.TypeName}}(dst.elems[j], src.elems[j], allocators)
+            copyToNew{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[j], {{if not .IsStructType}}&{{end}}src.elems[j], allocators)
         }
     }
 	{{- else}}
@@ -283,7 +283,7 @@ func (e *{{ .ArrayName }}) IsEqual(val *{{ .ArrayName }}) bool {
 			return false
 		}
 		{{- else }}
-		if !e.elems[i].IsEqual(val.elems[i]) {
+		if !e.elems[i].IsEqual({{if not .IsStructType}}&{{end}}val.elems[i]) {
 			return false
 		}
 		{{- end}}
@@ -299,7 +299,7 @@ func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {
 		return c
 	}
 	for i := range left.elems {
-		fc := {{.ElemType.CompareFunc}}(left.elems[i], right.elems[i])
+		fc := {{.ElemType.CompareFunc}}({{if and (not .ElemType.IsPrimitive) (not .IsStructType)}}&{{end}}left.elems[i], {{if and (not .ElemType.IsPrimitive) (not .IsStructType)}}&{{end}}right.elems[i])
 		if fc != 0 {
 			return fc
 		}
@@ -390,7 +390,7 @@ func (e *{{ .ArrayName }}Encoder) Encode(arr *{{ .ArrayName }}) {
 
     // Encode the elements of the array.
     for i := 0; i < newLen; i++ {
-        e.elemEncoder.Encode(arr.elems[i])
+        e.elemEncoder.Encode({{if and (not .ElemType.IsPrimitive) (not .IsStructType)}}&{{end}}arr.elems[i])
     }
 
 	// Account written bits in the limiter.
@@ -481,7 +481,7 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode({{if .ElemType.DictName}}&{{end}}dst.elems[i])
+		err := d.elemDecoder.Decode({{if or (.ElemType.DictName) (not .IsStructType)}}&{{end}}dst.elems[i])
 		if err != nil {
 			return err
 		}

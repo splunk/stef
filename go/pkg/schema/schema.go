@@ -472,19 +472,36 @@ func computeRecursiveType(typ FieldType, stack *recurseStack) {
 }
 
 type Struct struct {
-	Name     string         `json:"name,omitempty"`
-	OneOf    bool           `json:"oneof,omitempty"`
-	DictName string         `json:"dict,omitempty"`
-	IsRoot   bool           `json:"root,omitempty"`
-	Fields   []*StructField `json:"fields"`
+	Name     string                  `json:"name,omitempty"`
+	OneOf    bool                    `json:"oneof,omitempty"`
+	DictName string                  `json:"dict,omitempty"`
+	IsRoot   bool                    `json:"root,omitempty"`
+	Fields   []*StructField          `json:"fields"`
+	fieldMap map[string]*StructField // Copy of Fields indexed by field name.
 
 	// recursive is true if this struct type definition is self-recursive
 	// or mutually recursive.
 	recursive bool
 }
 
-func (s Struct) Recursive() bool {
+func NewStruct() *Struct {
+	return &Struct{
+		fieldMap: map[string]*StructField{},
+	}
+}
+
+func (s *Struct) Recursive() bool {
 	return s.recursive
+}
+
+func (s *Struct) HasField(name string) bool {
+	_, ok := s.fieldMap[name]
+	return ok
+}
+
+func (s *Struct) AddField(field *StructField) {
+	s.fieldMap[field.Name] = field
+	s.Fields = append(s.Fields, field)
 }
 
 type StructField struct {

@@ -139,7 +139,7 @@ func copyAnyValueArray(dst *AnyValueArray, src *AnyValueArray) {
 				dst.elems[i] = src.elems[i]
 				dst.elems[i].setModifiedRecursively()
 			} else {
-				dst.elems[i] = new(AnyValue)
+				dst.elems[i] = &AnyValue{}
 				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
 				copyAnyValue(dst.elems[i], src.elems[i])
 			}
