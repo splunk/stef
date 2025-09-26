@@ -28,7 +28,7 @@ require (
 	github.com/open-telemetry/otel-arrow v0.24.0
 	github.com/splunk/stef/go/otel v0.0.8
 	github.com/splunk/stef/go/pkg v0.0.8
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v0.120.0
 	go.opentelemetry.io/collector/component/componentstatus v0.120.0
 	go.opentelemetry.io/collector/component/componenttest v0.120.0
