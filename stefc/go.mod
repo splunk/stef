@@ -1,6 +1,6 @@
 module github.com/splunk/stef/stefc
 
-go 1.22.7
+go 1.23.2
 
 require (
 	github.com/splunk/stef/go/pkg v0.0.8
