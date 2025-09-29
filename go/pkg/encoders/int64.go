@@ -9,7 +9,13 @@ func (e *Int64Encoder) IsEqual(val int64) bool {
 }
 
 func (e *Int64Encoder) Encode(val int64) {
-	e.Uint64Encoder.Encode(uint64(val))
+	//e.Uint64Encoder.Encode(uint64(val))
+	oldLen := len(e.buf.Bytes())
+	//e.buf.WriteVarint(deltaOfDelta)
+	e.buf.WriteVarint(val)
+
+	newLen := len(e.buf.Bytes())
+	e.limiter.AddFrameBytes(uint(newLen - oldLen))
 }
 
 type Int64Decoder struct {
@@ -17,16 +23,20 @@ type Int64Decoder struct {
 }
 
 func (d *Int64Decoder) Decode(dst *int64) error {
-	tsDeltaOfDelta, err := d.buf.ReadVarint()
-	if err != nil {
-		return err
-	}
+	var err error
+	*dst, err = d.buf.ReadVarint()
+	return err
 
-	tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
-	d.lastDelta = tsDelta
-
-	d.lastVal += tsDelta
-
-	*dst = int64(d.lastVal)
-	return nil
+	//tsDeltaOfDelta, err := d.buf.ReadVarint()
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
+	//d.lastDelta = tsDelta
+	//
+	//d.lastVal += tsDelta
+	//
+	//*dst = int64(d.lastVal)
+	//return nil
 }

@@ -24,14 +24,15 @@ func (e *Uint64Encoder) IsEqual(val uint64) bool {
 }
 
 func (e *Uint64Encoder) Encode(val uint64) {
-	delta := val - e.lastVal
-	e.lastVal = val
-
-	deltaOfDelta := int64(delta - e.lastDelta)
-	e.lastDelta = delta
+	//delta := val - e.lastVal
+	//e.lastVal = val
+	//
+	//deltaOfDelta := int64(delta - e.lastDelta)
+	//e.lastDelta = delta
 
 	oldLen := len(e.buf.Bytes())
-	e.buf.WriteVarint(deltaOfDelta)
+	//e.buf.WriteVarint(deltaOfDelta)
+	e.buf.WriteUvarint(val)
 
 	newLen := len(e.buf.Bytes())
 	e.limiter.AddFrameBytes(uint(newLen - oldLen))
@@ -57,18 +58,22 @@ func (d *Uint64Decoder) Continue() {
 }
 
 func (d *Uint64Decoder) Decode(dst *uint64) error {
-	tsDeltaOfDelta, err := d.buf.ReadVarint()
-	if err != nil {
-		return err
-	}
-
-	tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
-	d.lastDelta = tsDelta
-
-	d.lastVal += tsDelta
-
-	*dst = d.lastVal
-	return nil
+	var err error
+	*dst, err = d.buf.ReadUvarint()
+	return err
+	//
+	//tsDeltaOfDelta, err := d.buf.ReadVarint()
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
+	//d.lastDelta = tsDelta
+	//
+	//d.lastVal += tsDelta
+	//
+	//*dst = d.lastVal
+	//return nil
 }
 
 func (d *Uint64Decoder) Reset() {
