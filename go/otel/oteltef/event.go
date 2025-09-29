@@ -373,10 +373,10 @@ type EventEncoder struct {
 	forceModifiedFields uint64
 
 	nameEncoder                   encoders.StringDictEncoder
-	timeUnixNanoEncoder           encoders.Uint64Encoder
+	timeUnixNanoEncoder           encoders.Uint64DeltaDeltaEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder encoders.Uint64DeltaEncoder
 
 	allocators *Allocators
 
@@ -564,11 +564,11 @@ type EventDecoder struct {
 	fieldCount  uint
 	nameDecoder encoders.StringDictDecoder
 
-	timeUnixNanoDecoder encoders.Uint64Decoder
+	timeUnixNanoDecoder encoders.Uint64DeltaDeltaDecoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder encoders.Uint64DeltaDecoder
 
 	allocators *Allocators
 }

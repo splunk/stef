@@ -17,7 +17,7 @@ class SpanStatusDecoder {
     
     private StringDecoder messageDecoder;
     private boolean isMessageRecursive = false; // Indicates Message field's type is recursive.
-    private Uint64Decoder codeDecoder;
+    private Uint64DeltaDecoder codeDecoder;
     private boolean isCodeRecursive = false; // Indicates Code field's type is recursive.
     
 
@@ -42,7 +42,7 @@ class SpanStatusDecoder {
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
-            codeDecoder = new Uint64Decoder();
+            codeDecoder = new Uint64DeltaDecoder();
             codeDecoder.init(columns.addSubColumn());
         } finally {
             state.SpanStatusDecoder = null;

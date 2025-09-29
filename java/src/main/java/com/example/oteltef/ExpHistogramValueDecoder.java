@@ -15,7 +15,7 @@ class ExpHistogramValueDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder countDecoder;
+    private Uint64DeltaDeltaDecoder countDecoder;
     private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
     private Float64Decoder sumDecoder;
     private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
@@ -23,9 +23,9 @@ class ExpHistogramValueDecoder {
     private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
     private Float64Decoder maxDecoder;
     private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
-    private Int64Decoder scaleDecoder;
+    private Int64DeltaDecoder scaleDecoder;
     private boolean isScaleRecursive = false; // Indicates Scale field's type is recursive.
-    private Uint64Decoder zeroCountDecoder;
+    private Uint64DeltaDeltaDecoder zeroCountDecoder;
     private boolean isZeroCountRecursive = false; // Indicates ZeroCount field's type is recursive.
     private ExpHistogramBucketsDecoder positiveBucketsDecoder;
     private boolean isPositiveBucketsRecursive = false; // Indicates PositiveBuckets field's type is recursive.
@@ -51,7 +51,7 @@ class ExpHistogramValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
-            countDecoder = new Uint64Decoder();
+            countDecoder = new Uint64DeltaDeltaDecoder();
             countDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
@@ -71,12 +71,12 @@ class ExpHistogramValueDecoder {
             if (this.fieldCount <= 4) {
                 return; // Scale and subsequent fields are skipped.
             }
-            scaleDecoder = new Int64Decoder();
+            scaleDecoder = new Int64DeltaDecoder();
             scaleDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 5) {
                 return; // ZeroCount and subsequent fields are skipped.
             }
-            zeroCountDecoder = new Uint64Decoder();
+            zeroCountDecoder = new Uint64DeltaDeltaDecoder();
             zeroCountDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 6) {
                 return; // PositiveBuckets and subsequent fields are skipped.

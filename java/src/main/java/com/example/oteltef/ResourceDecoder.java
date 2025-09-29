@@ -19,7 +19,7 @@ class ResourceDecoder {
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesDecoder attributesDecoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Decoder droppedAttributesCountDecoder;
+    private Uint64DeltaDecoder droppedAttributesCountDecoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
     private ResourceDecoderDict dict;
@@ -58,7 +58,7 @@ class ResourceDecoder {
             if (this.fieldCount <= 2) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountDecoder = new Uint64Decoder();
+            droppedAttributesCountDecoder = new Uint64DeltaDecoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
         } finally {
             state.ResourceDecoder = null;

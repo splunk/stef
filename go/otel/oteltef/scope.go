@@ -445,7 +445,7 @@ type ScopeEncoder struct {
 	schemaURLEncoder              encoders.StringDictEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder encoders.Uint64DeltaEncoder
 
 	allocators *Allocators
 	dict       *ScopeEncoderDict
@@ -739,7 +739,7 @@ type ScopeDecoder struct {
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder encoders.Uint64DeltaDecoder
 
 	dict       *ScopeDecoderDict
 	allocators *Allocators

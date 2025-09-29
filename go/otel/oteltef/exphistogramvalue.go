@@ -795,12 +795,12 @@ type ExpHistogramValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder               encoders.Uint64Encoder
+	countEncoder               encoders.Uint64DeltaDeltaEncoder
 	sumEncoder                 encoders.Float64Encoder
 	minEncoder                 encoders.Float64Encoder
 	maxEncoder                 encoders.Float64Encoder
-	scaleEncoder               encoders.Int64Encoder
-	zeroCountEncoder           encoders.Uint64Encoder
+	scaleEncoder               encoders.Int64DeltaEncoder
+	zeroCountEncoder           encoders.Uint64DeltaDeltaEncoder
 	positiveBucketsEncoder     *ExpHistogramBucketsEncoder
 	isPositiveBucketsRecursive bool // Indicates PositiveBuckets field's type is recursive.
 	negativeBucketsEncoder     *ExpHistogramBucketsEncoder
@@ -1129,7 +1129,7 @@ type ExpHistogramValueDecoder struct {
 	buf          pkg.BitsReader
 	column       *pkg.ReadableColumn
 	fieldCount   uint
-	countDecoder encoders.Uint64Decoder
+	countDecoder encoders.Uint64DeltaDeltaDecoder
 
 	sumDecoder encoders.Float64Decoder
 
@@ -1137,9 +1137,9 @@ type ExpHistogramValueDecoder struct {
 
 	maxDecoder encoders.Float64Decoder
 
-	scaleDecoder encoders.Int64Decoder
+	scaleDecoder encoders.Int64DeltaDecoder
 
-	zeroCountDecoder encoders.Uint64Decoder
+	zeroCountDecoder encoders.Uint64DeltaDeltaDecoder
 
 	positiveBucketsDecoder     *ExpHistogramBucketsDecoder
 	isPositiveBucketsRecursive bool

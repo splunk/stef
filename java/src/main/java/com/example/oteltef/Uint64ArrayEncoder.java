@@ -14,7 +14,7 @@ import java.util.List;
 class Uint64ArrayEncoder {
     private final BitsWriter buf = new BitsWriter();
     private SizeLimiter limiter;
-    private Uint64Encoder elemEncoder;
+    private Uint64DeltaDeltaEncoder elemEncoder;
     private WriterState state;
     private boolean isRecursive = false;
 
@@ -22,7 +22,7 @@ class Uint64ArrayEncoder {
         this.state = state;
         this.limiter = state.getLimiter();
 
-        elemEncoder = new Uint64Encoder();
+        elemEncoder = new Uint64DeltaDeltaEncoder();
         elemEncoder.init(this.limiter, columns.addSubColumn());
     }
 

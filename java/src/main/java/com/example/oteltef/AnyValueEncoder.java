@@ -23,7 +23,7 @@ class AnyValueEncoder {
     private boolean isStringRecursive = false; // Indicates String field's type is recursive.
     private BoolEncoder boolEncoder;
     private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
-    private Int64Encoder int64Encoder;
+    private Int64DeltaEncoder int64Encoder;
     private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
     private Float64Encoder float64Encoder;
     private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
@@ -64,7 +64,7 @@ class AnyValueEncoder {
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
-            int64Encoder = new Int64Encoder();
+            int64Encoder = new Int64DeltaEncoder();
             int64Encoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Float64 field.
             if (this.fieldCount <= 3) {

@@ -883,14 +883,14 @@ type SpanEncoder struct {
 	spanIDEncoder                 encoders.BytesEncoder
 	traceStateEncoder             encoders.StringEncoder
 	parentSpanIDEncoder           encoders.BytesEncoder
-	flagsEncoder                  encoders.Uint64Encoder
+	flagsEncoder                  encoders.Uint64DeltaEncoder
 	nameEncoder                   encoders.StringDictEncoder
-	kindEncoder                   encoders.Uint64Encoder
-	startTimeUnixNanoEncoder      encoders.Uint64Encoder
-	endTimeUnixNanoEncoder        encoders.Uint64Encoder
+	kindEncoder                   encoders.Uint64DeltaEncoder
+	startTimeUnixNanoEncoder      encoders.Uint64DeltaDeltaEncoder
+	endTimeUnixNanoEncoder        encoders.Uint64DeltaDeltaEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder encoders.Uint64DeltaEncoder
 	eventsEncoder                 *EventArrayEncoder
 	isEventsRecursive             bool // Indicates Events field's type is recursive.
 	linksEncoder                  *LinkArrayEncoder
@@ -1363,19 +1363,19 @@ type SpanDecoder struct {
 
 	parentSpanIDDecoder encoders.BytesDecoder
 
-	flagsDecoder encoders.Uint64Decoder
+	flagsDecoder encoders.Uint64DeltaDecoder
 
 	nameDecoder encoders.StringDictDecoder
 
-	kindDecoder encoders.Uint64Decoder
+	kindDecoder encoders.Uint64DeltaDecoder
 
-	startTimeUnixNanoDecoder encoders.Uint64Decoder
+	startTimeUnixNanoDecoder encoders.Uint64DeltaDeltaDecoder
 
-	endTimeUnixNanoDecoder encoders.Uint64Decoder
+	endTimeUnixNanoDecoder encoders.Uint64DeltaDeltaDecoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder encoders.Uint64DeltaDecoder
 
 	eventsDecoder     *EventArrayDecoder
 	isEventsRecursive bool

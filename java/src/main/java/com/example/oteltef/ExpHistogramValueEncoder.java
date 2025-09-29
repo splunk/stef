@@ -20,7 +20,7 @@ class ExpHistogramValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder countEncoder;
+    private Uint64DeltaDeltaEncoder countEncoder;
     private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
     private Float64Encoder sumEncoder;
     private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
@@ -28,9 +28,9 @@ class ExpHistogramValueEncoder {
     private boolean isMinRecursive = false; // Indicates Min field's type is recursive.
     private Float64Encoder maxEncoder;
     private boolean isMaxRecursive = false; // Indicates Max field's type is recursive.
-    private Int64Encoder scaleEncoder;
+    private Int64DeltaEncoder scaleEncoder;
     private boolean isScaleRecursive = false; // Indicates Scale field's type is recursive.
-    private Uint64Encoder zeroCountEncoder;
+    private Uint64DeltaDeltaEncoder zeroCountEncoder;
     private boolean isZeroCountRecursive = false; // Indicates ZeroCount field's type is recursive.
     private ExpHistogramBucketsEncoder positiveBucketsEncoder;
     private boolean isPositiveBucketsRecursive = false; // Indicates PositiveBuckets field's type is recursive.
@@ -60,7 +60,7 @@ class ExpHistogramValueEncoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
-            countEncoder = new Uint64Encoder();
+            countEncoder = new Uint64DeltaDeltaEncoder();
             countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {
@@ -84,13 +84,13 @@ class ExpHistogramValueEncoder {
             if (this.fieldCount <= 4) {
                 return; // Scale and subsequent fields are skipped.
             }
-            scaleEncoder = new Int64Encoder();
+            scaleEncoder = new Int64DeltaEncoder();
             scaleEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for ZeroCount field.
             if (this.fieldCount <= 5) {
                 return; // ZeroCount and subsequent fields are skipped.
             }
-            zeroCountEncoder = new Uint64Encoder();
+            zeroCountEncoder = new Uint64DeltaDeltaEncoder();
             zeroCountEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for PositiveBuckets field.
             if (this.fieldCount <= 6) {

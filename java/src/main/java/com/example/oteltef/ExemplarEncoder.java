@@ -20,7 +20,7 @@ class ExemplarEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder timestampEncoder;
+    private Uint64DeltaDeltaEncoder timestampEncoder;
     private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
     private ExemplarValueEncoder valueEncoder;
     private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
@@ -52,7 +52,7 @@ class ExemplarEncoder {
             if (this.fieldCount <= 0) {
                 return; // Timestamp and subsequent fields are skipped.
             }
-            timestampEncoder = new Uint64Encoder();
+            timestampEncoder = new Uint64DeltaDeltaEncoder();
             timestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
             if (this.fieldCount <= 1) {

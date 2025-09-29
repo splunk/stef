@@ -417,7 +417,7 @@ type PointValueEncoder struct {
 	typeBitCount uint
 
 	// Field encoders.
-	int64Encoder encoders.Int64Encoder
+	int64Encoder encoders.Int64DeltaDeltaEncoder
 
 	float64Encoder encoders.Float64Encoder
 
@@ -655,7 +655,7 @@ type PointValueDecoder struct {
 
 	// Field decoders.
 
-	int64Decoder encoders.Int64Decoder
+	int64Decoder encoders.Int64DeltaDeltaDecoder
 
 	float64Decoder encoders.Float64Decoder
 

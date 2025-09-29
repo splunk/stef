@@ -20,7 +20,7 @@ class HistogramValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private Int64Encoder countEncoder;
+    private Int64DeltaDeltaEncoder countEncoder;
     private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
     private Float64Encoder sumEncoder;
     private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
@@ -52,7 +52,7 @@ class HistogramValueEncoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
-            countEncoder = new Int64Encoder();
+            countEncoder = new Int64DeltaDeltaEncoder();
             countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {

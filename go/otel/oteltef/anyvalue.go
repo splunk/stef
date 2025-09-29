@@ -492,7 +492,7 @@ type AnyValueEncoder struct {
 
 	boolEncoder encoders.BoolEncoder
 
-	int64Encoder encoders.Int64Encoder
+	int64Encoder encoders.Int64DeltaEncoder
 
 	float64Encoder encoders.Float64Encoder
 
@@ -770,7 +770,7 @@ type AnyValueDecoder struct {
 
 	boolDecoder encoders.BoolDecoder
 
-	int64Decoder encoders.Int64Decoder
+	int64Decoder encoders.Int64DeltaDecoder
 
 	float64Decoder encoders.Float64Decoder
 

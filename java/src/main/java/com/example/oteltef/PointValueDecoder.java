@@ -19,7 +19,7 @@ class PointValueDecoder {
 
     // Field decoders.
     
-    private Int64Decoder int64Decoder;
+    private Int64DeltaDeltaDecoder int64Decoder;
     private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
     private Float64Decoder float64Decoder;
     private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
@@ -48,7 +48,7 @@ class PointValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
-            int64Decoder = new Int64Decoder();
+            int64Decoder = new Int64DeltaDeltaDecoder();
             int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Float64 and subsequent fields are skipped.

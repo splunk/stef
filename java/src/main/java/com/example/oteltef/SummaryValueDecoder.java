@@ -15,7 +15,7 @@ class SummaryValueDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder countDecoder;
+    private Uint64DeltaDeltaDecoder countDecoder;
     private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
     private Float64Decoder sumDecoder;
     private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
@@ -39,7 +39,7 @@ class SummaryValueDecoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
-            countDecoder = new Uint64Decoder();
+            countDecoder = new Uint64DeltaDeltaDecoder();
             countDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.

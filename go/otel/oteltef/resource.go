@@ -341,7 +341,7 @@ type ResourceEncoder struct {
 	schemaURLEncoder              encoders.StringDictEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder encoders.Uint64DeltaEncoder
 
 	allocators *Allocators
 	dict       *ResourceEncoderDict
@@ -583,7 +583,7 @@ type ResourceDecoder struct {
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder encoders.Uint64DeltaDecoder
 
 	dict       *ResourceDecoderDict
 	allocators *Allocators

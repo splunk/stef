@@ -371,8 +371,8 @@ type PointEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	startTimestampEncoder encoders.Uint64Encoder
-	timestampEncoder      encoders.Uint64Encoder
+	startTimestampEncoder encoders.Uint64DeltaDeltaEncoder
+	timestampEncoder      encoders.Uint64DeltaDeltaEncoder
 	valueEncoder          *PointValueEncoder
 	isValueRecursive      bool // Indicates Value field's type is recursive.
 	exemplarsEncoder      *ExemplarArrayEncoder
@@ -573,9 +573,9 @@ type PointDecoder struct {
 	buf                   pkg.BitsReader
 	column                *pkg.ReadableColumn
 	fieldCount            uint
-	startTimestampDecoder encoders.Uint64Decoder
+	startTimestampDecoder encoders.Uint64DeltaDeltaDecoder
 
-	timestampDecoder encoders.Uint64Decoder
+	timestampDecoder encoders.Uint64DeltaDeltaDecoder
 
 	valueDecoder         *PointValueDecoder
 	isValueRecursive     bool

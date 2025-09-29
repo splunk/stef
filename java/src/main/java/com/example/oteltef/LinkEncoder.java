@@ -26,11 +26,11 @@ class LinkEncoder {
     private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
     private StringEncoder traceStateEncoder;
     private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
-    private Uint64Encoder flagsEncoder;
+    private Uint64DeltaEncoder flagsEncoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
     private AttributesEncoder attributesEncoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Encoder droppedAttributesCountEncoder;
+    private Uint64DeltaEncoder droppedAttributesCountEncoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
 
@@ -72,7 +72,7 @@ class LinkEncoder {
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }
-            flagsEncoder = new Uint64Encoder();
+            flagsEncoder = new Uint64DeltaEncoder();
             flagsEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 4) {
@@ -90,7 +90,7 @@ class LinkEncoder {
             if (this.fieldCount <= 5) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountEncoder = new Uint64Encoder();
+            droppedAttributesCountEncoder = new Uint64DeltaEncoder();
             droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.LinkEncoder = null;

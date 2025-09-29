@@ -15,7 +15,7 @@ class ExemplarDecoder {
     private int fieldCount;
 
     
-    private Uint64Decoder timestampDecoder;
+    private Uint64DeltaDeltaDecoder timestampDecoder;
     private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
     private ExemplarValueDecoder valueDecoder;
     private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
@@ -43,7 +43,7 @@ class ExemplarDecoder {
             if (this.fieldCount <= 0) {
                 return; // Timestamp and subsequent fields are skipped.
             }
-            timestampDecoder = new Uint64Decoder();
+            timestampDecoder = new Uint64DeltaDeltaDecoder();
             timestampDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.

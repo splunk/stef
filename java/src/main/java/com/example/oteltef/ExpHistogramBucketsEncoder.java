@@ -20,7 +20,7 @@ class ExpHistogramBucketsEncoder {
     private boolean forceModifiedFields;
 
     
-    private Int64Encoder offsetEncoder;
+    private Int64DeltaEncoder offsetEncoder;
     private boolean isOffsetRecursive = false; // Indicates Offset field's type is recursive.
     private Uint64ArrayEncoder bucketCountsEncoder;
     private boolean isBucketCountsRecursive = false; // Indicates BucketCounts field's type is recursive.
@@ -46,7 +46,7 @@ class ExpHistogramBucketsEncoder {
             if (this.fieldCount <= 0) {
                 return; // Offset and subsequent fields are skipped.
             }
-            offsetEncoder = new Int64Encoder();
+            offsetEncoder = new Int64DeltaEncoder();
             offsetEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for BucketCounts field.
             if (this.fieldCount <= 1) {

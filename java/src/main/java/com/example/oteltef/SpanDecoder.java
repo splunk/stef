@@ -23,19 +23,19 @@ class SpanDecoder {
     private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
     private BytesDecoder parentSpanIDDecoder;
     private boolean isParentSpanIDRecursive = false; // Indicates ParentSpanID field's type is recursive.
-    private Uint64Decoder flagsDecoder;
+    private Uint64DeltaDecoder flagsDecoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
     private StringDictDecoder nameDecoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private Uint64Decoder kindDecoder;
+    private Uint64DeltaDecoder kindDecoder;
     private boolean isKindRecursive = false; // Indicates Kind field's type is recursive.
-    private Uint64Decoder startTimeUnixNanoDecoder;
+    private Uint64DeltaDeltaDecoder startTimeUnixNanoDecoder;
     private boolean isStartTimeUnixNanoRecursive = false; // Indicates StartTimeUnixNano field's type is recursive.
-    private Uint64Decoder endTimeUnixNanoDecoder;
+    private Uint64DeltaDeltaDecoder endTimeUnixNanoDecoder;
     private boolean isEndTimeUnixNanoRecursive = false; // Indicates EndTimeUnixNano field's type is recursive.
     private AttributesDecoder attributesDecoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Decoder droppedAttributesCountDecoder;
+    private Uint64DeltaDecoder droppedAttributesCountDecoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     private EventArrayDecoder eventsDecoder;
     private boolean isEventsRecursive = false; // Indicates Events field's type is recursive.
@@ -81,7 +81,7 @@ class SpanDecoder {
             if (this.fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
-            flagsDecoder = new Uint64Decoder();
+            flagsDecoder = new Uint64DeltaDecoder();
             flagsDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 5) {
                 return; // Name and subsequent fields are skipped.
@@ -91,17 +91,17 @@ class SpanDecoder {
             if (this.fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
             }
-            kindDecoder = new Uint64Decoder();
+            kindDecoder = new Uint64DeltaDecoder();
             kindDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 7) {
                 return; // StartTimeUnixNano and subsequent fields are skipped.
             }
-            startTimeUnixNanoDecoder = new Uint64Decoder();
+            startTimeUnixNanoDecoder = new Uint64DeltaDeltaDecoder();
             startTimeUnixNanoDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 8) {
                 return; // EndTimeUnixNano and subsequent fields are skipped.
             }
-            endTimeUnixNanoDecoder = new Uint64Decoder();
+            endTimeUnixNanoDecoder = new Uint64DeltaDeltaDecoder();
             endTimeUnixNanoDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 9) {
                 return; // Attributes and subsequent fields are skipped.
@@ -117,7 +117,7 @@ class SpanDecoder {
             if (this.fieldCount <= 10) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountDecoder = new Uint64Decoder();
+            droppedAttributesCountDecoder = new Uint64DeltaDecoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 11) {
                 return; // Events and subsequent fields are skipped.

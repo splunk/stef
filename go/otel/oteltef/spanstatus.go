@@ -272,7 +272,7 @@ type SpanStatusEncoder struct {
 	forceModifiedFields uint64
 
 	messageEncoder encoders.StringEncoder
-	codeEncoder    encoders.Uint64Encoder
+	codeEncoder    encoders.Uint64DeltaEncoder
 
 	allocators *Allocators
 
@@ -401,7 +401,7 @@ type SpanStatusDecoder struct {
 	fieldCount     uint
 	messageDecoder encoders.StringDecoder
 
-	codeDecoder encoders.Uint64Decoder
+	codeDecoder encoders.Uint64DeltaDecoder
 
 	allocators *Allocators
 }

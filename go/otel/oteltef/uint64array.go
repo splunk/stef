@@ -247,7 +247,7 @@ func (a *Uint64Array) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 type Uint64ArrayEncoder struct {
 	buf         pkg.BitsWriter
 	limiter     *pkg.SizeLimiter
-	elemEncoder *encoders.Uint64Encoder
+	elemEncoder *encoders.Uint64DeltaDeltaEncoder
 	isRecursive bool
 	state       *WriterState
 }
@@ -256,7 +256,7 @@ func (e *Uint64ArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	e.state = state
 	e.limiter = &state.limiter
 
-	e.elemEncoder = new(encoders.Uint64Encoder)
+	e.elemEncoder = new(encoders.Uint64DeltaDeltaEncoder)
 	if err := e.elemEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (e *Uint64ArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type Uint64ArrayDecoder struct {
 	buf         pkg.BitsReader
 	column      *pkg.ReadableColumn
-	elemDecoder *encoders.Uint64Decoder
+	elemDecoder *encoders.Uint64DeltaDeltaDecoder
 	isRecursive bool
 	allocators  *Allocators
 }
@@ -305,7 +305,7 @@ type Uint64ArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *Uint64ArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.elemDecoder = new(encoders.Uint64Decoder)
+	d.elemDecoder = new(encoders.Uint64DeltaDeltaDecoder)
 	err := d.elemDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err

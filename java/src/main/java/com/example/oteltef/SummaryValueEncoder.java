@@ -20,7 +20,7 @@ class SummaryValueEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder countEncoder;
+    private Uint64DeltaDeltaEncoder countEncoder;
     private boolean isCountRecursive = false; // Indicates Count field's type is recursive.
     private Float64Encoder sumEncoder;
     private boolean isSumRecursive = false; // Indicates Sum field's type is recursive.
@@ -48,7 +48,7 @@ class SummaryValueEncoder {
             if (this.fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
-            countEncoder = new Uint64Encoder();
+            countEncoder = new Uint64DeltaDeltaEncoder();
             countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
             if (this.fieldCount <= 1) {

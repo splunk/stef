@@ -592,7 +592,7 @@ type HistogramValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder            encoders.Int64Encoder
+	countEncoder            encoders.Int64DeltaDeltaEncoder
 	sumEncoder              encoders.Float64Encoder
 	minEncoder              encoders.Float64Encoder
 	maxEncoder              encoders.Float64Encoder
@@ -814,7 +814,7 @@ type HistogramValueDecoder struct {
 	buf          pkg.BitsReader
 	column       *pkg.ReadableColumn
 	fieldCount   uint
-	countDecoder encoders.Int64Decoder
+	countDecoder encoders.Int64DeltaDeltaDecoder
 
 	sumDecoder encoders.Float64Decoder
 

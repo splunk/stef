@@ -270,7 +270,7 @@ type ExpHistogramBucketsEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	offsetEncoder           encoders.Int64Encoder
+	offsetEncoder           encoders.Int64DeltaEncoder
 	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
@@ -410,7 +410,7 @@ type ExpHistogramBucketsDecoder struct {
 	buf           pkg.BitsReader
 	column        *pkg.ReadableColumn
 	fieldCount    uint
-	offsetDecoder encoders.Int64Decoder
+	offsetDecoder encoders.Int64DeltaDecoder
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool

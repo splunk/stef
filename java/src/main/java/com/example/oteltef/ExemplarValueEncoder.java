@@ -19,7 +19,7 @@ class ExemplarValueEncoder {
 
     // Field encoders.
     
-    private Int64Encoder int64Encoder;
+    private Int64DeltaDeltaEncoder int64Encoder;
     private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
     private Float64Encoder float64Encoder;
     private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
@@ -42,7 +42,7 @@ class ExemplarValueEncoder {
             if (this.fieldCount <= 0) {
                 return; // Int64 and subsequent fields are skipped.
             }
-            int64Encoder = new Int64Encoder();
+            int64Encoder = new Int64DeltaDeltaEncoder();
             int64Encoder.init(this.limiter, columns.addSubColumn());
             // Init encoder for Float64 field.
             if (this.fieldCount <= 1) {

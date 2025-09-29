@@ -28,19 +28,19 @@ class SpanEncoder {
     private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
     private BytesEncoder parentSpanIDEncoder;
     private boolean isParentSpanIDRecursive = false; // Indicates ParentSpanID field's type is recursive.
-    private Uint64Encoder flagsEncoder;
+    private Uint64DeltaEncoder flagsEncoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
     private StringDictEncoder nameEncoder;
     private boolean isNameRecursive = false; // Indicates Name field's type is recursive.
-    private Uint64Encoder kindEncoder;
+    private Uint64DeltaEncoder kindEncoder;
     private boolean isKindRecursive = false; // Indicates Kind field's type is recursive.
-    private Uint64Encoder startTimeUnixNanoEncoder;
+    private Uint64DeltaDeltaEncoder startTimeUnixNanoEncoder;
     private boolean isStartTimeUnixNanoRecursive = false; // Indicates StartTimeUnixNano field's type is recursive.
-    private Uint64Encoder endTimeUnixNanoEncoder;
+    private Uint64DeltaDeltaEncoder endTimeUnixNanoEncoder;
     private boolean isEndTimeUnixNanoRecursive = false; // Indicates EndTimeUnixNano field's type is recursive.
     private AttributesEncoder attributesEncoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Encoder droppedAttributesCountEncoder;
+    private Uint64DeltaEncoder droppedAttributesCountEncoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     private EventArrayEncoder eventsEncoder;
     private boolean isEventsRecursive = false; // Indicates Events field's type is recursive.
@@ -94,7 +94,7 @@ class SpanEncoder {
             if (this.fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
-            flagsEncoder = new Uint64Encoder();
+            flagsEncoder = new Uint64DeltaEncoder();
             flagsEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Name field.
             if (this.fieldCount <= 5) {
@@ -106,19 +106,19 @@ class SpanEncoder {
             if (this.fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
             }
-            kindEncoder = new Uint64Encoder();
+            kindEncoder = new Uint64DeltaEncoder();
             kindEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for StartTimeUnixNano field.
             if (this.fieldCount <= 7) {
                 return; // StartTimeUnixNano and subsequent fields are skipped.
             }
-            startTimeUnixNanoEncoder = new Uint64Encoder();
+            startTimeUnixNanoEncoder = new Uint64DeltaDeltaEncoder();
             startTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for EndTimeUnixNano field.
             if (this.fieldCount <= 8) {
                 return; // EndTimeUnixNano and subsequent fields are skipped.
             }
-            endTimeUnixNanoEncoder = new Uint64Encoder();
+            endTimeUnixNanoEncoder = new Uint64DeltaDeltaEncoder();
             endTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
             if (this.fieldCount <= 9) {
@@ -136,7 +136,7 @@ class SpanEncoder {
             if (this.fieldCount <= 10) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountEncoder = new Uint64Encoder();
+            droppedAttributesCountEncoder = new Uint64DeltaEncoder();
             droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Events field.
             if (this.fieldCount <= 11) {

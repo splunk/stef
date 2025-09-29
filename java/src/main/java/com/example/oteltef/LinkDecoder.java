@@ -21,11 +21,11 @@ class LinkDecoder {
     private boolean isSpanIDRecursive = false; // Indicates SpanID field's type is recursive.
     private StringDecoder traceStateDecoder;
     private boolean isTraceStateRecursive = false; // Indicates TraceState field's type is recursive.
-    private Uint64Decoder flagsDecoder;
+    private Uint64DeltaDecoder flagsDecoder;
     private boolean isFlagsRecursive = false; // Indicates Flags field's type is recursive.
     private AttributesDecoder attributesDecoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Decoder droppedAttributesCountDecoder;
+    private Uint64DeltaDecoder droppedAttributesCountDecoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
 
@@ -60,7 +60,7 @@ class LinkDecoder {
             if (this.fieldCount <= 3) {
                 return; // Flags and subsequent fields are skipped.
             }
-            flagsDecoder = new Uint64Decoder();
+            flagsDecoder = new Uint64DeltaDecoder();
             flagsDecoder.init(columns.addSubColumn());
             if (this.fieldCount <= 4) {
                 return; // Attributes and subsequent fields are skipped.
@@ -76,7 +76,7 @@ class LinkDecoder {
             if (this.fieldCount <= 5) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountDecoder = new Uint64Decoder();
+            droppedAttributesCountDecoder = new Uint64DeltaDecoder();
             droppedAttributesCountDecoder.init(columns.addSubColumn());
         } finally {
             state.LinkDecoder = null;

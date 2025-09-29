@@ -24,7 +24,7 @@ class ResourceEncoder {
     private boolean isSchemaURLRecursive = false; // Indicates SchemaURL field's type is recursive.
     private AttributesEncoder attributesEncoder;
     private boolean isAttributesRecursive = false; // Indicates Attributes field's type is recursive.
-    private Uint64Encoder droppedAttributesCountEncoder;
+    private Uint64DeltaEncoder droppedAttributesCountEncoder;
     private boolean isDroppedAttributesCountRecursive = false; // Indicates DroppedAttributesCount field's type is recursive.
     
     private ResourceEncoderDict dict;
@@ -69,7 +69,7 @@ class ResourceEncoder {
             if (this.fieldCount <= 2) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
-            droppedAttributesCountEncoder = new Uint64Encoder();
+            droppedAttributesCountEncoder = new Uint64DeltaEncoder();
             droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.ResourceEncoder = null;

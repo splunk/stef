@@ -20,9 +20,9 @@ class PointEncoder {
     private boolean forceModifiedFields;
 
     
-    private Uint64Encoder startTimestampEncoder;
+    private Uint64DeltaDeltaEncoder startTimestampEncoder;
     private boolean isStartTimestampRecursive = false; // Indicates StartTimestamp field's type is recursive.
-    private Uint64Encoder timestampEncoder;
+    private Uint64DeltaDeltaEncoder timestampEncoder;
     private boolean isTimestampRecursive = false; // Indicates Timestamp field's type is recursive.
     private PointValueEncoder valueEncoder;
     private boolean isValueRecursive = false; // Indicates Value field's type is recursive.
@@ -50,13 +50,13 @@ class PointEncoder {
             if (this.fieldCount <= 0) {
                 return; // StartTimestamp and subsequent fields are skipped.
             }
-            startTimestampEncoder = new Uint64Encoder();
+            startTimestampEncoder = new Uint64DeltaDeltaEncoder();
             startTimestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Timestamp field.
             if (this.fieldCount <= 1) {
                 return; // Timestamp and subsequent fields are skipped.
             }
-            timestampEncoder = new Uint64Encoder();
+            timestampEncoder = new Uint64DeltaDeltaEncoder();
             timestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
             if (this.fieldCount <= 2) {

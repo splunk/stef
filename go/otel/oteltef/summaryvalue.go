@@ -321,7 +321,7 @@ type SummaryValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder              encoders.Uint64Encoder
+	countEncoder              encoders.Uint64DeltaDeltaEncoder
 	sumEncoder                encoders.Float64Encoder
 	quantileValuesEncoder     *QuantileValueArrayEncoder
 	isQuantileValuesRecursive bool // Indicates QuantileValues field's type is recursive.
@@ -486,7 +486,7 @@ type SummaryValueDecoder struct {
 	buf          pkg.BitsReader
 	column       *pkg.ReadableColumn
 	fieldCount   uint
-	countDecoder encoders.Uint64Decoder
+	countDecoder encoders.Uint64DeltaDeltaDecoder
 
 	sumDecoder encoders.Float64Decoder
 

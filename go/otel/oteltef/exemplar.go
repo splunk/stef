@@ -422,7 +422,7 @@ type ExemplarEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	timestampEncoder              encoders.Uint64Encoder
+	timestampEncoder              encoders.Uint64DeltaDeltaEncoder
 	valueEncoder                  *ExemplarValueEncoder
 	isValueRecursive              bool // Indicates Value field's type is recursive.
 	spanIDEncoder                 encoders.BytesEncoder
@@ -649,7 +649,7 @@ type ExemplarDecoder struct {
 	buf              pkg.BitsReader
 	column           *pkg.ReadableColumn
 	fieldCount       uint
-	timestampDecoder encoders.Uint64Decoder
+	timestampDecoder encoders.Uint64DeltaDeltaDecoder
 
 	valueDecoder     *ExemplarValueDecoder
 	isValueRecursive bool

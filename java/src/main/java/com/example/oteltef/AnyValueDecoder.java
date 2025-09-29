@@ -23,7 +23,7 @@ class AnyValueDecoder {
     private boolean isStringRecursive = false; // Indicates String field's type is recursive.
     private BoolDecoder boolDecoder;
     private boolean isBoolRecursive = false; // Indicates Bool field's type is recursive.
-    private Int64Decoder int64Decoder;
+    private Int64DeltaDecoder int64Decoder;
     private boolean isInt64Recursive = false; // Indicates Int64 field's type is recursive.
     private Float64Decoder float64Decoder;
     private boolean isFloat64Recursive = false; // Indicates Float64 field's type is recursive.
@@ -62,7 +62,7 @@ class AnyValueDecoder {
             if (this.fieldCount <= 2) {
                 return; // Int64 and subsequent fields are skipped.
             }
-            int64Decoder = new Int64Decoder();
+            int64Decoder = new Int64DeltaDecoder();
             int64Decoder.init(columns.addSubColumn());
             if (this.fieldCount <= 3) {
                 return; // Float64 and subsequent fields are skipped.

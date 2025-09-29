@@ -22,7 +22,7 @@ class SpanStatusEncoder {
     
     private StringEncoder messageEncoder;
     private boolean isMessageRecursive = false; // Indicates Message field's type is recursive.
-    private Uint64Encoder codeEncoder;
+    private Uint64DeltaEncoder codeEncoder;
     private boolean isCodeRecursive = false; // Indicates Code field's type is recursive.
     
 
@@ -52,7 +52,7 @@ class SpanStatusEncoder {
             if (this.fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
-            codeEncoder = new Uint64Encoder();
+            codeEncoder = new Uint64DeltaEncoder();
             codeEncoder.init(limiter, columns.addSubColumn());
         } finally {
             state.SpanStatusEncoder = null;

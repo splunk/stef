@@ -24,13 +24,13 @@ struct Resource dict(Resource) {
   // All SchemaURL fields use the same (shared) dict.
   SchemaURL string dict(SchemaURL)
   Attributes Attributes
-  DroppedAttributesCount uint64
+  DroppedAttributesCount uint64 delta
 }
 
 // Point represents a metric data point.
 struct Point {
-  StartTimestamp uint64
-  Timestamp uint64
+  StartTimestamp uint64 delta delta
+  Timestamp uint64 delta delta
   Value PointValue
   Exemplars []Exemplar
 }
@@ -40,20 +40,20 @@ struct Span {
   SpanID bytes
   TraceState string
   ParentSpanID bytes
-  Flags uint64
+  Flags uint64 delta
   Name string dict(SpanName)
-  Kind uint64
-  StartTimeUnixNano uint64
-  EndTimeUnixNano uint64
+  Kind uint64 delta
+  StartTimeUnixNano uint64 delta delta
+  EndTimeUnixNano uint64 delta delta
   Attributes Attributes
-  DroppedAttributesCount uint64
+  DroppedAttributesCount uint64 delta
   Events []Event
   Links []Link
   Status SpanStatus
 }
 
 oneof PointValue {
-  Int64 int64
+  Int64 int64 delta delta
   Float64 float64
   Histogram HistogramValue
   ExpHistogram ExpHistogramValue
@@ -99,45 +99,45 @@ struct Scope dict(Scope) {
   Version string dict(ScopeVersion)
   SchemaURL string dict(SchemaURL)
   Attributes Attributes
-  DroppedAttributesCount uint64
+  DroppedAttributesCount uint64 delta
 }
 
 struct Link {
   TraceID bytes
   SpanID bytes
   TraceState string
-  Flags uint64
+  Flags uint64 delta
   Attributes Attributes
-  DroppedAttributesCount uint64
+  DroppedAttributesCount uint64 delta
 }
 
 struct HistogramValue {
-  Count int64
+  Count int64 delta delta
   Sum float64 optional
   Min float64 optional
   Max float64 optional
-  BucketCounts []uint64
+  BucketCounts []uint64 delta delta
 }
 
 struct ExpHistogramValue {
-  Count uint64
+  Count uint64 delta delta
   Sum float64 optional
   Min float64 optional
   Max float64 optional
-  Scale int64
-  ZeroCount uint64
+  Scale int64 delta
+  ZeroCount uint64 delta delta
   PositiveBuckets ExpHistogramBuckets
   NegativeBuckets ExpHistogramBuckets
   ZeroThreshold float64
 }
 
 struct ExpHistogramBuckets {
-  Offset int64
-  BucketCounts []uint64
+  Offset int64 delta
+  BucketCounts []uint64 delta delta
 }
 
 struct SummaryValue {
-  Count uint64
+  Count uint64 delta delta
   Sum float64
   QuantileValues []QuantileValue
 }
@@ -150,7 +150,7 @@ struct QuantileValue {
 oneof AnyValue {
   String string dict(AnyValueString)
   Bool bool
-  Int64 int64
+  Int64 int64 delta
   Float64 float64
   Array []AnyValue
   KVList KeyValueList
@@ -159,14 +159,14 @@ oneof AnyValue {
 
 struct Event {
   Name string dict(SpanEventName)
-  TimeUnixNano uint64
+  TimeUnixNano uint64 delta delta
   Attributes Attributes
-  DroppedAttributesCount uint64
+  DroppedAttributesCount uint64 delta
 }
 
 struct SpanStatus {
   Message string
-  Code uint64
+  Code uint64 delta
 }
 
 struct Spans root {
@@ -181,7 +181,7 @@ struct Envelope {
 }
 
 struct Exemplar {
-  Timestamp uint64
+  Timestamp uint64 delta delta
   Value ExemplarValue
   SpanID bytes
   TraceID bytes
@@ -189,6 +189,6 @@ struct Exemplar {
 }
 
 oneof ExemplarValue {
-  Int64 int64
+  Int64 int64 delta delta
   Float64 float64
 }

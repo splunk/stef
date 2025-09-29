@@ -477,10 +477,10 @@ type LinkEncoder struct {
 	traceIDEncoder                encoders.BytesEncoder
 	spanIDEncoder                 encoders.BytesEncoder
 	traceStateEncoder             encoders.StringEncoder
-	flagsEncoder                  encoders.Uint64Encoder
+	flagsEncoder                  encoders.Uint64DeltaEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder encoders.Uint64DeltaEncoder
 
 	allocators *Allocators
 
@@ -720,11 +720,11 @@ type LinkDecoder struct {
 
 	traceStateDecoder encoders.StringDecoder
 
-	flagsDecoder encoders.Uint64Decoder
+	flagsDecoder encoders.Uint64DeltaDecoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder encoders.Uint64DeltaDecoder
 
 	allocators *Allocators
 }

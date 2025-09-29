@@ -12,13 +12,13 @@ import java.io.IOException;
 class Uint64ArrayDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
-    private Uint64Decoder elemDecoder;
+    private Uint64DeltaDeltaDecoder elemDecoder;
     private boolean isRecursive = false;
 
     // init is called once in the lifetime of the stream.
     public void init(ReaderState state, ReadColumnSet columns) throws IOException {
         column = columns.getColumn();
-        elemDecoder = new Uint64Decoder();
+        elemDecoder = new Uint64DeltaDeltaDecoder();
         elemDecoder.init(columns.addSubColumn());
     }
 
