@@ -670,8 +670,8 @@ type ProfileMetadataEncoder struct {
 
 	dropFramesEncoder            encoders.StringDictEncoder
 	keepFramesEncoder            encoders.StringDictEncoder
-	timeNanosEncoder             encoders.Int64Encoder
-	durationNanosEncoder         encoders.Int64Encoder
+	timeNanosEncoder             encoders.Int64DeltaDeltaEncoder
+	durationNanosEncoder         encoders.Int64DeltaEncoder
 	periodTypeEncoder            *SampleValueTypeEncoder
 	isPeriodTypeRecursive        bool // Indicates PeriodType field's type is recursive.
 	periodEncoder                encoders.Int64Encoder
@@ -986,9 +986,9 @@ type ProfileMetadataDecoder struct {
 
 	keepFramesDecoder encoders.StringDictDecoder
 
-	timeNanosDecoder encoders.Int64Decoder
+	timeNanosDecoder encoders.Int64DeltaDeltaDecoder
 
-	durationNanosDecoder encoders.Int64Decoder
+	durationNanosDecoder encoders.Int64DeltaDecoder
 
 	periodTypeDecoder     *SampleValueTypeDecoder
 	isPeriodTypeRecursive bool

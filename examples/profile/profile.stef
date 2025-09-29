@@ -71,8 +71,8 @@ struct ProfileMetadata {
   DropFrames string dict(FunctionName)
   KeepFrames string dict(FunctionName)
 
-  TimeNanos     int64
-  DurationNanos int64
+  TimeNanos     int64 delta delta
+  DurationNanos int64 delta
 
   PeriodType SampleValueType
   Period     int64

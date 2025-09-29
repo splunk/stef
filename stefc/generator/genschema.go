@@ -119,6 +119,8 @@ type genPrimitiveTypeRef struct {
 	// Dict is the name of the dictionary type if this is a dictionary.
 	Dict string
 
+	Delta schema.DeltaModifier
+
 	// Enum is the name of the enum type if this is an enum.
 	Enum string
 	// EnumDef is the definition of the enum type.
@@ -306,6 +308,15 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 		name := prefix + s // e.g. encoders.Uint64
 		if r.Dict != "" {
 			name += "Dict"
+		}
+		switch r.Delta {
+		case schema.DeltaModifierNone:
+		case schema.DeltaModifierDelta:
+			name += "Delta"
+		case schema.DeltaModifierDeltaDelta:
+			name += "DeltaDelta"
+		default:
+			panic(fmt.Sprintf("unknown delta modifier %v", r.Delta))
 		}
 		return name
 	}

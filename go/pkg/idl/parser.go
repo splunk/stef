@@ -331,13 +331,44 @@ func (p *Parser) parseFieldType(field *schema.FieldType) error {
 	p.lexer.Next()
 
 	// Parse type modifiers
-	switch p.lexer.Token() {
-	case tDict:
-		dictName, err := p.parseDictModifier()
-		if err != nil {
-			return err
+modifierLoop:
+	for {
+		switch p.lexer.Token() {
+		case tDict:
+			if ft.DictName != "" {
+				return p.error("duplicate dict modifier")
+			}
+
+			dictName, err := p.parseDictModifier()
+			if err != nil {
+				return err
+			}
+			ft.DictName = dictName
+
+		case tDelta:
+			if ft.Primitive == nil {
+				return p.error("delta modifier can only be applied to primitive types")
+			}
+			if ft.Primitive.Type != schema.PrimitiveTypeUint64 && ft.Primitive.Type != schema.PrimitiveTypeInt64 {
+				return p.error("delta modifier can only be applied to int64 or uint64 types")
+			}
+
+			if ft.Delta > schema.DeltaModifierNone {
+				return p.error("duplicate delta modifier")
+			}
+
+			p.lexer.Next()
+
+			ft.Delta = schema.DeltaModifierDelta
+
+			if p.lexer.Token() == tDelta {
+				p.lexer.Next()
+				ft.Delta = schema.DeltaModifierDeltaDelta
+			}
+
+		default:
+			break modifierLoop
 		}
-		ft.DictName = dictName
 	}
 
 	if isArray {

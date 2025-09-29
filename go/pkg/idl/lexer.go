@@ -55,6 +55,7 @@ const (
 	tDict
 	tKey
 	tValue
+	tDelta
 
 	tBool
 	tInt64
@@ -101,6 +102,7 @@ var keywords = map[string]Token{
 	"dict":     tDict,
 	"key":      tKey,
 	"value":    tValue,
+	"delta":    tDelta,
 	"bool":     tBool,
 	"int64":    tInt64,
 	"uint64":   tUint64,

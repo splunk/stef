@@ -533,6 +533,14 @@ type ArrayType struct {
 	recursive bool
 }
 
+type DeltaModifier int
+
+const (
+	DeltaModifierNone DeltaModifier = iota
+	DeltaModifierDelta
+	DeltaModifierDeltaDelta
+)
+
 // FieldType describes a field type of in a struct, multimap key or value or array element.
 type FieldType struct {
 	// Only one of the following 5 fields should be set.
@@ -549,6 +557,8 @@ type FieldType struct {
 	// that are named in Struct or MultiMap fields.
 	StructDef   *Struct
 	MultimapDef *Multimap
+
+	Delta DeltaModifier
 }
 
 func (t *FieldType) Clone() FieldType {

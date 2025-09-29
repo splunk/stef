@@ -146,10 +146,11 @@ func structFieldWireToAst(src *schema.StructField, lang Lang) *genStructFieldDef
 func typeWireToGen(src schema.FieldType, lang Lang) genFieldTypeRef {
 	if src.Primitive != nil {
 		return &genPrimitiveTypeRef{
-			Lang: lang,
-			Type: src.Primitive.Type,
-			Dict: src.DictName,
-			Enum: src.Enum,
+			Lang:  lang,
+			Type:  src.Primitive.Type,
+			Dict:  src.DictName,
+			Delta: src.Delta,
+			Enum:  src.Enum,
 		}
 	}
 

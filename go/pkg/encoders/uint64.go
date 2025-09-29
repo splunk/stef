@@ -3,10 +3,8 @@ package encoders
 import "github.com/splunk/stef/go/pkg"
 
 type Uint64Encoder struct {
-	buf       pkg.BytesWriter
-	limiter   *pkg.SizeLimiter
-	lastVal   uint64
-	lastDelta uint64
+	buf     pkg.BytesWriter
+	limiter *pkg.SizeLimiter
 }
 
 func (e *Uint64Encoder) Init(limiter *pkg.SizeLimiter, columns *pkg.WriteColumnSet) error {
@@ -15,23 +13,10 @@ func (e *Uint64Encoder) Init(limiter *pkg.SizeLimiter, columns *pkg.WriteColumnS
 }
 
 func (e *Uint64Encoder) Reset() {
-	e.lastVal = 0
-	e.lastDelta = 0
-}
-
-func (e *Uint64Encoder) IsEqual(val uint64) bool {
-	return e.lastVal == val
 }
 
 func (e *Uint64Encoder) Encode(val uint64) {
-	//delta := val - e.lastVal
-	//e.lastVal = val
-	//
-	//deltaOfDelta := int64(delta - e.lastDelta)
-	//e.lastDelta = delta
-
 	oldLen := len(e.buf.Bytes())
-	//e.buf.WriteVarint(deltaOfDelta)
 	e.buf.WriteUvarint(val)
 
 	newLen := len(e.buf.Bytes())
@@ -57,23 +42,9 @@ func (d *Uint64Decoder) Continue() {
 	d.buf.Reset(d.column.Data())
 }
 
-func (d *Uint64Decoder) Decode(dst *uint64) error {
-	var err error
+func (d *Uint64Decoder) Decode(dst *uint64) (err error) {
 	*dst, err = d.buf.ReadUvarint()
 	return err
-	//
-	//tsDeltaOfDelta, err := d.buf.ReadVarint()
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//tsDelta := d.lastDelta + uint64(tsDeltaOfDelta)
-	//d.lastDelta = tsDelta
-	//
-	//d.lastVal += tsDelta
-	//
-	//*dst = d.lastVal
-	//return nil
 }
 
 func (d *Uint64Decoder) Reset() {
