@@ -4,7 +4,7 @@ go 1.22.7
 
 require (
 	github.com/google/go-cmp v0.6.0
-	github.com/klauspost/compress v1.17.8
+	github.com/klauspost/compress v1.18.0
 	github.com/stretchr/testify v1.11.1
 )
 
