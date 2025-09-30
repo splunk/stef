@@ -32,10 +32,8 @@ func (e *Uint64Encoder) WriteTo(buf *pkg.BytesWriter) {
 }
 
 type Uint64Decoder struct {
-	buf       pkg.BytesReader
-	column    *pkg.ReadableColumn
-	lastVal   uint64
-	lastDelta uint64
+	buf    pkg.BytesReader
+	column *pkg.ReadableColumn
 }
 
 func (d *Uint64Decoder) Continue() {
@@ -48,8 +46,6 @@ func (d *Uint64Decoder) Decode(dst *uint64) (err error) {
 }
 
 func (d *Uint64Decoder) Reset() {
-	d.lastVal = 0
-	d.lastDelta = 0
 }
 
 func (d *Uint64Decoder) Init(columns *pkg.ReadColumnSet) error {

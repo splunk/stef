@@ -7,15 +7,17 @@ import net.stef.ReadableColumn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class Int64Decoder {
-    protected BytesReader buf = new BytesReader();
+public class Int64DeltaDecoder {
+    private BytesReader buf = new BytesReader();
     private ReadableColumn column;
+    private long lastVal = 0;
 
     public void init(ReadColumnSet columns) {
         column = columns.getColumn();
     }
 
     public void reset() {
+        lastVal = 0;
     }
 
     public void continueDecoding() {
@@ -23,6 +25,8 @@ public class Int64Decoder {
     }
 
     public long decode() throws IOException {
-        return buf.readVarint();
+        long delta = buf.readVarint();
+        lastVal += delta;
+        return lastVal;
     }
 }
