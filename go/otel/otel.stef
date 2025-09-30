@@ -42,7 +42,7 @@ struct Span {
   ParentSpanID bytes
   Flags uint64
   Name string dict(SpanName)
-  Kind uint64
+  Kind SpanKind
   StartTimeUnixNano uint64
   EndTimeUnixNano uint64
   Attributes Attributes
@@ -50,6 +50,15 @@ struct Span {
   Events []Event
   Links []Link
   Status SpanStatus
+}
+
+enum SpanKind {
+  Unspecified = 0
+  Internal = 1
+  Server = 2
+  Client = 3
+  Producer = 4
+  Consumer = 5
 }
 
 oneof PointValue {

@@ -125,7 +125,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef
 	dst.SetFlags(uint64(src.Flags()))
 	dst.SetStartTimeUnixNano(uint64(src.StartTimestamp()))
 	dst.SetEndTimeUnixNano(uint64(src.EndTimestamp()))
-	dst.SetKind(uint64(src.Kind()))
+	dst.SetKind(oteltef.SpanKind(src.Kind()))
 	dst.SetTraceState(src.TraceState().AsRaw())
 	if sorted {
 		otlp2tef.MapSorted(src.Attributes(), dst.Attributes())

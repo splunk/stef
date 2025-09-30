@@ -274,14 +274,14 @@ func (s *Span) IsNameModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpanName != 0
 }
 
-func (s *Span) Kind() uint64 {
-	return s.kind
+func (s *Span) Kind() SpanKind {
+	return SpanKind(s.kind)
 }
 
 // SetKind sets the value of Kind field.
-func (s *Span) SetKind(v uint64) {
-	if s.kind != v {
-		s.kind = v
+func (s *Span) SetKind(v SpanKind) {
+	if s.kind != uint64(v) {
+		s.kind = uint64(v)
 		s.modifiedFields.markModified(fieldModifiedSpanKind)
 	}
 }
@@ -594,7 +594,7 @@ func copySpan(dst *Span, src *Span) {
 	dst.SetParentSpanID(src.parentSpanID)
 	dst.SetFlags(src.flags)
 	dst.SetName(src.name)
-	dst.SetKind(src.kind)
+	dst.SetKind(SpanKind(src.kind))
 	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
 	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
 	copyAttributes(&dst.attributes, &src.attributes)
@@ -612,7 +612,7 @@ func copyToNewSpan(dst *Span, src *Span, allocators *Allocators) {
 	dst.SetParentSpanID(src.parentSpanID)
 	dst.SetFlags(src.flags)
 	dst.SetName(src.name)
-	dst.SetKind(src.kind)
+	dst.SetKind(SpanKind(src.kind))
 	dst.SetStartTimeUnixNano(src.startTimeUnixNano)
 	dst.SetEndTimeUnixNano(src.endTimeUnixNano)
 	copyToNewAttributes(&dst.attributes, &src.attributes, allocators)
@@ -688,7 +688,7 @@ func (s *Span) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Kind
 	if random.IntN(randRange) == 0 {
-		s.SetKind(pkg.Uint64Random(random))
+		s.SetKind(SpanKind(pkg.Uint64Random(random) % 6))
 	}
 	if fieldCount <= 7 {
 		return // StartTimeUnixNano and all subsequent fields are skipped.
