@@ -569,6 +569,7 @@ func (t *FieldType) Clone() FieldType {
 		MultiMap:  t.MultiMap,
 		Enum:      t.Enum,
 		DictName:  t.DictName,
+		Delta:     t.Delta,
 	}
 	if t.Array != nil {
 		clone.Array = &ArrayType{ElemType: t.Array.ElemType.Clone()}
