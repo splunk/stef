@@ -1,0 +1,10 @@
+package com.example.gentest.ints
+
+struct IntsRoot root {
+  Int64 int64
+  Int64D int64 delta
+  Int64DD int64 delta delta
+  UInt64 uint64
+  UInt64D uint64 delta
+  UInt64DD uint64 delta delta
+}
