@@ -65,6 +65,14 @@ func TestParserErrors(t *testing.T) {
 			input: "struct Root root {}",
 			err:   "test.stef:1:2: expected package but got struct",
 		},
+		{
+			input: "package abc struct Root root { x1 int64 x1 string }",
+			err:   "test.stef:1:41: duplicate field name: x1",
+		},
+		{
+			input: "package abc struct Root root { x1 int64 dict(DictName) }",
+			err:   "test.stef:1:41: only string or bytes can have dict modifier",
+		},
 	}
 
 	for _, test := range tests {

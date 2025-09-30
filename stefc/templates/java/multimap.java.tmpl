@@ -198,7 +198,7 @@ public class {{ .MultimapName }} {
             }
         {{else}}
             if (!elems[i].key.equals(src.elems[i].key)) {
-                copy{{.Key.Type.TypeName}}(elems[i].key, src.elems[i].key);
+                elems[i].key.copyFrom(src.elems[i].key);
                 modifiedElems.markKeyModified(i);
             }
         {{end}}
@@ -234,7 +234,7 @@ public class {{ .MultimapName }} {
                 return false;
             }
         {{- else }}
-            if (!elems[i].equals(val.elems[i])) {
+            if (!elems[i].key.equals(val.elems[i].key)) {
                 return false;
             }
         {{- end}}

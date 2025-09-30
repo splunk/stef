@@ -11,6 +11,9 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
+var _ = (*encoders.StringEncoder)(nil)
+var _ = (*strings.Builder)(nil)
+
 // EnvelopeAttributes is a multimap, (aka an associative array or a list) of key value
 // pairs from string to Bytes.
 type EnvelopeAttributes struct {
@@ -56,6 +59,11 @@ func (m *EnvelopeAttributes) fixParent(parentModifiedFields *modifiedFields) {
 	elems := m.elems[:m.initedCount]
 	for i := 0; i < len(elems); i++ {
 	}
+}
+
+func (m *EnvelopeAttributes) canBeShared() bool {
+	// Multimap can never be shared.
+	return false
 }
 
 // Len returns the number of elements in the multimap.
