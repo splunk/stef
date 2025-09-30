@@ -119,6 +119,7 @@ type genPrimitiveTypeRef struct {
 	// Dict is the name of the dictionary type if this is a dictionary.
 	Dict string
 
+	// Indicates if "delta" modifier is applied.
 	Delta schema.DeltaModifier
 
 	// Enum is the name of the enum type if this is an enum.
