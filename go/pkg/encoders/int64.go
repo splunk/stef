@@ -7,17 +7,14 @@ type Int64Encoder struct {
 func (e *Int64Encoder) Encode(val int64) {
 	oldLen := len(e.buf.Bytes())
 	e.buf.WriteVarint(val)
-
-	newLen := len(e.buf.Bytes())
-	e.limiter.AddFrameBytes(uint(newLen - oldLen))
+	e.limiter.AddFrameBytes(uint(len(e.buf.Bytes()) - oldLen))
 }
 
 type Int64Decoder struct {
 	Uint64Decoder
 }
 
-func (d *Int64Decoder) Decode(dst *int64) error {
-	var err error
+func (d *Int64Decoder) Decode(dst *int64) (err error) {
 	*dst, err = d.buf.ReadVarint()
 	return err
 }
