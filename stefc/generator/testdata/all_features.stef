@@ -21,7 +21,7 @@ struct AllTypes {
   Srmo StructRecurseMutualViaOptional1
   AllMultimaps AllMultimaps
   E1 Enum1
-  // E2 EnumWithGaps // TODO: This does not work in Java.
+  E2 EnumWithGaps
 }
 
 struct AllTypesDicts {

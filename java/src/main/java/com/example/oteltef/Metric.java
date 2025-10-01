@@ -151,14 +151,14 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedUnit) != 0;
     }
     
-    public MetricType getType() {
-        return MetricType.fromValue(type_);
+    public long getType() {
+        return type_;
     }
 
     // setType sets the value of Type field.
-    public void setType(MetricType v) {
-        if (!Types.Uint64Equal(this.type_, v.getValue())) {
-            this.type_ = v.getValue();
+    public void setType(long v) {
+        if (!Types.Uint64Equal(this.type_, v)) {
+            this.type_ = v;
             this.markTypeModified();
         }
     }
@@ -207,14 +207,14 @@ public class Metric {
         return (this.modifiedFields.mask & fieldModifiedHistogramBounds) != 0;
     }
     
-    public AggregationTemporality getAggregationTemporality() {
-        return AggregationTemporality.fromValue(aggregationTemporality);
+    public long getAggregationTemporality() {
+        return aggregationTemporality;
     }
 
     // setAggregationTemporality sets the value of AggregationTemporality field.
-    public void setAggregationTemporality(AggregationTemporality v) {
-        if (!Types.Uint64Equal(this.aggregationTemporality, v.getValue())) {
-            this.aggregationTemporality = v.getValue();
+    public void setAggregationTemporality(long v) {
+        if (!Types.Uint64Equal(this.aggregationTemporality, v)) {
+            this.aggregationTemporality = v;
             this.markAggregationTemporalityModified();
         }
     }
@@ -442,7 +442,7 @@ public class Metric {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setType(MetricType.fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 5));
+            this.setType((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 5);
         }
         
         if (random.nextInt(fieldCount) == 0) {
@@ -454,7 +454,7 @@ public class Metric {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setAggregationTemporality(AggregationTemporality.fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 3));
+            this.setAggregationTemporality((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 3);
         }
         
         if (random.nextInt(fieldCount) == 0) {
