@@ -73,6 +73,14 @@ func TestParserErrors(t *testing.T) {
 			input: "package abc struct Root root { x1 int64 dict(DictName) }",
 			err:   "test.stef:1:41: only string or bytes can have dict modifier",
 		},
+		{
+			input: "package abc oneof Root root {}",
+			err:   "test.stef:1:24: oneof cannot be a root",
+		},
+		{
+			input: "package abc oneof Oneof dict(abc) {}",
+			err:   "test.stef:1:25: oneof cannot have dict modifier",
+		},
 	}
 
 	for _, test := range tests {
