@@ -1,24 +1,10 @@
 package {{ .PackageName }};
 
-public enum {{.EnumName}} {
+public class {{.EnumName}} {
     {{- range .Fields }}
-    {{.Name}}({{.Value}}),
+    public static final long {{.Name}} = {{.Value}};
     {{- end }}
-    ;
 
-    private final long value;
-
-    private static {{.EnumName}}[] enumValues = {{.EnumName}}.values();
-
-    public static {{.EnumName}} fromValue(long value) {
-        return enumValues[(int)value];
-    }
-
-    {{.EnumName}}(long value) {
-        this.value = value;
-    }
-
-    public long getValue() {
-        return value;
-    }
+    // Private constructor to prevent instantiation
+    private {{.EnumName}}() {}
 }

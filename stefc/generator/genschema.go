@@ -211,7 +211,7 @@ func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 		case LangGo:
 			return r.Storage() + "(" + arg + ")"
 		case LangJava:
-			return arg + ".getValue()"
+			return arg
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -228,7 +228,7 @@ func (r *genPrimitiveTypeRef) ToExported(arg string) string {
 		case LangGo:
 			return r.Enum + "(" + arg + ")"
 		case LangJava:
-			return r.Enum + ".fromValue(" + arg + ")"
+			return arg
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -241,7 +241,7 @@ func (r *genPrimitiveTypeRef) ToExported(arg string) string {
 // The underlying storage type may be different (e.g. if it is an Enum)
 // and is available via Storage().
 func (r *genPrimitiveTypeRef) Exported() string {
-	if r.Enum != "" {
+	if r.Lang == LangGo && r.Enum != "" {
 		return r.Enum
 	}
 	return r.Storage()
@@ -376,8 +376,8 @@ func (r *genPrimitiveTypeRef) RandomFunc() string {
 		case LangGo:
 			return r.Enum + fmt.Sprintf("(pkg.Uint64Random(random) %% %d)", len(r.EnumDef.Fields))
 		case LangJava:
-			return r.Enum + fmt.Sprintf(
-				".fromValue((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) %% %d)", len(r.EnumDef.Fields),
+			return fmt.Sprintf(
+				"(Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) %% %d", len(r.EnumDef.Fields),
 			)
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
