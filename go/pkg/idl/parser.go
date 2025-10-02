@@ -59,7 +59,7 @@ func (p *Parser) Parse() error {
 		var err error
 		switch p.lexer.Token() {
 		case tStruct:
-			_, err = p.parseStruct()
+			_, err = p.parseStruct(false)
 		case tOneof:
 			err = p.parseOneof()
 		case tMultimap:
@@ -86,7 +86,7 @@ func (p *Parser) isTopLevelNameUsed(name string) bool {
 	return p.schema.Structs[name] != nil || p.schema.Multimaps[name] != nil || p.schema.Enums[name] != nil
 }
 
-func (p *Parser) parseStruct() (*schema.Struct, error) {
+func (p *Parser) parseStruct(isOneOf bool) (*schema.Struct, error) {
 	p.lexer.Next() // skip "struct"
 
 	if p.lexer.Token() != tIdent {
@@ -102,6 +102,7 @@ func (p *Parser) parseStruct() (*schema.Struct, error) {
 
 	str := schema.NewStruct()
 	str.Name = structName
+	str.OneOf = isOneOf
 	p.schema.Structs[str.Name] = str
 
 	if err := p.parseStructModifiers(str); err != nil {
@@ -125,7 +126,7 @@ func (p *Parser) parseStruct() (*schema.Struct, error) {
 
 func (p *Parser) parseOneof() error {
 	// "oneof" syntax is identical to struct, except we need to set "OneOf" flag.
-	str, err := p.parseStruct()
+	str, err := p.parseStruct(true)
 	if err != nil {
 		return err
 	}
@@ -203,12 +204,18 @@ func (p *Parser) parseStructModifiers(str *schema.Struct) error {
 func (p *Parser) parseStructModifier(str *schema.Struct) (error, bool) {
 	switch p.lexer.Token() {
 	case tDict:
+		if str.OneOf {
+			return p.error("oneof cannot have dict modifier"), false
+		}
 		dictName, err := p.parseDictModifier()
 		if err != nil {
 			return err, false
 		}
 		str.DictName = dictName
 	case tRoot:
+		if str.OneOf {
+			return p.error("oneof cannot be a root"), false
+		}
 		str.IsRoot = true
 		p.lexer.Next()
 	default:
