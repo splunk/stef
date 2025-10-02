@@ -2,6 +2,7 @@
 // Exemplar Java class generated from template
 package com.example.oteltef;
 
+import net.stef.BytesValue;
 import net.stef.StringValue;
 import net.stef.Types;
 import net.stef.schema.WireSchema;
@@ -15,8 +16,8 @@ public class Exemplar {
     
     long timestamp;
     ExemplarValue value;
-    byte[] spanID;
-    byte[] traceID;
+    BytesValue spanID;
+    BytesValue traceID;
     Attributes filteredAttributes;
 
     // modifiedFields keeps track of which fields are modified.
@@ -107,12 +108,12 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedValue) != 0;
     }
     
-    public byte[] getSpanID() {
+    public BytesValue getSpanID() {
         return spanID;
     }
 
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(byte[] v) {
+    public void setSpanID(BytesValue v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();
@@ -131,12 +132,12 @@ public class Exemplar {
         return (this.modifiedFields.mask & fieldModifiedSpanID) != 0;
     }
     
-    public byte[] getTraceID() {
+    public BytesValue getTraceID() {
         return traceID;
     }
 
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(byte[] v) {
+    public void setTraceID(BytesValue v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();

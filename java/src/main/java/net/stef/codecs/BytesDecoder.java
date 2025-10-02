@@ -1,6 +1,7 @@
 package net.stef.codecs;
 
 import net.stef.BytesReader;
+import net.stef.BytesValue;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 
@@ -21,12 +22,12 @@ public class BytesDecoder {
 
     public void reset() {}
 
-    public byte[] decode() throws IOException {
+    public BytesValue decode() throws IOException {
         long varint = buf.readVarint();
         if (varint >= 0) {
             int strLen = (int) varint;
             byte[] value = buf.readBytes(strLen);
-            return value;
+            return new BytesValue(value);
         } else {
             throw new IOException("Invalid RefNum, out of dictionary range");
         }

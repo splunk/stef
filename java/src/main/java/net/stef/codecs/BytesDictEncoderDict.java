@@ -1,5 +1,6 @@
 package net.stef.codecs;
 
+import net.stef.BytesValue;
 import net.stef.SizeLimiter;
 
 import java.util.HashMap;
@@ -11,7 +12,7 @@ import java.util.Map;
  * TODO: must supply custom hashCode/equals for byte[] key of HashMap.
  */
 public class BytesDictEncoderDict {
-    private Map<byte[], Integer> m;
+    private Map<BytesValue, Integer> m;
 
     public void init(SizeLimiter limiter) {
         this.m = new HashMap<>();
@@ -21,11 +22,11 @@ public class BytesDictEncoderDict {
         this.m = new HashMap<>();
     }
 
-    public Integer get(byte[] key) {
+    public Integer get(BytesValue key) {
         return m.get(key);
     }
 
-    public void put(byte[] key, int value) {
+    public void put(BytesValue key, int value) {
         m.put(key, value);
     }
 

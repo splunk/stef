@@ -1,5 +1,6 @@
 package net.stef.codecs;
 
+import net.stef.BytesValue;
 import net.stef.StringValue;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
@@ -18,7 +19,7 @@ public class StringEncoder {
             encoder.encode(null);
             return;
         }
-        encoder.encode(value.getBytes());
+        encoder.encode(new BytesValue(value.getBytes()));
     }
 
     public void collectColumns(WriteColumnSet columnSet) {

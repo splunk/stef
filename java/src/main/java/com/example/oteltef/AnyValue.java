@@ -2,6 +2,7 @@
 // AnyValue Java class generated from template
 package com.example.oteltef;
 
+import net.stef.BytesValue;
 import net.stef.StringValue;
 import net.stef.Types;
 import java.util.*;
@@ -17,7 +18,7 @@ public class AnyValue {
     double float64;
     AnyValueArray array;
     KeyValueList kVList;
-    byte[] bytes;
+    BytesValue bytes;
 
     // Pointer to parent's modifiedFields
     ModifiedFields parentModifiedFields;
@@ -200,12 +201,12 @@ public class AnyValue {
     
     // Bytes returns the value if the contained type is currently TypeBytes.
     // The caller must check the type via getType() before attempting to call this function.
-    public byte[] getBytes() {
+    public BytesValue getBytes() {
         return this.bytes;
     }
     
     // SetBytes sets the value to the specified value and sets the type to TypeBytes.
-    public void setBytes(byte[] v) {
+    public void setBytes(BytesValue v) {
         if (!Types.BytesEqual(this.bytes, v) || this.typ != Type.TypeBytes) {
             this.bytes = v;
             this.typ = Type.TypeBytes;

@@ -54,7 +54,7 @@ struct AllArrays {
   U64 []uint64
   F64 []float64
   S []string
-  // By []bytes // TODO: this does not work in Java.
+  By []bytes
   M []StringStringMultimap
 }
 
