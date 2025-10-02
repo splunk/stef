@@ -677,22 +677,8 @@ not present.
 `ModifiedMask` is a field composed of N bits, where N equals the number of fields 
 in the struct, with bits laid out in the order matching the declaration order of the 
 fields. If the field's value is different in this instance of the struct compared to 
-that same field's value in the previous instance of the struct then the corresponding 
+that same field's value in the previous record then the corresponding 
 bit will be set to 1 otherwise the bit will be set to 0.
-
-Note: here we refer to "value in the previous instance of the struct" instead of 
-saying "the value in the previous record". Although, in simplest cases the previous 
-instance is indeed in the previous record, in more complex cases it may not be the case.
-This is for example possible if the previous record did not contain a value for this 
-field at all (this is possible if the field is optional). This is also possible if the 
-schema declares an array of structs and encoder is encoding the elements of that array.
-In that case "the previous instance" refers to the previous array element (provided 
-that the element has a value for that field!).
-
-In short, the encoder is tasked with encoding values of the specified field one after 
-another. This values may or may not be sequential values of the same field taken from 
-consecutive records. It is the encoder's job to have a state that tracks a "previous 
-instance".
 
 `PresenceMask` field is optional and is only present if the struct contains any 
 fields that are declared optional in STEF schema. `PresenceMask` will contain M bits, 
