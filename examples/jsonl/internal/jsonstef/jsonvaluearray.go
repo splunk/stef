@@ -396,5 +396,5 @@ func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

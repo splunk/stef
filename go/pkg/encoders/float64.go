@@ -128,7 +128,7 @@ func (d *Float64Decoder) Decode(dst *float64) error {
 		// Value is identical to previous, nothing to do.
 		d.buf.Consume(1)
 		*dst = d.lastVal
-		return nil
+		return d.buf.Error()
 	} else {
 		var leading, trailing, sigbits uint64
 		if hdrBits&Float64NewLeadingTrailingBit == 0 {
@@ -154,7 +154,7 @@ func (d *Float64Decoder) Decode(dst *float64) error {
 		d.lastVal = math.Float64frombits(xorVal ^ math.Float64bits(d.lastVal))
 	}
 	*dst = d.lastVal
-	return nil
+	return d.buf.Error()
 }
 
 func (d *Float64Decoder) Reset() {

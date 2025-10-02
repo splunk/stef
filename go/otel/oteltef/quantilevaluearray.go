@@ -396,5 +396,5 @@ func (d *QuantileValueArrayDecoder) Decode(dst *QuantileValueArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

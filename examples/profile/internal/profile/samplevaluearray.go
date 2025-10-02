@@ -396,5 +396,5 @@ func (d *SampleValueArrayDecoder) Decode(dst *SampleValueArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

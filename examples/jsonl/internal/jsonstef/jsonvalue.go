@@ -838,7 +838,7 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 		// Decode Bool
 		return d.boolDecoder.Decode(&dst.bool)
 	}
-	return nil
+	return d.buf.Error()
 }
 
 // JsonValueAllocator implements a custom allocator for JsonValue.

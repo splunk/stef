@@ -346,5 +346,5 @@ func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

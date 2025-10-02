@@ -396,5 +396,5 @@ func (d *LineArrayDecoder) Decode(dst *LineArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

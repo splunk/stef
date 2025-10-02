@@ -396,5 +396,5 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

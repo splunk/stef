@@ -646,7 +646,8 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 {
 		// Field is changed and is present, decode it.
@@ -677,7 +678,7 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // LineAllocator implements a custom allocator for Line.

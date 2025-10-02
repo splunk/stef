@@ -528,7 +528,7 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 		// Decode Float64
 		return d.float64Decoder.Decode(&dst.float64)
 	}
-	return nil
+	return d.buf.Error()
 }
 
 // ExemplarValueAllocator implements a custom allocator for ExemplarValue.

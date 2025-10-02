@@ -679,7 +679,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         return d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
     {{- end }}
     }
-	return nil
+	return d.buf.Error()
 }
 
 {{if .DictName}}

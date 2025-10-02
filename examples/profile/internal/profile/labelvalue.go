@@ -558,7 +558,7 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 		// Decode Num
 		return d.numDecoder.Decode(&dst.num)
 	}
-	return nil
+	return d.buf.Error()
 }
 
 // LabelValueAllocator implements a custom allocator for LabelValue.
