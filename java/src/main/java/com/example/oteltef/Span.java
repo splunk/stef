@@ -703,7 +703,7 @@ public class Span {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.setKind(Types.Uint64Random(random));
+            this.setKind((Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) % 6);
         }
         
         if (random.nextInt(fieldCount) == 0) {
