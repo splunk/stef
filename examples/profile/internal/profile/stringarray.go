@@ -346,5 +346,5 @@ func (d *StringArrayDecoder) Decode(dst *StringArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

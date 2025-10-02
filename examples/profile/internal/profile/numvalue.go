@@ -480,7 +480,8 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedNumValueVal != 0 {
 		// Field is changed and is present, decode it.
@@ -498,7 +499,7 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // NumValueAllocator implements a custom allocator for NumValue.

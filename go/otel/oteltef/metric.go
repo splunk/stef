@@ -1181,14 +1181,15 @@ func (d *MetricDecoder) Reset() {
 
 func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	// Check if this is a dictionary-based decoding.
-	dictFlag := d.buf.ReadBit()
+	dictFlag := d.buf.PeekBit()
+	d.buf.Consume(1)
 	if dictFlag == 0 {
 		refNum := d.buf.ReadUvarintCompact()
 		if refNum >= uint64(len(d.dict.dict)) {
 			return pkg.ErrInvalidRefNum
 		}
 		*dstPtr = d.dict.dict[refNum]
-		return nil
+		return d.buf.Error()
 	}
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
@@ -1199,7 +1200,8 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedMetricName != 0 {
 		// Field is changed and is present, decode it.
@@ -1271,7 +1273,7 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	// value as it can be safely shared in encoder's dictionary without cloning.
 	val.Freeze()
 
-	return nil
+	return d.buf.Error()
 }
 
 // MetricDecoderDict is the dictionary used by MetricDecoder

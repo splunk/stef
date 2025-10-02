@@ -396,5 +396,5 @@ func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

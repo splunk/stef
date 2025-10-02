@@ -346,5 +346,5 @@ func (d *Float64ArrayDecoder) Decode(dst *Float64Array) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

@@ -49,7 +49,7 @@ func (d *BoolDecoder) Decode(dst *bool) error {
 	} else {
 		*dst = true
 	}
-	return nil
+	return d.buf.Error()
 }
 
 func (d *BoolDecoder) Reset() {

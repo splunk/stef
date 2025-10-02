@@ -30,7 +30,7 @@ package pkg
 
 import (
 	"encoding/binary"
-	"math"
+	"io"
 	"math/bits"
 )
 
@@ -149,8 +149,8 @@ type BitsReader struct {
 	// Number of usable bits in bitBuf.
 	availBitCount uint
 
-	// True if attempt to read past buf was detected.
-	isEOF bool
+	// Set to io.EOF if attempt to read past buf was detected.
+	lastError error
 }
 
 func NewBitsReader() *BitsReader {
@@ -162,7 +162,7 @@ func (b *BitsReader) Reset(buf []byte) {
 	b.byteIndex = 0
 	b.availBitCount = 0
 	b.bitBuf = 0
-	b.isEOF = false
+	b.lastError = nil
 }
 
 func (b *BitsReader) MapBytesFromMemBuf(src *BytesReader, byteSize int) error {
@@ -178,14 +178,17 @@ func (b *BitsReader) MapBytesFromMemBuf(src *BytesReader, byteSize int) error {
 	return nil
 }
 
-func (b *BitsReader) IsEOF() bool {
-	return b.isEOF
+// Error returns io.EOF if it happened during reading bits or
+// nil if the read was successful.
+func (b *BitsReader) Error() error {
+	return b.lastError
 }
 
-func (b *BitsReader) refillSlow() uint64 {
+func (b *BitsReader) refillSlow() {
 	if b.byteIndex >= uint(len(b.buf)) {
-		b.isEOF = true
-		return 0
+		// Trying to read past EOF.
+		b.lastError = io.EOF
+		return
 	}
 
 	for b.byteIndex < uint(len(b.buf)) && b.availBitCount < 56 {
@@ -196,12 +199,12 @@ func (b *BitsReader) refillSlow() uint64 {
 	}
 
 	if b.byteIndex >= uint(len(b.buf)) {
-		// Ensure essentially unlimited zero bits are available for consumption
-		// past EOF.
-		b.availBitCount = math.MaxInt
+		// We reached EOF (but did not try to read past it, it is not an error).
+		// Ensure extra 56 bits are available past EOF so that ReadUvarintCompact does not
+		// need to have slow checks for the number of bits available. Attempting to read
+		// extra bits will always return 0 value bits, so it is safe to do so.
+		b.availBitCount += 56
 	}
-
-	return 0
 }
 
 // PeekBits must ensure at least nbits bits become available, i.e. b.availBitCount >= nbits
@@ -214,6 +217,17 @@ func (b *BitsReader) PeekBits(nbits uint) uint64 {
 	}
 	// Slow path. Not enough available bits. Refill, then peek.
 	return b.refillAndPeekBits(nbits)
+}
+
+// PeekBit must ensure one bit is available on return. If this means going past EOF
+// then zero bits are appended at the end.
+func (b *BitsReader) PeekBit() uint64 {
+	if b.availBitCount >= 1 {
+		// Fast path. Have enough available bits.
+		return b.bitBuf >> (64 - 1)
+	}
+	// Slow path. Not enough available bits. Refill, then peek.
+	return b.refillAndPeekBits(1)
 }
 
 func (b *BitsReader) refillAndPeekBits(nbits uint) uint64 {

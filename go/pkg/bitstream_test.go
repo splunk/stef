@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"io"
 	"math"
 	"math/rand"
 	"testing"
@@ -37,7 +38,10 @@ func TestIncreasingWriteReadBits(t *testing.T) {
 		bitCount := uint(math.Floor(math.Log2(float64(v)))) + 1
 		val := br.ReadBits(bitCount)
 		require.Equalf(t, v, val, "%v", i)
+		require.Nil(t, br.Error())
 	}
+	br.ReadBits(64)
+	require.ErrorIs(t, br.Error(), io.EOF)
 }
 
 func TestRandWriteReadBits(t *testing.T) {
@@ -76,7 +80,10 @@ func TestRandWriteReadBits(t *testing.T) {
 		}
 		val := br.ReadBits(bitCount)
 		require.Equal(t, v, val)
+		require.Nil(t, br.Error())
 	}
+	br.ReadBits(64)
+	require.ErrorIs(t, br.Error(), io.EOF)
 }
 
 func BenchmarkBstreamWriteBit(b *testing.B) {

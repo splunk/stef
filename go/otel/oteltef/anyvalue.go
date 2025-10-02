@@ -1006,7 +1006,7 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 		// Decode Bytes
 		return d.bytesDecoder.Decode(&dst.bytes)
 	}
-	return nil
+	return d.buf.Error()
 }
 
 // AnyValueAllocator implements a custom allocator for AnyValue.

@@ -902,14 +902,15 @@ func (d *{{ .StructName }}Decoder) Reset() {
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
     {{- if .DictName}}
 	// Check if this is a dictionary-based decoding.
-    dictFlag := d.buf.ReadBit()
+    dictFlag := d.buf.PeekBit()
+    d.buf.Consume(1)
     if dictFlag == 0 {
         refNum := d.buf.ReadUvarintCompact()
         if refNum >= uint64(len(d.dict.dict)) {
             return pkg.ErrInvalidRefNum
         }
         *dstPtr = d.dict.dict[refNum]
-        return nil
+        return d.buf.Error()
     }
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
@@ -923,11 +924,25 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     var err error
 
     // Read bits that indicate which fields follow.
+    {{if le (len .Fields) 56 -}}
+    {{/* Fast path, no more than 56 fields */ -}}
+    val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+    d.buf.Consume(d.fieldCount)
+    {{else -}}
+    {{/* Slow path, more than 56 fields */ -}}
     val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+    {{end}}
 
     {{ if .OptionalFieldCount}}
-    // Write bits to indicate which optional fields are set.
+    // Read bits that indicate which optional fields are set.
+    {{if le .OptionalFieldCount 56 -}}
+    {{/* Fast path, no more than 56 fields */ -}}
+    val.optionalFieldsPresent = d.buf.PeekBits({{ .OptionalFieldCount}})
+    d.buf.Consume({{ .OptionalFieldCount}})
+    {{else -}}
+    {{/* Slow path, more than 56 fields */ -}}
     val.optionalFieldsPresent = d.buf.ReadBits({{ .OptionalFieldCount}})
+    {{end}}
     {{- end}}
 
     {{ range .Fields }}
@@ -958,7 +973,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     val.Freeze()
     {{end}}
 
-    return nil
+    return d.buf.Error()
 }
 
 {{if .DictName}}

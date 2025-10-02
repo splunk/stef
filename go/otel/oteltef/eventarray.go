@@ -396,5 +396,5 @@ func (d *EventArrayDecoder) Decode(dst *EventArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

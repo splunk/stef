@@ -599,7 +599,8 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueCount != 0 {
 		// Field is changed and is present, decode it.
@@ -625,7 +626,7 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // SummaryValueAllocator implements a custom allocator for SummaryValue.

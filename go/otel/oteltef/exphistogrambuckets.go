@@ -506,7 +506,8 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsOffset != 0 {
 		// Field is changed and is present, decode it.
@@ -524,7 +525,7 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // ExpHistogramBucketsAllocator implements a custom allocator for ExpHistogramBuckets.

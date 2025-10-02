@@ -396,5 +396,5 @@ func (d *LinkArrayDecoder) Decode(dst *LinkArray) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }

@@ -488,5 +488,5 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 		{{- end}}
 	}
 
-	return nil
+	return d.buf.Error()
 }

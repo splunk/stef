@@ -718,7 +718,8 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedPointStartTimestamp != 0 {
 		// Field is changed and is present, decode it.
@@ -752,7 +753,7 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // PointAllocator implements a custom allocator for Point.

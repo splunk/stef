@@ -868,7 +868,7 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 		// Decode Summary
 		return d.summaryDecoder.Decode(&dst.summary)
 	}
-	return nil
+	return d.buf.Error()
 }
 
 // PointValueAllocator implements a custom allocator for PointValue.

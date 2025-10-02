@@ -961,10 +961,12 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 	var err error
 
 	// Read bits that indicate which fields follow.
-	val.modifiedFields.mask = d.buf.ReadBits(d.fieldCount)
+	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
+	d.buf.Consume(d.fieldCount)
 
-	// Write bits to indicate which optional fields are set.
-	val.optionalFieldsPresent = d.buf.ReadBits(3)
+	// Read bits that indicate which optional fields are set.
+	val.optionalFieldsPresent = d.buf.PeekBits(3)
+	d.buf.Consume(3)
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueCount != 0 {
 		// Field is changed and is present, decode it.
@@ -1009,7 +1011,7 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 		}
 	}
 
-	return nil
+	return d.buf.Error()
 }
 
 // HistogramValueAllocator implements a custom allocator for HistogramValue.
