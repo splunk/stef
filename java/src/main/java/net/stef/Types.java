@@ -1,11 +1,10 @@
 package net.stef;
 
-import java.util.Arrays;
 import java.util.Random;
 
 public class Types {
 
-    public static final byte[] emptyBytes = new byte[0];
+    public static final BytesValue emptyBytes = new BytesValue(new byte[0]);
 
     public static int Uint64Compare(long left, long right) {
         return Long.compareUnsigned(left, right);
@@ -27,8 +26,8 @@ public class Types {
         return left.compareTo(right);
     }
 
-    public static int BytesCompare(byte[] left, byte[] right) {
-        return Arrays.compare(left, right);
+    public static int BytesCompare(BytesValue left, BytesValue right) {
+        return left.compareTo(right);
     }
 
     public static boolean Uint64Equal(long left, long right) {
@@ -54,8 +53,11 @@ public class Types {
         return left.equals(right);
     }
 
-    public static boolean BytesEqual(byte[] left, byte[] right) {
-        return Arrays.equals(left, right);
+    public static boolean BytesEqual(BytesValue left, BytesValue right) {
+        if (left == null || right == null) {
+            return left == right; // handles null cases
+        }
+        return left.equals(right);
     }
 
     public static long Uint64Random(Random random) {
@@ -78,9 +80,9 @@ public class Types {
         return new StringValue(String.valueOf(random.nextInt(10)));
     }
 
-    public static byte[] BytesRandom(Random random) {
+    public static BytesValue BytesRandom(Random random) {
         byte[] randomBytes = new byte[4]; // Example size, can be adjusted
         random.nextBytes(randomBytes);
-        return randomBytes;
+        return new BytesValue(randomBytes);
     }
 }

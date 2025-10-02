@@ -158,7 +158,7 @@ func (r *genPrimitiveTypeRef) Storage() string {
 		case LangGo:
 			return "pkg.Bytes"
 		case LangJava:
-			return "byte[]"
+			return "BytesValue"
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -268,7 +268,7 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 			schema.PrimitiveTypeFloat64: "double",
 			schema.PrimitiveTypeBool:    "boolean",
 			schema.PrimitiveTypeString:  "StringValue",
-			schema.PrimitiveTypeBytes:   "byte[]",
+			schema.PrimitiveTypeBytes:   "BytesValue",
 		}
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))

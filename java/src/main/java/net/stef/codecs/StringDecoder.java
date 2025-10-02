@@ -1,5 +1,6 @@
 package net.stef.codecs;
 
+import net.stef.BytesValue;
 import net.stef.ReadColumnSet;
 import net.stef.StringValue;
 
@@ -21,8 +22,8 @@ public class StringDecoder {
     }
 
     public StringValue decode() throws IOException {
-        byte[] bytes = decoder.decode();
-        return new StringValue(bytes);
+        BytesValue bytes = decoder.decode();
+        return new StringValue(bytes.getBytes());
     }
 }
 

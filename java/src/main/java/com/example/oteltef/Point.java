@@ -2,6 +2,7 @@
 // Point Java class generated from template
 package com.example.oteltef;
 
+import net.stef.BytesValue;
 import net.stef.StringValue;
 import net.stef.Types;
 import net.stef.schema.WireSchema;

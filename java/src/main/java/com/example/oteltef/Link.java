@@ -2,6 +2,7 @@
 // Link Java class generated from template
 package com.example.oteltef;
 
+import net.stef.BytesValue;
 import net.stef.StringValue;
 import net.stef.Types;
 import net.stef.schema.WireSchema;
@@ -13,8 +14,8 @@ import java.util.*;
 public class Link {
     // Field values.
     
-    byte[] traceID;
-    byte[] spanID;
+    BytesValue traceID;
+    BytesValue spanID;
     StringValue traceState;
     long flags;
     Attributes attributes;
@@ -69,12 +70,12 @@ public class Link {
     }
 
     
-    public byte[] getTraceID() {
+    public BytesValue getTraceID() {
         return traceID;
     }
 
     // setTraceID sets the value of TraceID field.
-    public void setTraceID(byte[] v) {
+    public void setTraceID(BytesValue v) {
         if (!Types.BytesEqual(this.traceID, v)) {
             this.traceID = v;
             this.markTraceIDModified();
@@ -93,12 +94,12 @@ public class Link {
         return (this.modifiedFields.mask & fieldModifiedTraceID) != 0;
     }
     
-    public byte[] getSpanID() {
+    public BytesValue getSpanID() {
         return spanID;
     }
 
     // setSpanID sets the value of SpanID field.
-    public void setSpanID(byte[] v) {
+    public void setSpanID(BytesValue v) {
         if (!Types.BytesEqual(this.spanID, v)) {
             this.spanID = v;
             this.markSpanIDModified();

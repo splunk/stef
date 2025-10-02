@@ -1,5 +1,6 @@
 package net.stef.codecs;
 
+import net.stef.BytesValue;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 
@@ -15,7 +16,7 @@ public class BytesDictEncoder extends BytesEncoder {
         this.limiter = limiter;
     }
 
-    public void encode(byte[] val) {
+    public void encode(BytesValue val) {
         int oldLen = buf.size();
         Integer refNum = dict.get(val);
         if (refNum != null) {
@@ -24,15 +25,16 @@ public class BytesDictEncoder extends BytesEncoder {
             limiter.addFrameBytes(newLen - oldLen);
             return;
         }
-        int bytesLen = val==null ? 0 : val.length;
+        byte[] bytes = val.getBytes();
+        int bytesLen = bytes==null ? 0 : bytes.length;
         if (bytesLen > 1) {
             int refN = dict.size();
             dict.put(val, refN);
             limiter.addDictElemSize((long) bytesLen + 24);
         }
         buf.writeVarint(bytesLen);
-        if (val!=null) {
-            buf.writeBytes(val, 0, bytesLen);
+        if (bytes!=null) {
+            buf.writeBytes(bytes, 0, bytesLen);
         }
         int newLen = buf.size();
         limiter.addFrameBytes(newLen - oldLen);

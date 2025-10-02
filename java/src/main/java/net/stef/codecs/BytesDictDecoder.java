@@ -1,5 +1,6 @@
 package net.stef.codecs;
 
+import net.stef.BytesValue;
 import net.stef.ReadColumnSet;
 
 import java.io.IOException;
@@ -15,11 +16,11 @@ public class BytesDictDecoder extends BytesDecoder {
         this.column = columns.getColumn();
     }
 
-    public byte[] decode() throws IOException {
+    public BytesValue decode() throws IOException {
         long varint = buf.readVarint();
         if (varint >= 0) {
             int strLen = (int) varint;
-            byte[] value = buf.readBytes(strLen);
+            BytesValue value = new BytesValue(buf.readBytes(strLen));
             if (strLen > 1) {
                 dict.add(value);
             }
