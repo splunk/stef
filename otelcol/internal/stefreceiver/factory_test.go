@@ -62,7 +62,7 @@ func TestCreateMetric(t *testing.T) {
 		},
 	}
 	ctx := context.Background()
-	creationSet := receivertest.NewNopSettings()
+	creationSet := receivertest.NewNopSettings(factory.Type())
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {

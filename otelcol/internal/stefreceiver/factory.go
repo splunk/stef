@@ -31,7 +31,7 @@ func createDefaultConfig() component.Config {
 	grpcCfg.ReadBufferSize = 512 * 1024
 
 	return &Config{
-		ServerConfig: *grpcCfg,
+		ServerConfig: grpcCfg,
 	}
 }
 
