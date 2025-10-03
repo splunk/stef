@@ -65,7 +65,7 @@ struct AllMultimaps {
   SSM2 StructStructMultimap
   // SAM StructArrayMultimap // See bug comment below.
   SSMD StringStringMultimapDict
-  //SSMDC StringStringMultimapDictComplex
+  SSMDC StringStringMultimapDictComplex
 }
 
 multimap StringStringMultimap {
@@ -93,10 +93,10 @@ multimap StringStringMultimapDict {
   value string dict(ValueString)
 }
 
-//multimap StringStringMultimapDictComplex {
-//  key StructDict // This does not work. Must fix a bug to allow dict-struct as key or value.
-//  value OneofDict
-//}
+multimap StringStringMultimapDictComplex {
+  key StructDict
+  value StructDict
+}
 
 //multimap StructArrayMultimap {
 //  key StructRecurseSelf

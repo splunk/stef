@@ -24,8 +24,8 @@ type {{ .MultimapName }} struct {
 }
 
 type {{ .MultimapName }}Elem struct {
-	key   {{.Key.Type.Storage}}
-	value {{.Value.Type.Storage}}
+	key   {{if and (not .Key.Type.IsPrimitive) .Key.Type.DictName}}*{{end}}{{.Key.Type.Storage}}
+	value {{if and (not .Value.Type.IsPrimitive) .Value.Type.DictName}}*{{end}}{{.Value.Type.Storage}}
 }
 
 func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
