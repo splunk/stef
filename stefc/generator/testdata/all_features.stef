@@ -63,7 +63,7 @@ struct AllMultimaps {
   IIM IntIntMultimap
   ISM IntStructMultimap
   SSM2 StructStructMultimap
-  // SAM StructArrayMultimap // See bug comment below.
+  SAM StructArrayMultimap
   SSMD StringStringMultimapDict
   //SSMDC StringStringMultimapDictComplex
 }
@@ -98,10 +98,10 @@ multimap StringStringMultimapDict {
 //  value OneofDict
 //}
 
-//multimap StructArrayMultimap {
-//  key StructRecurseSelf
-//  value []StructWithOptionals // This does not work. Must fix a bug.
-//}
+multimap StructArrayMultimap {
+  key StructRecurseSelf
+  value []StructWithOptionals
+}
 
 oneof AllInOneOff {
   B bool

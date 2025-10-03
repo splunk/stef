@@ -234,6 +234,10 @@ func (e *LinkArray) IsEqual(val *LinkArray) bool {
 	return true
 }
 
+func LinkArrayEqual(left, right *LinkArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpLinkArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLinkArray(left, right *LinkArray) int {

@@ -234,6 +234,10 @@ func (e *ExemplarArray) IsEqual(val *ExemplarArray) bool {
 	return true
 }
 
+func ExemplarArrayEqual(left, right *ExemplarArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpExemplarArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpExemplarArray(left, right *ExemplarArray) int {
