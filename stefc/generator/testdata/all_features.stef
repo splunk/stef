@@ -42,9 +42,9 @@ struct StructWithOptionals {
   F64 float64 optional
   S string optional
   By bytes optional
-  // AllMultimaps AllMultimaps optional // TODO: This does not work.
-  // O AllInOneOff optional // TODO: This does not work.
-  // AllArrays AllArrays optional // TODO: This does not work.
+  AllMultimaps AllMultimaps optional
+  O AllInOneOff optional
+  AllArrays AllArrays optional
   E Enum1 optional
 }
 
