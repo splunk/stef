@@ -1,15 +1,16 @@
 package otelarrow
 
 import (
-	v1 "github.com/open-telemetry/otel-arrow/api/experimental/arrow/v1"
-	"github.com/open-telemetry/otel-arrow/pkg/config"
-	"github.com/open-telemetry/otel-arrow/pkg/otel/arrow_record"
-	"github.com/open-telemetry/otel-arrow/pkg/otel/metrics/otlp"
-	"github.com/open-telemetry/otel-arrow/pkg/werror"
+	v1 "github.com/open-telemetry/otel-arrow/go/api/experimental/arrow/v1"
+	"github.com/open-telemetry/otel-arrow/go/pkg/config"
+	"github.com/open-telemetry/otel-arrow/go/pkg/otel/arrow_record"
+	"github.com/open-telemetry/otel-arrow/go/pkg/otel/metrics/otlp"
+	"github.com/open-telemetry/otel-arrow/go/pkg/werror"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/splunk/stef/benchmarks/encodings"
+	"github.com/splunk/stef/benchmarks/testutils"
 )
 
 type OtelArrowEncoding struct {
@@ -106,18 +107,19 @@ func (*OtelArrowEncoding) Name() string {
 
 func (e *OtelArrowEncoding) StartMultipart(compression string) (encodings.MetricMultipartStream, error) {
 	opts := []config.Option{}
-	if compression == "zstd" {
-		opts = append(opts, config.WithZstd())
-	} else {
-		opts = append(opts, config.WithNoZstd())
-	}
+	opts = append(opts, config.WithNoZstd())
 	arrowProducer := arrow_record.NewProducerWithOptions(opts...)
-	return &multipart{producer: arrowProducer}, nil
+
+	return &multipart{
+		producer:    arrowProducer,
+		compression: compression,
+	}, nil
 }
 
 type multipart struct {
-	producer *arrow_record.Producer
-	bytes    []byte
+	producer    *arrow_record.Producer
+	compression string
+	bytes       []byte
 }
 
 func (m *multipart) AppendPart(part pmetric.Metrics) error {
@@ -129,7 +131,11 @@ func (m *multipart) AppendPart(part pmetric.Metrics) error {
 	if err != nil {
 		return err
 	}
+	if m.compression == "zstd" {
+		bytes = testutils.CompressZstd(bytes)
+	}
 	m.bytes = append(m.bytes, bytes...)
+
 	return nil
 }
 
