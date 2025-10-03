@@ -234,6 +234,10 @@ func (e *LineArray) IsEqual(val *LineArray) bool {
 	return true
 }
 
+func LineArrayEqual(left, right *LineArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpLineArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLineArray(left, right *LineArray) int {

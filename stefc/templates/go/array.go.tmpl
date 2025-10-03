@@ -291,6 +291,10 @@ func (e *{{ .ArrayName }}) IsEqual(val *{{ .ArrayName }}) bool {
 	return true
 }
 
+func {{.ArrayName}}Equal(left, right *{{.ArrayName}}) bool {
+	return left.IsEqual(right)
+}
+
 // Cmp{{.ArrayName}} performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func Cmp{{.ArrayName}}(left, right *{{ .ArrayName }}) int {

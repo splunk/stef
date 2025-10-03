@@ -204,6 +204,10 @@ func (e *StringArray) IsEqual(val *StringArray) bool {
 	return true
 }
 
+func StringArrayEqual(left, right *StringArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpStringArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpStringArray(left, right *StringArray) int {

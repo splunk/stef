@@ -204,6 +204,10 @@ func (e *Float64Array) IsEqual(val *Float64Array) bool {
 	return true
 }
 
+func Float64ArrayEqual(left, right *Float64Array) bool {
+	return left.IsEqual(right)
+}
+
 // CmpFloat64Array performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpFloat64Array(left, right *Float64Array) int {

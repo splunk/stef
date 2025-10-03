@@ -52,11 +52,15 @@ func (s *genSchema) SchemaStr() string {
 	return str
 }
 
-type genStructFieldDef struct {
-	Name      string
+type genFieldDef struct {
 	Type      genFieldTypeRef
-	Optional  bool
 	Recursive bool
+}
+
+type genStructFieldDef struct {
+	genFieldDef
+	Name     string
+	Optional bool
 }
 
 type TypeFlags struct {
@@ -467,8 +471,7 @@ func (r *genStructDef) Flags() TypeFlags {
 }
 
 type genMapFieldDef struct {
-	Type      genFieldTypeRef
-	Recursive bool
+	genFieldDef
 }
 
 type genMapDef struct {

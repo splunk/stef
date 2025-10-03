@@ -234,6 +234,10 @@ func (e *LocationArray) IsEqual(val *LocationArray) bool {
 	return true
 }
 
+func LocationArrayEqual(left, right *LocationArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpLocationArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLocationArray(left, right *LocationArray) int {

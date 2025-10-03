@@ -5,30 +5,42 @@ import (
 )
 
 func (g *Generator) oArrays() error {
-	var arrays []*genStructFieldDef
+	var arrFields []*genFieldDef
+
+	// Collect all array fields from all structs
 	for _, str := range g.compiledSchema.Structs {
-		arrays = append(arrays, g.getArrays(str)...)
+		arrFields = append(arrFields, g.getArrays(str)...)
 	}
 
-	for _, mm := range arrays {
-		if err := g.oArray(mm); err != nil {
+	// Collect all array fields from all multimaps (key and value)
+	for _, mm := range g.compiledSchema.Multimaps {
+		if _, ok := mm.Key.Type.(*genArrayTypeRef); ok {
+			arrFields = append(arrFields, &mm.Key.genFieldDef)
+		}
+		if _, ok := mm.Value.Type.(*genArrayTypeRef); ok {
+			arrFields = append(arrFields, &mm.Value.genFieldDef)
+		}
+	}
+
+	for _, arrField := range arrFields {
+		if err := g.oArray(arrField); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (g *Generator) getArrays(struc *genStructDef) (ret []*genStructFieldDef) {
+func (g *Generator) getArrays(struc *genStructDef) (ret []*genFieldDef) {
 	for _, field := range struc.Fields {
 		if _, ok := field.Type.(*genArrayTypeRef); ok {
-			ret = append(ret, field)
+			ret = append(ret, &field.genFieldDef)
 		}
 	}
 	return ret
 }
 
-func (g *Generator) oArray(array *genStructFieldDef) error {
-	arrtype := array.Type.(*genArrayTypeRef)
+func (g *Generator) oArray(fieldDef *genFieldDef) error {
+	arrtype := fieldDef.Type.(*genArrayTypeRef)
 
 	passByPointer := ""
 	if _, ok := arrtype.ElemType.(*genStructTypeRef); ok {
@@ -46,8 +58,8 @@ func (g *Generator) oArray(array *genStructFieldDef) error {
 		"ElemType":     arrtype.ElemType,
 		"PassByPtr":    passByPointer,
 		"IsStructType": isStructType,
-		"Recursive":    array.Recursive,
+		"Recursive":    fieldDef.Recursive,
 	}
 
-	return g.oTemplates("array", g.stefSymbol2FileName(array.Type.IDLMangledName()), data)
+	return g.oTemplates("array", g.stefSymbol2FileName(arrtype.IDLMangledName()), data)
 }

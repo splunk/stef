@@ -234,6 +234,10 @@ func (e *SampleValueArray) IsEqual(val *SampleValueArray) bool {
 	return true
 }
 
+func SampleValueArrayEqual(left, right *SampleValueArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpSampleValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpSampleValueArray(left, right *SampleValueArray) int {
