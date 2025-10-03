@@ -12,6 +12,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/splunk/stef/benchmarks/encodings"
@@ -252,6 +253,106 @@ func TestMetricsMultipart(t *testing.T) {
 				"Bytes",
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
+		}
+	}
+}
+
+func TestMetricsMultipartBatched(t *testing.T) {
+	datasets := []struct {
+		name string
+	}{
+		{
+			name: "hostandcollector-otelmetrics",
+		},
+		{
+			name: "astronomy-otelmetrics",
+		},
+	}
+
+	testMultipartEncodings := []encodings.MetricMultipartEncoding{
+		&otlp.OTLPEncoding{},
+		&stef.STEFEncoding{},
+		&stef.STEFUEncoding{},
+		&otelarrow.OtelArrowEncoding{},
+	}
+
+	minBatchSizes := []int{
+		10,
+		50,
+		500,
+		5000,
+	}
+
+	compressions := []string{
+		"none",
+		"zstd",
+	}
+
+	chart.BeginSection("Size - Many Batches of varying size, Multipart Metrics")
+
+	for _, compression := range compressions {
+		for _, batchSize := range minBatchSizes {
+			for _, dataset := range datasets {
+				chart.BeginChart("Dataset: "+dataset.name, t)
+
+				fmt.Printf("%-30s %4v %11v %9v %4v\n", dataset.name, "Comp", "Batch Size", "Bytes", "Ratio")
+
+				firstSize := 0
+				for _, encoding := range testMultipartEncodings {
+					stream, err := encoding.StartMultipart(compression)
+					require.NoError(t, err)
+
+					// Encode each part one after another and write to the same STEF stream.
+					// This models more closely the operation of STEF exporter in Collector.
+
+					parts, err := testutils.ReadMultipartOTLPFile("testdata/" + dataset.name + ".zst")
+					require.NoError(t, err)
+
+					var currMetricsBatch pmetric.Metrics = pmetric.NewMetrics()
+					for _, part := range parts {
+						part.ResourceMetrics().MoveAndAppendTo(currMetricsBatch.ResourceMetrics())
+
+						for currMetricsBatch.DataPointCount() > batchSize {
+							sizedBatch := testutils.SplitMetrics(batchSize, currMetricsBatch)
+							err := stream.AppendPart(sizedBatch)
+							require.NoError(t, err)
+						}
+					}
+
+					// add last batch
+					if currMetricsBatch.DataPointCount() > 0 {
+						err := stream.AppendPart(currMetricsBatch)
+						require.NoError(t, err)
+					}
+
+					byts, err := stream.FinishStream()
+					require.NoError(t, err)
+
+					curSize := len(byts)
+					var delta string
+					if firstSize == 0 {
+						delta = "x 1.00"
+					} else {
+						delta = fmt.Sprintf("x %.2f", float64(firstSize)/float64(curSize))
+					}
+					fmt.Printf(
+						"%-30s %4v %11v %9v %s\n", encoding.Name(), compression, batchSize, curSize, delta,
+					)
+					if firstSize == 0 {
+						firstSize = curSize
+					}
+
+					chart.Record(
+						nil, encoding.LongName(), "Size in bytes, compression="+compression,
+						float64(curSize),
+					)
+				}
+
+				chart.EndChart(
+					"Bytes",
+					charts.WithColorsOpts(opts.Colors{"#87BB62"}),
+				)
+			}
 		}
 	}
 }
