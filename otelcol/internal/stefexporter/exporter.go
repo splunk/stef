@@ -191,7 +191,7 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	// Connect to the server.
 	var err error
 	s.grpcConn, err = grpc.NewClient(
-		fmt.Sprintf(s.cfg.Endpoint),
+		s.cfg.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
