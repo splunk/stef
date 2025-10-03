@@ -67,5 +67,3 @@ replace github.com/splunk/stef/go/grpc => ../go/grpc
 replace github.com/splunk/stef/go/pdata => ../go/pdata
 
 replace github.com/splunk/stef/go/otel => ../go/otel
-
-replace github.com/open-telemetry/otel-arrow/go => ../../otel-arrow/go
