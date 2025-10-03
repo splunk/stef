@@ -32,7 +32,6 @@ struct AllTypesDicts {
   S string dict(S)
   By bytes dict(B)
   StructDict StructDict
-  //OneofDict OneofDict // TODO: this does not work.
 }
 
 struct StructWithOptionals {
@@ -65,7 +64,7 @@ struct AllMultimaps {
   SSM2 StructStructMultimap
   SAM StructArrayMultimap
   SSMD StringStringMultimapDict
-  //SSMDC StringStringMultimapDictComplex
+  SSMDC StringStringMultimapDictComplex
 }
 
 multimap StringStringMultimap {
@@ -93,10 +92,10 @@ multimap StringStringMultimapDict {
   value string dict(ValueString)
 }
 
-//multimap StringStringMultimapDictComplex {
-//  key StructDict // This does not work. Must fix a bug to allow dict-struct as key or value.
-//  value OneofDict
-//}
+multimap StringStringMultimapDictComplex {
+  key StructDict
+  value StructDict
+}
 
 multimap StructArrayMultimap {
   key StructRecurseSelf
@@ -115,7 +114,7 @@ oneof AllInOneOff {
   U64a []uint64
   F64a []float64
   Sa []string
-  // Bya []bytes // TODO: this does not work in Java.
+  Bya []bytes
 }
 
 struct StructRecurseMutualViaOptional1 {
@@ -135,17 +134,13 @@ struct StructDict dict(StructDict) {
   Val string
 }
 
-//oneof OneofDict dict(OneofDict) { // TODO: dict for oneofs is not yet implemented
-//  Val string
-//}
-
 enum Enum1 {
     A = 0
     B = 1
     C = 2
 }
 
-enum EnumWithGaps { // TODO: This does not work in Java.
+enum EnumWithGaps {
     A = 1
     B = 2
     C = 5
