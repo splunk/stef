@@ -234,6 +234,10 @@ func (e *AnyValueArray) IsEqual(val *AnyValueArray) bool {
 	return true
 }
 
+func AnyValueArrayEqual(left, right *AnyValueArray) bool {
+	return left.IsEqual(right)
+}
+
 // CmpAnyValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpAnyValueArray(left, right *AnyValueArray) int {

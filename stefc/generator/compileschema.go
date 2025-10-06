@@ -43,59 +43,52 @@ func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 	return dst, nil
 }
 
+func (s *genSchema) resolveType(typ genFieldTypeRef) error {
+	if ref, ok := typ.(*genStructTypeRef); ok {
+		ref.Def = s.Structs[ref.Name]
+		if ref.Def == nil {
+			return fmt.Errorf("struct %s not found", ref.Name)
+		}
+	}
+
+	if ref, ok := typ.(*genArrayTypeRef); ok {
+		if refStr, ok := ref.ElemType.(*genStructTypeRef); ok {
+			refStr.Def = s.Structs[refStr.Name]
+			if refStr.Def == nil {
+				return fmt.Errorf("struct %s not found", refStr.Name)
+			}
+		}
+	}
+
+	if ref, ok := typ.(*genMultimapTypeRef); ok {
+		ref.Def = s.Multimaps[ref.Name]
+		if ref.Def == nil {
+			return fmt.Errorf("multimap %s not found", ref.Name)
+		}
+	}
+
+	ref, ok := typ.(*genPrimitiveTypeRef)
+	if ok && ref.Enum != "" {
+		ref.EnumDef = s.Enums[ref.Enum]
+	}
+
+	return nil
+}
+
 func (s *genSchema) resolveRefs() error {
 	for _, struc := range s.Structs {
 		for _, field := range struc.Fields {
-			if ref, ok := field.Type.(*genStructTypeRef); ok {
-				ref.Def = s.Structs[ref.Name]
-				if ref.Def == nil {
-					return fmt.Errorf("struct %s not found", ref.Name)
-				}
-			}
-			if ref, ok := field.Type.(*genArrayTypeRef); ok {
-				if ref, ok := ref.ElemType.(*genStructTypeRef); ok {
-					ref.Def = s.Structs[ref.Name]
-					if ref.Def == nil {
-						return fmt.Errorf("struct %s not found", ref.Name)
-					}
-				}
-			}
-			if ref, ok := field.Type.(*genMultimapTypeRef); ok {
-				ref.Def = s.Multimaps[ref.Name]
-				if ref.Def == nil {
-					return fmt.Errorf("multimap %s not found", ref.Name)
-				}
-			}
-			ref, ok := field.Type.(*genPrimitiveTypeRef)
-			if ok && ref.Enum != "" {
-				ref.EnumDef = s.Enums[ref.Enum]
+			if err := s.resolveType(field.Type); err != nil {
+				return err
 			}
 		}
 	}
 	for _, mp := range s.Multimaps {
-		if ref, ok := mp.Key.Type.(*genStructTypeRef); ok {
-			ref.Def = s.Structs[ref.Name]
-			if ref.Def == nil {
-				return fmt.Errorf("struct %s not found", ref.Name)
-			}
+		if err := s.resolveType(mp.Key.Type); err != nil {
+			return err
 		}
-		if ref, ok := mp.Value.Type.(*genStructTypeRef); ok {
-			ref.Def = s.Structs[ref.Name]
-			if ref.Def == nil {
-				return fmt.Errorf("struct %s not found", ref.Name)
-			}
-		}
-		if ref, ok := mp.Key.Type.(*genMultimapTypeRef); ok {
-			ref.Def = s.Multimaps[ref.Name]
-			if ref.Def == nil {
-				return fmt.Errorf("multimap %s not found", ref.Name)
-			}
-		}
-		if ref, ok := mp.Value.Type.(*genMultimapTypeRef); ok {
-			ref.Def = s.Multimaps[ref.Name]
-			if ref.Def == nil {
-				return fmt.Errorf("multimap %s not found", ref.Name)
-			}
+		if err := s.resolveType(mp.Value.Type); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -111,8 +104,9 @@ func multimapWireToGen(src *schema.Multimap, lang Lang) *genMapDef {
 
 func multimapFieldWireToAst(src schema.MultimapField, lang Lang) genMapFieldDef {
 	return genMapFieldDef{
-		Type: typeWireToGen(src.Type, lang),
-		//Recursive: src.Recursive,
+		genFieldDef{
+			Type: typeWireToGen(src.Type, lang),
+		},
 	}
 }
 
@@ -133,9 +127,9 @@ func structWireToGen(src *schema.Struct, lang Lang) *genStructDef {
 
 func structFieldWireToAst(src *schema.StructField, lang Lang) *genStructFieldDef {
 	dst := &genStructFieldDef{
-		Name:      src.Name,
-		Optional:  src.Optional,
-		Recursive: src.Recursive(),
+		genFieldDef: genFieldDef{Recursive: src.Recursive()},
+		Name:        src.Name,
+		Optional:    src.Optional,
 	}
 
 	dst.Type = typeWireToGen(src.FieldType, lang)

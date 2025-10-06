@@ -57,10 +57,10 @@ func (g *Generator) getEncoders() (ret map[string]bool) {
 	}
 	for _, m := range g.compiledSchema.Multimaps {
 		if !m.Key.Type.IsPrimitive() {
-			//ret[m.KeyType.] = field.Type
+			ret[m.Key.Type.EncoderType()] = true
 		}
 		if !m.Value.Type.IsPrimitive() {
-			//ret[field.Name] = field.Type
+			ret[m.Value.Type.EncoderType()] = true
 		}
 	}
 	return ret
