@@ -3,7 +3,7 @@ module github.com/splunk/stef/examples/jsonl
 go 1.23.2
 
 require (
-	github.com/golang/protobuf v1.5.0
+	github.com/golang/protobuf v1.5.4
 	github.com/klauspost/compress v1.18.0
 	github.com/splunk/stef/go/pkg v0.0.8
 	github.com/stretchr/testify v1.11.1
