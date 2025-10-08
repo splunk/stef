@@ -205,7 +205,7 @@ func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exp
 }
 {{end}}
 
-{{if not .Key.Type.MustClone}}
+{{if .Key.Type.IsPrimitive}}
 // SetKey sets the key of the element at index i.
 func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
 	if m.elems[i].key != {{.Key.Type.ToStorage "k"}} {
@@ -213,6 +213,7 @@ func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
 		m.modifiedElems.markKeyModified(i)
 	}
 }
+{{end}}
 
 {{if .Value.Type.IsPrimitive}}
 // SetValue sets the value of the element at index i.
@@ -222,7 +223,6 @@ func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.Exported}}) {
 		m.modifiedElems.markValModified(i)
 	}
 }
-{{end}}
 {{end}}
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -510,11 +510,13 @@ func (e *{{ .MultimapName }}Encoder) encodeFull(list *{{ .MultimapName }}) {
 
 func (e *{{ .MultimapName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBytes(&e.buf)
+	colIdx := 0
 	if !e.isKeyRecursive {
- 		e.keyEncoder.CollectColumns(columnSet.At(0))
+ 		e.keyEncoder.CollectColumns(columnSet.At(colIdx))
+ 		colIdx++
  	}
 	if !e.isValueRecursive {
-		e.valueEncoder.CollectColumns(columnSet.At(1))
+		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
 	}
 }
 
@@ -547,7 +549,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 	if state.{{.Key.Type.EncoderType}}Decoder != nil {
 		// Recursion detected, use the existing decoder.
 		d.keyDecoder = state.{{.Key.Type.EncoderType}}Decoder
-		d.isValueRecursive = true // Mark that we are using a recursive decoder.
+		d.isKeyRecursive = true // Mark that we are using a recursive decoder.
 	} else {
 		d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
 		err = d.keyDecoder.Init(state, columns.AddSubColumn())

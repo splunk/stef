@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Schema is a STEF schema description, serializable in JSON format.
@@ -604,6 +605,130 @@ func (d *Schema) markReachableFromFieldType(
 	} else if fieldType.Array != nil {
 		d.markReachableFromFieldType(&fieldType.Array.ElemType, reachableStructs, reachableMultimaps, reachableEnums)
 	}
+}
+
+// PrettyPrint outputs the schema in SDL format.
+func (d *Schema) PrettyPrint() string {
+	var out []string
+
+	// Print package declaration
+	out = append(out, fmt.Sprintf("package %s", strings.Join(d.PackageName, ".")))
+
+	// Print enums
+	for _, enum := range sortedList(d.Enums) {
+		out = append(out, prettyPrintEnum(enum))
+	}
+
+	// Print multimaps
+	for _, mm := range sortedList(d.Multimaps) {
+		out = append(out, prettyPrintMultimap(mm))
+	}
+
+	// Print structs and oneofs
+	for _, s := range sortedList(d.Structs) {
+		out = append(out, prettyPrintStruct(s))
+	}
+
+	return strings.Join(out, "\n\n")
+}
+
+func sortedList[T any](m map[string]*T) []*T {
+	var names []string
+	for k := range m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	var out []*T
+	for _, n := range names {
+		out = append(out, m[n])
+	}
+	return out
+}
+
+func prettyPrintEnum(e *Enum) string {
+	out := fmt.Sprintf("enum %s {", e.Name)
+	for _, f := range e.Fields {
+		out += fmt.Sprintf("\n  %s = %d", f.Name, f.Value)
+	}
+	out += "\n}"
+	return out
+}
+
+func prettyPrintMultimap(m *Multimap) string {
+	out := fmt.Sprintf("multimap %s {\n", m.Name)
+	out += "  key " + prettyPrintFieldType(&m.Key.Type)
+	if dict := m.Key.Type.DictName; dict != "" {
+		out += fmt.Sprintf(" dict(%s)", dict)
+	}
+	out += "\n"
+	out += "  value " + prettyPrintFieldType(&m.Value.Type)
+	if dict := m.Value.Type.DictName; dict != "" {
+		out += fmt.Sprintf(" dict(%s)", dict)
+	}
+	out += "\n}"
+	return out
+}
+
+func prettyPrintStruct(s *Struct) string {
+	var out string
+	if s.OneOf {
+		out = fmt.Sprintf("oneof %s {", s.Name)
+	} else {
+		out = fmt.Sprintf("struct %s", s.Name)
+		if s.DictName != "" {
+			out += fmt.Sprintf(" dict(%s)", s.DictName)
+		}
+		if s.IsRoot {
+			out += " root"
+		}
+		out += " {"
+	}
+	for _, f := range s.Fields {
+		out += "\n  " + prettyPrintStructField(f)
+	}
+	out += "\n}"
+	return out
+}
+
+func prettyPrintStructField(f *StructField) string {
+	ft := prettyPrintFieldType(&f.FieldType)
+	out := fmt.Sprintf("%s %s", f.Name, ft)
+	if f.DictName != "" {
+		out += fmt.Sprintf(" dict(%s)", f.DictName)
+	}
+	if f.Optional {
+		out += " optional"
+	}
+	return out
+}
+
+func prettyPrintFieldType(ft *FieldType) string {
+	switch {
+	case ft.Primitive != nil:
+		switch ft.Primitive.Type {
+		case PrimitiveTypeInt64:
+			return "int64"
+		case PrimitiveTypeUint64:
+			return "uint64"
+		case PrimitiveTypeFloat64:
+			return "float64"
+		case PrimitiveTypeBool:
+			return "bool"
+		case PrimitiveTypeString:
+			return "string"
+		case PrimitiveTypeBytes:
+			return "bytes"
+		}
+	case ft.Array != nil:
+		return "[]" + prettyPrintFieldType(&ft.Array.ElemType)
+	case ft.Struct != "":
+		return ft.Struct
+	case ft.MultiMap != "":
+		return ft.MultiMap
+	case ft.Enum != "":
+		return ft.Enum
+	}
+	return "unknown"
 }
 
 type Struct struct {

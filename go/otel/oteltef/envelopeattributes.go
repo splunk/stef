@@ -382,11 +382,13 @@ func (e *EnvelopeAttributesEncoder) encodeFull(list *EnvelopeAttributes) {
 
 func (e *EnvelopeAttributesEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 	columnSet.SetBytes(&e.buf)
+	colIdx := 0
 	if !e.isKeyRecursive {
-		e.keyEncoder.CollectColumns(columnSet.At(0))
+		e.keyEncoder.CollectColumns(columnSet.At(colIdx))
+		colIdx++
 	}
 	if !e.isValueRecursive {
-		e.valueEncoder.CollectColumns(columnSet.At(1))
+		e.valueEncoder.CollectColumns(columnSet.At(colIdx))
 	}
 }
 

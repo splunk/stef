@@ -135,6 +135,7 @@ public class KeyValueList {
         elems[elemsLen-1] = elem;
     }
 
+    
     // setKey sets the key of the element at index i.
     public void setKey(int i, StringValue k) {
         if (!Types.StringEqual(elems[i].key, k)) {
@@ -142,14 +143,8 @@ public class KeyValueList {
             modifiedElems.markKeyModified(i);
         }
     }
-
-    // setValue sets the value of the element at index i.
-    public void setValue(int i, AnyValue v) {
-        if (!elems[i].value.equals(v)) {
-            elems[i].value = v;
-            modifiedElems.markValModified(i);
-        }
-    }
+    
+    
 
     // byteSize returns approximate memory usage in bytes. Used to calculate
     // memory used by dictionaries.

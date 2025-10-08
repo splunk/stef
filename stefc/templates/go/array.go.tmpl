@@ -2,7 +2,7 @@ package {{ .PackageName }}
 
 import (
 	"math/rand/v2"
-	{{if not .ElemType.MustClone}}
+	{{if and (not .ElemType.MustClone) (not .ElemType.Enum)}}
 	"slices"
 	{{end}}
 	"unsafe"
@@ -71,11 +71,33 @@ func (e *{{.ArrayName}}) byteSize() uint {
 // of the array will be equal to the length of slice and elements of
 // the array will be assigned from elements of the slice.
 func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.Exported}}) {
+{{if .ElemType.Enum}}
+{{/*    Enums need special handling to convert from exported type to storage type.*/}}
+    differ := false
+    if len(e.elems) != len(src) {
+        differ = true
+    } else {
+        for i:=0; i<len(src); i++ {
+            if e.elems[i] != {{.ElemType.ToStorage "src[i]"}} {
+                differ = true
+                break
+            }
+        }
+    }
+    if differ {
+        e.elems = pkg.EnsureLen(e.elems, len(src))
+        for i:=0; i<len(src); i++ {
+            e.elems[i] = {{.ElemType.ToStorage "src[i]" }}
+        }
+        e.markModified()
+    }
+{{else -}}
 	if !slices.Equal(e.elems, src) {
 		e.elems = pkg.EnsureLen(e.elems, len(src))
 		copy(e.elems, src)
 		e.markModified()
 	}
+{{- end}}
 }
 
 {{end}}
@@ -330,8 +352,8 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand, schem *schema.Schema)
 			a.elems[i].mutateRandom(random, schem)
 		{{- else}}
 			v := {{ .ElemType.RandomFunc }}
-			if a.elems[i] != v {
-				a.elems[i] = v
+			if a.elems[i] != {{.ElemType.ToStorage "v"}} {
+				a.elems[i] = {{.ElemType.ToStorage "v"}}
 				a.markModified()
 			}
 		{{- end}}

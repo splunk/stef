@@ -158,6 +158,7 @@ public class {{ .MultimapName }} {
         elems[elemsLen-1] = elem;
     }
 
+    {{if .Key.Type.IsPrimitive}}
     // setKey sets the key of the element at index i.
     public void setKey(int i, {{.Key.Type.Exported}} k) {
         if (!{{.Key.Type.EqualFunc}}(elems[i].key, {{.Key.Type.ToStorage "k"}})) {
@@ -165,7 +166,8 @@ public class {{ .MultimapName }} {
             modifiedElems.markKeyModified(i);
         }
     }
-
+    {{end}}
+    {{if .Value.Type.IsPrimitive}}
     // setValue sets the value of the element at index i.
     public void setValue(int i, {{.Value.Type.Exported}} v) {
         {{- if .Value.Type.IsPrimitive }}
@@ -177,6 +179,7 @@ public class {{ .MultimapName }} {
             modifiedElems.markValModified(i);
         }
     }
+    {{end}}
 
     // byteSize returns approximate memory usage in bytes. Used to calculate
     // memory used by dictionaries.

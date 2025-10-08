@@ -128,11 +128,13 @@ class {{ .MultimapName }}Encoder {
 
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBytes(buf);
+    	int colIdx = 0;
         if (!isKeyRecursive) {
-            keyEncoder.collectColumns(columnSet.at(0));
+            keyEncoder.collectColumns(columnSet.at(colIdx));
+            colIdx++;
         }
         if (!isValueRecursive) {
-            valueEncoder.collectColumns(columnSet.at(1));
+            valueEncoder.collectColumns(columnSet.at(colIdx));
         }
     }
 }
