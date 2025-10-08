@@ -29,11 +29,11 @@ type {{ .MultimapName }}Elem struct {
 }
 
 func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
-	return {{if.Key.Type.Flags.PassByPtr}}&{{end}}e.key
+	return {{if.Key.Type.Flags.PassByPtr}}&{{end}}{{.Key.Type.ToExported ("e.key")}}
 }
 
 func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}} {
-	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}e.value
+	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}{{.Value.Type.ToExported ("e.value")}}
 }
 
 func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
