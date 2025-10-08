@@ -5,7 +5,7 @@ go 1.23.2
 require (
 	github.com/splunk/stef/go/pkg v0.0.8
 	github.com/stretchr/testify v1.11.1
-	modernc.org/b/v2 v2.1.9
+	modernc.org/b/v2 v2.1.10
 )
 
 require (
