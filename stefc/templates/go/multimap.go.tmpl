@@ -205,7 +205,7 @@ func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exp
 }
 {{end}}
 
-{{if not .Key.Type.MustClone}}
+{{if .Key.Type.IsPrimitive}}
 // SetKey sets the key of the element at index i.
 func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
 	if m.elems[i].key != {{.Key.Type.ToStorage "k"}} {
@@ -213,6 +213,7 @@ func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
 		m.modifiedElems.markKeyModified(i)
 	}
 }
+{{end}}
 
 {{if .Value.Type.IsPrimitive}}
 // SetValue sets the value of the element at index i.
@@ -222,7 +223,6 @@ func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.Exported}}) {
 		m.modifiedElems.markValModified(i)
 	}
 }
-{{end}}
 {{end}}
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
