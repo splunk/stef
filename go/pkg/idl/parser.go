@@ -2,6 +2,7 @@ package idl
 
 import (
 	"fmt"
+	"path"
 
 	"github.com/splunk/stef/go/pkg/schema"
 )
@@ -13,13 +14,42 @@ type Parser struct {
 	lexer    *Lexer
 	schema   *schema.Schema
 	fileName string
+	messages []Message
+}
+
+type MessageType int
+
+const (
+	MessageTypeWarning = iota
+	MessageTypeError
+)
+
+type Message struct {
+	Type     MessageType
+	Msg      string
+	Filename string
+	Pos      Pos
+}
+
+func (m *Message) String() string {
+	var str string
+	switch m.Type {
+	case MessageTypeWarning:
+		str = "Warning: "
+	case MessageTypeError:
+		str = "Error: "
+	}
+
+	if !m.Pos.Unknown() {
+		str = fmt.Sprintf("%s:%d:%d: ", path.Base(m.Filename), m.Pos.Line, m.Pos.Col)
+	}
+	str += m.Msg
+	return str
 }
 
 // Error represents a parsing error.
 type Error struct {
-	Msg      string
-	Filename string
-	Pos      Pos
+	Message
 }
 
 func (e *Error) Error() string {
@@ -79,7 +109,52 @@ func (p *Parser) Parse() error {
 	if err := p.schema.ResolveRefs(); err != nil {
 		return p.error(err.Error())
 	}
+
+	unusedTypes, err := p.schema.PruneUnused()
+	if err != nil {
+		return p.error(err.Error())
+	}
+	p.messages = createUnusedWarnings(unusedTypes)
+
 	return nil
+}
+
+func createUnusedWarnings(unused schema.UnusedTypes) []Message {
+	var msgs []Message
+	for _, str := range unused.Structs {
+		var prefix string
+		if str.OneOf {
+			prefix = "oneof"
+		} else {
+			prefix = "struct"
+		}
+		msg := Message{
+			Type: MessageTypeWarning,
+			Msg:  fmt.Sprintf("%s %q is defined but not used", prefix, str.Name),
+		}
+		msgs = append(msgs, msg)
+	}
+
+	for _, mm := range unused.Multimaps {
+		msg := Message{
+			Type: MessageTypeWarning,
+			Msg:  fmt.Sprintf("multimap %q is defined but not used", mm.Name),
+		}
+		msgs = append(msgs, msg)
+	}
+
+	for _, en := range unused.Enums {
+		msg := Message{
+			Type: MessageTypeWarning,
+			Msg:  fmt.Sprintf("enum %q is defined but not used", en.Name),
+		}
+		msgs = append(msgs, msg)
+	}
+	return msgs
+}
+
+func (p *Parser) Messages() []Message {
+	return p.messages
 }
 
 func (p *Parser) isTopLevelNameUsed(name string) bool {
@@ -182,9 +257,12 @@ func (p *Parser) parseMultimap() error {
 
 func (p *Parser) error(msg string) error {
 	return &Error{
-		Msg:      msg,
-		Filename: p.fileName,
-		Pos:      p.lexer.TokenStartPos(),
+		Message: Message{
+			Type:     MessageTypeError,
+			Msg:      msg,
+			Filename: p.fileName,
+			Pos:      p.lexer.TokenStartPos(),
+		},
 	}
 }
 

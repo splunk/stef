@@ -3,6 +3,7 @@ package schema
 import (
 	"errors"
 	"fmt"
+	"sort"
 )
 
 // Schema is a STEF schema description, serializable in JSON format.
@@ -469,6 +470,140 @@ func computeRecursiveType(typ FieldType, stack *recurseStack) {
 	}
 
 	panic("unknown type")
+}
+
+type UnusedTypes struct {
+	Structs   []*Struct
+	Multimaps []*Multimap
+	Enums     []*Enum
+}
+
+func (d *Schema) PruneUnused() (UnusedTypes, error) {
+	// Track which types are reachable from root structs
+	reachableStructs := make(map[string]bool)
+	reachableMultimaps := make(map[string]bool)
+	reachableEnums := make(map[string]bool)
+
+	// Start from all root structs and traverse to find reachable types
+	for name, struc := range d.Structs {
+		if struc.IsRoot {
+			d.markReachableFromStruct(name, reachableStructs, reachableMultimaps, reachableEnums)
+		}
+	}
+
+	// Collect unused types
+	unused := UnusedTypes{
+		Structs:   make([]*Struct, 0),
+		Multimaps: make([]*Multimap, 0),
+		Enums:     make([]*Enum, 0),
+	}
+
+	// Find unreachable structs
+	for name, struc := range d.Structs {
+		if !reachableStructs[name] {
+			unused.Structs = append(unused.Structs, struc)
+		}
+	}
+	sort.Slice(
+		unused.Structs, func(i, j int) bool {
+			return unused.Structs[i].Name < unused.Structs[j].Name
+		},
+	)
+
+	// Find unreachable multimaps
+	for name, multimap := range d.Multimaps {
+		if !reachableMultimaps[name] {
+			unused.Multimaps = append(unused.Multimaps, multimap)
+		}
+	}
+	sort.Slice(
+		unused.Multimaps, func(i, j int) bool {
+			return unused.Multimaps[i].Name < unused.Multimaps[j].Name
+		},
+	)
+
+	// Find unreachable enums
+	for name, enum := range d.Enums {
+		if !reachableEnums[name] {
+			unused.Enums = append(unused.Enums, enum)
+		}
+	}
+	sort.Slice(
+		unused.Enums, func(i, j int) bool {
+			return unused.Enums[i].Name < unused.Enums[j].Name
+		},
+	)
+
+	// Remove unused types from schema
+	for _, struc := range unused.Structs {
+		delete(d.Structs, struc.Name)
+	}
+	for _, multimap := range unused.Multimaps {
+		delete(d.Multimaps, multimap.Name)
+	}
+	for _, enum := range unused.Enums {
+		delete(d.Enums, enum.Name)
+	}
+
+	return unused, nil
+}
+
+// markReachableFromStruct performs a depth-first traversal to mark all types reachable from the given struct
+func (d *Schema) markReachableFromStruct(
+	structName string, reachableStructs, reachableMultimaps, reachableEnums map[string]bool,
+) {
+	// Avoid infinite recursion
+	if reachableStructs[structName] {
+		return
+	}
+
+	struc := d.Structs[structName]
+	if struc == nil {
+		return
+	}
+
+	reachableStructs[structName] = true
+
+	// Traverse all fields in the struct
+	for _, field := range struc.Fields {
+		d.markReachableFromFieldType(&field.FieldType, reachableStructs, reachableMultimaps, reachableEnums)
+	}
+}
+
+// markReachableFromMultimap marks all types reachable from the given multimap
+func (d *Schema) markReachableFromMultimap(
+	multimapName string, reachableStructs, reachableMultimaps, reachableEnums map[string]bool,
+) {
+	// Avoid infinite recursion
+	if reachableMultimaps[multimapName] {
+		return
+	}
+
+	multimap := d.Multimaps[multimapName]
+	if multimap == nil {
+		return
+	}
+
+	reachableMultimaps[multimapName] = true
+
+	// Traverse key and value types
+	d.markReachableFromFieldType(&multimap.Key.Type, reachableStructs, reachableMultimaps, reachableEnums)
+	d.markReachableFromFieldType(&multimap.Value.Type, reachableStructs, reachableMultimaps, reachableEnums)
+}
+
+// markReachableFromFieldType marks all types reachable from the given field type
+func (d *Schema) markReachableFromFieldType(
+	fieldType *FieldType, reachableStructs, reachableMultimaps, reachableEnums map[string]bool,
+) {
+	if fieldType.Struct != "" {
+		d.markReachableFromStruct(fieldType.Struct, reachableStructs, reachableMultimaps, reachableEnums)
+	} else if fieldType.MultiMap != "" {
+		d.markReachableFromMultimap(fieldType.MultiMap, reachableStructs, reachableMultimaps, reachableEnums)
+	} else if fieldType.Enum != "" {
+		reachableEnums[fieldType.Enum] = true
+	} else if fieldType.Array != nil {
+		d.markReachableFromFieldType(&fieldType.Array.ElemType, reachableStructs, reachableMultimaps, reachableEnums)
+	}
 }
 
 type Struct struct {
