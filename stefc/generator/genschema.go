@@ -603,7 +603,7 @@ func (r *genArrayTypeRef) Storage() string {
 }
 
 func (r *genArrayTypeRef) ToExported(arg string) string {
-	return r.ToExported(arg)
+	return arg
 }
 
 func (r *genArrayTypeRef) ToStorage(arg string) string {

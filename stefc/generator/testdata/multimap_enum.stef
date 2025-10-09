@@ -1,0 +1,14 @@
+package com.example.gentest.multimap_enum
+
+enum Enum1 {
+  Item1 = 1
+}
+
+multimap MultiMap1 {
+  key Enum1
+  value string
+}
+
+struct Struct1 root {
+  Field1 MultiMap1
+}
