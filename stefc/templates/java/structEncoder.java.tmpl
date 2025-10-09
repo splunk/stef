@@ -2,6 +2,7 @@
 package {{ .PackageName }};
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -28,6 +29,7 @@ class {{ .StructName }}Encoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    {{if .OptionalFieldCount}}private int optionalFieldCount;{{end}}
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -37,16 +39,21 @@ class {{ .StructName }}Encoder {
         state.{{.StructName}}Encoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
             {{- if .DictName}}
-            this.dict = state.{{.DictName}};
+            dict = state.{{.DictName}};
             {{- end}}
 
-            this.fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
+            fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
+
+            {{- if .OptionalFieldCount}}
+            optionalFieldCount = Helper.optionalFieldCount({{printf "0b%b" .OptionalsMask}}, fieldCount);
+            {{- end -}}
+
             {{ range $i, $e := .Fields }}
             // Init encoder for {{.Name}} field.
-            if (this.fieldCount <= {{$i}}) {
+            if (fieldCount <= {{$i}}) {
                 return; // {{.Name}} and subsequent fields are skipped.
             }
             {{- if .IsPrimitive}}
@@ -132,7 +139,7 @@ class {{ .StructName }}Encoder {
         this.buf.writeBits(fieldMask, this.fieldCount);
         {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
-        this.buf.writeBits(val.optionalFieldsPresent, {{ .OptionalFieldCount}});
+        this.buf.writeBits(val.optionalFieldsPresent, optionalFieldCount);
         {{- end}}
         // Encode modified, present fields.
         {{ range .Fields }}

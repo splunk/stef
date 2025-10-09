@@ -407,9 +407,10 @@ func (e *ExpHistogramBucketsEncoder) CollectColumns(columnSet *pkg.WriteColumnSe
 
 // ExpHistogramBucketsDecoder implements decoding of ExpHistogramBuckets
 type ExpHistogramBucketsDecoder struct {
-	buf           pkg.BitsReader
-	column        *pkg.ReadableColumn
-	fieldCount    uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	offsetDecoder encoders.Int64Decoder
 
 	bucketCountsDecoder     *Uint64ArrayDecoder

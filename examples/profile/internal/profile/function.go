@@ -641,9 +641,10 @@ func (e *FunctionEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // FunctionDecoder implements decoding of Function
 type FunctionDecoder struct {
-	buf         pkg.BitsReader
-	column      *pkg.ReadableColumn
-	fieldCount  uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	nameDecoder encoders.StringDictDecoder
 
 	systemNameDecoder encoders.StringDictDecoder

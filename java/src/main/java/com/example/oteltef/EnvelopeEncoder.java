@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -26,6 +27,7 @@ class EnvelopeEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -35,13 +37,12 @@ class EnvelopeEncoder {
         state.EnvelopeEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Attributes field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Attributes and subsequent fields are skipped.
             }
             if (state.EnvelopeAttributesEncoder != null) {

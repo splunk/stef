@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -32,6 +33,7 @@ class PointEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -41,25 +43,24 @@ class PointEncoder {
         state.PointEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getPointFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getPointFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for StartTimestamp field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // StartTimestamp and subsequent fields are skipped.
             }
             startTimestampEncoder = new Uint64Encoder();
             startTimestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Timestamp field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Timestamp and subsequent fields are skipped.
             }
             timestampEncoder = new Uint64Encoder();
             timestampEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // Value and subsequent fields are skipped.
             }
             if (state.PointValueEncoder != null) {
@@ -71,7 +72,7 @@ class PointEncoder {
                 valueEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Exemplars field.
-            if (this.fieldCount <= 3) {
+            if (fieldCount <= 3) {
                 return; // Exemplars and subsequent fields are skipped.
             }
             if (state.ExemplarArrayEncoder != null) {

@@ -576,9 +576,10 @@ func (e *ResourceEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ResourceDecoder implements decoding of Resource
 type ResourceDecoder struct {
-	buf              pkg.BitsReader
-	column           *pkg.ReadableColumn
-	fieldCount       uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	schemaURLDecoder encoders.StringDictDecoder
 
 	attributesDecoder             *AttributesDecoder

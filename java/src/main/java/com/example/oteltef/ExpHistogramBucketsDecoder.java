@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -13,6 +14,7 @@ class ExpHistogramBucketsDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    
 
     
     private Int64Decoder offsetDecoder;
@@ -31,7 +33,6 @@ class ExpHistogramBucketsDecoder {
 
         try {
             fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
-
             column = columns.getColumn();
             
             if (this.fieldCount <= 0) {

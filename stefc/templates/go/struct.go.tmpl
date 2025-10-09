@@ -585,6 +585,7 @@ type {{ .StructName }}Encoder struct {
 
     keepFieldMask uint64
     fieldCount uint
+    {{if .OptionalFieldCount}}optionalFieldCount uint{{- end}}
 }
 
 {{if .DictName}}
@@ -662,6 +663,10 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
     // Set that many 1 bits in the keepFieldMask. All fields with higher number
     // will be skipped when encoding.
     e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
+
+    {{if .OptionalFieldCount}}
+    e.optionalFieldCount = pkg.OptionalFieldCount({{printf "0b%b" .OptionalsMask}}, e.fieldCount)
+    {{end}}
 
     {{ range $i, $e := .Fields }}
     // Init encoder for {{.Name}} field.
@@ -755,8 +760,8 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 
 	{{ if .OptionalFieldCount}}
     // Write bits to indicate which optional fields are set.
-    e.buf.WriteBits(val.optionalFieldsPresent, {{ .OptionalFieldCount}})
-    bitCount += {{ .OptionalFieldCount}}
+    e.buf.WriteBits(val.optionalFieldsPresent, e.optionalFieldCount)
+    bitCount += e.optionalFieldCount
 	{{- end}}
 
     // Encode modified, present fields.
@@ -805,6 +810,7 @@ type {{ .StructName }}Decoder struct {
     buf pkg.BitsReader
     column *pkg.ReadableColumn
     fieldCount uint
+    {{if .OptionalFieldCount}}optionalFieldCount uint{{end}}
 
     {{- range .Fields}}
     {{.name}}Decoder {{if not .IsPrimitive}}*{{end}}{{ .Type.EncoderType }}Decoder
@@ -833,6 +839,10 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     if err != nil {
         return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
     }
+
+    {{if .OptionalFieldCount}}
+    d.optionalFieldCount = pkg.OptionalFieldCount({{printf "0b%b" .OptionalsMask}}, d.fieldCount)
+    {{end}}
 
     d.column = columns.Column()
 
@@ -938,12 +948,12 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     {{ if .OptionalFieldCount}}
     // Read bits that indicate which optional fields are set.
     {{if le .OptionalFieldCount 56 -}}
-    {{/* Fast path, no more than 56 fields */ -}}
-    val.optionalFieldsPresent = d.buf.PeekBits({{ .OptionalFieldCount}})
-    d.buf.Consume({{ .OptionalFieldCount}})
+    {{/* Fast path, no more than 56 optional fields */ -}}
+    val.optionalFieldsPresent = d.buf.PeekBits(d.optionalFieldCount)
+    d.buf.Consume(d.optionalFieldCount)
     {{else -}}
     {{/* Slow path, more than 56 fields */ -}}
-    val.optionalFieldsPresent = d.buf.ReadBits({{ .OptionalFieldCount}})
+    val.optionalFieldsPresent = d.buf.ReadBits(d.optionalFieldCount)
     {{end}}
     {{- end}}
 

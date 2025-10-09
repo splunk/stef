@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -13,6 +14,7 @@ class ResourceDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    
 
     
     private StringDictDecoder schemaURLDecoder;
@@ -35,7 +37,6 @@ class ResourceDecoder {
 
         try {
             fieldCount = state.getStructFieldCounts().getResourceFieldCount();
-
             column = columns.getColumn();
             dict = state.Resource;
             

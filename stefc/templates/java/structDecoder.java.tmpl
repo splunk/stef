@@ -2,6 +2,7 @@
 package {{ .PackageName }};
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -12,6 +13,7 @@ class {{ .StructName }}Decoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    {{if .OptionalFieldCount}}private int optionalFieldCount;{{end}}
 
     {{ range .Fields }}
     private {{ .Type.EncoderType }}Decoder {{.name}}Decoder;
@@ -31,7 +33,9 @@ class {{ .StructName }}Decoder {
 
         try {
             fieldCount = state.getStructFieldCounts().get{{.StructName}}FieldCount();
-
+            {{- if .OptionalFieldCount}}
+            optionalFieldCount = Helper.optionalFieldCount({{printf "0b%b" .OptionalsMask}}, fieldCount);
+            {{- end}}
             column = columns.getColumn();
             {{- if .DictName}}
             dict = state.{{.DictName}};
@@ -116,7 +120,7 @@ class {{ .StructName }}Decoder {
         val.modifiedFields.mask = buf.readBits(fieldCount);
         {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
-        val.optionalFieldsPresent = buf.readBits({{ .OptionalFieldCount}});
+        val.optionalFieldsPresent = buf.readBits(optionalFieldCount);
         {{- end}}
         {{ range .Fields }}
         if ((val.modifiedFields.mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0

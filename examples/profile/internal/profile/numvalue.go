@@ -399,6 +399,7 @@ type NumValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
 	fieldCount uint
+
 	valDecoder encoders.Int64Decoder
 
 	unitDecoder encoders.StringDictDecoder

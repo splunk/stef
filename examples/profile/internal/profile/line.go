@@ -530,9 +530,10 @@ func (e *LineEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // LineDecoder implements decoding of Line
 type LineDecoder struct {
-	buf                 pkg.BitsReader
-	column              *pkg.ReadableColumn
-	fieldCount          uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	functionDecoder     *FunctionDecoder
 	isFunctionRecursive bool
 	lineDecoder         encoders.Uint64Decoder

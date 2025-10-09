@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -34,6 +35,7 @@ class HistogramValueEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    private int optionalFieldCount;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -43,37 +45,37 @@ class HistogramValueEncoder {
         state.HistogramValueEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
+            optionalFieldCount = Helper.optionalFieldCount(0b1110, fieldCount);
             // Init encoder for Count field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
             countEncoder = new Int64Encoder();
             countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
             sumEncoder = new Float64Encoder();
             sumEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Min field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // Min and subsequent fields are skipped.
             }
             minEncoder = new Float64Encoder();
             minEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Max field.
-            if (this.fieldCount <= 3) {
+            if (fieldCount <= 3) {
                 return; // Max and subsequent fields are skipped.
             }
             maxEncoder = new Float64Encoder();
             maxEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for BucketCounts field.
-            if (this.fieldCount <= 4) {
+            if (fieldCount <= 4) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
             if (state.Uint64ArrayEncoder != null) {
@@ -146,7 +148,7 @@ class HistogramValueEncoder {
         this.buf.writeBits(fieldMask, this.fieldCount);
         
         // Write bits to indicate which optional fields are set.
-        this.buf.writeBits(val.optionalFieldsPresent, 3);
+        this.buf.writeBits(val.optionalFieldsPresent, optionalFieldCount);
         // Encode modified, present fields.
         
         if ((fieldMask & HistogramValue.fieldModifiedCount) != 0) {

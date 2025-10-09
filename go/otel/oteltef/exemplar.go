@@ -646,9 +646,10 @@ func (e *ExemplarEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ExemplarDecoder implements decoding of Exemplar
 type ExemplarDecoder struct {
-	buf              pkg.BitsReader
-	column           *pkg.ReadableColumn
-	fieldCount       uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	timestampDecoder encoders.Uint64Decoder
 
 	valueDecoder     *ExemplarValueDecoder

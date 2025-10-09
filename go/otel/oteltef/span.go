@@ -1352,9 +1352,10 @@ func (e *SpanEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpanDecoder implements decoding of Span
 type SpanDecoder struct {
-	buf            pkg.BitsReader
-	column         *pkg.ReadableColumn
-	fieldCount     uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	traceIDDecoder encoders.BytesDecoder
 
 	spanIDDecoder encoders.BytesDecoder
