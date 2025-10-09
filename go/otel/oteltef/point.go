@@ -570,9 +570,10 @@ func (e *PointEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // PointDecoder implements decoding of Point
 type PointDecoder struct {
-	buf                   pkg.BitsReader
-	column                *pkg.ReadableColumn
-	fieldCount            uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	startTimestampDecoder encoders.Uint64Decoder
 
 	timestampDecoder encoders.Uint64Decoder

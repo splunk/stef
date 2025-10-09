@@ -489,9 +489,10 @@ func (e *SampleValueTypeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SampleValueTypeDecoder implements decoding of SampleValueType
 type SampleValueTypeDecoder struct {
-	buf          pkg.BitsReader
-	column       *pkg.ReadableColumn
-	fieldCount   uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	type_Decoder encoders.StringDecoder
 
 	unitDecoder encoders.StringDecoder

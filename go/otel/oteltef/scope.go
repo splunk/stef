@@ -728,9 +728,10 @@ func (e *ScopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ScopeDecoder implements decoding of Scope
 type ScopeDecoder struct {
-	buf         pkg.BitsReader
-	column      *pkg.ReadableColumn
-	fieldCount  uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	nameDecoder encoders.StringDictDecoder
 
 	versionDecoder encoders.StringDictDecoder

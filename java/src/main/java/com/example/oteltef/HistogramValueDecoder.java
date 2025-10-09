@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -13,6 +14,7 @@ class HistogramValueDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    private int optionalFieldCount;
 
     
     private Int64Decoder countDecoder;
@@ -37,7 +39,7 @@ class HistogramValueDecoder {
 
         try {
             fieldCount = state.getStructFieldCounts().getHistogramValueFieldCount();
-
+            optionalFieldCount = Helper.optionalFieldCount(0b1110, fieldCount);
             column = columns.getColumn();
             
             if (this.fieldCount <= 0) {
@@ -147,7 +149,7 @@ class HistogramValueDecoder {
         val.modifiedFields.mask = buf.readBits(fieldCount);
         
         // Write bits to indicate which optional fields are set.
-        val.optionalFieldsPresent = buf.readBits(3);
+        val.optionalFieldsPresent = buf.readBits(optionalFieldCount);
         
         if ((val.modifiedFields.mask & HistogramValue.fieldModifiedCount) != 0) {
             // Field is changed and is present, decode it.

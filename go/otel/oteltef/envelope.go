@@ -330,9 +330,10 @@ func (e *EnvelopeEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // EnvelopeDecoder implements decoding of Envelope
 type EnvelopeDecoder struct {
-	buf                   pkg.BitsReader
-	column                *pkg.ReadableColumn
-	fieldCount            uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	attributesDecoder     *EnvelopeAttributesDecoder
 	isAttributesRecursive bool
 	allocators            *Allocators

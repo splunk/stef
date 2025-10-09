@@ -905,9 +905,10 @@ func (e *MetricsEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // MetricsDecoder implements decoding of Metrics
 type MetricsDecoder struct {
-	buf                   pkg.BitsReader
-	column                *pkg.ReadableColumn
-	fieldCount            uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	envelopeDecoder       *EnvelopeDecoder
 	isEnvelopeRecursive   bool
 	metricDecoder         *MetricDecoder

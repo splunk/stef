@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -28,6 +29,7 @@ class QuantileValueEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -37,19 +39,18 @@ class QuantileValueEncoder {
         state.QuantileValueEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getQuantileValueFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getQuantileValueFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Quantile field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Quantile and subsequent fields are skipped.
             }
             quantileEncoder = new Float64Encoder();
             quantileEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Value field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Value and subsequent fields are skipped.
             }
             valueEncoder = new Float64Encoder();

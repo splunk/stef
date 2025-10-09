@@ -396,9 +396,10 @@ func (e *QuantileValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // QuantileValueDecoder implements decoding of QuantileValue
 type QuantileValueDecoder struct {
-	buf             pkg.BitsReader
-	column          *pkg.ReadableColumn
-	fieldCount      uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	quantileDecoder encoders.Float64Decoder
 
 	valueDecoder encoders.Float64Decoder

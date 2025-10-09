@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -13,6 +14,7 @@ class EnvelopeDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    
 
     
     private EnvelopeAttributesDecoder attributesDecoder;
@@ -29,7 +31,6 @@ class EnvelopeDecoder {
 
         try {
             fieldCount = state.getStructFieldCounts().getEnvelopeFieldCount();
-
             column = columns.getColumn();
             
             if (this.fieldCount <= 0) {
