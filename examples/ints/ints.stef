@@ -1,0 +1,5 @@
+package ints
+
+struct Record root {
+  Uint64 uint64
+}
