@@ -34,10 +34,12 @@ func (g *Generator) oMultimap(multimap *genMapDef) error {
 	mapType := g.compiledSchema.Multimaps[multimap.Name]
 
 	data := map[string]any{
-		"PackageName":  g.compiledSchema.PackageNameStr,
-		"MultimapName": mapType.Name,
-		"Key":          mapType.Key,
-		"Value":        mapType.Value,
+		"PackageName":     g.compiledSchema.PackageNameStr,
+		"MultimapName":    mapType.Name,
+		"Key":             mapType.Key,
+		"Value":           mapType.Value,
+		"KeyStoreByPtr":   !mapType.Key.Type.IsPrimitive() && mapType.Key.Type.DictName() != "",
+		"ValueStoreByPtr": !mapType.Value.Type.IsPrimitive() && mapType.Value.Type.DictName() != "",
 	}
 
 	return g.oTemplates("multimap", g.stefSymbol2FileName(multimap.Name), data)

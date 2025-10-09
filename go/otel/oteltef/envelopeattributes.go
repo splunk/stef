@@ -86,12 +86,6 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 		// Check if the underlying array is reallocated.
 		beforePtr := unsafe.SliceData(m.elems)
 		m.elems = pkg.EnsureLen(m.elems, newLen)
-		if beforePtr != unsafe.SliceData(m.elems) {
-			// Underlying array was reallocated, we need to fix parent pointers
-			// in all elements.
-			for i := 0; i < newLen; i++ {
-			}
-		}
 
 		// Init elements with pointers to the parent struct.
 		for i := m.initedCount; i < newLen; i++ {
@@ -99,6 +93,14 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 		if m.initedCount < newLen {
 			m.initedCount = newLen
 		}
+
+		if beforePtr != unsafe.SliceData(m.elems) {
+			// Underlying array was reallocated, we need to fix parent pointers
+			// in all elements.
+			for i := 0; i < newLen; i++ {
+			}
+		}
+
 		for i := min(oldLen, newLen); i < newLen; i++ {
 		}
 	}
@@ -226,7 +228,9 @@ func EnvelopeAttributesEqual(left, right *EnvelopeAttributes) bool {
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {
-		c := strings.Compare(left.elems[i].key, right.elems[i].key)
+		c := strings.Compare(
+			left.elems[i].key,
+			right.elems[i].key)
 		if c != 0 {
 			return c
 		}

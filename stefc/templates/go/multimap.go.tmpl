@@ -24,16 +24,16 @@ type {{ .MultimapName }} struct {
 }
 
 type {{ .MultimapName }}Elem struct {
-	key   {{.Key.Type.Storage}}
-	value {{.Value.Type.Storage}}
+	key   {{if .KeyStoreByPtr}}*{{end}}{{.Key.Type.Storage}}
+	value {{if .ValueStoreByPtr}}*{{end}}{{.Value.Type.Storage}}
 }
 
 func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
-	return {{if.Key.Type.Flags.PassByPtr}}&{{end}}{{.Key.Type.ToExported ("e.key")}}
+	return {{if and .Key.Type.Flags.PassByPtr (not .KeyStoreByPtr)}}&{{end}}{{.Key.Type.ToExported ("e.key")}}
 }
 
 func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}} {
-	return {{if.Value.Type.Flags.PassByPtr}}&{{end}}{{.Value.Type.ToExported ("e.value")}}
+	return {{if and .Value.Type.Flags.PassByPtr (not .ValueStoreByPtr)}}&{{end}}{{.Value.Type.ToExported ("e.value")}}
 }
 
 func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -92,6 +92,22 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
         // Check if the underlying array is reallocated.
         beforePtr := unsafe.SliceData(m.elems)
 		m.elems = pkg.EnsureLen(m.elems, newLen)
+
+		// Init elements with pointers to the parent struct.
+		for i:=m.initedCount; i < newLen; i++ {
+			{{- if not .Key.Type.IsPrimitive}}
+			{{if .KeyStoreByPtr}}m.elems[i].key = new({{.Key.Type.Storage}}){{end}}
+			m.elems[i].key.init(&m.modifiedElems.keys, m.modifiedElems.maskForIndex(i))
+			{{- end}}
+			{{- if not .Value.Type.IsPrimitive}}
+			{{if .ValueStoreByPtr}}m.elems[i].value = new({{.Value.Type.Storage}}){{end}}
+			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+			{{- end}}
+		}
+		if m.initedCount < newLen {
+			m.initedCount = newLen
+		}
+
 		if beforePtr != unsafe.SliceData(m.elems) {
 		    // Underlying array was reallocated, we need to fix parent pointers
 		    // in all elements.
@@ -105,18 +121,6 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
 		    }
 		}
 
-		// Init elements with pointers to the parent struct.
-		for i:=m.initedCount; i < newLen; i++ {
-			{{- if not .Key.Type.IsPrimitive}}
-			m.elems[i].key.init(&m.modifiedElems.keys, m.modifiedElems.maskForIndex(i))
-			{{- end}}
-			{{- if not .Value.Type.IsPrimitive}}
-			m.elems[i].value.init(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
-			{{- end}}
-		}
-		if m.initedCount < newLen {
-			m.initedCount = newLen
-		}
 		for i:=min(oldLen, newLen); i < newLen; i++ {
 			{{- if not .Key.Type.IsPrimitive}}
 			// Reset newly created keys to initial state.
@@ -166,7 +170,7 @@ func (m *{{.MultimapName}}) computeDiff(val *{{.MultimapName}}) (ret bool) {
 		{{- if .Key.Type.IsPrimitive }}
 		if m.elems[i].key != val.elems[i].key {
 		{{- else }}
-		if m.elems[i].key.computeDiff(&val.elems[i].key) {
+		if m.elems[i].key.computeDiff({{if not .KeyStoreByPtr}}&{{end}}val.elems[i].key) {
 		{{- end}}
 			ret = true
 		    m.modifiedElems.setKeyModified(i)
@@ -174,7 +178,7 @@ func (m *{{.MultimapName}}) computeDiff(val *{{.MultimapName}}) (ret bool) {
 		{{- if .Value.Type.IsPrimitive }}
 		if m.elems[i].value != val.elems[i].value {
 		{{- else }}
-		if m.elems[i].value.computeDiff(&val.elems[i].value) {
+		if m.elems[i].value.computeDiff({{if not .ValueStoreByPtr}}&{{end}}val.elems[i].value) {
 		{{- end}}
 			ret = true
 			m.modifiedElems.setValModified(i)
@@ -240,8 +244,8 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 		{{else}}
-		if !{{.Key.Type.EqualFunc}}(&dst.elems[i].key, &src.elems[i].key) {
-			copy{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key)
+		if !{{.Key.Type.EqualFunc}}({{if not .KeyStoreByPtr}}&{{end}}dst.elems[i].key, {{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key) {
+			copy{{.Key.Type.TypeName}}({{if not .KeyStoreByPtr}}&{{end}}dst.elems[i].key, {{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key)
 		}
 		{{end}}
 
@@ -251,8 +255,8 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 			dst.modifiedElems.markValModified(i)
 		}
 		{{else}}
-		if !{{.Value.Type.EqualFunc}}(&dst.elems[i].value, &src.elems[i].value) {
-			copy{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value)
+		if !{{.Value.Type.EqualFunc}}({{if not .ValueStoreByPtr}}&{{end}}dst.elems[i].value, {{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value) {
+			copy{{.Value.Type.TypeName}}({{if not .ValueStoreByPtr}}&{{end}}dst.elems[i].value, {{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value)
 		}
 		{{- end}}
 	}
@@ -273,13 +277,12 @@ func copyToNew{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}, 
 		{{- if .Key.Type.IsPrimitive}}
 		dst.elems[i].key = src.elems[i].key
 		{{else}}
-		copyToNew{{.Key.Type.TypeName}}(&dst.elems[i].key, &src.elems[i].key, allocators)
+		copyToNew{{.Key.Type.TypeName}}({{if not .KeyStoreByPtr}}&{{end}}dst.elems[i].key, {{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key, allocators)
 		{{end}}
-
 		{{- if .Value.Type.IsPrimitive}}
 		dst.elems[i].value = src.elems[i].value
 		{{else}}
-		copyToNew{{.Value.Type.TypeName}}(&dst.elems[i].value, &src.elems[i].value, allocators)
+		copyToNew{{.Value.Type.TypeName}}({{if not .ValueStoreByPtr}}&{{end}}dst.elems[i].value, {{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value, allocators)
 		{{- end}}
 	}
 	{{end}}
@@ -299,7 +302,7 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 			return false
 		}
 		{{- else }}
-		if !e.elems[i].key.IsEqual(&val.elems[i].key) {
+		if !e.elems[i].key.IsEqual({{if not .KeyStoreByPtr}}&{{end}}val.elems[i].key) {
 			return false
 		}
 		{{- end}}
@@ -308,7 +311,7 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 			return false
 		}
 		{{- else }}
-		if !e.elems[i].value.IsEqual(&val.elems[i].value) {
+		if !e.elems[i].value.IsEqual({{if not .ValueStoreByPtr}}&{{end}}val.elems[i].value) {
 			return false
 		}
 		{{- end}}
@@ -323,7 +326,9 @@ func {{.MultimapName}}Equal(left, right *{{.MultimapName}}) bool {
 func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
     l := min(len(left.elems), len(right.elems))
     for i := 0; i < l; i++ {
-        c := {{.Key.Type.CompareFunc}}({{if not .Key.Type.IsPrimitive}}&{{end}}left.elems[i].key,{{if not .Key.Type.IsPrimitive}}&{{end}}right.elems[i].key)
+        c := {{.Key.Type.CompareFunc}}(
+            {{if and (not .Key.Type.IsPrimitive) (not .Key.Type.DictName)}}&{{end}}left.elems[i].key,
+            {{if and (not .Key.Type.IsPrimitive) (not .Key.Type.DictName)}}&{{end}}right.elems[i].key)
         if c != 0 {
             return c
         }
@@ -336,8 +341,8 @@ func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
 
     for i := 0; i < l; i++ {
         c := {{.Value.Type.CompareFunc}}(
-			{{if not .Value.Type.IsPrimitive}}&{{end}}left.elems[i].value,
-			{{if not .Value.Type.IsPrimitive}}&{{end}}right.elems[i].value,
+			{{if and (not .Value.Type.IsPrimitive) (not .Value.Type.DictName)}}&{{end}}left.elems[i].value,
+			{{if and (not .Value.Type.IsPrimitive) (not .Value.Type.DictName)}}&{{end}}right.elems[i].value,
 		)
         if c != 0 {
             return c
@@ -486,7 +491,7 @@ func (e *{{ .MultimapName }}Encoder) encodeValuesOnly(list *{{ .MultimapName }})
 	bitToEncode := uint64(1)
 	for i := range list.elems {
 		if (bitToEncode & changedValuesBits) != 0 {
-			e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value)
+			e.valueEncoder.Encode({{if and (not .Value.Type.IsPrimitive) (not .Value.Type.DictName)}}&{{end}}list.elems[i].value)
 		}
 		bitToEncode <<= 1
 	}
@@ -498,8 +503,8 @@ func (e *{{ .MultimapName }}Encoder) encodeFull(list *{{ .MultimapName }}) {
 
 	// Encode keys and values.
 	for i := range list.elems {
-		e.keyEncoder.Encode({{if not .Key.Type.IsPrimitive}}&{{end}}list.elems[i].key)
-		e.valueEncoder.Encode({{if not .Value.Type.IsPrimitive}}&{{end}}list.elems[i].value)
+		e.keyEncoder.Encode({{if and (not .Key.Type.IsPrimitive) (not .Key.Type.DictName)}}&{{end}}list.elems[i].key)
+		e.valueEncoder.Encode({{if and (not .Value.Type.IsPrimitive) (not .Value.Type.DictName)}}&{{end}}list.elems[i].value)
 	}
 }
 
