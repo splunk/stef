@@ -710,9 +710,10 @@ func (e *LocationEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // LocationDecoder implements decoding of Location
 type LocationDecoder struct {
-	buf                pkg.BitsReader
-	column             *pkg.ReadableColumn
-	fieldCount         uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	mappingDecoder     *MappingDecoder
 	isMappingRecursive bool
 	addressDecoder     encoders.Uint64Decoder

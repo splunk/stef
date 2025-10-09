@@ -591,9 +591,10 @@ func (e *SampleEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SampleDecoder implements decoding of Sample
 type SampleDecoder struct {
-	buf                  pkg.BitsReader
-	column               *pkg.ReadableColumn
-	fieldCount           uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	metadataDecoder      *ProfileMetadataDecoder
 	isMetadataRecursive  bool
 	locationsDecoder     *LocationArrayDecoder

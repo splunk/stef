@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -28,6 +29,7 @@ class ExpHistogramBucketsEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -37,19 +39,18 @@ class ExpHistogramBucketsEncoder {
         state.ExpHistogramBucketsEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getExpHistogramBucketsFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Offset field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Offset and subsequent fields are skipped.
             }
             offsetEncoder = new Int64Encoder();
             offsetEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for BucketCounts field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // BucketCounts and subsequent fields are skipped.
             }
             if (state.Uint64ArrayEncoder != null) {

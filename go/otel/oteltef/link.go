@@ -711,9 +711,10 @@ func (e *LinkEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // LinkDecoder implements decoding of Link
 type LinkDecoder struct {
-	buf            pkg.BitsReader
-	column         *pkg.ReadableColumn
-	fieldCount     uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	traceIDDecoder encoders.BytesDecoder
 
 	spanIDDecoder encoders.BytesDecoder

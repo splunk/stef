@@ -809,8 +809,9 @@ type ExpHistogramValueEncoder struct {
 
 	allocators *Allocators
 
-	keepFieldMask uint64
-	fieldCount    uint
+	keepFieldMask      uint64
+	fieldCount         uint
+	optionalFieldCount uint
 }
 
 func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -833,6 +834,8 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
 	e.keepFieldMask = ^(^uint64(0) << e.fieldCount)
+
+	e.optionalFieldCount = pkg.OptionalFieldCount(0b1110, e.fieldCount)
 
 	// Init encoder for Count field.
 	if e.fieldCount <= 0 {
@@ -999,8 +1002,8 @@ func (e *ExpHistogramValueEncoder) Encode(val *ExpHistogramValue) {
 	bitCount += e.fieldCount
 
 	// Write bits to indicate which optional fields are set.
-	e.buf.WriteBits(val.optionalFieldsPresent, 3)
-	bitCount += 3
+	e.buf.WriteBits(val.optionalFieldsPresent, e.optionalFieldCount)
+	bitCount += e.optionalFieldCount
 
 	// Encode modified, present fields.
 
@@ -1126,10 +1129,11 @@ func (e *ExpHistogramValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet)
 
 // ExpHistogramValueDecoder implements decoding of ExpHistogramValue
 type ExpHistogramValueDecoder struct {
-	buf          pkg.BitsReader
-	column       *pkg.ReadableColumn
-	fieldCount   uint
-	countDecoder encoders.Uint64Decoder
+	buf                pkg.BitsReader
+	column             *pkg.ReadableColumn
+	fieldCount         uint
+	optionalFieldCount uint
+	countDecoder       encoders.Uint64Decoder
 
 	sumDecoder encoders.Float64Decoder
 
@@ -1167,6 +1171,8 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExpHistogramValue", err)
 	}
+
+	d.optionalFieldCount = pkg.OptionalFieldCount(0b1110, d.fieldCount)
 
 	d.column = columns.Column()
 
@@ -1363,8 +1369,8 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 	d.buf.Consume(d.fieldCount)
 
 	// Read bits that indicate which optional fields are set.
-	val.optionalFieldsPresent = d.buf.PeekBits(3)
-	d.buf.Consume(3)
+	val.optionalFieldsPresent = d.buf.PeekBits(d.optionalFieldCount)
+	d.buf.Consume(d.optionalFieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueCount != 0 {
 		// Field is changed and is present, decode it.

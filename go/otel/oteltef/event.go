@@ -559,9 +559,10 @@ func (e *EventEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // EventDecoder implements decoding of Event
 type EventDecoder struct {
-	buf         pkg.BitsReader
-	column      *pkg.ReadableColumn
-	fieldCount  uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	nameDecoder encoders.StringDictDecoder
 
 	timeUnixNanoDecoder encoders.Uint64Decoder

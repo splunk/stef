@@ -457,6 +457,7 @@ type SampleValueDecoder struct {
 	buf        pkg.BitsReader
 	column     *pkg.ReadableColumn
 	fieldCount uint
+
 	valDecoder encoders.Int64Decoder
 
 	type_Decoder    *SampleValueTypeDecoder

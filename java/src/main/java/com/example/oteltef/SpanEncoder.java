@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -52,6 +53,7 @@ class SpanEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -61,67 +63,66 @@ class SpanEncoder {
         state.SpanEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getSpanFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getSpanFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for TraceID field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // TraceID and subsequent fields are skipped.
             }
             traceIDEncoder = new BytesEncoder();
             traceIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for SpanID field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // SpanID and subsequent fields are skipped.
             }
             spanIDEncoder = new BytesEncoder();
             spanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for TraceState field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // TraceState and subsequent fields are skipped.
             }
             traceStateEncoder = new StringEncoder();
             traceStateEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for ParentSpanID field.
-            if (this.fieldCount <= 3) {
+            if (fieldCount <= 3) {
                 return; // ParentSpanID and subsequent fields are skipped.
             }
             parentSpanIDEncoder = new BytesEncoder();
             parentSpanIDEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Flags field.
-            if (this.fieldCount <= 4) {
+            if (fieldCount <= 4) {
                 return; // Flags and subsequent fields are skipped.
             }
             flagsEncoder = new Uint64Encoder();
             flagsEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Name field.
-            if (this.fieldCount <= 5) {
+            if (fieldCount <= 5) {
                 return; // Name and subsequent fields are skipped.
             }
             nameEncoder = new StringDictEncoder();
             nameEncoder.init(state.SpanName, limiter, columns.addSubColumn());
             // Init encoder for Kind field.
-            if (this.fieldCount <= 6) {
+            if (fieldCount <= 6) {
                 return; // Kind and subsequent fields are skipped.
             }
             kindEncoder = new Uint64Encoder();
             kindEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for StartTimeUnixNano field.
-            if (this.fieldCount <= 7) {
+            if (fieldCount <= 7) {
                 return; // StartTimeUnixNano and subsequent fields are skipped.
             }
             startTimeUnixNanoEncoder = new Uint64Encoder();
             startTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for EndTimeUnixNano field.
-            if (this.fieldCount <= 8) {
+            if (fieldCount <= 8) {
                 return; // EndTimeUnixNano and subsequent fields are skipped.
             }
             endTimeUnixNanoEncoder = new Uint64Encoder();
             endTimeUnixNanoEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Attributes field.
-            if (this.fieldCount <= 9) {
+            if (fieldCount <= 9) {
                 return; // Attributes and subsequent fields are skipped.
             }
             if (state.AttributesEncoder != null) {
@@ -133,13 +134,13 @@ class SpanEncoder {
                 attributesEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for DroppedAttributesCount field.
-            if (this.fieldCount <= 10) {
+            if (fieldCount <= 10) {
                 return; // DroppedAttributesCount and subsequent fields are skipped.
             }
             droppedAttributesCountEncoder = new Uint64Encoder();
             droppedAttributesCountEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Events field.
-            if (this.fieldCount <= 11) {
+            if (fieldCount <= 11) {
                 return; // Events and subsequent fields are skipped.
             }
             if (state.EventArrayEncoder != null) {
@@ -151,7 +152,7 @@ class SpanEncoder {
                 eventsEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Links field.
-            if (this.fieldCount <= 12) {
+            if (fieldCount <= 12) {
                 return; // Links and subsequent fields are skipped.
             }
             if (state.LinkArrayEncoder != null) {
@@ -163,7 +164,7 @@ class SpanEncoder {
                 linksEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Status field.
-            if (this.fieldCount <= 13) {
+            if (fieldCount <= 13) {
                 return; // Status and subsequent fields are skipped.
             }
             if (state.SpanStatusEncoder != null) {

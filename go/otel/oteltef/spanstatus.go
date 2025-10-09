@@ -396,9 +396,10 @@ func (e *SpanStatusEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SpanStatusDecoder implements decoding of SpanStatus
 type SpanStatusDecoder struct {
-	buf            pkg.BitsReader
-	column         *pkg.ReadableColumn
-	fieldCount     uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	messageDecoder encoders.StringDecoder
 
 	codeDecoder encoders.Uint64Decoder

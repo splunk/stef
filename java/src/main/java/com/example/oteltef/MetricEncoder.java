@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -42,6 +43,7 @@ class MetricEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -51,38 +53,37 @@ class MetricEncoder {
         state.MetricEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
-            this.dict = state.Metric;
+            limiter = state.getLimiter();
+            dict = state.Metric;
 
-            this.fieldCount = state.getStructFieldCounts().getMetricFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getMetricFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Name field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Name and subsequent fields are skipped.
             }
             nameEncoder = new StringDictEncoder();
             nameEncoder.init(state.MetricName, limiter, columns.addSubColumn());
             // Init encoder for Description field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Description and subsequent fields are skipped.
             }
             descriptionEncoder = new StringDictEncoder();
             descriptionEncoder.init(state.MetricDescription, limiter, columns.addSubColumn());
             // Init encoder for Unit field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // Unit and subsequent fields are skipped.
             }
             unitEncoder = new StringDictEncoder();
             unitEncoder.init(state.MetricUnit, limiter, columns.addSubColumn());
             // Init encoder for Type field.
-            if (this.fieldCount <= 3) {
+            if (fieldCount <= 3) {
                 return; // Type and subsequent fields are skipped.
             }
             type_Encoder = new Uint64Encoder();
             type_Encoder.init(limiter, columns.addSubColumn());
             // Init encoder for Metadata field.
-            if (this.fieldCount <= 4) {
+            if (fieldCount <= 4) {
                 return; // Metadata and subsequent fields are skipped.
             }
             if (state.AttributesEncoder != null) {
@@ -94,7 +95,7 @@ class MetricEncoder {
                 metadataEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for HistogramBounds field.
-            if (this.fieldCount <= 5) {
+            if (fieldCount <= 5) {
                 return; // HistogramBounds and subsequent fields are skipped.
             }
             if (state.Float64ArrayEncoder != null) {
@@ -106,13 +107,13 @@ class MetricEncoder {
                 histogramBoundsEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for AggregationTemporality field.
-            if (this.fieldCount <= 6) {
+            if (fieldCount <= 6) {
                 return; // AggregationTemporality and subsequent fields are skipped.
             }
             aggregationTemporalityEncoder = new Uint64Encoder();
             aggregationTemporalityEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Monotonic field.
-            if (this.fieldCount <= 7) {
+            if (fieldCount <= 7) {
                 return; // Monotonic and subsequent fields are skipped.
             }
             monotonicEncoder = new BoolEncoder();

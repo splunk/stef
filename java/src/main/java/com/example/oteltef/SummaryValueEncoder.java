@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -30,6 +31,7 @@ class SummaryValueEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -39,25 +41,24 @@ class SummaryValueEncoder {
         state.SummaryValueEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getSummaryValueFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getSummaryValueFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Count field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Count and subsequent fields are skipped.
             }
             countEncoder = new Uint64Encoder();
             countEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Sum field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Sum and subsequent fields are skipped.
             }
             sumEncoder = new Float64Encoder();
             sumEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for QuantileValues field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // QuantileValues and subsequent fields are skipped.
             }
             if (state.QuantileValueArrayEncoder != null) {

@@ -979,9 +979,10 @@ func (e *ProfileMetadataEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // ProfileMetadataDecoder implements decoding of ProfileMetadata
 type ProfileMetadataDecoder struct {
-	buf               pkg.BitsReader
-	column            *pkg.ReadableColumn
-	fieldCount        uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	dropFramesDecoder encoders.StringDictDecoder
 
 	keepFramesDecoder encoders.StringDictDecoder
