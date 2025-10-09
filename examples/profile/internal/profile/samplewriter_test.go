@@ -119,7 +119,7 @@ func TestSampleWriteRead(t *testing.T) {
 					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed1)
 				}
 				err = reader.Read(pkg.ReadOptions{})
-				require.Error(t, io.EOF, seed1)
+				require.ErrorIs(t, err, io.EOF, seed1)
 
 				succeeded = true
 			},
