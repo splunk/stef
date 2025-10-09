@@ -36,6 +36,10 @@ type Pos struct {
 	Col     uint
 }
 
+func (p *Pos) Unknown() bool {
+	return *p == Pos{}
+}
+
 type Token uint
 
 const (

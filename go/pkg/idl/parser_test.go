@@ -3,6 +3,7 @@ package idl
 import (
 	"bytes"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -89,6 +90,151 @@ func TestParserErrors(t *testing.T) {
 		err := parser.Parse()
 		require.Error(t, err)
 		require.Equal(t, test.err, err.Error())
+	}
+}
+
+func TestParserWarnings(t *testing.T) {
+	tests := []struct {
+		input string
+		warn  []string
+	}{
+		{
+			input: "package abc struct R root {} struct U {}",
+			warn:  []string{`Warning: struct "U" is defined but not used`},
+		},
+		{
+			input: "package abc struct R root {} multimap M { key string value int64 }",
+			warn:  []string{`Warning: multimap "M" is defined but not used`},
+		},
+		{
+			input: "package abc struct R root {} oneof O {}",
+			warn:  []string{`Warning: oneof "O" is defined but not used`},
+		},
+		{
+			input: "package abc struct R root {} enum E {}",
+			warn:  []string{`Warning: enum "E" is defined but not used`},
+		},
+		{
+			input: "package abc struct R root {} struct A { B B optional } struct B { A A optional }",
+			warn: []string{
+				`Warning: struct "A" is defined but not used`, `Warning: struct "B" is defined but not used`,
+			},
+		},
+		// Multiple unused types of different kinds
+		{
+			input: "package abc struct R root {} struct U1 {} struct U2 {} oneof O {} multimap M { key string value int64 } enum E {}",
+			warn: []string{
+				`Warning: oneof "O" is defined but not used`,
+				`Warning: struct "U1" is defined but not used`,
+				`Warning: struct "U2" is defined but not used`,
+				`Warning: multimap "M" is defined but not used`,
+				`Warning: enum "E" is defined but not used`,
+			},
+		},
+		// Chain of unused structs where one references another
+		{
+			input: "package abc struct R root {} struct A { b B } struct B { c C } struct C {}",
+			warn: []string{
+				`Warning: struct "A" is defined but not used`,
+				`Warning: struct "B" is defined but not used`,
+				`Warning: struct "C" is defined but not used`,
+			},
+		},
+		// Circular dependency that's unused
+		{
+			input: "package abc struct R root {} struct A { b []B c C } struct B { a A } struct C { name string }",
+			warn: []string{
+				`Warning: struct "A" is defined but not used`,
+				`Warning: struct "B" is defined but not used`,
+				`Warning: struct "C" is defined but not used`,
+			},
+		},
+		// Mixed used and unused with nested dependencies
+		{
+			input: "package abc struct R root { data Data } struct Data { items []Item } struct Item {} struct UnusedHelper { V string } oneof UnusedChoice {}",
+			warn: []string{
+				`Warning: oneof "UnusedChoice" is defined but not used`,
+				`Warning: struct "UnusedHelper" is defined but not used`,
+			},
+		},
+		// Only root struct, no warnings
+		{
+			input: "package abc struct R root { name string }",
+			warn:  []string{},
+		},
+		// Oneof used in struct field
+		{
+			input: "package abc struct R root { choice Choice } oneof Choice { option1 Option1 option2 Option2 } struct Option1 {} struct Option2 {} struct Unused {}",
+			warn: []string{
+				`Warning: struct "Unused" is defined but not used`,
+			},
+		},
+		// Deep nesting with some unused branches
+		{
+			input: "package abc struct R root { level1 Level1 } struct Level1 { level2 Level2 } struct Level2 { V string } struct UnusedBranch { deep UnusedDeep } struct UnusedDeep {}",
+			warn: []string{
+				`Warning: struct "UnusedBranch" is defined but not used`,
+				`Warning: struct "UnusedDeep" is defined but not used`,
+			},
+		},
+		// Optional field with unused type
+		{
+			input: "package abc struct R root { opt OptionalStruct optional } struct OptionalStruct {} struct Unused {}",
+			warn: []string{
+				`Warning: struct "Unused" is defined but not used`,
+			},
+		},
+		// Array field with unused other types
+		{
+			input: "package abc struct R root { items []ItemType } struct ItemType {} struct UnrelatedType {} enum UnrelatedEnum {}",
+			warn: []string{
+				`Warning: struct "UnrelatedType" is defined but not used`,
+				`Warning: enum "UnrelatedEnum" is defined but not used`,
+			},
+		},
+		// Complex mix of all type kinds with various usage patterns
+		{
+			input: "package abc struct R root { used UsedStruct choice UsedOneof tags UsedMap } struct UsedStruct { status UsedEnum } oneof UsedOneof { opt1 Option1 opt2 Option2 } struct Option1 {} struct Option2 {} multimap UsedMap { key string value MapValue } struct MapValue {} enum UsedEnum { A = 0 B = 1 } struct Unused1 {} struct Unused2 {} oneof UnusedOneof {} multimap UnusedMap { key string value string } enum UnusedEnum {}",
+			warn: []string{
+				`Warning: struct "Unused1" is defined but not used`,
+				`Warning: struct "Unused2" is defined but not used`,
+				`Warning: oneof "UnusedOneof" is defined but not used`,
+				`Warning: multimap "UnusedMap" is defined but not used`,
+				`Warning: enum "UnusedEnum" is defined but not used`,
+			},
+		},
+		// Self-referencing unused struct
+		{
+			input: "package abc struct R root {} struct SelfRef { next SelfRef optional }",
+			warn: []string{
+				`Warning: struct "SelfRef" is defined but not used`,
+			},
+		},
+		// Multiple levels of mutual references that are unused
+		{
+			input: "package abc struct R root {} struct A { b B } struct B { c C } struct C { a A optional }",
+			warn: []string{
+				`Warning: struct "A" is defined but not used`,
+				`Warning: struct "B" is defined but not used`,
+				`Warning: struct "C" is defined but not used`,
+			},
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(
+			strconv.Itoa(i), func(t *testing.T) {
+				lexer := NewLexer(bytes.NewBufferString(test.input))
+				parser := NewParser(lexer, "test.stef")
+				err := parser.Parse()
+				require.NoError(t, err)
+				msgs := parser.Messages()
+				require.Equal(t, len(test.warn), len(msgs))
+				for i := range test.warn {
+					require.Equal(t, test.warn[i], msgs[i].String())
+				}
+			},
+		)
 	}
 }
 
