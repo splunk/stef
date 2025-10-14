@@ -52,11 +52,8 @@ func (s *genSchema) resolveType(typ genFieldTypeRef) error {
 	}
 
 	if ref, ok := typ.(*genArrayTypeRef); ok {
-		if refStr, ok := ref.ElemType.(*genStructTypeRef); ok {
-			refStr.Def = s.Structs[refStr.Name]
-			if refStr.Def == nil {
-				return fmt.Errorf("struct %s not found", refStr.Name)
-			}
+		if err := s.resolveType(ref.ElemType); err != nil {
+			return err
 		}
 	}
 
@@ -70,6 +67,9 @@ func (s *genSchema) resolveType(typ genFieldTypeRef) error {
 	ref, ok := typ.(*genPrimitiveTypeRef)
 	if ok && ref.Enum != "" {
 		ref.EnumDef = s.Enums[ref.Enum]
+		if ref.EnumDef == nil {
+			return fmt.Errorf("enum %s not found", ref.Enum)
+		}
 	}
 
 	return nil

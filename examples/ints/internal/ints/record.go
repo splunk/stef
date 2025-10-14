@@ -320,9 +320,10 @@ func (e *RecordEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // RecordDecoder implements decoding of Record
 type RecordDecoder struct {
-	buf           pkg.BitsReader
-	column        *pkg.ReadableColumn
-	fieldCount    uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	uint64Decoder encoders.Uint64Decoder
 
 	allocators *Allocators

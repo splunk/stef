@@ -46,7 +46,7 @@ ifndef VERSION
 endif
 
 RELEASE_MODULES := go/pkg go/grpc go/otel go/pdata
-ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile otelcol benchmarks
+ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile examples/ints otelcol benchmarks
 
 .PHONY: gotidy
 gotidy:

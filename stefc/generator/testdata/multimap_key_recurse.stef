@@ -1,0 +1,35 @@
+package com.example.gentest.multimap_key_recurse
+
+enum Enum1 {
+  Item1 = 0
+  Item2 = 1
+  Item3 = 2
+}
+
+enum Enum2 {
+  Item1 = 0
+  Item2 = 1
+}
+
+multimap MultiMap1 {
+  key MultiMap1
+  value Enum1
+}
+
+struct Struct1 root {
+  Field1 Struct3 optional
+}
+
+struct Struct2 {
+  Field1 []Struct1 optional
+  Field2 bool
+  Field3 string optional
+}
+
+struct Struct3 {
+  Field1 bool optional
+  Field2 []Enum1 optional
+  Field3 MultiMap1
+  Field4 Struct2 optional
+  Field5 Enum1
+}

@@ -1,0 +1,11 @@
+package com.example.gentest.enum_array
+
+enum Enum1 {
+  Item1 = 0
+  Item2 = 1
+  Item3 = 2
+}
+
+struct Struct1 root {
+  Field1 []Enum1
+}

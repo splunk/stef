@@ -1,6 +1,6 @@
 module github.com/splunk/stef/examples/ints
 
-go 1.23.2
+go 1.24.0
 
 require (
 	github.com/splunk/stef/go/pkg v0.0.8
