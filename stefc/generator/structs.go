@@ -29,6 +29,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 	fields := []any{}
 
 	modifier := " = uint64(1 << iota)"
+	optionalsMask := uint64(0)
 	optionalFieldIndex := 0
 	for i, field := range str.Fields {
 		passByPointer := false
@@ -66,6 +67,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		if field.Optional {
 			fieldData["OptionalIndex"] = optionalFieldIndex
 			optionalFieldIndex++
+			optionalsMask |= 1 << uint64(i)
 		}
 
 		fields = append(fields, fieldData)
@@ -80,6 +82,7 @@ func (g *Generator) oStruct(str *genStructDef) error {
 		"Type":               str,
 		"IsMainStruct":       str.IsRoot,
 		"OptionalFieldCount": optionalFieldIndex,
+		"OptionalsMask":      optionalsMask,
 	}
 
 	if str.IsRoot {

@@ -1021,9 +1021,10 @@ func (e *MappingEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // MappingDecoder implements decoding of Mapping
 type MappingDecoder struct {
-	buf                pkg.BitsReader
-	column             *pkg.ReadableColumn
-	fieldCount         uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	memoryStartDecoder encoders.Uint64Decoder
 
 	memoryLimitDecoder encoders.Uint64Decoder

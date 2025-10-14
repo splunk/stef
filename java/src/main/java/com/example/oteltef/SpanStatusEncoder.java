@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -28,6 +29,7 @@ class SpanStatusEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -37,19 +39,18 @@ class SpanStatusEncoder {
         state.SpanStatusEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getSpanStatusFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getSpanStatusFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Message field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Message and subsequent fields are skipped.
             }
             messageEncoder = new StringEncoder();
             messageEncoder.init(limiter, columns.addSubColumn());
             // Init encoder for Code field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Code and subsequent fields are skipped.
             }
             codeEncoder = new Uint64Encoder();

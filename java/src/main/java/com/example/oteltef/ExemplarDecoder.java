@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsReader;
+import net.stef.Helper;
 import net.stef.ReadColumnSet;
 import net.stef.ReadableColumn;
 import net.stef.codecs.*;
@@ -13,6 +14,7 @@ class ExemplarDecoder {
     private final BitsReader buf = new BitsReader();
     private ReadableColumn column;
     private int fieldCount;
+    
 
     
     private Uint64Decoder timestampDecoder;
@@ -37,7 +39,6 @@ class ExemplarDecoder {
 
         try {
             fieldCount = state.getStructFieldCounts().getExemplarFieldCount();
-
             column = columns.getColumn();
             
             if (this.fieldCount <= 0) {

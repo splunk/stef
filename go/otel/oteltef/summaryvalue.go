@@ -483,9 +483,10 @@ func (e *SummaryValueEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 
 // SummaryValueDecoder implements decoding of SummaryValue
 type SummaryValueDecoder struct {
-	buf          pkg.BitsReader
-	column       *pkg.ReadableColumn
-	fieldCount   uint
+	buf        pkg.BitsReader
+	column     *pkg.ReadableColumn
+	fieldCount uint
+
 	countDecoder encoders.Uint64Decoder
 
 	sumDecoder encoders.Float64Decoder

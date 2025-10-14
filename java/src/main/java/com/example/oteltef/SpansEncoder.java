@@ -3,6 +3,7 @@
 package com.example.oteltef;
 
 import net.stef.BitsWriter;
+import net.stef.Helper;
 import net.stef.SizeLimiter;
 import net.stef.WriteColumnSet;
 import net.stef.codecs.*;
@@ -32,6 +33,7 @@ class SpansEncoder {
 
     private long keepFieldMask;
     private int fieldCount;
+    
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -41,13 +43,12 @@ class SpansEncoder {
         state.SpansEncoder = this;
 
         try {
-            this.limiter = state.getLimiter();
+            limiter = state.getLimiter();
 
-            this.fieldCount = state.getStructFieldCounts().getSpansFieldCount();
-            this.keepFieldMask = ~((~0L) << this.fieldCount);
-            
+            fieldCount = state.getStructFieldCounts().getSpansFieldCount();
+            keepFieldMask = ~((~0L) << fieldCount);
             // Init encoder for Envelope field.
-            if (this.fieldCount <= 0) {
+            if (fieldCount <= 0) {
                 return; // Envelope and subsequent fields are skipped.
             }
             if (state.EnvelopeEncoder != null) {
@@ -59,7 +60,7 @@ class SpansEncoder {
                 envelopeEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Resource field.
-            if (this.fieldCount <= 1) {
+            if (fieldCount <= 1) {
                 return; // Resource and subsequent fields are skipped.
             }
             if (state.ResourceEncoder != null) {
@@ -71,7 +72,7 @@ class SpansEncoder {
                 resourceEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Scope field.
-            if (this.fieldCount <= 2) {
+            if (fieldCount <= 2) {
                 return; // Scope and subsequent fields are skipped.
             }
             if (state.ScopeEncoder != null) {
@@ -83,7 +84,7 @@ class SpansEncoder {
                 scopeEncoder.init(state, columns.addSubColumn());
             }
             // Init encoder for Span field.
-            if (this.fieldCount <= 3) {
+            if (fieldCount <= 3) {
                 return; // Span and subsequent fields are skipped.
             }
             if (state.SpanEncoder != null) {
