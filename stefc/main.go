@@ -46,6 +46,11 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	for _, msg := range parser.Messages() {
+		fmt.Println(msg.String())
+	}
+
 	wireSchema := parser.Schema()
 
 	fmt.Printf("Generating %s code to %s\n", *lang, *outDir)
