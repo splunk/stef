@@ -44,24 +44,58 @@ func (g *Generator) getDicts() (ret map[string]genFieldTypeRef) {
 	return ret
 }
 
+// getEncoders collects all encoder types used in the schema.
 func (g *Generator) getEncoders() (ret map[string]bool) {
 	ret = map[string]bool{}
+	visited := map[string]bool{}
 
-	for _, struc := range g.compiledSchema.Structs {
-		ret[struc.Name] = true
-		for _, field := range struc.Fields {
-			if !field.Type.IsPrimitive() {
-				ret[field.Type.EncoderType()] = true
+	var collectEncodersFromType func(t genFieldTypeRef)
+	collectEncodersFromType = func(t genFieldTypeRef) {
+		if t == nil {
+			return
+		}
+		id := t.IDLMangledName()
+		if visited[id] {
+			return
+		}
+		visited[id] = true
+		if !t.IsPrimitive() {
+			ret[t.EncoderType()] = true
+		}
+		switch tt := t.(type) {
+		case *genStructTypeRef:
+			if tt.Def != nil {
+				for _, f := range tt.Def.Fields {
+					collectEncodersFromType(f.Type)
+				}
+			}
+		case *genArrayTypeRef:
+			collectEncodersFromType(tt.ElemType)
+		case *genMultimapTypeRef:
+			if tt.Def != nil {
+				collectEncodersFromType(tt.Def.Key.Type)
+				collectEncodersFromType(tt.Def.Value.Type)
 			}
 		}
 	}
+
+	for _, struc := range g.compiledSchema.Structs {
+		collectEncodersFromType(
+			&genStructTypeRef{
+				Name: struc.Name,
+				Def:  struc,
+				Lang: g.Lang,
+			},
+		)
+	}
 	for _, m := range g.compiledSchema.Multimaps {
-		if !m.Key.Type.IsPrimitive() {
-			ret[m.Key.Type.EncoderType()] = true
-		}
-		if !m.Value.Type.IsPrimitive() {
-			ret[m.Value.Type.EncoderType()] = true
-		}
+		collectEncodersFromType(
+			&genMultimapTypeRef{
+				Name: m.Name,
+				Def:  m,
+				Lang: g.Lang,
+			},
+		)
 	}
 	return ret
 }
