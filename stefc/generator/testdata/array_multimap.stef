@@ -1,0 +1,10 @@
+package com.example.gentest.array_multimap
+
+multimap MultiMap {
+  key int64
+  value int64
+}
+
+struct Struct root {
+  Field []MultiMap
+}
