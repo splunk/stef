@@ -1,0 +1,28 @@
+package com.example.gentest.randomized
+
+multimap MultiMap1 {
+  key Struct5
+  value uint64
+}
+
+multimap MultiMap2 {
+  key MultiMap1
+  value Struct3
+}
+
+multimap MultiMap3 {
+  key bytes
+  value float64
+}
+
+struct Struct1 root {
+  Field2 []MultiMap2 optional
+}
+
+struct Struct3 root {
+  Field3 MultiMap3 optional
+}
+
+struct Struct5 {
+  Field1 MultiMap1
+}
