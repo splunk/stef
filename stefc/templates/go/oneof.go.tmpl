@@ -442,7 +442,7 @@ func (e *{{ .StructName }}Encoder) Init(state* WriterState, columns *pkg.WriteCo
     var err error
     e.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
     if err != nil {
-        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
+        return fmt.Errorf("cannot find struct %s in override schema: %w", {{printf "%q" .StructName}}, err)
     }
     e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount)+1))
 
@@ -570,7 +570,7 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     var err error
     d.fieldCount, err = state.StructFieldCounts.{{.StructName}}FieldCount()
     if err != nil {
-        return fmt.Errorf("cannot find struct %s in override schema: %v", {{printf "%q" .StructName}}, err)
+        return fmt.Errorf("cannot find struct %s in override schema: %w", {{printf "%q" .StructName}}, err)
     }
 
     d.column = columns.Column()

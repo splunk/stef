@@ -69,7 +69,7 @@ func (e *StringArray) byteSize() uint {
 // the array will be assigned from elements of the slice.
 func (e *StringArray) CopyFromSlice(src []string) {
 	if !slices.Equal(e.elems, src) {
-		e.elems = pkg.EnsureLen(e.elems, len(src))
+		e.EnsureLen(len(src))
 		copy(e.elems, src)
 		e.markModified()
 	}
@@ -115,7 +115,7 @@ func copyStringArray(dst *StringArray, src *StringArray) {
 
 	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		dst.EnsureLen(len(src.elems))
 		isModified = true
 	}
 
@@ -145,7 +145,7 @@ func copyToNewStringArray(dst *StringArray, src *StringArray, allocators *Alloca
 		return
 	}
 
-	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	dst.ensureLen(len(src.elems), allocators)
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
@@ -164,16 +164,7 @@ func (m *StringArray) At(i int) string {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *StringArray) EnsureLen(newLen int) {
-	oldLen := len(e.elems)
-	if newLen > oldLen {
-		// Grow the array
-		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
-		e.markModified()
-	} else if oldLen > newLen {
-		// Shrink it
-		e.elems = e.elems[:newLen]
-		e.markModified()
-	}
+	e.ensureLen(newLen, &Allocators{})
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -181,6 +172,8 @@ func (e *StringArray) EnsureLen(newLen int) {
 func (e *StringArray) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
+		// Check if the underlying array is reallocated.
+
 		// Grow the array
 		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
 		e.markModified()

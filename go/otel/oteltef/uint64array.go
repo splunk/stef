@@ -69,7 +69,7 @@ func (e *Uint64Array) byteSize() uint {
 // the array will be assigned from elements of the slice.
 func (e *Uint64Array) CopyFromSlice(src []uint64) {
 	if !slices.Equal(e.elems, src) {
-		e.elems = pkg.EnsureLen(e.elems, len(src))
+		e.EnsureLen(len(src))
 		copy(e.elems, src)
 		e.markModified()
 	}
@@ -115,7 +115,7 @@ func copyUint64Array(dst *Uint64Array, src *Uint64Array) {
 
 	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		dst.EnsureLen(len(src.elems))
 		isModified = true
 	}
 
@@ -145,7 +145,7 @@ func copyToNewUint64Array(dst *Uint64Array, src *Uint64Array, allocators *Alloca
 		return
 	}
 
-	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	dst.ensureLen(len(src.elems), allocators)
 	for i := 0; i < len(dst.elems); i++ {
 		dst.elems[i] = src.elems[i]
 	}
@@ -164,16 +164,7 @@ func (m *Uint64Array) At(i int) uint64 {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *Uint64Array) EnsureLen(newLen int) {
-	oldLen := len(e.elems)
-	if newLen > oldLen {
-		// Grow the array
-		e.elems = append(e.elems, make([]uint64, newLen-oldLen)...)
-		e.markModified()
-	} else if oldLen > newLen {
-		// Shrink it
-		e.elems = e.elems[:newLen]
-		e.markModified()
-	}
+	e.ensureLen(newLen, &Allocators{})
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -181,6 +172,8 @@ func (e *Uint64Array) EnsureLen(newLen int) {
 func (e *Uint64Array) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
+		// Check if the underlying array is reallocated.
+
 		// Grow the array
 		e.elems = append(e.elems, make([]uint64, newLen-oldLen)...)
 		e.markModified()

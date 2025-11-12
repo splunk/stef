@@ -295,7 +295,7 @@ func (e *QuantileValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.QuantileValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "QuantileValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "QuantileValue", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -422,7 +422,7 @@ func (d *QuantileValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.QuantileValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "QuantileValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "QuantileValue", err)
 	}
 
 	d.column = columns.Column()

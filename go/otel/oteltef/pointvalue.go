@@ -445,7 +445,7 @@ func (e *PointValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.PointValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "PointValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "PointValue", err)
 	}
 	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
@@ -685,7 +685,7 @@ func (d *PointValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.PointValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "PointValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "PointValue", err)
 	}
 
 	d.column = columns.Column()

@@ -342,7 +342,7 @@ func (e *SampleValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.SampleValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "SampleValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "SampleValue", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -480,7 +480,7 @@ func (d *SampleValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.SampleValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "SampleValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "SampleValue", err)
 	}
 
 	d.column = columns.Column()

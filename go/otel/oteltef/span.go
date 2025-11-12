@@ -919,7 +919,7 @@ func (e *SpanEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.SpanFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Span", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Span", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -1402,7 +1402,7 @@ func (d *SpanDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.SpanFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Span", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Span", err)
 	}
 
 	d.column = columns.Column()

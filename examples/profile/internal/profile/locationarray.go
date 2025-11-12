@@ -114,7 +114,7 @@ func copyLocationArray(dst *LocationArray, src *LocationArray) {
 
 	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+		dst.EnsureLen(len(src.elems))
 		isModified = true
 	}
 
@@ -156,7 +156,7 @@ func copyToNewLocationArray(dst *LocationArray, src *LocationArray, allocators *
 		return
 	}
 
-	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	dst.ensureLen(len(src.elems), allocators)
 	// Need to allocate new elements for the part of the array that has grown.
 	for j := 0; j < len(dst.elems); j++ {
 		if src.elems[j].canBeShared() {
@@ -184,21 +184,7 @@ func (m *LocationArray) At(i int) *Location {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *LocationArray) EnsureLen(newLen int) {
-	oldLen := len(e.elems)
-	if newLen > oldLen {
-		// Grow the array
-		e.elems = append(e.elems, make([]*Location, newLen-oldLen)...)
-		e.markModified()
-		// Initialize newlly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = new(Location)
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
-		}
-	} else if oldLen > newLen {
-		// Shrink it
-		e.elems = e.elems[:newLen]
-		e.markModified()
-	}
+	e.ensureLen(newLen, &Allocators{})
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -206,6 +192,9 @@ func (e *LocationArray) EnsureLen(newLen int) {
 func (e *LocationArray) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
+		// Check if the underlying array is reallocated.
+		beforePtr := unsafe.SliceData(e.elems)
+
 		// Grow the array
 		e.elems = append(e.elems, make([]*Location, newLen-oldLen)...)
 		e.markModified()
@@ -213,6 +202,13 @@ func (e *LocationArray) ensureLen(newLen int, allocators *Allocators) {
 		for ; oldLen < newLen; oldLen++ {
 			e.elems[oldLen] = allocators.Location.Alloc()
 			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if beforePtr != unsafe.SliceData(e.elems) {
+			// Underlying array was reallocated, we need to fix parent pointers
+			// in all elements.
+			for i := 0; i < newLen; i++ {
+				e.elems[i].fixParent(e.parentModifiedFields)
+			}
 		}
 	} else if oldLen > newLen {
 		// Shrink it

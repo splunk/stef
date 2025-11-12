@@ -829,7 +829,7 @@ func (e *ExpHistogramValueEncoder) Init(state *WriterState, columns *pkg.WriteCo
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.ExpHistogramValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExpHistogramValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExpHistogramValue", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -1169,7 +1169,7 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.ExpHistogramValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExpHistogramValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExpHistogramValue", err)
 	}
 
 	d.optionalFieldCount = pkg.OptionalFieldCount(0b1110, d.fieldCount)

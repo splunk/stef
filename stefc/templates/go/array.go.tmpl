@@ -85,7 +85,7 @@ func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.Exported}}) {
         }
     }
     if differ {
-        e.elems = pkg.EnsureLen(e.elems, len(src))
+        e.EnsureLen(len(src))
         for i:=0; i<len(src); i++ {
             e.elems[i] = {{.ElemType.ToStorage "src[i]" }}
         }
@@ -93,7 +93,7 @@ func (e* {{.ArrayName}}) CopyFromSlice(src []{{.ElemType.Exported}}) {
     }
 {{else -}}
 	if !slices.Equal(e.elems, src) {
-		e.elems = pkg.EnsureLen(e.elems, len(src))
+		e.EnsureLen(len(src))
 		copy(e.elems, src)
 		e.markModified()
 	}
@@ -159,7 +159,7 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 
 	minLen := min(len(dst.elems), len(src.elems))
 	if len(dst.elems) != len(src.elems) {
-		dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	    dst.EnsureLen(len(src.elems))
 		isModified = true
 	}
 
@@ -218,7 +218,7 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
         return
     }
 
-	dst.elems = pkg.EnsureLen(dst.elems, len(src.elems))
+	dst.ensureLen(len(src.elems), allocators)
 
 	{{- if .ElemType.MustClone}}
     // Need to allocate new elements for the part of the array that has grown.
@@ -253,23 +253,7 @@ func (m *{{.ArrayName}}) At(i int) {{if .IsStructType}}*{{end}}{{.ElemType.Expor
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *{{.ArrayName}}) EnsureLen(newLen int) {
-	oldLen := len(e.elems)
-	if newLen > oldLen {
-		// Grow the array
-		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
-		e.markModified()
-		{{- if .IsStructType}}
-		// Initialize newlly added elements.
-		for ; oldLen<newLen; oldLen++ {
-			e.elems[oldLen] = new({{.ElemType.Storage}})
-			e.elems[oldLen].init(e.parentModifiedFields, e.parentModifiedBit)
-		}
-		{{- end}}
-	} else if oldLen > newLen {
-		// Shrink it
-		e.elems = e.elems[:newLen]
-		e.markModified()
-	}
+    e.ensureLen(newLen, &Allocators{})
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -277,6 +261,11 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
 func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
+        // Check if the underlying array is reallocated.
+        {{- if not .ElemType.IsPrimitive}}
+        beforePtr := unsafe.SliceData(e.elems)
+		{{- end}}
+
 		// Grow the array
 		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
 		e.markModified()
@@ -287,6 +276,16 @@ func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
 			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 		{{- end}}
+
+        {{- if not .ElemType.IsPrimitive}}
+		if beforePtr != unsafe.SliceData(e.elems) {
+		    // Underlying array was reallocated, we need to fix parent pointers
+		    // in all elements.
+		    for i:=0; i < newLen; i++ {
+		        e.elems[i].fixParent(e.parentModifiedFields)
+		    }
+		}
+        {{- end}}
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]

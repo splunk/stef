@@ -394,7 +394,7 @@ func (e *LineEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) erro
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.LineFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Line", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Line", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -558,7 +558,7 @@ func (d *LineDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.LineFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Line", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Line", err)
 	}
 
 	d.column = columns.Column()
