@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/go-echarts/go-echarts/v2 v2.6.6
 	github.com/klauspost/compress v1.18.1
-	github.com/open-telemetry/otel-arrow/go v0.43.0
+	github.com/open-telemetry/otel-arrow/go v0.45.0
 	github.com/parquet-go/parquet-go v0.25.1
 	github.com/splunk/stef/go/otel v0.0.8
 	github.com/splunk/stef/go/pdata v0.0.0
@@ -43,9 +43,9 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.45.0 // indirect
-	go.opentelemetry.io/otel v1.37.0 // indirect
-	go.opentelemetry.io/otel/metric v1.37.0 // indirect
-	go.opentelemetry.io/otel/trace v1.37.0 // indirect
+	go.opentelemetry.io/otel v1.38.0 // indirect
+	go.opentelemetry.io/otel/metric v1.38.0 // indirect
+	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/mod v0.28.0 // indirect
