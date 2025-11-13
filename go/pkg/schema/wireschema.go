@@ -41,14 +41,16 @@ func NewWireSchema(schema *Schema, rootStructName string) WireSchema {
 	rootStruc := schema.Structs[rootStructName]
 	stack := recurseStack{asMap: map[string]bool{}}
 
-	rootType := &FieldType{
-		Struct:    rootStruc.Name,
-		StructDef: rootStruc,
-		DictName:  rootStruc.DictName,
+	tree := structCountTree{
+		structName: rootStruc.Name,
+		fieldCount: uint(len(rootStruc.Fields)),
 	}
-	tree := structCountTree{}
+	stack.asStack = append(stack.asStack, rootStruc.Name)
+	stack.asMap[rootStruc.Name] = true
 
-	schemaToStructCountTree(rootType, &tree, &stack)
+	for _, field := range rootStruc.Fields {
+		schemaToStructCountTree(&field.FieldType, &tree.structFields, &stack)
+	}
 
 	w := WireSchema{}
 

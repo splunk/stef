@@ -19,7 +19,7 @@ type structCountTree struct {
 // The tree is built in a depth-first traversal order, where each node represents a struct/oneof
 // and its children represent the structs/oneofs that are reachable from it.
 // The stack is used to detect and avoid infinite recursion in case of recursive types.
-func schemaToStructCountTree(src *FieldType, dst *structCountTree, stack *recurseStack) {
+func schemaToStructCountTree(src *FieldType, dst *[]structCountTree, stack *recurseStack) {
 	switch {
 	case src.Primitive != nil:
 		return
@@ -30,20 +30,20 @@ func schemaToStructCountTree(src *FieldType, dst *structCountTree, stack *recurs
 			return
 		}
 
-		dst.structName = src.StructDef.Name
-		dst.fieldCount = uint(len(src.StructDef.Fields))
+		subDst := structCountTree{
+			structName:   src.StructDef.Name,
+			fieldCount:   uint(len(src.StructDef.Fields)),
+			structFields: []structCountTree{},
+		}
 
 		stack.asStack = append(stack.asStack, src.StructDef.Name)
 		stack.asMap[src.StructDef.Name] = true
 
 		for _, field := range src.StructDef.Fields {
-			subDst := structCountTree{}
-			schemaToStructCountTree(&field.FieldType, &subDst, stack)
-			if subDst.structName != "" {
-				// There is a struct in the children nodes.
-				dst.structFields = append(dst.structFields, subDst)
-			}
+			schemaToStructCountTree(&field.FieldType, &subDst.structFields, stack)
 		}
+
+		*dst = append(*dst, subDst)
 
 		stack.asStack = stack.asStack[:len(stack.asStack)-1]
 
