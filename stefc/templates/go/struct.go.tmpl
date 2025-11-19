@@ -362,8 +362,6 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
                 {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         }
     {{- if .Optional}}
-    } else {
-        dst.{{.name}} = nil
     }
     {{end}}
     {{- else}}
