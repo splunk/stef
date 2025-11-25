@@ -347,7 +347,7 @@ func (e *SummaryValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.SummaryValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "SummaryValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "SummaryValue", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -511,7 +511,7 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.SummaryValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "SummaryValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "SummaryValue", err)
 	}
 
 	d.column = columns.Column()

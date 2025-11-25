@@ -53,7 +53,9 @@ func NewMetricsWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*MetricsWrit
 
 	writer.Record.Init()
 	writer.state.Init(&writer.opts)
-	writer.encoder.Init(&writer.state, &writer.writeBufs.Columns)
+	if err := writer.encoder.Init(&writer.state, &writer.writeBufs.Columns); err != nil {
+		return nil, err
+	}
 
 	if !writer.state.StructFieldCounts.AllFetched() {
 		return nil, errors.New("override schema iterator is not done, likely supplied schema override does not match the generated code")

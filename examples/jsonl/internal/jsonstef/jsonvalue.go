@@ -442,7 +442,7 @@ func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet)
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.JsonValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "JsonValue", err)
 	}
 	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
@@ -669,7 +669,7 @@ func (d *JsonValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) 
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.JsonValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "JsonValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "JsonValue", err)
 	}
 
 	d.column = columns.Column()

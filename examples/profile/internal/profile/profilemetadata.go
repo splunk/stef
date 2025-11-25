@@ -701,7 +701,7 @@ func (e *ProfileMetadataEncoder) Init(state *WriterState, columns *pkg.WriteColu
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.ProfileMetadataFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ProfileMetadata", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ProfileMetadata", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -1017,7 +1017,7 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.ProfileMetadataFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ProfileMetadata", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ProfileMetadata", err)
 	}
 
 	d.column = columns.Column()

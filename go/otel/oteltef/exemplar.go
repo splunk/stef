@@ -451,7 +451,7 @@ func (e *ExemplarEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.ExemplarFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Exemplar", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Exemplar", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -678,7 +678,7 @@ func (d *ExemplarDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.ExemplarFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Exemplar", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Exemplar", err)
 	}
 
 	d.column = columns.Column()

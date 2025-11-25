@@ -399,7 +399,7 @@ func (e *EventEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) err
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.EventFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Event", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Event", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -589,7 +589,7 @@ func (d *EventDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.EventFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Event", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Event", err)
 	}
 
 	d.column = columns.Column()

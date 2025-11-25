@@ -515,7 +515,7 @@ func (e *LocationEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.LocationFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Location", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -741,7 +741,7 @@ func (d *LocationDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.LocationFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Location", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Location", err)
 	}
 
 	d.column = columns.Column()

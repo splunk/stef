@@ -324,7 +324,7 @@ func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumn
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.ExemplarValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExemplarValue", err)
 	}
 	e.typeBitCount = uint(bits.Len64(uint64(e.fieldCount) + 1))
 
@@ -444,7 +444,7 @@ func (d *ExemplarValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnS
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.ExemplarValueFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "ExemplarValue", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExemplarValue", err)
 	}
 
 	d.column = columns.Column()

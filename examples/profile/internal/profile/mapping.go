@@ -728,7 +728,7 @@ func (e *MappingEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) e
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.MappingFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Mapping", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Mapping", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -1062,7 +1062,7 @@ func (d *MappingDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.MappingFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Mapping", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Mapping", err)
 	}
 
 	d.column = columns.Column()

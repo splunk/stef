@@ -242,7 +242,7 @@ func (e *EnvelopeEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) 
 	var err error
 	e.fieldCount, err = state.StructFieldCounts.EnvelopeFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Envelope", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Envelope", err)
 	}
 	// Set that many 1 bits in the keepFieldMask. All fields with higher number
 	// will be skipped when encoding.
@@ -354,7 +354,7 @@ func (d *EnvelopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	var err error
 	d.fieldCount, err = state.StructFieldCounts.EnvelopeFieldCount()
 	if err != nil {
-		return fmt.Errorf("cannot find struct %s in override schema: %v", "Envelope", err)
+		return fmt.Errorf("cannot find struct %s in override schema: %w", "Envelope", err)
 	}
 
 	d.column = columns.Column()
