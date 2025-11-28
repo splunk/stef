@@ -64,7 +64,6 @@ func TestSampleWriteRead(t *testing.T) {
 	// Choose a seed (non-pseudo) randomly. We will print the seed
 	// on failure for easy reproduction.
 	seed1 := uint64(time.Now().UnixNano())
-	seed1 = 1764279232051161000
 	random := rand.New(rand.NewPCG(seed1, 0))
 
 	// Load the schema from the allSchemaContent variable.
@@ -81,7 +80,7 @@ func TestSampleWriteRead(t *testing.T) {
 	}
 	wireSchema := schema.NewWireSchema(schem, "Sample")
 
-	for j, opt := range opts {
+	for _, opt := range opts {
 		t.Run(
 			"", func(t *testing.T) {
 				succeeded := false
@@ -102,9 +101,6 @@ func TestSampleWriteRead(t *testing.T) {
 				records := genSampleRecords(random, schem)
 				// Write the records
 				for i := 0; i < len(records); i++ {
-					if j == 10 && i == 304 {
-						_ = i
-					}
 					writer.Record.CopyFrom(&records[i])
 					err = writer.Write()
 					require.NoError(t, err, "record %d seed %v", i, seed1)
@@ -117,9 +113,6 @@ func TestSampleWriteRead(t *testing.T) {
 				require.NoError(t, err, "seed %v", seed1)
 
 				for i := 0; i < len(records); i++ {
-					if j == 10 && i == 304 {
-						_ = i
-					}
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed1)
 					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)
