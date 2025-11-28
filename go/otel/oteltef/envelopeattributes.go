@@ -100,9 +100,6 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 			for i := 0; i < newLen; i++ {
 			}
 		}
-
-		for i := min(oldLen, newLen); i < newLen; i++ {
-		}
 	}
 }
 

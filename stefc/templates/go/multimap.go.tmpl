@@ -120,17 +120,6 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
 		        {{- end}}
 		    }
 		}
-
-		for i:=min(oldLen, newLen); i < newLen; i++ {
-			{{- if not .Key.Type.IsPrimitive}}
-			// Reset newly created keys to initial state.
-			m.elems[i].key.reset()
-			{{- end}}
-			{{- if not .Value.Type.IsPrimitive}}
-			// Reset newly added values keys to initial state.
-			m.elems[i].value.reset()
-			{{- end}}
-        }
 	}
 }
 

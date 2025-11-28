@@ -105,9 +105,6 @@ public class EnvelopeAttributes {
         if (initedCount < newLen) {
             initedCount = newLen;
         }
-
-        for (int i=min(oldLen, newLen); i < newLen; i++) {
-        }
     }
 
     void markModifiedRecursively() {

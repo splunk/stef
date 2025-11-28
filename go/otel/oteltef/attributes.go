@@ -104,11 +104,6 @@ func (m *Attributes) EnsureLen(newLen int) {
 				m.elems[i].value.fixParent(&m.modifiedElems.vals)
 			}
 		}
-
-		for i := min(oldLen, newLen); i < newLen; i++ {
-			// Reset newly added values keys to initial state.
-			m.elems[i].value.reset()
-		}
 	}
 }
 

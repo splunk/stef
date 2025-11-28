@@ -105,11 +105,6 @@ public class Attributes {
         if (initedCount < newLen) {
             initedCount = newLen;
         }
-
-        for (int i=min(oldLen, newLen); i < newLen; i++) {
-            // Reset newly added values keys to initial state.
-            elems[i].value.reset();
-        }
     }
 
     void markModifiedRecursively() {
