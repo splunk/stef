@@ -72,6 +72,9 @@ func (s *Sample) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Sample) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Sample")
+	}
 	s.metadata.reset()
 	s.locations.reset()
 	s.values.reset()
@@ -773,32 +776,32 @@ func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSampleMetadata != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleMetadata != 0 { // Metadata is changed.
+
 		err = d.metadataDecoder.Decode(&val.metadata)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSampleLocations != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleLocations != 0 { // Locations is changed.
+
 		err = d.locationsDecoder.Decode(&val.locations)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSampleValues != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleValues != 0 { // Values is changed.
+
 		err = d.valuesDecoder.Decode(&val.values)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSampleLabels != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleLabels != 0 { // Labels is changed.
+
 		err = d.labelsDecoder.Decode(&val.labels)
 		if err != nil {
 			return err

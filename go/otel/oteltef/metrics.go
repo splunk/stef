@@ -86,16 +86,13 @@ func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModified
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metrics) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Metrics")
+	}
 	s.envelope.reset()
-	if s.metric != nil {
-		s.metric.reset()
-	}
-	if s.resource != nil {
-		s.resource.reset()
-	}
-	if s.scope != nil {
-		s.scope.reset()
-	}
+	s.metric = &emptyMetric
+	s.resource = &emptyResource
+	s.scope = &emptyScope
 	s.attributes.reset()
 	s.point.reset()
 }
@@ -140,6 +137,7 @@ func (s *Metrics) IsEnvelopeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsEnvelope != 0
 }
 
+// Metric returns a readonly value. Use SetMetric() to modify it.
 func (s *Metrics) Metric() *Metric {
 	return s.metric
 }
@@ -154,7 +152,11 @@ func (s *Metrics) SetMetric(v *Metric) {
 			s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 		}
 	} else {
+		if s.metric.canBeShared() {
+			s.metric = s.metric.Clone(&Allocators{})
+		}
 		s.metric.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedMetricsMetric)
 	}
 }
 
@@ -170,6 +172,7 @@ func (s *Metrics) IsMetricModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsMetric != 0
 }
 
+// Resource returns a readonly value. Use SetResource() to modify it.
 func (s *Metrics) Resource() *Resource {
 	return s.resource
 }
@@ -184,7 +187,11 @@ func (s *Metrics) SetResource(v *Resource) {
 			s.modifiedFields.markModified(fieldModifiedMetricsResource)
 		}
 	} else {
+		if s.resource.canBeShared() {
+			s.resource = s.resource.Clone(&Allocators{})
+		}
 		s.resource.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedMetricsResource)
 	}
 }
 
@@ -200,6 +207,7 @@ func (s *Metrics) IsResourceModified() bool {
 	return s.modifiedFields.mask&fieldModifiedMetricsResource != 0
 }
 
+// Scope returns a readonly value. Use SetScope() to modify it.
 func (s *Metrics) Scope() *Scope {
 	return s.scope
 }
@@ -214,7 +222,11 @@ func (s *Metrics) SetScope(v *Scope) {
 			s.modifiedFields.markModified(fieldModifiedMetricsScope)
 		}
 	} else {
+		if s.scope.canBeShared() {
+			s.scope = s.scope.Clone(&Allocators{})
+		}
 		s.scope.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedMetricsScope)
 	}
 }
 
@@ -376,6 +388,10 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 			dst.markMetricModified()
 		}
 	} else {
+		if dst.metric == nil || dst.metric.canBeShared() { // Not allowed to modify shared data.
+			dst.metric = new(Metric)
+			dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
+		}
 		copyMetric(dst.metric, src.metric)
 	}
 
@@ -385,6 +401,10 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 			dst.markResourceModified()
 		}
 	} else {
+		if dst.resource == nil || dst.resource.canBeShared() { // Not allowed to modify shared data.
+			dst.resource = new(Resource)
+			dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
+		}
 		copyResource(dst.resource, src.resource)
 	}
 
@@ -394,6 +414,10 @@ func copyMetrics(dst *Metrics, src *Metrics) {
 			dst.markScopeModified()
 		}
 	} else {
+		if dst.scope == nil || dst.scope.canBeShared() { // Not allowed to modify shared data.
+			dst.scope = new(Scope)
+			dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
+		}
 		copyScope(dst.scope, src.scope)
 	}
 	copyAttributes(&dst.attributes, &src.attributes)
@@ -475,6 +499,10 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 				s.metric = s.metric.Clone(&Allocators{})
 			}
 		}
+		if s.metric.canBeShared() {
+			// metric may be shared by pointer. Clone it to have exclusive ownership.
+			s.metric = s.metric.Clone(&Allocators{})
+		}
 
 		s.metric.mutateRandom(random, schem)
 	}
@@ -495,6 +523,10 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 				s.resource = s.resource.Clone(&Allocators{})
 			}
 		}
+		if s.resource.canBeShared() {
+			// resource may be shared by pointer. Clone it to have exclusive ownership.
+			s.resource = s.resource.Clone(&Allocators{})
+		}
 
 		s.resource.mutateRandom(random, schem)
 	}
@@ -514,6 +546,10 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			} else {
 				s.scope = s.scope.Clone(&Allocators{})
 			}
+		}
+		if s.scope.canBeShared() {
+			// scope may be shared by pointer. Clone it to have exclusive ownership.
+			s.scope = s.scope.Clone(&Allocators{})
 		}
 
 		s.scope.mutateRandom(random, schem)
@@ -1151,16 +1187,16 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedMetricsEnvelope != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsEnvelope != 0 { // Envelope is changed.
+
 		err = d.envelopeDecoder.Decode(&val.envelope)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 { // Metric is changed.
+
 		if val.metric == nil {
 			val.metric = d.allocators.Metric.Alloc()
 			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
@@ -1172,8 +1208,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 { // Resource is changed.
+
 		if val.resource == nil {
 			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
@@ -1185,8 +1221,8 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 { // Scope is changed.
+
 		if val.scope == nil {
 			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
@@ -1198,16 +1234,16 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricsAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricsPoint != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricsPoint != 0 { // Point is changed.
+
 		err = d.pointDecoder.Decode(&val.point)
 		if err != nil {
 			return err

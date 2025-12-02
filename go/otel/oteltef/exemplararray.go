@@ -184,7 +184,12 @@ func (m *ExemplarArray) At(i int) *Exemplar {
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *ExemplarArray) EnsureLen(newLen int) {
+	oldLen := len(e.elems)
 	e.ensureLen(newLen, &Allocators{})
+	for i := min(oldLen, newLen); i < newLen; i++ {
+		// Reset newly created elements to initial state.
+		e.elems[i].reset()
+	}
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -387,7 +392,12 @@ func (d *ExemplarArrayDecoder) Reset() {
 func (d *ExemplarArrayDecoder) Decode(dst *ExemplarArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
+	oldLen := len(dst.elems)
 	dst.ensureLen(newLen, d.allocators)
+	for i := min(oldLen, newLen); i < newLen; i++ {
+		// Reset newly created elements to initial state.
+		dst.elems[i].reset()
+	}
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(dst.elems[i])

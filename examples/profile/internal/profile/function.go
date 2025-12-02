@@ -40,6 +40,15 @@ const (
 	fieldModifiedFunctionStartLine
 )
 
+// Pre-initialized empty value of Function
+var emptyFunction Function
+
+func init() {
+	emptyFunction.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyFunction.Freeze()
+}
+
 // Init must be called once, before the Function is used.
 func (s *Function) Init() {
 	s.init(nil, 0)
@@ -66,6 +75,10 @@ func (s *Function) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Function) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Function")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.name = ""
 	s.systemName = ""
 	s.filename = ""
@@ -780,32 +793,32 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedFunctionName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedFunctionName != 0 { // Name is changed.
+
 		err = d.nameDecoder.Decode(&val.name)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedFunctionSystemName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedFunctionSystemName != 0 { // SystemName is changed.
+
 		err = d.systemNameDecoder.Decode(&val.systemName)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedFunctionFilename != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedFunctionFilename != 0 { // Filename is changed.
+
 		err = d.filenameDecoder.Decode(&val.filename)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedFunctionStartLine != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedFunctionStartLine != 0 { // StartLine is changed.
+
 		err = d.startLineDecoder.Decode(&val.startLine)
 		if err != nil {
 			return err

@@ -64,10 +64,11 @@ func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValue) reset() {
-	s.val = 0
-	if s.type_ != nil {
-		s.type_.reset()
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen SampleValue")
 	}
+	s.val = 0
+	s.type_ = &emptySampleValueType
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -113,6 +114,7 @@ func (s *SampleValue) IsValModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSampleValueVal != 0
 }
 
+// Type returns a readonly value. Use SetType() to modify it.
 func (s *SampleValue) Type() *SampleValueType {
 	return s.type_
 }
@@ -127,7 +129,11 @@ func (s *SampleValue) SetType(v *SampleValueType) {
 			s.modifiedFields.markModified(fieldModifiedSampleValueType)
 		}
 	} else {
+		if s.type_.canBeShared() {
+			s.type_ = s.type_.Clone(&Allocators{})
+		}
 		s.type_.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedSampleValueType)
 	}
 }
 
@@ -209,6 +215,10 @@ func copySampleValue(dst *SampleValue, src *SampleValue) {
 			dst.markTypeModified()
 		}
 	} else {
+		if dst.type_ == nil || dst.type_.canBeShared() { // Not allowed to modify shared data.
+			dst.type_ = new(SampleValueType)
+			dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
+		}
 		copySampleValueType(dst.type_, src.type_)
 	}
 }
@@ -269,6 +279,10 @@ func (s *SampleValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			} else {
 				s.type_ = s.type_.Clone(&Allocators{})
 			}
+		}
+		if s.type_.canBeShared() {
+			// type_ may be shared by pointer. Clone it to have exclusive ownership.
+			s.type_ = s.type_.Clone(&Allocators{})
 		}
 
 		s.type_.mutateRandom(random, schem)
@@ -557,16 +571,16 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSampleValueVal != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleValueVal != 0 { // Val is changed.
+
 		err = d.valDecoder.Decode(&val.val)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 { // Type is changed.
+
 		if val.type_ == nil {
 			val.type_ = d.allocators.SampleValueType.Alloc()
 			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)

@@ -42,6 +42,15 @@ const (
 	fieldModifiedScopeDroppedAttributesCount
 )
 
+// Pre-initialized empty value of Scope
+var emptyScope Scope
+
+func init() {
+	emptyScope.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyScope.Freeze()
+}
+
 // Init must be called once, before the Scope is used.
 func (s *Scope) Init() {
 	s.init(nil, 0)
@@ -70,6 +79,10 @@ func (s *Scope) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Scope) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Scope")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.name = ""
 	s.version = ""
 	s.schemaURL = ""
@@ -899,40 +912,40 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedScopeName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedScopeName != 0 { // Name is changed.
+
 		err = d.nameDecoder.Decode(&val.name)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedScopeVersion != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedScopeVersion != 0 { // Version is changed.
+
 		err = d.versionDecoder.Decode(&val.version)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedScopeSchemaURL != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedScopeSchemaURL != 0 { // SchemaURL is changed.
+
 		err = d.schemaURLDecoder.Decode(&val.schemaURL)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
+
 		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err

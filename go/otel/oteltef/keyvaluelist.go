@@ -77,9 +77,7 @@ func (m *KeyValueList) At(i int) *KeyValueListElem {
 	return &m.elems[i]
 }
 
-// EnsureLen ensures the length of the multimap is equal to newLen.
-// It will grow or shrink the multimap if needed.
-func (m *KeyValueList) EnsureLen(newLen int) {
+func (m *KeyValueList) ensureLen(newLen int) {
 	oldLen := len(m.elems)
 	if newLen != oldLen {
 		m.modifiedElems.changeLen(oldLen, newLen)
@@ -104,11 +102,17 @@ func (m *KeyValueList) EnsureLen(newLen int) {
 				m.elems[i].value.fixParent(&m.modifiedElems.vals)
 			}
 		}
+	}
+}
 
-		for i := min(oldLen, newLen); i < newLen; i++ {
-			// Reset newly added values keys to initial state.
-			m.elems[i].value.reset()
-		}
+// EnsureLen ensures the length of the multimap is equal to newLen.
+// It will grow or shrink the multimap if needed.
+func (m *KeyValueList) EnsureLen(newLen int) {
+	oldLen := len(m.elems)
+	m.ensureLen(newLen)
+	for i := min(oldLen, newLen); i < newLen; i++ {
+		// Reset newly added values to initial state.
+		m.elems[i].value.reset()
 	}
 }
 
@@ -501,7 +505,12 @@ func (d *KeyValueListDecoder) decodeFull(count int, dst *KeyValueList) error {
 		return pkg.ErrMultimapCountLimit
 	}
 
-	dst.EnsureLen(count)
+	oldLen := len(dst.elems)
+	dst.ensureLen(count)
+	for i := min(oldLen, count); i < count; i++ {
+		// Reset newly added values to initial state.
+		dst.elems[i].value.reset()
+	}
 
 	var err error
 	for i := 0; i < count; i++ {

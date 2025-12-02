@@ -225,51 +225,51 @@ class MetricsDecoder {
         
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedEnvelope) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.envelope == null) {
-                val.envelope = new Envelope(val.modifiedFields, Metrics.fieldModifiedEnvelope);
-            }
-            val.envelope = envelopeDecoder.decode(val.envelope);
+            // Field is changed.
+                if (val.envelope == null) {
+                    val.envelope = new Envelope(val.modifiedFields, Metrics.fieldModifiedEnvelope);
+                }
+                val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedMetric) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.metric == null) {
-                val.metric = new Metric(val.modifiedFields, Metrics.fieldModifiedMetric);
-            }
-            val.metric = metricDecoder.decode(val.metric);
+            // Field is changed.
+                if (val.metric == null) {
+                    val.metric = new Metric(val.modifiedFields, Metrics.fieldModifiedMetric);
+                }
+                val.metric = metricDecoder.decode(val.metric);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedResource) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.resource == null) {
-                val.resource = new Resource(val.modifiedFields, Metrics.fieldModifiedResource);
-            }
-            val.resource = resourceDecoder.decode(val.resource);
+            // Field is changed.
+                if (val.resource == null) {
+                    val.resource = new Resource(val.modifiedFields, Metrics.fieldModifiedResource);
+                }
+                val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedScope) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.scope == null) {
-                val.scope = new Scope(val.modifiedFields, Metrics.fieldModifiedScope);
-            }
-            val.scope = scopeDecoder.decode(val.scope);
+            // Field is changed.
+                if (val.scope == null) {
+                    val.scope = new Scope(val.modifiedFields, Metrics.fieldModifiedScope);
+                }
+                val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Metrics.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Metrics.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Metrics.fieldModifiedPoint) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.point == null) {
-                val.point = new Point(val.modifiedFields, Metrics.fieldModifiedPoint);
-            }
-            val.point = pointDecoder.decode(val.point);
+            // Field is changed.
+                if (val.point == null) {
+                    val.point = new Point(val.modifiedFields, Metrics.fieldModifiedPoint);
+                }
+                val.point = pointDecoder.decode(val.point);
         }
         
         

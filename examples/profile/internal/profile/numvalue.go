@@ -60,6 +60,9 @@ func (s *NumValue) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *NumValue) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen NumValue")
+	}
 	s.val = 0
 	s.unit = ""
 }
@@ -484,16 +487,16 @@ func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedNumValueVal != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedNumValueVal != 0 { // Val is changed.
+
 		err = d.valDecoder.Decode(&val.val)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedNumValueUnit != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedNumValueUnit != 0 { // Unit is changed.
+
 		err = d.unitDecoder.Decode(&val.unit)
 		if err != nil {
 			return err

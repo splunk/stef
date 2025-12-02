@@ -145,29 +145,29 @@ class PointDecoder {
         
         
         if ((val.modifiedFields.mask & Point.fieldModifiedStartTimestamp) != 0) {
-            // Field is changed and is present, decode it.
-            val.startTimestamp = startTimestampDecoder.decode();
+            // Field is changed.
+                val.startTimestamp = startTimestampDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Point.fieldModifiedTimestamp) != 0) {
-            // Field is changed and is present, decode it.
-            val.timestamp = timestampDecoder.decode();
+            // Field is changed.
+                val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Point.fieldModifiedValue) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.value == null) {
-                val.value = new PointValue(val.modifiedFields, Point.fieldModifiedValue);
-            }
-            val.value = valueDecoder.decode(val.value);
+            // Field is changed.
+                if (val.value == null) {
+                    val.value = new PointValue(val.modifiedFields, Point.fieldModifiedValue);
+                }
+                val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.modifiedFields.mask & Point.fieldModifiedExemplars) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.exemplars == null) {
-                val.exemplars = new ExemplarArray(val.modifiedFields, Point.fieldModifiedExemplars);
-            }
-            val.exemplars = exemplarsDecoder.decode(val.exemplars);
+            // Field is changed.
+                if (val.exemplars == null) {
+                    val.exemplars = new ExemplarArray(val.modifiedFields, Point.fieldModifiedExemplars);
+                }
+                val.exemplars = exemplarsDecoder.decode(val.exemplars);
         }
         
         

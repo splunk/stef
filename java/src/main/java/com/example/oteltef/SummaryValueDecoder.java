@@ -117,21 +117,21 @@ class SummaryValueDecoder {
         
         
         if ((val.modifiedFields.mask & SummaryValue.fieldModifiedCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.count = countDecoder.decode();
+            // Field is changed.
+                val.count = countDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & SummaryValue.fieldModifiedSum) != 0) {
-            // Field is changed and is present, decode it.
-            val.sum = sumDecoder.decode();
+            // Field is changed.
+                val.sum = sumDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & SummaryValue.fieldModifiedQuantileValues) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.quantileValues == null) {
-                val.quantileValues = new QuantileValueArray(val.modifiedFields, SummaryValue.fieldModifiedQuantileValues);
-            }
-            val.quantileValues = quantileValuesDecoder.decode(val.quantileValues);
+            // Field is changed.
+                if (val.quantileValues == null) {
+                    val.quantileValues = new QuantileValueArray(val.modifiedFields, SummaryValue.fieldModifiedQuantileValues);
+                }
+                val.quantileValues = quantileValuesDecoder.decode(val.quantileValues);
         }
         
         

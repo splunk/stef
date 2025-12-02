@@ -36,6 +36,15 @@ const (
 	fieldModifiedSampleValueTypeUnit
 )
 
+// Pre-initialized empty value of SampleValueType
+var emptySampleValueType SampleValueType
+
+func init() {
+	emptySampleValueType.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptySampleValueType.Freeze()
+}
+
 // Init must be called once, before the SampleValueType is used.
 func (s *SampleValueType) Init() {
 	s.init(nil, 0)
@@ -62,6 +71,10 @@ func (s *SampleValueType) initAlloc(parentModifiedFields *modifiedFields, parent
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SampleValueType) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen SampleValueType")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.type_ = ""
 	s.unit = ""
 }
@@ -594,16 +607,16 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSampleValueTypeType != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleValueTypeType != 0 { // Type is changed.
+
 		err = d.type_Decoder.Decode(&val.type_)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 { // Unit is changed.
+
 		err = d.unitDecoder.Decode(&val.unit)
 		if err != nil {
 			return err

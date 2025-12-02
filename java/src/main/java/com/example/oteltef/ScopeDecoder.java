@@ -164,31 +164,31 @@ class ScopeDecoder {
         
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedName) != 0) {
-            // Field is changed and is present, decode it.
-            val.name = nameDecoder.decode();
+            // Field is changed.
+                val.name = nameDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedVersion) != 0) {
-            // Field is changed and is present, decode it.
-            val.version = versionDecoder.decode();
+            // Field is changed.
+                val.version = versionDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedSchemaURL) != 0) {
-            // Field is changed and is present, decode it.
-            val.schemaURL = schemaURLDecoder.decode();
+            // Field is changed.
+                val.schemaURL = schemaURLDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Scope.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Scope.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Scope.fieldModifiedDroppedAttributesCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
+            // Field is changed.
+                val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

@@ -40,6 +40,15 @@ const (
 	fieldModifiedLocationIsFolded
 )
 
+// Pre-initialized empty value of Location
+var emptyLocation Location
+
+func init() {
+	emptyLocation.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyLocation.Freeze()
+}
+
 // Init must be called once, before the Location is used.
 func (s *Location) Init() {
 	s.init(nil, 0)
@@ -72,9 +81,11 @@ func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Location) reset() {
-	if s.mapping != nil {
-		s.mapping.reset()
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Location")
 	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
+	s.mapping = &emptyMapping
 	s.address = 0
 	s.lines.reset()
 	s.isFolded = false
@@ -100,6 +111,7 @@ func (s *Location) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
 
+// Mapping returns a readonly value. Use SetMapping() to modify it.
 func (s *Location) Mapping() *Mapping {
 	return s.mapping
 }
@@ -114,7 +126,11 @@ func (s *Location) SetMapping(v *Mapping) {
 			s.modifiedFields.markModified(fieldModifiedLocationMapping)
 		}
 	} else {
+		if s.mapping.canBeShared() {
+			s.mapping = s.mapping.Clone(&Allocators{})
+		}
 		s.mapping.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedLocationMapping)
 	}
 }
 
@@ -282,6 +298,10 @@ func copyLocation(dst *Location, src *Location) {
 			dst.markMappingModified()
 		}
 	} else {
+		if dst.mapping == nil || dst.mapping.canBeShared() { // Not allowed to modify shared data.
+			dst.mapping = new(Mapping)
+			dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
+		}
 		copyMapping(dst.mapping, src.mapping)
 	}
 	dst.SetAddress(src.address)
@@ -340,6 +360,10 @@ func (s *Location) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			} else {
 				s.mapping = s.mapping.Clone(&Allocators{})
 			}
+		}
+		if s.mapping.canBeShared() {
+			// mapping may be shared by pointer. Clone it to have exclusive ownership.
+			s.mapping = s.mapping.Clone(&Allocators{})
 		}
 
 		s.mapping.mutateRandom(random, schem)
@@ -879,8 +903,8 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 { // Mapping is changed.
+
 		if val.mapping == nil {
 			val.mapping = d.allocators.Mapping.Alloc()
 			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
@@ -892,24 +916,24 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 { // Address is changed.
+
 		err = d.addressDecoder.Decode(&val.address)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 { // Lines is changed.
+
 		err = d.linesDecoder.Decode(&val.lines)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 { // IsFolded is changed.
+
 		err = d.isFoldedDecoder.Decode(&val.isFolded)
 		if err != nil {
 			return err

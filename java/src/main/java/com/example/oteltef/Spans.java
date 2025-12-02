@@ -56,12 +56,8 @@ public class Spans {
         if (envelope != null) {
             envelope.reset();
         }
-        if (resource != null) {
-            resource.reset();
-        }
-        if (scope != null) {
-            scope.reset();
-        }
+        resource = new Resource(modifiedFields, fieldModifiedResource);
+        scope = new Scope(modifiedFields, fieldModifiedScope);
         if (span != null) {
             span.reset();
         }

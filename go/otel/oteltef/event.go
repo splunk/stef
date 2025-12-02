@@ -66,6 +66,9 @@ func (s *Event) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Event) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Event")
+	}
 	s.name = ""
 	s.timeUnixNano = 0
 	s.attributes.reset()
@@ -696,32 +699,32 @@ func (d *EventDecoder) Decode(dstPtr *Event) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedEventName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedEventName != 0 { // Name is changed.
+
 		err = d.nameDecoder.Decode(&val.name)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedEventTimeUnixNano != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedEventTimeUnixNano != 0 { // TimeUnixNano is changed.
+
 		err = d.timeUnixNanoDecoder.Decode(&val.timeUnixNano)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
+
 		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err

@@ -96,9 +96,12 @@ func (c *pprof2stef) convertSample(srcSample *profile.Sample, srcProf *profile.P
 
 		// Set value type if available
 		if i < len(srcProf.SampleType) {
-			valueType := stefValue.Type()
+			valueType := &stefprofile.SampleValueType{}
+			valueType.Init()
 			valueType.SetType(srcProf.SampleType[i].Type)
 			valueType.SetUnit(srcProf.SampleType[i].Unit)
+			valueType.Freeze()
+			stefValue.SetType(valueType)
 		}
 	}
 

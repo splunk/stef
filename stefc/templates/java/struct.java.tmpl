@@ -68,9 +68,15 @@ public class {{ .StructName }} {
         {{- if .Type.IsPrimitive }}
         {{if .Type.InitVal}}{{.name}} = {{.Type.InitVal}};{{end}}
         {{- else}}
+
+        {{- if .Type.DictName}}
+        {{.name}} = new {{ .Type.Storage }}(modifiedFields, fieldModified{{.Name}});
+        {{- else}}
         if ({{.name}} != null) {
             {{.name}}.reset();
         }
+        {{- end }}
+
         {{- end }}
         {{- end }}
     }
@@ -174,11 +180,16 @@ public class {{ .StructName }} {
         if (src.has{{.Name}}() != this.has{{.Name}}()) {
             this.mark{{.Name}}Modified();
         }
-        if (src.{{.name}} != null) {
+        if (src.{{.name}} != null && src.has{{.Name}}()) {
             if ({{.name}} == null) {
                {{.name}} = new {{ .Type.Storage }}(modifiedFields, fieldModified{{.Name}});
             }
             {{.name }}.copyFrom(src.{{.name}});
+        } else {
+            if (this.has{{.Name}}() && !src.has{{.Name}}()) {
+                // Optional {{.Name}} previously was present, now it is not anymore. Need to reset it.
+                this.{{.name}}.reset();
+            }
         }
         {{- else }}
         {{.name }}.copyFrom(src.{{.name}});
@@ -280,6 +291,8 @@ public class {{ .StructName }} {
                     this.{{.name}} = new {{ .Type.Storage }}(this.modifiedFields, fieldModified{{.Name}});
                 }
                 this.{{.name}}.mutateRandom(random);
+            } else {
+                this.{{.name}}.reset();
             }
             {{- else}}
             this.{{.name}}.mutateRandom(random);

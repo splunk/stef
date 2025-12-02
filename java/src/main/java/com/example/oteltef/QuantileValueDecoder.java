@@ -89,13 +89,13 @@ class QuantileValueDecoder {
         
         
         if ((val.modifiedFields.mask & QuantileValue.fieldModifiedQuantile) != 0) {
-            // Field is changed and is present, decode it.
-            val.quantile = quantileDecoder.decode();
+            // Field is changed.
+                val.quantile = quantileDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & QuantileValue.fieldModifiedValue) != 0) {
-            // Field is changed and is present, decode it.
-            val.value = valueDecoder.decode();
+            // Field is changed.
+                val.value = valueDecoder.decode();
         }
         
         

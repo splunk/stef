@@ -1,0 +1,17 @@
+package com.example.gentest.multimap_struct
+
+multimap MultiMap1 {
+  key []Struct1
+  value MultiMap3
+}
+
+multimap MultiMap3 {
+  key Struct1
+  value Struct1
+}
+
+struct Struct1 root {
+  Field1 MultiMap3 optional
+  Field2 bool
+  Field3 MultiMap1
+}

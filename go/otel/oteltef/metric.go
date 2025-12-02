@@ -48,6 +48,15 @@ const (
 	fieldModifiedMetricMonotonic
 )
 
+// Pre-initialized empty value of Metric
+var emptyMetric Metric
+
+func init() {
+	emptyMetric.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyMetric.Freeze()
+}
+
 // Init must be called once, before the Metric is used.
 func (s *Metric) Init() {
 	s.init(nil, 0)
@@ -78,6 +87,10 @@ func (s *Metric) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metric) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Metric")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.name = ""
 	s.description = ""
 	s.unit = ""
@@ -1204,64 +1217,64 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedMetricName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricName != 0 { // Name is changed.
+
 		err = d.nameDecoder.Decode(&val.name)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricDescription != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricDescription != 0 { // Description is changed.
+
 		err = d.descriptionDecoder.Decode(&val.description)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricUnit != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricUnit != 0 { // Unit is changed.
+
 		err = d.unitDecoder.Decode(&val.unit)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricType != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricType != 0 { // Type is changed.
+
 		err = d.type_Decoder.Decode(&val.type_)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricMetadata != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricMetadata != 0 { // Metadata is changed.
+
 		err = d.metadataDecoder.Decode(&val.metadata)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricHistogramBounds != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricHistogramBounds != 0 { // HistogramBounds is changed.
+
 		err = d.histogramBoundsDecoder.Decode(&val.histogramBounds)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricAggregationTemporality != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricAggregationTemporality != 0 { // AggregationTemporality is changed.
+
 		err = d.aggregationTemporalityDecoder.Decode(&val.aggregationTemporality)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMetricMonotonic != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMetricMonotonic != 0 { // Monotonic is changed.
+
 		err = d.monotonicDecoder.Decode(&val.monotonic)
 		if err != nil {
 			return err

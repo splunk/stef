@@ -68,6 +68,9 @@ func (s *Point) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Point) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Point")
+	}
 	s.startTimestamp = 0
 	s.timestamp = 0
 	s.value.reset()
@@ -722,32 +725,32 @@ func (d *PointDecoder) Decode(dstPtr *Point) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedPointStartTimestamp != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedPointStartTimestamp != 0 { // StartTimestamp is changed.
+
 		err = d.startTimestampDecoder.Decode(&val.startTimestamp)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedPointTimestamp != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedPointTimestamp != 0 { // Timestamp is changed.
+
 		err = d.timestampDecoder.Decode(&val.timestamp)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedPointValue != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedPointValue != 0 { // Value is changed.
+
 		err = d.valueDecoder.Decode(&val.value)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedPointExemplars != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedPointExemplars != 0 { // Exemplars is changed.
+
 		err = d.exemplarsDecoder.Decode(&val.exemplars)
 		if err != nil {
 			return err

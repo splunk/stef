@@ -165,36 +165,36 @@ class LinkDecoder {
         
         
         if ((val.modifiedFields.mask & Link.fieldModifiedTraceID) != 0) {
-            // Field is changed and is present, decode it.
-            val.traceID = traceIDDecoder.decode();
+            // Field is changed.
+                val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Link.fieldModifiedSpanID) != 0) {
-            // Field is changed and is present, decode it.
-            val.spanID = spanIDDecoder.decode();
+            // Field is changed.
+                val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Link.fieldModifiedTraceState) != 0) {
-            // Field is changed and is present, decode it.
-            val.traceState = traceStateDecoder.decode();
+            // Field is changed.
+                val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Link.fieldModifiedFlags) != 0) {
-            // Field is changed and is present, decode it.
-            val.flags = flagsDecoder.decode();
+            // Field is changed.
+                val.flags = flagsDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Link.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Link.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Link.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Link.fieldModifiedDroppedAttributesCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
+            // Field is changed.
+                val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

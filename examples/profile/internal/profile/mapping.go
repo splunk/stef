@@ -50,6 +50,15 @@ const (
 	fieldModifiedMappingHasInlineFrames
 )
 
+// Pre-initialized empty value of Mapping
+var emptyMapping Mapping
+
+func init() {
+	emptyMapping.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyMapping.Freeze()
+}
+
 // Init must be called once, before the Mapping is used.
 func (s *Mapping) Init() {
 	s.init(nil, 0)
@@ -76,6 +85,10 @@ func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModified
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Mapping) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Mapping")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.memoryStart = 0
 	s.memoryLimit = 0
 	s.fileOffset = 0
@@ -1245,72 +1258,72 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedMappingMemoryStart != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingMemoryStart != 0 { // MemoryStart is changed.
+
 		err = d.memoryStartDecoder.Decode(&val.memoryStart)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 { // MemoryLimit is changed.
+
 		err = d.memoryLimitDecoder.Decode(&val.memoryLimit)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 { // FileOffset is changed.
+
 		err = d.fileOffsetDecoder.Decode(&val.fileOffset)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 { // Filename is changed.
+
 		err = d.filenameDecoder.Decode(&val.filename)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 { // BuildId is changed.
+
 		err = d.buildIdDecoder.Decode(&val.buildId)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 { // HasFunctions is changed.
+
 		err = d.hasFunctionsDecoder.Decode(&val.hasFunctions)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 { // HasFilenames is changed.
+
 		err = d.hasFilenamesDecoder.Decode(&val.hasFilenames)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 { // HasLineNumbers is changed.
+
 		err = d.hasLineNumbersDecoder.Decode(&val.hasLineNumbers)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 { // HasInlineFrames is changed.
+
 		err = d.hasInlineFramesDecoder.Decode(&val.hasInlineFrames)
 		if err != nil {
 			return err

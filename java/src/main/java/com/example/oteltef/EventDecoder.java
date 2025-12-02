@@ -133,26 +133,26 @@ class EventDecoder {
         
         
         if ((val.modifiedFields.mask & Event.fieldModifiedName) != 0) {
-            // Field is changed and is present, decode it.
-            val.name = nameDecoder.decode();
+            // Field is changed.
+                val.name = nameDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Event.fieldModifiedTimeUnixNano) != 0) {
-            // Field is changed and is present, decode it.
-            val.timeUnixNano = timeUnixNanoDecoder.decode();
+            // Field is changed.
+                val.timeUnixNano = timeUnixNanoDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Event.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Event.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Event.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Event.fieldModifiedDroppedAttributesCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
+            // Field is changed.
+                val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

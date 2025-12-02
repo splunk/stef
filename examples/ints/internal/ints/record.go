@@ -58,6 +58,9 @@ func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Record) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Record")
+	}
 	s.uint64 = 0
 }
 
@@ -391,8 +394,8 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedRecordUint64 != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedRecordUint64 != 0 { // Uint64 is changed.
+
 		err = d.uint64Decoder.Decode(&val.uint64)
 		if err != nil {
 			return err

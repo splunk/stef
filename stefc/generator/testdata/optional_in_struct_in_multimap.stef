@@ -1,0 +1,25 @@
+package com.example.gentest.optional_in_struct_in_multimap
+
+multimap MultiMap2 {
+  key string
+  value Struct5
+}
+
+multimap MultiMap4 {
+  key Struct3
+  value bool
+}
+
+struct Struct3 {
+  Field1 Struct7
+  Field3 bool
+}
+
+struct Struct5 root {
+  Field1 Struct3 optional
+  Field2 MultiMap2
+}
+
+struct Struct7 {
+  Field1 MultiMap4
+}

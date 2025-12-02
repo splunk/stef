@@ -224,49 +224,49 @@ class MetricDecoder {
         
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedName) != 0) {
-            // Field is changed and is present, decode it.
-            val.name = nameDecoder.decode();
+            // Field is changed.
+                val.name = nameDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedDescription) != 0) {
-            // Field is changed and is present, decode it.
-            val.description = descriptionDecoder.decode();
+            // Field is changed.
+                val.description = descriptionDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedUnit) != 0) {
-            // Field is changed and is present, decode it.
-            val.unit = unitDecoder.decode();
+            // Field is changed.
+                val.unit = unitDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedType) != 0) {
-            // Field is changed and is present, decode it.
-            val.type_ = type_Decoder.decode();
+            // Field is changed.
+                val.type_ = type_Decoder.decode();
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedMetadata) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.metadata == null) {
-                val.metadata = new Attributes(val.modifiedFields, Metric.fieldModifiedMetadata);
-            }
-            val.metadata = metadataDecoder.decode(val.metadata);
+            // Field is changed.
+                if (val.metadata == null) {
+                    val.metadata = new Attributes(val.modifiedFields, Metric.fieldModifiedMetadata);
+                }
+                val.metadata = metadataDecoder.decode(val.metadata);
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedHistogramBounds) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.histogramBounds == null) {
-                val.histogramBounds = new Float64Array(val.modifiedFields, Metric.fieldModifiedHistogramBounds);
-            }
-            val.histogramBounds = histogramBoundsDecoder.decode(val.histogramBounds);
+            // Field is changed.
+                if (val.histogramBounds == null) {
+                    val.histogramBounds = new Float64Array(val.modifiedFields, Metric.fieldModifiedHistogramBounds);
+                }
+                val.histogramBounds = histogramBoundsDecoder.decode(val.histogramBounds);
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedAggregationTemporality) != 0) {
-            // Field is changed and is present, decode it.
-            val.aggregationTemporality = aggregationTemporalityDecoder.decode();
+            // Field is changed.
+                val.aggregationTemporality = aggregationTemporalityDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Metric.fieldModifiedMonotonic) != 0) {
-            // Field is changed and is present, decode it.
-            val.monotonic = monotonicDecoder.decode();
+            // Field is changed.
+                val.monotonic = monotonicDecoder.decode();
         }
         
         

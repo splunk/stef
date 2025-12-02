@@ -60,6 +60,9 @@ func (s *Envelope) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Envelope) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Envelope")
+	}
 	s.attributes.reset()
 }
 
@@ -416,8 +419,8 @@ func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err

@@ -76,9 +76,7 @@ func (m *EnvelopeAttributes) At(i int) *EnvelopeAttributesElem {
 	return &m.elems[i]
 }
 
-// EnsureLen ensures the length of the multimap is equal to newLen.
-// It will grow or shrink the multimap if needed.
-func (m *EnvelopeAttributes) EnsureLen(newLen int) {
+func (m *EnvelopeAttributes) ensureLen(newLen int) {
 	oldLen := len(m.elems)
 	if newLen != oldLen {
 		m.modifiedElems.changeLen(oldLen, newLen)
@@ -100,9 +98,15 @@ func (m *EnvelopeAttributes) EnsureLen(newLen int) {
 			for i := 0; i < newLen; i++ {
 			}
 		}
+	}
+}
 
-		for i := min(oldLen, newLen); i < newLen; i++ {
-		}
+// EnsureLen ensures the length of the multimap is equal to newLen.
+// It will grow or shrink the multimap if needed.
+func (m *EnvelopeAttributes) EnsureLen(newLen int) {
+	oldLen := len(m.elems)
+	m.ensureLen(newLen)
+	for i := min(oldLen, newLen); i < newLen; i++ {
 	}
 }
 
@@ -419,6 +423,7 @@ func (d *EnvelopeAttributesDecoder) Init(state *ReaderState, columns *pkg.ReadCo
 	if err != nil {
 		return nil
 	}
+
 	d.valueDecoder = new(encoders.BytesDecoder)
 	err = d.valueDecoder.Init(columns.AddSubColumn())
 
@@ -492,7 +497,10 @@ func (d *EnvelopeAttributesDecoder) decodeFull(count int, dst *EnvelopeAttribute
 		return pkg.ErrMultimapCountLimit
 	}
 
-	dst.EnsureLen(count)
+	oldLen := len(dst.elems)
+	dst.ensureLen(count)
+	for i := min(oldLen, count); i < count; i++ {
+	}
 
 	var err error
 	for i := 0; i < count; i++ {
