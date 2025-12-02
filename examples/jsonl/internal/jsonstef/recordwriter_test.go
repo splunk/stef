@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +39,9 @@ func genRecordRecords(random *rand.Rand, schem *schema.Schema) (records []Record
 	return records
 }
 
-func TestRecordWriteRead(t *testing.T) {
+func testRecordWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
+	retVal = true
+
 	opts := []pkg.WriterOptions{
 		{},
 		{Compression: pkg.CompressionZstd},
@@ -61,17 +66,14 @@ func TestRecordWriteRead(t *testing.T) {
 		},
 	}
 
-	// Choose a seed (non-pseudo) randomly. We will print the seed
-	// on failure for easy reproduction.
-	seed1 := uint64(time.Now().UnixNano())
-	random := rand.New(rand.NewPCG(seed1, 0))
+	random := rand.New(rand.NewPCG(seed, 0))
 
 	// Load the schema from the allSchemaContent variable.
 	schem, err := idl.Parse([]byte(allSchemaContent), "")
-	require.NoError(t, err, "seed %v", seed1)
+	require.NoError(t, err, "seed %v", seed)
 
 	schem, err = schem.PrunedForRoot("Record")
-	require.NoError(t, err, "seed %v", seed1)
+	require.NoError(t, err, "seed %v", seed)
 
 	if random.IntN(2) == 0 {
 		// Randomly shrink the schema in approximately half of the test runs.
@@ -86,7 +88,8 @@ func TestRecordWriteRead(t *testing.T) {
 				succeeded := false
 				defer func() {
 					if !succeeded {
-						fmt.Printf("Test failed with seed %v\n", seed1)
+						retVal = false
+						fmt.Printf("Test failed with seed %v\n", seed)
 					}
 				}()
 
@@ -95,7 +98,7 @@ func TestRecordWriteRead(t *testing.T) {
 
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewRecordWriter(buf, opt)
-				require.NoError(t, err, "seed %v", seed1)
+				require.NoError(t, err, "seed %v", seed)
 
 				// Generate records pseudo-randomly
 				records := genRecordRecords(random, schem)
@@ -103,26 +106,59 @@ func TestRecordWriteRead(t *testing.T) {
 				for i := 0; i < len(records); i++ {
 					writer.Record.CopyFrom(&records[i])
 					err = writer.Write()
-					require.NoError(t, err, "record %d seed %v", i, seed1)
+					require.NoError(t, err, "record %d seed %v", i, seed)
 				}
 				err = writer.Flush()
-				require.NoError(t, err, "seed %v", seed1)
+				require.NoError(t, err, "seed %v", seed)
 
 				// Read the records and compare to written.
 				reader, err := NewRecordReader(bytes.NewBuffer(buf.Bytes()))
-				require.NoError(t, err, "seed %v", seed1)
+				require.NoError(t, err, "seed %v", seed)
 
 				for i := 0; i < len(records); i++ {
 					err := reader.Read(pkg.ReadOptions{})
-					require.NoError(t, err, "record %d seed %v", i, seed1)
-					require.NotNil(t, reader.Record, "record %d seed %v", i, seed1)
-					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed1)
+					require.NoError(t, err, "record %d seed %v", i, seed)
+					require.NotNil(t, reader.Record, "record %d seed %v", i, seed)
+					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed)
 				}
 				err = reader.Read(pkg.ReadOptions{})
-				require.ErrorIs(t, err, io.EOF, seed1)
+				require.ErrorIs(t, err, io.EOF, seed)
 
 				succeeded = true
 			},
 		)
 	}
+	return retVal
+}
+
+func TestRecordWriteRead(t *testing.T) {
+	seedFileName := "../../../seeds/jsonstef_Record_seeds.txt"
+	seedsBytes, err := os.ReadFile(seedFileName)
+	var seeds []string
+	if err == nil {
+		seeds = strings.Split(strings.TrimSpace(string(seedsBytes)), "\n")
+	}
+
+	for _, seedStr := range seeds {
+		seed, err := strconv.ParseUint(seedStr, 10, 64)
+		fmt.Printf("Testing with seed from file: %v\n", seed)
+		require.NoError(t, err, "parsing seed from file "+seedFileName)
+		testRecordWriteReadSeed(t, seed)
+	}
+
+	// Choose a seed (non-pseudo) randomly. We will print the seed
+	// on failure for easy reproduction.
+	seed := uint64(time.Now().UnixNano())
+
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			fmt.Printf("Test failed with seed %v, adding to seed file\n", seed)
+			err := os.WriteFile(seedFileName,
+				[]byte(string(seedsBytes)+fmt.Sprintf("%v\n", seed)), 0644)
+			require.NoError(t, err)
+		}
+	}()
+
+	succeeded = testRecordWriteReadSeed(t, seed)
 }
