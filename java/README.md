@@ -9,4 +9,5 @@ This directory contains Java implementation of STEF.
 
 # Building and Running Tests
 
-- To build and run all tests do `./gradlew build`
+- To build and run all tests do `./gradlew build`.
+- To generate the JMH performance benchmarks run `./gradlew jmh`.
