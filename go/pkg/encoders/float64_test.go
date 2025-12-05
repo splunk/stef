@@ -14,7 +14,6 @@ func TestFloat64EncoderDecoder_Basic(t *testing.T) {
 	values := []float64{0, 1.5, -2.3, math.NaN(), math.Inf(1), math.Inf(-1), 0, 1.5, -2.3}
 
 	encoder := &Float64Encoder{}
-	encoder.leadingBits = -1
 	encoder.limiter = &pkg.SizeLimiter{}
 
 	for _, v := range values {
@@ -49,7 +48,6 @@ func TestFloat64EncoderDecoder_Random(t *testing.T) {
 	rng := rand.New(rand.NewSource(seed))
 
 	encoder := &Float64Encoder{}
-	encoder.leadingBits = -1
 	encoder.limiter = &pkg.SizeLimiter{}
 	for range count {
 		v := rng.NormFloat64() * 1e6
@@ -86,7 +84,6 @@ func TestFloat64EncoderDecoder_VerifyGivenSequence(t *testing.T) {
 	}
 
 	encoder := &Float64Encoder{}
-	encoder.leadingBits = -1
 	encoder.limiter = &pkg.SizeLimiter{}
 	for _, v := range values {
 		encoder.Encode(v)
@@ -95,9 +92,6 @@ func TestFloat64EncoderDecoder_VerifyGivenSequence(t *testing.T) {
 
 	encoded := encoder.buf.Bytes()
 	decoder := &Float64Decoder{}
-	decoder.leadingBits = 0
-	decoder.trailingBits = 0
-	decoder.lastVal = 0
 	decoder.buf.Reset(encoded)
 
 	for i, want := range values {
