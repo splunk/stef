@@ -12,6 +12,7 @@ and fast serialization. See some
 - [go/grpc](./go/grpc): STEF/gRPC protocol implementation in Go.
 - [go/otel](./go/otel): Otel/STEF protocol schema and generated code in Go.
 - [go/pdata](./go/pdata): Collector pdata <-> Otel/STEF converters.
+- [java/src/main/java/net/stef](./java/src/main/java/net/stef): STEF supporting libraries for Java.
 - [stef-spec](./stef-spec): STEF Specification and Protobuf definitions.
 - [stefc](./stefc): STEF Compiler to generate serializers from STEF schema.
 
