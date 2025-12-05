@@ -161,34 +161,34 @@ class ExemplarDecoder {
         
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedTimestamp) != 0) {
-            // Field is changed and is present, decode it.
-            val.timestamp = timestampDecoder.decode();
+            // Field is changed.
+                val.timestamp = timestampDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedValue) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.value == null) {
-                val.value = new ExemplarValue(val.modifiedFields, Exemplar.fieldModifiedValue);
-            }
-            val.value = valueDecoder.decode(val.value);
+            // Field is changed.
+                if (val.value == null) {
+                    val.value = new ExemplarValue(val.modifiedFields, Exemplar.fieldModifiedValue);
+                }
+                val.value = valueDecoder.decode(val.value);
         }
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedSpanID) != 0) {
-            // Field is changed and is present, decode it.
-            val.spanID = spanIDDecoder.decode();
+            // Field is changed.
+                val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedTraceID) != 0) {
-            // Field is changed and is present, decode it.
-            val.traceID = traceIDDecoder.decode();
+            // Field is changed.
+                val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.filteredAttributes == null) {
-                val.filteredAttributes = new Attributes(val.modifiedFields, Exemplar.fieldModifiedFilteredAttributes);
-            }
-            val.filteredAttributes = filteredAttributesDecoder.decode(val.filteredAttributes);
+            // Field is changed.
+                if (val.filteredAttributes == null) {
+                    val.filteredAttributes = new Attributes(val.modifiedFields, Exemplar.fieldModifiedFilteredAttributes);
+                }
+                val.filteredAttributes = filteredAttributesDecoder.decode(val.filteredAttributes);
         }
         
         

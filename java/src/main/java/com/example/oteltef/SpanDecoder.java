@@ -329,85 +329,85 @@ class SpanDecoder {
         
         
         if ((val.modifiedFields.mask & Span.fieldModifiedTraceID) != 0) {
-            // Field is changed and is present, decode it.
-            val.traceID = traceIDDecoder.decode();
+            // Field is changed.
+                val.traceID = traceIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedSpanID) != 0) {
-            // Field is changed and is present, decode it.
-            val.spanID = spanIDDecoder.decode();
+            // Field is changed.
+                val.spanID = spanIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedTraceState) != 0) {
-            // Field is changed and is present, decode it.
-            val.traceState = traceStateDecoder.decode();
+            // Field is changed.
+                val.traceState = traceStateDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedParentSpanID) != 0) {
-            // Field is changed and is present, decode it.
-            val.parentSpanID = parentSpanIDDecoder.decode();
+            // Field is changed.
+                val.parentSpanID = parentSpanIDDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedFlags) != 0) {
-            // Field is changed and is present, decode it.
-            val.flags = flagsDecoder.decode();
+            // Field is changed.
+                val.flags = flagsDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedName) != 0) {
-            // Field is changed and is present, decode it.
-            val.name = nameDecoder.decode();
+            // Field is changed.
+                val.name = nameDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedKind) != 0) {
-            // Field is changed and is present, decode it.
-            val.kind = kindDecoder.decode();
+            // Field is changed.
+                val.kind = kindDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedStartTimeUnixNano) != 0) {
-            // Field is changed and is present, decode it.
-            val.startTimeUnixNano = startTimeUnixNanoDecoder.decode();
+            // Field is changed.
+                val.startTimeUnixNano = startTimeUnixNanoDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedEndTimeUnixNano) != 0) {
-            // Field is changed and is present, decode it.
-            val.endTimeUnixNano = endTimeUnixNanoDecoder.decode();
+            // Field is changed.
+                val.endTimeUnixNano = endTimeUnixNanoDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Span.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Span.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedDroppedAttributesCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
+            // Field is changed.
+                val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedEvents) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.events == null) {
-                val.events = new EventArray(val.modifiedFields, Span.fieldModifiedEvents);
-            }
-            val.events = eventsDecoder.decode(val.events);
+            // Field is changed.
+                if (val.events == null) {
+                    val.events = new EventArray(val.modifiedFields, Span.fieldModifiedEvents);
+                }
+                val.events = eventsDecoder.decode(val.events);
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedLinks) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.links == null) {
-                val.links = new LinkArray(val.modifiedFields, Span.fieldModifiedLinks);
-            }
-            val.links = linksDecoder.decode(val.links);
+            // Field is changed.
+                if (val.links == null) {
+                    val.links = new LinkArray(val.modifiedFields, Span.fieldModifiedLinks);
+                }
+                val.links = linksDecoder.decode(val.links);
         }
         
         if ((val.modifiedFields.mask & Span.fieldModifiedStatus) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.status == null) {
-                val.status = new SpanStatus(val.modifiedFields, Span.fieldModifiedStatus);
-            }
-            val.status = statusDecoder.decode(val.status);
+            // Field is changed.
+                if (val.status == null) {
+                    val.status = new SpanStatus(val.modifiedFields, Span.fieldModifiedStatus);
+                }
+                val.status = statusDecoder.decode(val.status);
         }
         
         

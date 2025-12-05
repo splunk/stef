@@ -132,21 +132,21 @@ class ResourceDecoder {
         
         
         if ((val.modifiedFields.mask & Resource.fieldModifiedSchemaURL) != 0) {
-            // Field is changed and is present, decode it.
-            val.schemaURL = schemaURLDecoder.decode();
+            // Field is changed.
+                val.schemaURL = schemaURLDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & Resource.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new Attributes(val.modifiedFields, Resource.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new Attributes(val.modifiedFields, Resource.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         if ((val.modifiedFields.mask & Resource.fieldModifiedDroppedAttributesCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
+            // Field is changed.
+                val.droppedAttributesCount = droppedAttributesCountDecoder.decode();
         }
         
         

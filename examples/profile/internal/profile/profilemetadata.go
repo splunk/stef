@@ -82,18 +82,17 @@ func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parent
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ProfileMetadata) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen ProfileMetadata")
+	}
 	s.dropFrames = ""
 	s.keepFrames = ""
 	s.timeNanos = 0
 	s.durationNanos = 0
-	if s.periodType != nil {
-		s.periodType.reset()
-	}
+	s.periodType = &emptySampleValueType
 	s.period = 0
 	s.comments.reset()
-	if s.defaultSampleType != nil {
-		s.defaultSampleType.reset()
-	}
+	s.defaultSampleType = &emptySampleValueType
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -213,6 +212,7 @@ func (s *ProfileMetadata) IsDurationNanosModified() bool {
 	return s.modifiedFields.mask&fieldModifiedProfileMetadataDurationNanos != 0
 }
 
+// PeriodType returns a readonly value. Use SetPeriodType() to modify it.
 func (s *ProfileMetadata) PeriodType() *SampleValueType {
 	return s.periodType
 }
@@ -227,7 +227,11 @@ func (s *ProfileMetadata) SetPeriodType(v *SampleValueType) {
 			s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
 		}
 	} else {
+		if s.periodType.canBeShared() {
+			s.periodType = s.periodType.Clone(&Allocators{})
+		}
 		s.periodType.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
 	}
 }
 
@@ -283,6 +287,7 @@ func (s *ProfileMetadata) IsCommentsModified() bool {
 	return s.modifiedFields.mask&fieldModifiedProfileMetadataComments != 0
 }
 
+// DefaultSampleType returns a readonly value. Use SetDefaultSampleType() to modify it.
 func (s *ProfileMetadata) DefaultSampleType() *SampleValueType {
 	return s.defaultSampleType
 }
@@ -297,7 +302,11 @@ func (s *ProfileMetadata) SetDefaultSampleType(v *SampleValueType) {
 			s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
 		}
 	} else {
+		if s.defaultSampleType.canBeShared() {
+			s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
+		}
 		s.defaultSampleType.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
 	}
 }
 
@@ -432,6 +441,10 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 			dst.markPeriodTypeModified()
 		}
 	} else {
+		if dst.periodType == nil || dst.periodType.canBeShared() { // Not allowed to modify shared data.
+			dst.periodType = new(SampleValueType)
+			dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+		}
 		copySampleValueType(dst.periodType, src.periodType)
 	}
 	dst.SetPeriod(src.period)
@@ -443,6 +456,10 @@ func copyProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata) {
 			dst.markDefaultSampleTypeModified()
 		}
 	} else {
+		if dst.defaultSampleType == nil || dst.defaultSampleType.canBeShared() { // Not allowed to modify shared data.
+			dst.defaultSampleType = new(SampleValueType)
+			dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+		}
 		copySampleValueType(dst.defaultSampleType, src.defaultSampleType)
 	}
 }
@@ -539,6 +556,10 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 				s.periodType = s.periodType.Clone(&Allocators{})
 			}
 		}
+		if s.periodType.canBeShared() {
+			// periodType may be shared by pointer. Clone it to have exclusive ownership.
+			s.periodType = s.periodType.Clone(&Allocators{})
+		}
 
 		s.periodType.mutateRandom(random, schem)
 	}
@@ -572,6 +593,10 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 			} else {
 				s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
 			}
+		}
+		if s.defaultSampleType.canBeShared() {
+			// defaultSampleType may be shared by pointer. Clone it to have exclusive ownership.
+			s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
 		}
 
 		s.defaultSampleType.mutateRandom(random, schem)
@@ -1214,40 +1239,40 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataDropFrames != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataDropFrames != 0 { // DropFrames is changed.
+
 		err = d.dropFramesDecoder.Decode(&val.dropFrames)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataKeepFrames != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataKeepFrames != 0 { // KeepFrames is changed.
+
 		err = d.keepFramesDecoder.Decode(&val.keepFrames)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataTimeNanos != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataTimeNanos != 0 { // TimeNanos is changed.
+
 		err = d.timeNanosDecoder.Decode(&val.timeNanos)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataDurationNanos != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataDurationNanos != 0 { // DurationNanos is changed.
+
 		err = d.durationNanosDecoder.Decode(&val.durationNanos)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 { // PeriodType is changed.
+
 		if val.periodType == nil {
 			val.periodType = d.allocators.SampleValueType.Alloc()
 			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
@@ -1259,24 +1284,24 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriod != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriod != 0 { // Period is changed.
+
 		err = d.periodDecoder.Decode(&val.period)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataComments != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataComments != 0 { // Comments is changed.
+
 		err = d.commentsDecoder.Decode(&val.comments)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 { // DefaultSampleType is changed.
+
 		if val.defaultSampleType == nil {
 			val.defaultSampleType = d.allocators.SampleValueType.Alloc()
 			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)

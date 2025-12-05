@@ -85,11 +85,11 @@ class EnvelopeDecoder {
         
         
         if ((val.modifiedFields.mask & Envelope.fieldModifiedAttributes) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.attributes == null) {
-                val.attributes = new EnvelopeAttributes(val.modifiedFields, Envelope.fieldModifiedAttributes);
-            }
-            val.attributes = attributesDecoder.decode(val.attributes);
+            // Field is changed.
+                if (val.attributes == null) {
+                    val.attributes = new EnvelopeAttributes(val.modifiedFields, Envelope.fieldModifiedAttributes);
+                }
+                val.attributes = attributesDecoder.decode(val.attributes);
         }
         
         

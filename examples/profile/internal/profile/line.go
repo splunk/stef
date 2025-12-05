@@ -66,9 +66,10 @@ func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Line) reset() {
-	if s.function != nil {
-		s.function.reset()
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Line")
 	}
+	s.function = &emptyFunction
 	s.line = 0
 	s.column = 0
 }
@@ -92,6 +93,7 @@ func (s *Line) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
 
+// Function returns a readonly value. Use SetFunction() to modify it.
 func (s *Line) Function() *Function {
 	return s.function
 }
@@ -106,7 +108,11 @@ func (s *Line) SetFunction(v *Function) {
 			s.modifiedFields.markModified(fieldModifiedLineFunction)
 		}
 	} else {
+		if s.function.canBeShared() {
+			s.function = s.function.Clone(&Allocators{})
+		}
 		s.function.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedLineFunction)
 	}
 }
 
@@ -242,6 +248,10 @@ func copyLine(dst *Line, src *Line) {
 			dst.markFunctionModified()
 		}
 	} else {
+		if dst.function == nil || dst.function.canBeShared() { // Not allowed to modify shared data.
+			dst.function = new(Function)
+			dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
+		}
 		copyFunction(dst.function, src.function)
 	}
 	dst.SetLine(src.line)
@@ -298,6 +308,10 @@ func (s *Line) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			} else {
 				s.function = s.function.Clone(&Allocators{})
 			}
+		}
+		if s.function.canBeShared() {
+			// function may be shared by pointer. Clone it to have exclusive ownership.
+			s.function = s.function.Clone(&Allocators{})
 		}
 
 		s.function.mutateRandom(random, schem)
@@ -650,8 +664,8 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 { // Function is changed.
+
 		if val.function == nil {
 			val.function = d.allocators.Function.Alloc()
 			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
@@ -663,16 +677,16 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLineLine != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLineLine != 0 { // Line is changed.
+
 		err = d.lineDecoder.Decode(&val.line)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLineColumn != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLineColumn != 0 { // Column is changed.
+
 		err = d.columnDecoder.Decode(&val.column)
 		if err != nil {
 			return err

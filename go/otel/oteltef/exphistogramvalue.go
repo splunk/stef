@@ -89,6 +89,9 @@ func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, pare
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramValue) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen ExpHistogramValue")
+	}
 	s.count = 0
 	s.sum = 0.0
 	s.min = 0.0
@@ -521,19 +524,16 @@ func copyExpHistogramValue(dst *ExpHistogramValue, src *ExpHistogramValue) {
 	} else {
 		dst.UnsetSum()
 	}
-
 	if src.HasMin() {
 		dst.SetMin(src.min)
 	} else {
 		dst.UnsetMin()
 	}
-
 	if src.HasMax() {
 		dst.SetMax(src.max)
 	} else {
 		dst.UnsetMax()
 	}
-
 	dst.SetScale(src.scale)
 	dst.SetZeroCount(src.zeroCount)
 	copyExpHistogramBuckets(&dst.positiveBuckets, &src.positiveBuckets)
@@ -1368,79 +1368,81 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
+	prevOptionalFieldsPresent := val.optionalFieldsPresent
+	_ = prevOptionalFieldsPresent
 	// Read bits that indicate which optional fields are set.
 	val.optionalFieldsPresent = d.buf.PeekBits(d.optionalFieldCount)
 	d.buf.Consume(d.optionalFieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueCount != 0 { // Count is changed.
+
 		err = d.countDecoder.Decode(&val.count)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueSum != 0 &&
-		val.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 {
-		// Field is changed and is present, decode it.
-		err = d.sumDecoder.Decode(&val.sum)
-		if err != nil {
-			return err
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueSum != 0 { // Sum is changed.
+		if val.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 { // Sum is present.
+			err = d.sumDecoder.Decode(&val.sum)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMin != 0 &&
-		val.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 {
-		// Field is changed and is present, decode it.
-		err = d.minDecoder.Decode(&val.min)
-		if err != nil {
-			return err
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMin != 0 { // Min is changed.
+		if val.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 { // Min is present.
+			err = d.minDecoder.Decode(&val.min)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMax != 0 &&
-		val.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 {
-		// Field is changed and is present, decode it.
-		err = d.maxDecoder.Decode(&val.max)
-		if err != nil {
-			return err
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMax != 0 { // Max is changed.
+		if val.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 { // Max is present.
+			err = d.maxDecoder.Decode(&val.max)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueScale != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueScale != 0 { // Scale is changed.
+
 		err = d.scaleDecoder.Decode(&val.scale)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroCount != 0 { // ZeroCount is changed.
+
 		err = d.zeroCountDecoder.Decode(&val.zeroCount)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValuePositiveBuckets != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValuePositiveBuckets != 0 { // PositiveBuckets is changed.
+
 		err = d.positiveBucketsDecoder.Decode(&val.positiveBuckets)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueNegativeBuckets != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueNegativeBuckets != 0 { // NegativeBuckets is changed.
+
 		err = d.negativeBucketsDecoder.Decode(&val.negativeBuckets)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0 { // ZeroThreshold is changed.
+
 		err = d.zeroThresholdDecoder.Decode(&val.zeroThreshold)
 		if err != nil {
 			return err

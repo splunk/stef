@@ -119,22 +119,43 @@ class {{ .StructName }}Decoder {
         // Read bits that indicate which fields follow.
         val.modifiedFields.mask = buf.readBits(fieldCount);
         {{ if .OptionalFieldCount}}
+        long prevOptionalFieldsPresent = val.optionalFieldsPresent;
         // Write bits to indicate which optional fields are set.
         val.optionalFieldsPresent = buf.readBits(optionalFieldCount);
         {{- end}}
         {{ range .Fields }}
-        if ((val.modifiedFields.mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
-            {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
-            // Field is changed and is present, decode it.
-            {{if not .Type.IsPrimitive -}}
-            if (val.{{.name}} == null) {
-                val.{{.name}} = new {{ .Type.Storage }}(val.modifiedFields, {{ $.StructName }}.fieldModified{{.Name}});
-            }
-            val.{{.name}} = {{.name}}Decoder.decode(val.{{.name}});
-            {{- else -}}
-            val.{{.name}} = {{.name}}Decoder.decode();
+        if ((val.modifiedFields.mask & {{ $.StructName }}.fieldModified{{.Name}}) != 0) {
+            // Field is changed.
+            {{- if .Optional}}
+            if ((val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0) {
+                // Field is present.
             {{- end}}
+                {{if not .Type.IsPrimitive -}}
+                if (val.{{.name}} == null) {
+                    val.{{.name}} = new {{ .Type.Storage }}(val.modifiedFields, {{ $.StructName }}.fieldModified{{.Name}});
+                }
+                {{- if .Optional}}
+                if ((prevOptionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) == 0) {
+                    // Field was not present before, but is present now. Need to reset to initial state.
+                    val.{{.name}}.reset();
+                }
+                {{- end}}
+                val.{{.name}} = {{.name}}Decoder.decode(val.{{.name}});
+                {{- else -}}
+                val.{{.name}} = {{.name}}Decoder.decode();
+                {{- end}}
+            {{- if .Optional}}
+            }
+            {{- end}}
+        } {{- if and .Optional (not .Type.IsPrimitive)}} else {
+            // Field is not changed. For optional fields, we need to init the field if it is present.
+            if ((val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0) {
+                if (val.{{.name}} == null) {
+                    val.{{.name}} = new {{ .Type.Storage }}(val.modifiedFields, {{ $.StructName }}.fieldModified{{.Name}});
+                }
+            }
         }
+        {{- end}}
         {{ end }}
         {{if .DictName}}
         dict.add(val);

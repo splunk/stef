@@ -101,16 +101,16 @@ class ExpHistogramBucketsDecoder {
         
         
         if ((val.modifiedFields.mask & ExpHistogramBuckets.fieldModifiedOffset) != 0) {
-            // Field is changed and is present, decode it.
-            val.offset = offsetDecoder.decode();
+            // Field is changed.
+                val.offset = offsetDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & ExpHistogramBuckets.fieldModifiedBucketCounts) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.bucketCounts == null) {
-                val.bucketCounts = new Uint64Array(val.modifiedFields, ExpHistogramBuckets.fieldModifiedBucketCounts);
-            }
-            val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
+            // Field is changed.
+                if (val.bucketCounts == null) {
+                    val.bucketCounts = new Uint64Array(val.modifiedFields, ExpHistogramBuckets.fieldModifiedBucketCounts);
+                }
+                val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         
         

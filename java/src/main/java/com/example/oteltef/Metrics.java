@@ -62,15 +62,9 @@ public class Metrics {
         if (envelope != null) {
             envelope.reset();
         }
-        if (metric != null) {
-            metric.reset();
-        }
-        if (resource != null) {
-            resource.reset();
-        }
-        if (scope != null) {
-            scope.reset();
-        }
+        metric = new Metric(modifiedFields, fieldModifiedMetric);
+        resource = new Resource(modifiedFields, fieldModifiedResource);
+        scope = new Scope(modifiedFields, fieldModifiedScope);
         if (attributes != null) {
             attributes.reset();
         }

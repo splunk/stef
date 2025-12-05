@@ -224,58 +224,68 @@ class ExpHistogramValueDecoder {
         // Read bits that indicate which fields follow.
         val.modifiedFields.mask = buf.readBits(fieldCount);
         
+        long prevOptionalFieldsPresent = val.optionalFieldsPresent;
         // Write bits to indicate which optional fields are set.
         val.optionalFieldsPresent = buf.readBits(optionalFieldCount);
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.count = countDecoder.decode();
+            // Field is changed.
+                val.count = countDecoder.decode();
         }
         
-        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & ExpHistogramValue.fieldPresentSum) != 0) {
-            // Field is changed and is present, decode it.
-            val.sum = sumDecoder.decode();
+        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedSum) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & ExpHistogramValue.fieldPresentSum) != 0) {
+                // Field is present.
+                val.sum = sumDecoder.decode();
+            }
         }
         
-        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & ExpHistogramValue.fieldPresentMin) != 0) {
-            // Field is changed and is present, decode it.
-            val.min = minDecoder.decode();
+        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedMin) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & ExpHistogramValue.fieldPresentMin) != 0) {
+                // Field is present.
+                val.min = minDecoder.decode();
+            }
         }
         
-        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & ExpHistogramValue.fieldPresentMax) != 0) {
-            // Field is changed and is present, decode it.
-            val.max = maxDecoder.decode();
+        if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedMax) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & ExpHistogramValue.fieldPresentMax) != 0) {
+                // Field is present.
+                val.max = maxDecoder.decode();
+            }
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedScale) != 0) {
-            // Field is changed and is present, decode it.
-            val.scale = scaleDecoder.decode();
+            // Field is changed.
+                val.scale = scaleDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedZeroCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.zeroCount = zeroCountDecoder.decode();
+            // Field is changed.
+                val.zeroCount = zeroCountDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedPositiveBuckets) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.positiveBuckets == null) {
-                val.positiveBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedPositiveBuckets);
-            }
-            val.positiveBuckets = positiveBucketsDecoder.decode(val.positiveBuckets);
+            // Field is changed.
+                if (val.positiveBuckets == null) {
+                    val.positiveBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedPositiveBuckets);
+                }
+                val.positiveBuckets = positiveBucketsDecoder.decode(val.positiveBuckets);
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedNegativeBuckets) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.negativeBuckets == null) {
-                val.negativeBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedNegativeBuckets);
-            }
-            val.negativeBuckets = negativeBucketsDecoder.decode(val.negativeBuckets);
+            // Field is changed.
+                if (val.negativeBuckets == null) {
+                    val.negativeBuckets = new ExpHistogramBuckets(val.modifiedFields, ExpHistogramValue.fieldModifiedNegativeBuckets);
+                }
+                val.negativeBuckets = negativeBucketsDecoder.decode(val.negativeBuckets);
         }
         
         if ((val.modifiedFields.mask & ExpHistogramValue.fieldModifiedZeroThreshold) != 0) {
-            // Field is changed and is present, decode it.
-            val.zeroThreshold = zeroThresholdDecoder.decode();
+            // Field is changed.
+                val.zeroThreshold = zeroThresholdDecoder.decode();
         }
         
         

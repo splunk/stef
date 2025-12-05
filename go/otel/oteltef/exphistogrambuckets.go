@@ -62,6 +62,9 @@ func (s *ExpHistogramBuckets) initAlloc(parentModifiedFields *modifiedFields, pa
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramBuckets) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen ExpHistogramBuckets")
+	}
 	s.offset = 0
 	s.bucketCounts.reset()
 }
@@ -510,16 +513,16 @@ func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsOffset != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsOffset != 0 { // Offset is changed.
+
 		err = d.offsetDecoder.Decode(&val.offset)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0 { // BucketCounts is changed.
+
 		err = d.bucketCountsDecoder.Decode(&val.bucketCounts)
 		if err != nil {
 			return err

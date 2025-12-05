@@ -253,7 +253,16 @@ func (m *{{.ArrayName}}) At(i int) {{if .IsStructType}}*{{end}}{{.ElemType.Expor
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
 func (e *{{.ArrayName}}) EnsureLen(newLen int) {
+    {{- if not .ElemType.IsPrimitive}}
+    oldLen := len(e.elems)
+    {{- end}}
     e.ensureLen(newLen, &Allocators{})
+    {{- if not .ElemType.IsPrimitive}}
+    for i:=min(oldLen, newLen); i < newLen; i++ {
+        // Reset newly created elements to initial state.
+        e.elems[i].reset()
+    }
+    {{- end}}
 }
 
 // EnsureLen ensures the length of the array is equal to newLen.
@@ -436,6 +445,11 @@ type {{ .ArrayName }}Decoder struct {
 	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
 	allocators *Allocators
+
+    {{- if .DictName}}
+	// Zero-inited elem. New array entries point into this temporarily during decoding.
+	emptyElem {{.ElemType.Storage}}
+	{{- end}}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -497,7 +511,19 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
+    {{if not .ElemType.IsPrimitive}}oldLen := len(dst.elems){{end}}
 	dst.ensureLen(newLen, d.allocators)
+
+    {{- if not .ElemType.IsPrimitive}}
+    for i:=min(oldLen, newLen); i < newLen; i++ {
+        // Reset newly created elements to initial state.
+        {{- if .DictName}}
+        dst.elems[i] = &d.emptyElem
+        {{- else}}
+        dst.elems[i].reset()
+        {{- end}}
+    }
+    {{- end}}
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}

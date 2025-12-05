@@ -169,35 +169,35 @@ class SpansDecoder {
         
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedEnvelope) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.envelope == null) {
-                val.envelope = new Envelope(val.modifiedFields, Spans.fieldModifiedEnvelope);
-            }
-            val.envelope = envelopeDecoder.decode(val.envelope);
+            // Field is changed.
+                if (val.envelope == null) {
+                    val.envelope = new Envelope(val.modifiedFields, Spans.fieldModifiedEnvelope);
+                }
+                val.envelope = envelopeDecoder.decode(val.envelope);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedResource) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.resource == null) {
-                val.resource = new Resource(val.modifiedFields, Spans.fieldModifiedResource);
-            }
-            val.resource = resourceDecoder.decode(val.resource);
+            // Field is changed.
+                if (val.resource == null) {
+                    val.resource = new Resource(val.modifiedFields, Spans.fieldModifiedResource);
+                }
+                val.resource = resourceDecoder.decode(val.resource);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedScope) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.scope == null) {
-                val.scope = new Scope(val.modifiedFields, Spans.fieldModifiedScope);
-            }
-            val.scope = scopeDecoder.decode(val.scope);
+            // Field is changed.
+                if (val.scope == null) {
+                    val.scope = new Scope(val.modifiedFields, Spans.fieldModifiedScope);
+                }
+                val.scope = scopeDecoder.decode(val.scope);
         }
         
         if ((val.modifiedFields.mask & Spans.fieldModifiedSpan) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.span == null) {
-                val.span = new Span(val.modifiedFields, Spans.fieldModifiedSpan);
-            }
-            val.span = spanDecoder.decode(val.span);
+            // Field is changed.
+                if (val.span == null) {
+                    val.span = new Span(val.modifiedFields, Spans.fieldModifiedSpan);
+                }
+                val.span = spanDecoder.decode(val.span);
         }
         
         

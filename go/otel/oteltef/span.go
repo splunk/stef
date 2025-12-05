@@ -92,6 +92,9 @@ func (s *Span) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Span) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Span")
+	}
 	s.traceID = pkg.EmptyBytes
 	s.spanID = pkg.EmptyBytes
 	s.traceState = ""
@@ -1704,112 +1707,112 @@ func (d *SpanDecoder) Decode(dstPtr *Span) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSpanTraceID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanTraceID != 0 { // TraceID is changed.
+
 		err = d.traceIDDecoder.Decode(&val.traceID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanSpanID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanSpanID != 0 { // SpanID is changed.
+
 		err = d.spanIDDecoder.Decode(&val.spanID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanTraceState != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanTraceState != 0 { // TraceState is changed.
+
 		err = d.traceStateDecoder.Decode(&val.traceState)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanParentSpanID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanParentSpanID != 0 { // ParentSpanID is changed.
+
 		err = d.parentSpanIDDecoder.Decode(&val.parentSpanID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanFlags != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanFlags != 0 { // Flags is changed.
+
 		err = d.flagsDecoder.Decode(&val.flags)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanName != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanName != 0 { // Name is changed.
+
 		err = d.nameDecoder.Decode(&val.name)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanKind != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanKind != 0 { // Kind is changed.
+
 		err = d.kindDecoder.Decode(&val.kind)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanStartTimeUnixNano != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanStartTimeUnixNano != 0 { // StartTimeUnixNano is changed.
+
 		err = d.startTimeUnixNanoDecoder.Decode(&val.startTimeUnixNano)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanEndTimeUnixNano != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanEndTimeUnixNano != 0 { // EndTimeUnixNano is changed.
+
 		err = d.endTimeUnixNanoDecoder.Decode(&val.endTimeUnixNano)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
+
 		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanEvents != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanEvents != 0 { // Events is changed.
+
 		err = d.eventsDecoder.Decode(&val.events)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanLinks != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanLinks != 0 { // Links is changed.
+
 		err = d.linksDecoder.Decode(&val.links)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanStatus != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanStatus != 0 { // Status is changed.
+
 		err = d.statusDecoder.Decode(&val.status)
 		if err != nil {
 			return err

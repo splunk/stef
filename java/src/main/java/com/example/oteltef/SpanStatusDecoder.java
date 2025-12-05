@@ -89,13 +89,13 @@ class SpanStatusDecoder {
         
         
         if ((val.modifiedFields.mask & SpanStatus.fieldModifiedMessage) != 0) {
-            // Field is changed and is present, decode it.
-            val.message = messageDecoder.decode();
+            // Field is changed.
+                val.message = messageDecoder.decode();
         }
         
         if ((val.modifiedFields.mask & SpanStatus.fieldModifiedCode) != 0) {
-            // Field is changed and is present, decode it.
-            val.code = codeDecoder.decode();
+            // Field is changed.
+                val.code = codeDecoder.decode();
         }
         
         

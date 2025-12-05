@@ -44,6 +44,16 @@ const (
     {{- end }}
 )
 
+{{if .DictName}}
+// Pre-initialized empty value of {{ .StructName }}
+var empty{{ .StructName }} {{ .StructName }}
+func init() {
+    empty{{ .StructName }}.Init()
+    // Empty value can be shared, make sure it is immutable.
+    empty{{ .StructName }}.Freeze()
+}
+{{end}}
+
 {{if .OptionalFieldCount}}
 // Bitmasks for "present" flags for optional fields.
 const (
@@ -105,14 +115,24 @@ func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, par
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
+    if s.modifiedFields.isFrozen() {
+   		panic("cannot modify frozen {{ $.StructName }}")
+   	}
+   	{{- if .DictName}}
+   	s.modifiedFields.refNum = 0 // Reset cached refNum.
+   	{{- end}}
     {{- range .Fields }}
 	{{- if .Type.IsPrimitive }}
 	{{if .Type.InitVal}}s.{{.name}} = {{.Type.InitVal}};{{end}}
 	{{- else}}
 	{{- if .Type.Flags.StoreByPtr}}
-    if s.{{.name}} != nil {
-        s.{{.name}}.reset()
-    }
+    {{- if .Type.DictName}}
+        s.{{.name}} = &empty{{ .Type.Storage }}
+    {{- else}}
+        if s.{{.name}} != nil {
+            s.{{.name}}.reset()
+        }
+    {{- end}}
     {{- else}}
     s.{{.name}}.reset()
     {{- end -}}
@@ -150,6 +170,7 @@ func (s *{{ $.StructName }}) isFrozen() bool {
 }
 
 {{ range .Fields }}
+{{if and (not .Type.IsPrimitive) .Type.DictName }}// {{.Name}} returns a readonly value. Use Set{{.Name}}() to modify it.{{end}}
 func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
 {{- if .Type.IsPrimitive}}
 	return {{.Type.ToExported (print "s." .name)}}
@@ -185,7 +206,11 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .Type.Flags.PassByPtr}}*{{end}}
             {{- end}}
         }
     } else {
+        if s.{{.name}}.canBeShared() {
+            s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
+        }
         s.{{.name}}.CopyFrom({{.Type.ToStorage "v"}})
+        s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
         {{- if .Optional}}
         s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
         {{- end}}
@@ -344,43 +369,54 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
     }
     {{- end}}
     {{- if .Type.Flags.StoreByPtr}}
-    {{ if .Optional}}if src.{{.name}} != nil { {{end}}
-        if src.{{.name}}.canBeShared() {
-            if src.{{.name}}.computeDiff(dst.{{.name}}) {
-                dst.{{.name}} = src.{{.name}}
-                dst.mark{{.Name}}Modified()
+        {{ if .Optional}}if src.{{.name}} != nil && src.Has{{.Name}}() {
+            // Optional field is present in src. Copy it.{{end}}
+            if src.{{.name}}.canBeShared() {
+                if src.{{.name}}.computeDiff(dst.{{.name}}) {
+                    dst.{{.name}} = src.{{.name}}
+                    dst.mark{{.Name}}Modified()
+                }
+            } else {
+                if dst.{{.name}} == nil || dst.{{.name}}.canBeShared() { // Not allowed to modify shared data.
+                    dst.{{.name}} = new({{ .Type.Storage }})
+                    dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+                }
+                copy{{.Type.TypeName}}(
+                    {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+                    {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
             }
+        {{- if .Optional}}
         } else {
-            {{- if .Optional}}
-            if dst.{{.name}} == nil {
-                dst.{{.name}} = new({{ .Type.Storage }})
-                dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            if dst.Has{{.Name}}() && !src.Has{{.Name}}(){
+                // Optional {{.name}} previously was present, now it is not anymore. Need to reset it.
+                dst.{{.name}}.reset()
             }
-            {{end}}
-            copy{{.Type.TypeName}}(
-                {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-                {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
         }
-    {{- if .Optional}}
-    } else {
-        dst.{{.name}} = nil
-    }
-    {{end}}
-    {{- else}}
-    copy{{.Type.TypeName}}(
-        {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-        {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+        {{end}}
+    {{- else}} {{/* Not StoreByPtr */}}
+        {{- if .Optional}}
+        if dst.Has{{.Name}}() && !src.Has{{.Name}}() {
+            // Optional {{.name}} previously was present, now it is not anymore. Need to reset it.
+            dst.{{.name}}.reset()
+        } else {
+        {{- end}}
+        copy{{.Type.TypeName}}(
+            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
+            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+        {{- if .Optional}}
+        }
+        {{- end}}
     {{- end}}
-    {{- else}}
-	{{- if .Optional}}
-	if src.Has{{.Name}}() {
-		dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
-	} else {
-		dst.Unset{{.Name}}()
-	}
-	{{else}}
-	dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
-    {{- end}}
+    {{- else}} {{/* Primitive type */}}
+        {{- if .Optional}} {{/* Primitive optional type */}}
+            if src.Has{{.Name}}() {
+                dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+            } else {
+                dst.Unset{{.Name}}()
+            }
+        {{- else}} {{/* Primitive, not optional type */}}
+            dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+        {{- end}}
     {{- end}}
     {{- end}}
     {{- if .OptionalFieldCount}}
@@ -484,6 +520,10 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
             } else {
                 s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
             }
+        }
+        if s.{{.name}}.canBeShared() {
+            // {{.name}} may be shared by pointer. Clone it to have exclusive ownership.
+            s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
         }
         {{end}}
         s.{{.name}}.mutateRandom(random, schem)
@@ -946,6 +986,8 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     {{end}}
 
     {{ if .OptionalFieldCount}}
+    prevOptionalFieldsPresent := val.optionalFieldsPresent
+    _ = prevOptionalFieldsPresent
     // Read bits that indicate which optional fields are set.
     {{if le .OptionalFieldCount 56 -}}
     {{/* Fast path, no more than 56 optional fields */ -}}
@@ -958,23 +1000,38 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     {{- end}}
 
     {{ range .Fields }}
-    if val.modifiedFields.mask & fieldModified{{ $.StructName }}{{.Name}} != 0
-    {{- if .Optional -}}
-    &&
-    val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0
-    {{- end}} {
-		// Field is changed and is present, decode it.
-        {{- if .Type.Flags.StoreByPtr}}
-        if val.{{.name}} == nil {
-            val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
-            val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    if val.modifiedFields.mask & fieldModified{{ $.StructName }}{{.Name}} != 0 { // {{.Name}} is changed.
+        {{ if .Optional -}}
+        if val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 { // {{.Name}} is present.
+        {{- end}}
+            {{- if .Type.Flags.StoreByPtr}}
+            if val.{{.name}} == nil {
+                val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
+                val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            }
+            {{end}}
+            {{- if and .Optional (not .Type.IsPrimitive)}}
+            if prevOptionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} == 0 {
+                // Field was not present before, but is present now. Need to reset to initial state.
+                val.{{.name}}.reset()
+            }
+            {{- end}}
+            err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})
+            if err != nil {
+                return err
+            }
+        {{- if .Optional}}
         }
-        {{end}}
- 		err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})
-        if err != nil {
-            return err
+        {{- end}}
+    } {{- if and .Optional (.Type.Flags.StoreByPtr)}} else {
+        // {{.Name}} is not changed. It is an optional field. We need to init it if it is present.
+        if val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
+            if val.{{.name}} == nil {
+                val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
+                val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+            }
         }
-    }
+    } {{ end }}
     {{ end }}
 
     {{if .DictName}}

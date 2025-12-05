@@ -62,6 +62,9 @@ func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Record) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Record")
+	}
 	if s.value != nil {
 		s.value.reset()
 	}
@@ -160,6 +163,10 @@ func copyRecord(dst *Record, src *Record) {
 			dst.markValueModified()
 		}
 	} else {
+		if dst.value == nil || dst.value.canBeShared() { // Not allowed to modify shared data.
+			dst.value = new(JsonValue)
+			dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
+		}
 		copyJsonValue(dst.value, src.value)
 	}
 }
@@ -437,8 +444,8 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 { // Value is changed.
+
 		if val.value == nil {
 			val.value = d.allocators.JsonValue.Alloc()
 			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)

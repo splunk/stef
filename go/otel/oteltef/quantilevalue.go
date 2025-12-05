@@ -60,6 +60,9 @@ func (s *QuantileValue) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *QuantileValue) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen QuantileValue")
+	}
 	s.quantile = 0.0
 	s.value = 0.0
 }
@@ -484,16 +487,16 @@ func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedQuantileValueQuantile != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedQuantileValueQuantile != 0 { // Quantile is changed.
+
 		err = d.quantileDecoder.Decode(&val.quantile)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedQuantileValueValue != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedQuantileValueValue != 0 { // Value is changed.
+
 		err = d.valueDecoder.Decode(&val.value)
 		if err != nil {
 			return err

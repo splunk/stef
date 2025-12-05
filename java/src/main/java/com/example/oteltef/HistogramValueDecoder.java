@@ -148,35 +148,45 @@ class HistogramValueDecoder {
         // Read bits that indicate which fields follow.
         val.modifiedFields.mask = buf.readBits(fieldCount);
         
+        long prevOptionalFieldsPresent = val.optionalFieldsPresent;
         // Write bits to indicate which optional fields are set.
         val.optionalFieldsPresent = buf.readBits(optionalFieldCount);
         
         if ((val.modifiedFields.mask & HistogramValue.fieldModifiedCount) != 0) {
-            // Field is changed and is present, decode it.
-            val.count = countDecoder.decode();
+            // Field is changed.
+                val.count = countDecoder.decode();
         }
         
-        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedSum) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
-            // Field is changed and is present, decode it.
-            val.sum = sumDecoder.decode();
+        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedSum) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & HistogramValue.fieldPresentSum) != 0) {
+                // Field is present.
+                val.sum = sumDecoder.decode();
+            }
         }
         
-        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedMin) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
-            // Field is changed and is present, decode it.
-            val.min = minDecoder.decode();
+        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedMin) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & HistogramValue.fieldPresentMin) != 0) {
+                // Field is present.
+                val.min = minDecoder.decode();
+            }
         }
         
-        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedMax) != 0 && (val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
-            // Field is changed and is present, decode it.
-            val.max = maxDecoder.decode();
+        if ((val.modifiedFields.mask & HistogramValue.fieldModifiedMax) != 0) {
+            // Field is changed.
+            if ((val.optionalFieldsPresent & HistogramValue.fieldPresentMax) != 0) {
+                // Field is present.
+                val.max = maxDecoder.decode();
+            }
         }
         
         if ((val.modifiedFields.mask & HistogramValue.fieldModifiedBucketCounts) != 0) {
-            // Field is changed and is present, decode it.
-            if (val.bucketCounts == null) {
-                val.bucketCounts = new Uint64Array(val.modifiedFields, HistogramValue.fieldModifiedBucketCounts);
-            }
-            val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
+            // Field is changed.
+                if (val.bucketCounts == null) {
+                    val.bucketCounts = new Uint64Array(val.modifiedFields, HistogramValue.fieldModifiedBucketCounts);
+                }
+                val.bucketCounts = bucketCountsDecoder.decode(val.bucketCounts);
         }
         
         

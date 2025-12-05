@@ -82,9 +82,7 @@ func (m *{{.MultimapName}}) At(i int) *{{.MultimapName}}Elem {
 	return &m.elems[i]
 }
 
-// EnsureLen ensures the length of the multimap is equal to newLen.
-// It will grow or shrink the multimap if needed.
-func (m *{{.MultimapName}}) EnsureLen(newLen int) {
+func (m *{{.MultimapName}}) ensureLen(newLen int) {
 	oldLen :=len(m.elems)
 	if newLen!=oldLen {
 	    m.modifiedElems.changeLen(oldLen, newLen)
@@ -120,18 +118,24 @@ func (m *{{.MultimapName}}) EnsureLen(newLen int) {
 		        {{- end}}
 		    }
 		}
-
-		for i:=min(oldLen, newLen); i < newLen; i++ {
-			{{- if not .Key.Type.IsPrimitive}}
-			// Reset newly created keys to initial state.
-			m.elems[i].key.reset()
-			{{- end}}
-			{{- if not .Value.Type.IsPrimitive}}
-			// Reset newly added values keys to initial state.
-			m.elems[i].value.reset()
-			{{- end}}
-        }
 	}
+}
+
+// EnsureLen ensures the length of the multimap is equal to newLen.
+// It will grow or shrink the multimap if needed.
+func (m *{{.MultimapName}}) EnsureLen(newLen int) {
+    oldLen := len(m.elems)
+    m.ensureLen(newLen)
+    for i:=min(oldLen, newLen); i < newLen; i++ {
+        {{- if not .Key.Type.IsPrimitive}}
+        // Reset newly created keys to initial state.
+        m.elems[i].key.reset()
+        {{- end}}
+        {{- if not .Value.Type.IsPrimitive}}
+        // Reset newly added values to initial state.
+        m.elems[i].value.reset()
+        {{- end}}
+    }
 }
 
 func (m* {{.MultimapName}}) setModifiedRecursively() {
@@ -528,6 +532,14 @@ type {{.MultimapName}}Decoder struct {
 	isKeyRecursive bool
 	valueDecoder *{{.Value.Type.EncoderType}}Decoder
 	isValueRecursive bool
+	{{if .KeyStoreByPtr}}
+	// Zero-inited key . New multimap entries point into this temporarily during decoding.
+	emptyKey {{.Key.Type.Storage}}
+	{{end}}
+    {{if .ValueStoreByPtr}}
+  	// Zero-inited value. New multimap entries point into this temporarily during decoding.
+    emptyValue {{.Value.Type.Storage}}
+    {{end}}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -546,6 +558,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 	d.keyDecoder = new({{.Key.Type.EncoderType}}Decoder)
 	err = d.keyDecoder.Init({{if .Key.Type.DictName}}&state.{{.Key.Type.DictName}}, {{end}}columns.AddSubColumn())
 {{- else}}
+    {{if .KeyStoreByPtr}}d.emptyKey.Freeze(){{end}}
 	if state.{{.Key.Type.EncoderType}}Decoder != nil {
 		// Recursion detected, use the existing decoder.
 		d.keyDecoder = state.{{.Key.Type.EncoderType}}Decoder
@@ -560,6 +573,7 @@ func (d *{{ .MultimapName }}Decoder) Init(state* ReaderState, columns *pkg.ReadC
 	}
 
 {{- if .Value.Type.IsPrimitive}}
+    {{if .ValueStoreByPtr}}d.emptyValue.Freeze(){{end}}
 	d.valueDecoder = new({{.Value.Type.EncoderType}}Decoder)
 	err = d.valueDecoder.Init({{if .Value.Type.DictName}}&state.{{.Value.Type.DictName}}, {{end}}columns.AddSubColumn())
 {{- else}}
@@ -643,7 +657,26 @@ func (d *{{ .MultimapName }}Decoder) decodeFull(count int, dst *{{.MultimapName}
 		return pkg.ErrMultimapCountLimit
 	}
 
-	dst.EnsureLen(count)
+    oldLen := len(dst.elems)
+	dst.ensureLen(count)
+    for i:=min(oldLen, count); i < count; i++ {
+        {{- if not .Key.Type.IsPrimitive}}
+        // Reset newly created keys to initial state.
+        {{- if .KeyStoreByPtr}}
+        dst.elems[i].key = &d.emptyKey
+        {{- else}}
+        dst.elems[i].key.reset()
+        {{- end}}
+        {{- end}}
+        {{- if not .Value.Type.IsPrimitive}}
+        // Reset newly added values to initial state.
+        {{- if .ValueStoreByPtr}}
+        dst.elems[i].value = &d.emptyValue
+        {{- else}}
+        dst.elems[i].value.reset()
+        {{- end}}
+        {{- end}}
+    }
 
 	var err error
 	for i := 0; i < count; i++ {

@@ -70,6 +70,9 @@ func (s *Exemplar) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Exemplar) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Exemplar")
+	}
 	s.timestamp = 0
 	s.value.reset()
 	s.spanID = pkg.EmptyBytes
@@ -815,40 +818,40 @@ func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedExemplarTimestamp != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExemplarTimestamp != 0 { // Timestamp is changed.
+
 		err = d.timestampDecoder.Decode(&val.timestamp)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExemplarValue != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExemplarValue != 0 { // Value is changed.
+
 		err = d.valueDecoder.Decode(&val.value)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExemplarSpanID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExemplarSpanID != 0 { // SpanID is changed.
+
 		err = d.spanIDDecoder.Decode(&val.spanID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExemplarTraceID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExemplarTraceID != 0 { // TraceID is changed.
+
 		err = d.traceIDDecoder.Decode(&val.traceID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0 { // FilteredAttributes is changed.
+
 		err = d.filteredAttributesDecoder.Decode(&val.filteredAttributes)
 		if err != nil {
 			return err

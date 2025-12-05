@@ -76,13 +76,12 @@ func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Spans) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Spans")
+	}
 	s.envelope.reset()
-	if s.resource != nil {
-		s.resource.reset()
-	}
-	if s.scope != nil {
-		s.scope.reset()
-	}
+	s.resource = &emptyResource
+	s.scope = &emptyScope
 	s.span.reset()
 }
 
@@ -124,6 +123,7 @@ func (s *Spans) IsEnvelopeModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpansEnvelope != 0
 }
 
+// Resource returns a readonly value. Use SetResource() to modify it.
 func (s *Spans) Resource() *Resource {
 	return s.resource
 }
@@ -138,7 +138,11 @@ func (s *Spans) SetResource(v *Resource) {
 			s.modifiedFields.markModified(fieldModifiedSpansResource)
 		}
 	} else {
+		if s.resource.canBeShared() {
+			s.resource = s.resource.Clone(&Allocators{})
+		}
 		s.resource.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedSpansResource)
 	}
 }
 
@@ -154,6 +158,7 @@ func (s *Spans) IsResourceModified() bool {
 	return s.modifiedFields.mask&fieldModifiedSpansResource != 0
 }
 
+// Scope returns a readonly value. Use SetScope() to modify it.
 func (s *Spans) Scope() *Scope {
 	return s.scope
 }
@@ -168,7 +173,11 @@ func (s *Spans) SetScope(v *Scope) {
 			s.modifiedFields.markModified(fieldModifiedSpansScope)
 		}
 	} else {
+		if s.scope.canBeShared() {
+			s.scope = s.scope.Clone(&Allocators{})
+		}
 		s.scope.CopyFrom(v)
+		s.modifiedFields.markModified(fieldModifiedSpansScope)
 	}
 }
 
@@ -292,6 +301,10 @@ func copySpans(dst *Spans, src *Spans) {
 			dst.markResourceModified()
 		}
 	} else {
+		if dst.resource == nil || dst.resource.canBeShared() { // Not allowed to modify shared data.
+			dst.resource = new(Resource)
+			dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
+		}
 		copyResource(dst.resource, src.resource)
 	}
 
@@ -301,6 +314,10 @@ func copySpans(dst *Spans, src *Spans) {
 			dst.markScopeModified()
 		}
 	} else {
+		if dst.scope == nil || dst.scope.canBeShared() { // Not allowed to modify shared data.
+			dst.scope = new(Scope)
+			dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
+		}
 		copyScope(dst.scope, src.scope)
 	}
 	copySpan(&dst.span, &src.span)
@@ -372,6 +389,10 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 				s.resource = s.resource.Clone(&Allocators{})
 			}
 		}
+		if s.resource.canBeShared() {
+			// resource may be shared by pointer. Clone it to have exclusive ownership.
+			s.resource = s.resource.Clone(&Allocators{})
+		}
 
 		s.resource.mutateRandom(random, schem)
 	}
@@ -391,6 +412,10 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			} else {
 				s.scope = s.scope.Clone(&Allocators{})
 			}
+		}
+		if s.scope.canBeShared() {
+			// scope may be shared by pointer. Clone it to have exclusive ownership.
+			s.scope = s.scope.Clone(&Allocators{})
 		}
 
 		s.scope.mutateRandom(random, schem)
@@ -867,16 +892,16 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSpansEnvelope != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpansEnvelope != 0 { // Envelope is changed.
+
 		err = d.envelopeDecoder.Decode(&val.envelope)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 { // Resource is changed.
+
 		if val.resource == nil {
 			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
@@ -888,8 +913,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 { // Scope is changed.
+
 		if val.scope == nil {
 			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
@@ -901,8 +926,8 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpansSpan != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpansSpan != 0 { // Span is changed.
+
 		err = d.spanDecoder.Decode(&val.span)
 		if err != nil {
 			return err

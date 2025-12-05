@@ -64,6 +64,9 @@ func (s *SummaryValue) initAlloc(parentModifiedFields *modifiedFields, parentMod
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SummaryValue) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen SummaryValue")
+	}
 	s.count = 0
 	s.sum = 0.0
 	s.quantileValues.reset()
@@ -603,24 +606,24 @@ func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSummaryValueCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSummaryValueCount != 0 { // Count is changed.
+
 		err = d.countDecoder.Decode(&val.count)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSummaryValueSum != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSummaryValueSum != 0 { // Sum is changed.
+
 		err = d.sumDecoder.Decode(&val.sum)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSummaryValueQuantileValues != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSummaryValueQuantileValues != 0 { // QuantileValues is changed.
+
 		err = d.quantileValuesDecoder.Decode(&val.quantileValues)
 		if err != nil {
 			return err

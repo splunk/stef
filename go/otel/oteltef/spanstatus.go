@@ -60,6 +60,9 @@ func (s *SpanStatus) initAlloc(parentModifiedFields *modifiedFields, parentModif
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *SpanStatus) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen SpanStatus")
+	}
 	s.message = ""
 	s.code = 0
 }
@@ -484,16 +487,16 @@ func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedSpanStatusMessage != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanStatusMessage != 0 { // Message is changed.
+
 		err = d.messageDecoder.Decode(&val.message)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedSpanStatusCode != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedSpanStatusCode != 0 { // Code is changed.
+
 		err = d.codeDecoder.Decode(&val.code)
 		if err != nil {
 			return err

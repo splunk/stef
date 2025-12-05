@@ -38,6 +38,15 @@ const (
 	fieldModifiedResourceDroppedAttributesCount
 )
 
+// Pre-initialized empty value of Resource
+var emptyResource Resource
+
+func init() {
+	emptyResource.Init()
+	// Empty value can be shared, make sure it is immutable.
+	emptyResource.Freeze()
+}
+
 // Init must be called once, before the Resource is used.
 func (s *Resource) Init() {
 	s.init(nil, 0)
@@ -66,6 +75,10 @@ func (s *Resource) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Resource) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Resource")
+	}
+	s.modifiedFields.refNum = 0 // Reset cached refNum.
 	s.schemaURL = ""
 	s.attributes.reset()
 	s.droppedAttributesCount = 0
@@ -713,24 +726,24 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedResourceSchemaURL != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedResourceSchemaURL != 0 { // SchemaURL is changed.
+
 		err = d.schemaURLDecoder.Decode(&val.schemaURL)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
+
 		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err

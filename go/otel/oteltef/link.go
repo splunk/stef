@@ -70,6 +70,9 @@ func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Link) reset() {
+	if s.modifiedFields.isFrozen() {
+		panic("cannot modify frozen Link")
+	}
 	s.traceID = pkg.EmptyBytes
 	s.spanID = pkg.EmptyBytes
 	s.traceState = ""
@@ -882,48 +885,48 @@ func (d *LinkDecoder) Decode(dstPtr *Link) error {
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
-	if val.modifiedFields.mask&fieldModifiedLinkTraceID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkTraceID != 0 { // TraceID is changed.
+
 		err = d.traceIDDecoder.Decode(&val.traceID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLinkSpanID != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkSpanID != 0 { // SpanID is changed.
+
 		err = d.spanIDDecoder.Decode(&val.spanID)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLinkTraceState != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkTraceState != 0 { // TraceState is changed.
+
 		err = d.traceStateDecoder.Decode(&val.traceState)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLinkFlags != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkFlags != 0 { // Flags is changed.
+
 		err = d.flagsDecoder.Decode(&val.flags)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLinkAttributes != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkAttributes != 0 { // Attributes is changed.
+
 		err = d.attributesDecoder.Decode(&val.attributes)
 		if err != nil {
 			return err
 		}
 	}
 
-	if val.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0 {
-		// Field is changed and is present, decode it.
+	if val.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
+
 		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
 		if err != nil {
 			return err

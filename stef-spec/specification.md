@@ -750,7 +750,10 @@ The array elements are encoded one by one in the child column using child elemen
 using the differential encoding applicable to the child element encoder, i.e. the
 array encoder will compare each element with the element of the previous root record 
 located at the same array index and encode only fields that are modified in the 
-current element compared to the previous element.
+current element compared to the previous element. For array elements that do not have
+a corresponding element in the previous record (i.e. the current array is longer than
+the previous array) the entire element is encoded with differential encoding from a "new"
+state of the element's type.
 
 If the root record schema declares a complex schema with nested arrays, structs, 
 oneofs, etc, the previous element with which the current element is compared is located by
