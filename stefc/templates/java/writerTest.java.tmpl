@@ -63,6 +63,7 @@ class {{.StructName}}WriterTest {
         // Choose a seed (non-pseudo) randomly. We will print the seed
         // on failure for easy reproduction.
         long seed1 = System.nanoTime();
+        seed1 = 1726451308442583L;
         Random random = new Random(seed1);
 
         for (int optIdx=0; optIdx < opts.size(); optIdx++) {
@@ -75,6 +76,9 @@ class {{.StructName}}WriterTest {
                 List<{{.StructName}}> records = gen{{.StructName}}Records(random);
                 // Write the records
                 for (int i = 0; i < records.size(); i++) {
+                    if (optIdx==6 & i==160) {
+                        i=i;
+                    }
                     writer.record.copyFrom(records.get(i));
                     writer.write();
                 }
@@ -83,6 +87,9 @@ class {{.StructName}}WriterTest {
                 // Read the records and compare to written.
                 {{.StructName}}Reader reader = new {{.StructName}}Reader(new ByteArrayInputStream(buf.getBytes()));
                 for (int i = 0; i < records.size(); i++) {
+                    if (optIdx==6 & i==160) {
+                        i=i;
+                    }
                     assertEquals(ReadResult.Success, reader.read(ReadOptions.none));
                     assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed1 + " optIdx " + optIdx);
                 }

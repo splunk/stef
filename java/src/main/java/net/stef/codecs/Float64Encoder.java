@@ -11,6 +11,7 @@ public class Float64Encoder {
     private double lastVal = 0.0;
     private int leadingBits = 0;
     private int trailingBits = 0;
+    private int count = 0;
 
     public void init(SizeLimiter limiter, WriteColumnSet columns) {
         this.limiter = limiter;
@@ -21,6 +22,9 @@ public class Float64Encoder {
     }
 
     public void encode(double val) {
+        count++;
+        System.out.printf("%f,\n",val);
+
         long xorVal = Double.doubleToRawLongBits(val) ^ Double.doubleToRawLongBits(lastVal);
         lastVal = val;
 

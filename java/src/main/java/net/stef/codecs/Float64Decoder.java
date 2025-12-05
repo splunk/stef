@@ -10,12 +10,14 @@ public class Float64Decoder {
     private double lastVal = 0.0;
     private long leadingBits = 0;
     private long trailingBits = 0;
+    private int count = 0;
 
     public void init(ReadColumnSet columns) {
         this.column = columns.getColumn();
     }
 
     public double decode() {
+        count++;
         long hdrBits = buf.peekBits(13);
         if ((hdrBits & Float64Constants.FLOAT64_NON_IDENTICAL_BIT) == 0) {
             buf.consume(1);
@@ -40,6 +42,7 @@ public class Float64Decoder {
             xorVal <<= trailing;
             lastVal = Double.longBitsToDouble(xorVal ^ Double.doubleToRawLongBits(lastVal));
         }
+        System.out.printf("%d=%f\n",count,lastVal);
         return lastVal;
     }
 
