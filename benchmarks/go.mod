@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/go-echarts/go-echarts/v2 v2.6.6
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/open-telemetry/otel-arrow/go v0.45.0
 	github.com/parquet-go/parquet-go v0.25.1
 	github.com/splunk/stef/go/otel v0.0.8
