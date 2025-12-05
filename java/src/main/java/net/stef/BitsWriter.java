@@ -58,7 +58,9 @@ public class BitsWriter {
     private void writeBitsSlow(long val, int nbits) {
         // Complete bitsBuf to 64 bits.
         int bitsBufFree = 64 - bitsBufUsed;
-        bitsBuf |= val >>> (nbits - bitsBufFree);
+        if (bitsBufFree>0) {
+            bitsBuf |= val >>> (nbits - bitsBufFree);
+        }
 
         // And append 64 bits to stream.
         writeUint64(bitsBuf);
