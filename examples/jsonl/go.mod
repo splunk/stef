@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/golang/protobuf v1.5.4
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/splunk/stef/go/pkg v0.0.8
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
