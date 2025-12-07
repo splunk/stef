@@ -12,7 +12,6 @@ import (
 // Config defines configuration for logging exporter.
 type Config struct {
 	Endpoint    string `mapstructure:"endpoint"`
-	ArrowPath   string `mapstructure:"arrow_path"`
 	Compression string `mapstructure:"compression"`
 }
 

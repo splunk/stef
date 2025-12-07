@@ -7,13 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/open-telemetry/otel-arrow/pkg/config"
-	"github.com/open-telemetry/otel-arrow/pkg/otel/arrow_record"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -33,9 +29,6 @@ type stefExporter struct {
 	logger *zap.Logger
 
 	cfg *Config
-
-	arrowFile     *os.File
-	arrowProducer *arrow_record.Producer
 
 	grpcConn     *grpc.ClientConn
 	writeMutex   sync.Mutex
@@ -75,14 +68,6 @@ func newStefExporter(logger *zap.Logger, cfg *Config) *stefExporter {
 }
 
 func (s *stefExporter) Start(ctx context.Context, host component.Host) error {
-	var err error
-	if s.cfg.ArrowPath != "" {
-		s.arrowFile, err = os.Create(s.cfg.ArrowPath)
-		if err != nil {
-			return err
-		}
-	}
-
 	compression := pkg.CompressionNone
 	if s.cfg.Compression == "zstd" {
 		compression = pkg.CompressionZstd
@@ -92,22 +77,11 @@ func (s *stefExporter) Start(ctx context.Context, host component.Host) error {
 		return err
 	}
 
-	var opts []config.Option
-	if s.cfg.Compression == "zstd" {
-		opts = append(opts, config.WithZstd())
-	} else {
-		opts = append(opts, config.WithNoZstd())
-	}
-	s.arrowProducer = arrow_record.NewProducerWithOptions(opts...)
-
 	return nil
 }
 
 func (s *stefExporter) Shutdown(ctx context.Context) error {
 	close(s.stopped)
-	if s.arrowFile != nil {
-		s.arrowFile.Close()
-	}
 	if s.grpcConn != nil {
 		return s.grpcConn.Close()
 	}
@@ -129,16 +103,6 @@ func (s *stefExporter) pushMetrics(_ context.Context, md pmetric.Metrics) error 
 
 	s.writeMutex.Lock()
 	defer s.writeMutex.Unlock()
-
-	if s.arrowFile != nil {
-		records, err := s.arrowProducer.BatchArrowRecordsFromMetrics(md)
-		if err != nil {
-			return err
-		}
-
-		arrowBytes, err := proto.Marshal(records)
-		_, err = s.arrowFile.Write(arrowBytes)
-	}
 
 	if s.remoteWriter != nil {
 		err := sorted.ToStef(s.remoteWriter)
