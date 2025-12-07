@@ -7,34 +7,34 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
 
 type BaseOtlpToStef struct {
-	TempAttrs oteltef.Attributes
+	TempAttrs otelstef.Attributes
 	Otlp2tef  otlptools.Otlp2Stef
 }
 
-func AggregationTemporalityToStef(flags pmetric.AggregationTemporality) oteltef.AggregationTemporality {
+func AggregationTemporalityToStef(flags pmetric.AggregationTemporality) otelstef.AggregationTemporality {
 	switch flags {
 	case pmetric.AggregationTemporalityDelta:
-		return oteltef.AggregationTemporalityDelta
+		return otelstef.AggregationTemporalityDelta
 	case pmetric.AggregationTemporalityCumulative:
-		return oteltef.AggregationTemporalityCumulative
+		return otelstef.AggregationTemporalityCumulative
 	case pmetric.AggregationTemporalityUnspecified:
-		return oteltef.AggregationTemporalityUnspecified
+		return otelstef.AggregationTemporalityUnspecified
 	default:
 		panic("unexpected aggregation temporality")
 	}
 }
 
-func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.NumberDataPoint) {
+func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *otelstef.Point, src pmetric.NumberDataPoint) {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
 	if src.Flags().NoRecordedValue() {
-		dst.Value().SetType(oteltef.PointValueTypeNone)
+		dst.Value().SetType(otelstef.PointValueTypeNone)
 		return
 	}
 
@@ -48,7 +48,7 @@ func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *oteltef.Point, src pmetric.Num
 	}
 }
 
-func (c *BaseOtlpToStef) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetric.ExemplarSlice) {
+func (c *BaseOtlpToStef) ConvertExemplars(dst *otelstef.ExemplarArray, src pmetric.ExemplarSlice) {
 	dst.EnsureLen(src.Len())
 
 	for i := 0; i < src.Len(); i++ {
@@ -71,22 +71,22 @@ func (c *BaseOtlpToStef) ConvertExemplars(dst *oteltef.ExemplarArray, src pmetri
 		case pmetric.ExemplarValueTypeDouble:
 			dstExemplar.Value().SetFloat64(srcExemplar.DoubleValue())
 		case pmetric.ExemplarValueTypeEmpty:
-			dstExemplar.Value().SetType(oteltef.ExemplarValueTypeNone)
+			dstExemplar.Value().SetType(otelstef.ExemplarValueTypeNone)
 		default:
 			panic("unknown Exemplar value type")
 		}
 	}
 }
 
-func (c *BaseOtlpToStef) ConvertHistogram(dst *oteltef.Point, src pmetric.HistogramDataPoint) error {
+func (c *BaseOtlpToStef) ConvertHistogram(dst *otelstef.Point, src pmetric.HistogramDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
 	dstVal := dst.Value()
-	dstVal.SetType(oteltef.PointValueTypeHistogram)
+	dstVal.SetType(otelstef.PointValueTypeHistogram)
 
 	if src.Flags().NoRecordedValue() {
-		dstVal.SetType(oteltef.PointValueTypeNone)
+		dstVal.SetType(otelstef.PointValueTypeNone)
 		return nil
 	}
 
@@ -121,15 +121,15 @@ func (c *BaseOtlpToStef) ConvertHistogram(dst *oteltef.Point, src pmetric.Histog
 	return nil
 }
 
-func (c *BaseOtlpToStef) ConvertExpHistogram(dst *oteltef.Point, src pmetric.ExponentialHistogramDataPoint) error {
+func (c *BaseOtlpToStef) ConvertExpHistogram(dst *otelstef.Point, src pmetric.ExponentialHistogramDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
 	dstVal := dst.Value()
-	dstVal.SetType(oteltef.PointValueTypeExpHistogram)
+	dstVal.SetType(otelstef.PointValueTypeExpHistogram)
 
 	if src.Flags().NoRecordedValue() {
-		dstVal.SetType(oteltef.PointValueTypeNone)
+		dstVal.SetType(otelstef.PointValueTypeNone)
 		return nil
 	}
 
@@ -162,12 +162,12 @@ func (c *BaseOtlpToStef) ConvertExpHistogram(dst *oteltef.Point, src pmetric.Exp
 	return nil
 }
 
-func (c *BaseOtlpToStef) ConvertSummary(dst *oteltef.Point, src pmetric.SummaryDataPoint) error {
+func (c *BaseOtlpToStef) ConvertSummary(dst *otelstef.Point, src pmetric.SummaryDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
 	dstVal := dst.Value()
-	dstVal.SetType(oteltef.PointValueTypeSummary)
+	dstVal.SetType(otelstef.PointValueTypeSummary)
 	dstSummary := dstVal.Summary()
 	dstSummary.SetCount(src.Count())
 	dstSummary.SetSum(src.Sum())
@@ -187,7 +187,7 @@ func (c *BaseOtlpToStef) ConvertSummary(dst *oteltef.Point, src pmetric.SummaryD
 }
 
 func expBucketsToStef(
-	dst *oteltef.ExpHistogramBuckets, src pmetric.ExponentialHistogramDataPointBuckets,
+	dst *otelstef.ExpHistogramBuckets, src pmetric.ExponentialHistogramDataPointBuckets,
 ) {
 	dst.SetOffset(int64(src.Offset()))
 	dst.BucketCounts().CopyFromSlice(src.BucketCounts().AsRaw())

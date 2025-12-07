@@ -22,7 +22,7 @@ import (
 
 	stefgrpc "github.com/splunk/stef/go/grpc"
 	"github.com/splunk/stef/go/grpc/stef_proto"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	stefpdatametrics "github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/otelcol/internal/stefreceiver/internal"
 )
@@ -66,7 +66,7 @@ func (r *stefReceiver) startGRPCServer(host component.Host) error {
 		return err
 	}
 
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	if err != nil {
 		log.Fatalf("Failed to load schema: %v", err)
 	}
@@ -114,7 +114,7 @@ func (r *stefReceiver) Shutdown(ctx context.Context) error {
 func (r *stefReceiver) onStream(grpcReader stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
 	r.settings.Logger.Info("Incoming STEF/gRPC connection.")
 
-	reader, err := oteltef.NewMetricsReader(grpcReader)
+	reader, err := otelstef.NewMetricsReader(grpcReader)
 	if err != nil {
 		r.settings.Logger.Error("Cannot decode data on incoming STEF/gRPC connection", zap.Error(err))
 		return err

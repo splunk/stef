@@ -8,7 +8,7 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -43,7 +43,7 @@ func TestConvertFromOTLP(t *testing.T) {
 	require.NoError(t, err)
 
 	outputBuf := &pkg.MemChunkWriter{}
-	writer, err := oteltef.NewMetricsWriter(outputBuf, pkg.WriterOptions{})
+	writer, err := otelstef.NewMetricsWriter(outputBuf, pkg.WriterOptions{})
 	require.NoError(t, err)
 
 	err = sorted.ToStef(writer)

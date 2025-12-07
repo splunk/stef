@@ -4,23 +4,23 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
 
 type BaseSTEFToOTLP struct {
 }
 
-func (s *BaseSTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.NumberDataPoint) error {
+func (s *BaseSTEFToOTLP) convertNumberPoint(src *otelstef.Point, dst pmetric.NumberDataPoint) error {
 	dst.SetStartTimestamp(pcommon.Timestamp(src.StartTimestamp()))
 	dst.SetTimestamp(pcommon.Timestamp(src.Timestamp()))
 
 	switch src.Value().Type() {
-	case oteltef.PointValueTypeInt64:
+	case otelstef.PointValueTypeInt64:
 		dst.SetIntValue(src.Value().Int64())
-	case oteltef.PointValueTypeFloat64:
+	case otelstef.PointValueTypeFloat64:
 		dst.SetDoubleValue(src.Value().Float64())
-	case oteltef.PointValueTypeNone:
+	case otelstef.PointValueTypeNone:
 		dst.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
 		return nil
 	default:
@@ -36,14 +36,14 @@ func (s *BaseSTEFToOTLP) convertNumberPoint(src *oteltef.Point, dst pmetric.Numb
 	return nil
 }
 
-func (c *BaseSTEFToOTLP) ConvertExemplar(src *oteltef.Exemplar, dst pmetric.Exemplar) error {
+func (c *BaseSTEFToOTLP) ConvertExemplar(src *otelstef.Exemplar, dst pmetric.Exemplar) error {
 	dst.SetTimestamp(pcommon.Timestamp(src.Timestamp()))
 	switch src.Value().Type() {
-	case oteltef.ExemplarValueTypeInt64:
+	case otelstef.ExemplarValueTypeInt64:
 		dst.SetIntValue(src.Value().Int64())
-	case oteltef.ExemplarValueTypeFloat64:
+	case otelstef.ExemplarValueTypeFloat64:
 		dst.SetDoubleValue(src.Value().Float64())
-	case oteltef.ExemplarValueTypeNone:
+	case otelstef.ExemplarValueTypeNone:
 	default:
 		panic("unknown exemplar value type")
 	}
@@ -60,7 +60,7 @@ func (c *BaseSTEFToOTLP) ConvertExemplar(src *oteltef.Exemplar, dst pmetric.Exem
 }
 
 func (s *BaseSTEFToOTLP) AppendOTLPPoint(
-	srcMetric *oteltef.Metric, srcAttrs *oteltef.Attributes, srcPoint *oteltef.Point, dstMetric pmetric.Metric,
+	srcMetric *otelstef.Metric, srcAttrs *otelstef.Attributes, srcPoint *otelstef.Point, dstMetric pmetric.Metric,
 ) error {
 	otlpAttrs := pcommon.NewMap()
 	err := otlptools.TefToOtlpMap(srcAttrs, otlpAttrs)
@@ -110,13 +110,13 @@ func (s *BaseSTEFToOTLP) AppendOTLPPoint(
 	return nil
 }
 
-func aggregationTemporalityToOtlp(temp oteltef.AggregationTemporality) pmetric.AggregationTemporality {
+func aggregationTemporalityToOtlp(temp otelstef.AggregationTemporality) pmetric.AggregationTemporality {
 	switch temp {
-	case oteltef.AggregationTemporalityDelta:
+	case otelstef.AggregationTemporalityDelta:
 		return pmetric.AggregationTemporalityDelta
-	case oteltef.AggregationTemporalityCumulative:
+	case otelstef.AggregationTemporalityCumulative:
 		return pmetric.AggregationTemporalityCumulative
-	case oteltef.AggregationTemporalityUnspecified:
+	case otelstef.AggregationTemporalityUnspecified:
 		return pmetric.AggregationTemporalityUnspecified
 	default:
 		panic("unexpected aggregation temporality")
@@ -124,12 +124,12 @@ func aggregationTemporalityToOtlp(temp oteltef.AggregationTemporality) pmetric.A
 }
 
 func (c *BaseSTEFToOTLP) convertHistogramPoint(
-	srcMetric *oteltef.Metric, srcPoint *oteltef.Point, dstPoint pmetric.HistogramDataPoint,
+	srcMetric *otelstef.Metric, srcPoint *otelstef.Point, dstPoint pmetric.HistogramDataPoint,
 ) error {
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
 	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
 
-	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+	if srcPoint.Value().Type() == otelstef.PointValueTypeNone {
 		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
 		return nil
 	}
@@ -168,13 +168,13 @@ func (c *BaseSTEFToOTLP) convertHistogramPoint(
 }
 
 func (c *BaseSTEFToOTLP) convertExpHistogramPoint(
-	srcPoint *oteltef.Point, dstPoint pmetric.ExponentialHistogramDataPoint,
+	srcPoint *otelstef.Point, dstPoint pmetric.ExponentialHistogramDataPoint,
 ) error {
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
 	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
 	dstPoint.SetCount(srcPoint.Value().ExpHistogram().Count())
 
-	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+	if srcPoint.Value().Type() == otelstef.PointValueTypeNone {
 		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
 		return nil
 	}
@@ -208,7 +208,7 @@ func (c *BaseSTEFToOTLP) convertExpHistogramPoint(
 }
 
 func expBucketsFromStef(
-	dst pmetric.ExponentialHistogramDataPointBuckets, src *oteltef.ExpHistogramBuckets,
+	dst pmetric.ExponentialHistogramDataPointBuckets, src *otelstef.ExpHistogramBuckets,
 ) {
 	dst.SetOffset(int32(src.Offset()))
 	dst.BucketCounts().EnsureCapacity(src.BucketCounts().Len())
@@ -218,12 +218,12 @@ func expBucketsFromStef(
 }
 
 func (c *BaseSTEFToOTLP) convertSumaryPoint(
-	srcPoint *oteltef.Point, dstPoint pmetric.SummaryDataPoint,
+	srcPoint *otelstef.Point, dstPoint pmetric.SummaryDataPoint,
 ) error {
 	dstPoint.SetStartTimestamp(pcommon.Timestamp(srcPoint.StartTimestamp()))
 	dstPoint.SetTimestamp(pcommon.Timestamp(srcPoint.Timestamp()))
 
-	if srcPoint.Value().Type() == oteltef.PointValueTypeNone {
+	if srcPoint.Value().Type() == otelstef.PointValueTypeNone {
 		dstPoint.SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
 		return nil
 	}
@@ -236,7 +236,7 @@ func (c *BaseSTEFToOTLP) convertSumaryPoint(
 	return nil
 }
 
-func quantilesFromStef(dst pmetric.SummaryDataPointValueAtQuantileSlice, src *oteltef.QuantileValueArray) {
+func quantilesFromStef(dst pmetric.SummaryDataPointValueAtQuantileSlice, src *otelstef.QuantileValueArray) {
 	dst.EnsureCapacity(src.Len())
 	for i := 0; i < src.Len(); i++ {
 		dstQ := dst.AppendEmpty()
