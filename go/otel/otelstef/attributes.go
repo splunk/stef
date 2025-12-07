@@ -182,7 +182,7 @@ func copyAttributes(dst *Attributes, src *Attributes) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 
-		if !AnyValueEqual(&dst.elems[i].value, &src.elems[i].value) {
+		if !dst.elems[i].value.IsEqual(&src.elems[i].value) {
 			copyAnyValue(&dst.elems[i].value, &src.elems[i].value)
 		}
 	}
@@ -220,10 +220,6 @@ func (e *Attributes) IsEqual(val *Attributes) bool {
 		}
 	}
 	return true
-}
-
-func AttributesEqual(left, right *Attributes) bool {
-	return left.IsEqual(right)
 }
 
 func CmpAttributes(left, right *Attributes) int {

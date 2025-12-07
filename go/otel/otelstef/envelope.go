@@ -74,13 +74,6 @@ func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Envelope) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Envelope) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -130,9 +123,9 @@ func (s *Envelope) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Envelope) CloneShared(allocators *Allocators) Envelope {
+func (s *Envelope) cloneShared(allocators *Allocators) Envelope {
 	return s.Clone(allocators)
 }
 
@@ -195,10 +188,6 @@ func (s *Envelope) IsEqual(right *Envelope) bool {
 	}
 
 	return true
-}
-
-func EnvelopeEqual(left, right *Envelope) bool {
-	return left.IsEqual(right)
 }
 
 // CmpEnvelope performs deep comparison and returns an integer that

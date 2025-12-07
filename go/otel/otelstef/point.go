@@ -86,13 +86,6 @@ func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
 	s.exemplars.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Point) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Point) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -228,9 +221,9 @@ func (s *Point) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Point) CloneShared(allocators *Allocators) Point {
+func (s *Point) cloneShared(allocators *Allocators) Point {
 	return s.Clone(allocators)
 }
 
@@ -336,10 +329,6 @@ func (s *Point) IsEqual(right *Point) bool {
 	}
 
 	return true
-}
-
-func PointEqual(left, right *Point) bool {
-	return left.IsEqual(right)
 }
 
 // CmpPoint performs deep comparison and returns an integer that

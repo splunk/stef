@@ -83,13 +83,6 @@ func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Event) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Event) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -229,9 +222,9 @@ func (s *Event) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Event) CloneShared(allocators *Allocators) Event {
+func (s *Event) cloneShared(allocators *Allocators) Event {
 	return s.Clone(allocators)
 }
 
@@ -337,10 +330,6 @@ func (s *Event) IsEqual(right *Event) bool {
 	}
 
 	return true
-}
-
-func EventEqual(left, right *Event) bool {
-	return left.IsEqual(right)
 }
 
 // CmpEvent performs deep comparison and returns an integer that

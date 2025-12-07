@@ -208,8 +208,8 @@ func (s *AnyValue) canBeShared() bool {
 	return false
 }
 
-func (s *AnyValue) CloneShared(allocators *Allocators) *AnyValue {
-	// Oneof is not shareable, so CloneShared is just a Clone.
+func (s *AnyValue) cloneShared(allocators *Allocators) *AnyValue {
+	// Oneof is not shareable, so cloneShared is just a Clone.
 	return s.Clone(allocators)
 }
 
@@ -394,10 +394,6 @@ func (e *AnyValue) IsEqual(val *AnyValue) bool {
 	}
 
 	return true
-}
-
-func AnyValueEqual(left, right *AnyValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpAnyValue performs deep comparison and returns an integer that

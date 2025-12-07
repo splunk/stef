@@ -77,13 +77,6 @@ func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *ExpHistogramBuckets) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *ExpHistogramBuckets) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -163,9 +156,9 @@ func (s *ExpHistogramBuckets) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *ExpHistogramBuckets) CloneShared(allocators *Allocators) ExpHistogramBuckets {
+func (s *ExpHistogramBuckets) cloneShared(allocators *Allocators) ExpHistogramBuckets {
 	return s.Clone(allocators)
 }
 
@@ -243,10 +236,6 @@ func (s *ExpHistogramBuckets) IsEqual(right *ExpHistogramBuckets) bool {
 	}
 
 	return true
-}
-
-func ExpHistogramBucketsEqual(left, right *ExpHistogramBuckets) bool {
-	return left.IsEqual(right)
 }
 
 // CmpExpHistogramBuckets performs deep comparison and returns an integer that

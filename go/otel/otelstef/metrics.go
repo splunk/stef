@@ -110,13 +110,6 @@ func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
 	s.point.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Metrics) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Metrics) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -353,17 +346,17 @@ func (s *Metrics) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Metrics) CloneShared(allocators *Allocators) Metrics {
+func (s *Metrics) cloneShared(allocators *Allocators) Metrics {
 	return s.Clone(allocators)
 }
 
 func (s *Metrics) Clone(allocators *Allocators) Metrics {
 	c := Metrics{
-		metric:   s.metric.CloneShared(allocators),
-		resource: s.resource.CloneShared(allocators),
-		scope:    s.scope.CloneShared(allocators),
+		metric:   s.metric.cloneShared(allocators),
+		resource: s.resource.cloneShared(allocators),
+		scope:    s.scope.cloneShared(allocators),
 	}
 	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
 	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
@@ -598,10 +591,6 @@ func (s *Metrics) IsEqual(right *Metrics) bool {
 	}
 
 	return true
-}
-
-func MetricsEqual(left, right *Metrics) bool {
-	return left.IsEqual(right)
 }
 
 // CmpMetrics performs deep comparison and returns an integer that

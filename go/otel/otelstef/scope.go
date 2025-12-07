@@ -274,9 +274,9 @@ func (s *Scope) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Scope) CloneShared(allocators *Allocators) *Scope {
+func (s *Scope) cloneShared(allocators *Allocators) *Scope {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -401,10 +401,6 @@ func (s *Scope) IsEqual(right *Scope) bool {
 	}
 
 	return true
-}
-
-func ScopeEqual(left, right *Scope) bool {
-	return left.IsEqual(right)
 }
 
 // CmpScope performs deep comparison and returns an integer that

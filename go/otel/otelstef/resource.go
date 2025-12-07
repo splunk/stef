@@ -208,9 +208,9 @@ func (s *Resource) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Resource) CloneShared(allocators *Allocators) *Resource {
+func (s *Resource) cloneShared(allocators *Allocators) *Resource {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -307,10 +307,6 @@ func (s *Resource) IsEqual(right *Resource) bool {
 	}
 
 	return true
-}
-
-func ResourceEqual(left, right *Resource) bool {
-	return left.IsEqual(right)
 }
 
 // CmpResource performs deep comparison and returns an integer that

@@ -174,8 +174,8 @@ func (s *JsonValue) canBeShared() bool {
 	return false
 }
 
-func (s *JsonValue) CloneShared(allocators *Allocators) *JsonValue {
-	// Oneof is not shareable, so CloneShared is just a Clone.
+func (s *JsonValue) cloneShared(allocators *Allocators) *JsonValue {
+	// Oneof is not shareable, so cloneShared is just a Clone.
 	return s.Clone(allocators)
 }
 
@@ -334,10 +334,6 @@ func (e *JsonValue) IsEqual(val *JsonValue) bool {
 	}
 
 	return true
-}
-
-func JsonValueEqual(left, right *JsonValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpJsonValue performs deep comparison and returns an integer that
