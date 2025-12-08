@@ -84,12 +84,12 @@ class BitsWriterTest {
         final long seed1 = System.nanoTime();
         Random random = new Random(seed1);
 
-        final long count = random.nextLong(0, 1000);
+        final long count = random.nextLong(0, 1000000);
 
         for (long i = 1; i <= count; i++) {
             int shift = random.nextInt(64);
-            long v = (random.nextLong()& Long.MAX_VALUE) >>> shift;
-            int bitCount = (v == 0) ? 0 : (int) (Math.floor(Math.log(  v) / Math.log(2)) + 1);
+            long v = (random.nextLong()) >>> shift;
+            int bitCount = 64-Long.numberOfLeadingZeros(v);
             bw.writeBits(v, bitCount);
         }
         bw.close();
@@ -98,12 +98,12 @@ class BitsWriterTest {
         br.reset(bw.toBytes());
 
         random = new Random(seed1);
-        random.nextLong(0, 1000); // ignore, make sure we start reading from the same point
+        random.nextLong(0, 1000000); // ignore, make sure we start reading from the same point
 
         for (long i = 1; i <= count; i++) {
             int shift = random.nextInt(64);
-            long v = (random.nextLong()& Long.MAX_VALUE) >>> shift;
-            int bitCount = (v == 0) ? 0 : (int) (Math.floor(Math.log(v) / Math.log(2)) + 1);
+            long v = (random.nextLong()) >>> shift;
+            int bitCount = 64-Long.numberOfLeadingZeros(v);
             long val = br.readBits(bitCount);
             assertEquals(v, val, "Mismatch at index " + i + " with seed " + seed1);
         }
