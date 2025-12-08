@@ -87,6 +87,7 @@ func (s *HistogramValue) reset() {
 	s.min = 0.0
 	s.max = 0.0
 	s.bucketCounts.reset()
+	s.optionalFieldsPresent = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
