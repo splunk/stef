@@ -7,9 +7,9 @@ require (
 	github.com/klauspost/compress v1.18.2
 	github.com/open-telemetry/otel-arrow/go v0.45.0
 	github.com/parquet-go/parquet-go v0.26.0
-	github.com/splunk/stef/go/otel v0.0.8
+	github.com/splunk/stef/go/otel v0.0.9
 	github.com/splunk/stef/go/pdata v0.0.0
-	github.com/splunk/stef/go/pkg v0.0.8
+	github.com/splunk/stef/go/pkg v0.0.9
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.47.0
 	golang.org/x/text v0.31.0
