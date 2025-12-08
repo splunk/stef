@@ -8,10 +8,10 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
-//func Map(m pcommon.Map, encoder *anyvalue.Encoder, out *oteltef.Attributes) {
+//func Map(m pcommon.Map, encoder *anyvalue.Encoder, out *otelstef.Attributes) {
 //	out.EnsureLen(m.Len())
 //	i := 0
 //	m.Range(
@@ -35,19 +35,19 @@ type Otlp2Stef struct {
 	attrElems []elem
 }
 
-func (o *Otlp2Stef) ResourceSorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
+func (o *Otlp2Stef) ResourceSorted(dst *otelstef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapSorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Stef) ResourceUnsorted(dst *oteltef.Resource, src pcommon.Resource, schemaUrl string) {
+func (o *Otlp2Stef) ResourceUnsorted(dst *otelstef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapUnsorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Stef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
+func (o *Otlp2Stef) ScopeSorted(dst *otelstef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
@@ -55,7 +55,7 @@ func (o *Otlp2Stef) ScopeSorted(dst *oteltef.Scope, src pcommon.InstrumentationS
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Stef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
+func (o *Otlp2Stef) ScopeUnsorted(dst *otelstef.Scope, src pcommon.InstrumentationScope, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	dst.SetName(src.Name())
 	dst.SetVersion(src.Version())
@@ -63,7 +63,7 @@ func (o *Otlp2Stef) ScopeUnsorted(dst *oteltef.Scope, src pcommon.Instrumentatio
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 }
 
-func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {
+func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *otelstef.Attributes) {
 	o.attrElems = pkg.EnsureLen(o.attrElems, m.Len())
 	i := 0
 	m.Range(
@@ -87,7 +87,7 @@ func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *oteltef.Attributes) {
 	}
 }
 
-func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *oteltef.Attributes) {
+func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *otelstef.Attributes) {
 	out.EnsureLen(m.Len())
 	i := 0
 	m.Range(
@@ -100,10 +100,10 @@ func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *oteltef.Attributes) {
 	)
 }
 
-func otlpValueToTefAnyValue(val pcommon.Value, into *oteltef.AnyValue) {
+func otlpValueToTefAnyValue(val pcommon.Value, into *otelstef.AnyValue) {
 	switch val.Type() {
 	case pcommon.ValueTypeEmpty:
-		into.SetType(oteltef.AnyValueTypeNone)
+		into.SetType(otelstef.AnyValueTypeNone)
 
 	case pcommon.ValueTypeStr:
 		into.SetString(val.Str())
@@ -121,7 +121,7 @@ func otlpValueToTefAnyValue(val pcommon.Value, into *oteltef.AnyValue) {
 		into.SetBytes(pkg.Bytes(val.Bytes().AsRaw()))
 
 	case pcommon.ValueTypeSlice:
-		into.SetType(oteltef.AnyValueTypeArray)
+		into.SetType(otelstef.AnyValueTypeArray)
 		arr := into.Array()
 		arr.EnsureLen(val.Slice().Len())
 
@@ -130,7 +130,7 @@ func otlpValueToTefAnyValue(val pcommon.Value, into *oteltef.AnyValue) {
 		}
 
 	case pcommon.ValueTypeMap:
-		into.SetType(oteltef.AnyValueTypeKVList)
+		into.SetType(otelstef.AnyValueTypeKVList)
 		kvList := into.KVList()
 		kvList.EnsureLen(val.Map().Len())
 

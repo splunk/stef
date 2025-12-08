@@ -19,7 +19,7 @@ import (
 	stefgrpc "github.com/splunk/stef/go/grpc"
 	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 
 	"github.com/splunk/stef/go/grpc/stef_proto"
 )
@@ -38,7 +38,7 @@ func newGrpcServer() (*grpc.Server, net.Listener, int) {
 func TestGrpcWriteRead(t *testing.T) {
 	grpcServer, listener, serverPort := newGrpcServer()
 
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	require.NoError(t, err)
 
 	recordsReceivedAndVerified := make(chan struct{})
@@ -46,7 +46,7 @@ func TestGrpcWriteRead(t *testing.T) {
 		ServerSchema: &schema,
 		Callbacks: stefgrpc.Callbacks{
 			OnStream: func(source stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
-				reader, err := oteltef.NewMetricsReader(source)
+				reader, err := otelstef.NewMetricsReader(source)
 				require.NoError(t, err)
 
 				// Read and verify that received records match what was sent.
@@ -99,7 +99,7 @@ func TestGrpcWriteRead(t *testing.T) {
 
 	clientSettings := stefgrpc.ClientSettings{
 		GrpcClient:   grpcClient,
-		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
+		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: otelstef.MetricsStructName},
 		Callbacks:    callbacks,
 	}
 	client, err := stefgrpc.NewClient(clientSettings)
@@ -111,7 +111,7 @@ func TestGrpcWriteRead(t *testing.T) {
 	opts.Compression = pkg.CompressionZstd
 
 	// Create record writer.
-	writer, err := oteltef.NewMetricsWriter(w, opts)
+	writer, err := otelstef.NewMetricsWriter(w, opts)
 	require.NoError(t, err)
 
 	// Write the records.
@@ -158,7 +158,7 @@ func TestDictReset(t *testing.T) {
 	grpcServer, listener, serverPort := newGrpcServer()
 	defer grpcServer.Stop()
 
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	require.NoError(t, err)
 
 	const nameLen = 1000
@@ -180,7 +180,7 @@ func TestDictReset(t *testing.T) {
 		ServerSchema: &schema,
 		Callbacks: stefgrpc.Callbacks{
 			OnStream: func(source stefgrpc.GrpcReader, stream stefgrpc.STEFStream) error {
-				reader, err := oteltef.NewMetricsReader(source)
+				reader, err := otelstef.NewMetricsReader(source)
 				require.NoError(t, err)
 
 				// Read and verify that received records match what was sent.
@@ -236,7 +236,7 @@ func TestDictReset(t *testing.T) {
 
 	clientSettings := stefgrpc.ClientSettings{
 		GrpcClient:   grpcClient,
-		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
+		ClientSchema: stefgrpc.ClientSchema{WireSchema: &schema, RootStructName: otelstef.MetricsStructName},
 		Callbacks:    callbacks,
 	}
 	client, err := stefgrpc.NewClient(clientSettings)
@@ -248,7 +248,7 @@ func TestDictReset(t *testing.T) {
 	opts.Compression = pkg.CompressionZstd
 
 	// Create record writer.
-	writer, err := oteltef.NewMetricsWriter(w, opts)
+	writer, err := otelstef.NewMetricsWriter(w, opts)
 	require.NoError(t, err)
 
 	// Write the records.
@@ -281,7 +281,7 @@ func TestDictReset(t *testing.T) {
 }
 
 func TestGrpcClientError(t *testing.T) {
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	require.NoError(t, err)
 
 	clientSettings := stefgrpc.ClientSettings{
@@ -293,7 +293,7 @@ func TestGrpcClientError(t *testing.T) {
 
 	clientSettings = stefgrpc.ClientSettings{
 		GrpcClient:   nil,
-		ClientSchema: stefgrpc.ClientSchema{RootStructName: oteltef.MetricsStructName},
+		ClientSchema: stefgrpc.ClientSchema{RootStructName: otelstef.MetricsStructName},
 	}
 	_, err = stefgrpc.NewClient(clientSettings)
 	require.Error(t, err)

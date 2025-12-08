@@ -12,7 +12,7 @@ import (
 
 	tefgrpc "github.com/splunk/stef/go/grpc"
 	"github.com/splunk/stef/go/grpc/stef_proto"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pkg"
 )
 
@@ -34,7 +34,7 @@ type mockMetricDestServer struct {
 func onStream(grpcReader tefgrpc.GrpcReader, stream tefgrpc.STEFStream) error {
 	log.Printf("Incoming STEF/gRPC connection.\n")
 
-	reader, err := oteltef.NewMetricsReader(grpcReader)
+	reader, err := otelstef.NewMetricsReader(grpcReader)
 	if err != nil {
 		log.Printf("Cannot decode data on incoming STEF/gRPC connection: %v.\n", err)
 		return err
@@ -98,7 +98,7 @@ func main() {
 	grpcServer, listener, serverPort := newGrpcServer(ListenPort)
 	log.Printf("Listening for STEF/gRPC on port %d\n", serverPort)
 
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	if err != nil {
 		log.Fatalf("Failed to load schema: %v", err)
 	}

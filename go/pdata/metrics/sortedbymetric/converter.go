@@ -5,7 +5,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 )
@@ -21,13 +21,13 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
-		resource := oteltef.NewResource()
+		resource := otelstef.NewResource()
 		c.Otlp2tef.ResourceSorted(resource, rm.Resource(), rm.SchemaUrl())
 		resource.Freeze()
 
 		for j := 0; j < rm.ScopeMetrics().Len(); j++ {
 			sms := rm.ScopeMetrics().At(j)
-			scope := oteltef.NewScope()
+			scope := otelstef.NewScope()
 			c.Otlp2tef.ScopeSorted(scope, sms.Scope(), sms.SchemaUrl())
 			scope.Freeze()
 
@@ -81,17 +81,17 @@ func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality)
 
 func (c *converter) covertNumberDataPoints(
 	sm *SortedTree,
-	rm *oteltef.Resource,
-	sms *oteltef.Scope,
+	rm *otelstef.Resource,
+	sms *otelstef.Scope,
 	metric pmetric.Metric,
 	srcPoints pmetric.NumberDataPointSlice,
 	flags internal.MetricFlags,
 ) {
-	var metricType oteltef.MetricType
+	var metricType otelstef.MetricType
 	var byMetric *ByMetric
 	var byScope *ByScope
 
-	dstPointSlice := make([]oteltef.Point, srcPoints.Len())
+	dstPointSlice := make([]otelstef.Point, srcPoints.Len())
 
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
@@ -123,12 +123,12 @@ func (c *converter) covertNumberDataPoints(
 	}
 }
 
-func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
+func calcNumericMetricType(metric pmetric.Metric) otelstef.MetricType {
 	switch metric.Type() {
 	case pmetric.MetricTypeGauge:
-		return oteltef.MetricTypeGauge
+		return otelstef.MetricTypeGauge
 	case pmetric.MetricTypeSum:
-		return oteltef.MetricTypeSum
+		return otelstef.MetricTypeSum
 	default:
 		panic("Unsupported metric type")
 	}
@@ -137,8 +137,8 @@ func calcNumericMetricType(metric pmetric.Metric) oteltef.MetricType {
 
 func (c *converter) covertHistogramDataPoints(
 	sm *SortedTree,
-	rm *oteltef.Resource,
-	sms *oteltef.Scope,
+	rm *otelstef.Resource,
+	sms *otelstef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.Histogram,
 ) error {
@@ -150,14 +150,14 @@ func (c *converter) covertHistogramDataPoints(
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
 
-		byMetric = sm.ByMetric(metric, oteltef.MetricTypeHistogram, flags, srcPoint.ExplicitBounds().AsRaw())
+		byMetric = sm.ByMetric(metric, otelstef.MetricTypeHistogram, flags, srcPoint.ExplicitBounds().AsRaw())
 		byResource := byMetric.ByResource(rm)
 		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := otelstef.NewPoint()
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
@@ -172,8 +172,8 @@ func (c *converter) covertHistogramDataPoints(
 
 func (c *converter) covertExponentialHistogramDataPoints(
 	sm *SortedTree,
-	rm *oteltef.Resource,
-	sms *oteltef.Scope,
+	rm *otelstef.Resource,
+	sms *otelstef.Scope,
 	metric pmetric.Metric,
 	hist pmetric.ExponentialHistogram,
 ) error {
@@ -185,14 +185,14 @@ func (c *converter) covertExponentialHistogramDataPoints(
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
 
-		byMetric = sm.ByMetric(metric, oteltef.MetricTypeExpHistogram, flags, nil)
+		byMetric = sm.ByMetric(metric, otelstef.MetricTypeExpHistogram, flags, nil)
 		byResource := byMetric.ByResource(rm)
 		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := otelstef.NewPoint()
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
@@ -207,8 +207,8 @@ func (c *converter) covertExponentialHistogramDataPoints(
 
 func (c *converter) covertSummaryDataPoints(
 	sm *SortedTree,
-	rm *oteltef.Resource,
-	sms *oteltef.Scope,
+	rm *otelstef.Resource,
+	sms *otelstef.Scope,
 	metric pmetric.Metric,
 	summary pmetric.Summary,
 ) error {
@@ -220,12 +220,12 @@ func (c *converter) covertSummaryDataPoints(
 	for l := 0; l < srcPoints.Len(); l++ {
 		srcPoint := srcPoints.At(l)
 
-		byMetric = sm.ByMetric(metric, oteltef.MetricTypeSummary, flags, nil)
+		byMetric = sm.ByMetric(metric, otelstef.MetricTypeSummary, flags, nil)
 		byResource := byMetric.ByResource(rm)
 		byScope = byResource.ByScope(sms)
 		c.Otlp2tef.MapSorted(srcPoint.Attributes(), &c.TempAttrs)
 		dstPoints := byScope.ByAttrs(&c.TempAttrs)
-		dstPoint := oteltef.NewPoint()
+		dstPoint := otelstef.NewPoint()
 		*dstPoints = append(*dstPoints, dstPoint)
 
 		dstPoint.SetTimestamp(uint64(srcPoint.Timestamp()))

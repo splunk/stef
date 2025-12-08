@@ -3,10 +3,10 @@ package otlptools
 import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
-func ResourceToOtlp(resource *oteltef.Resource, out pmetric.ResourceMetrics) error {
+func ResourceToOtlp(resource *otelstef.Resource, out pmetric.ResourceMetrics) error {
 	if resource == nil {
 		return nil
 	}
@@ -20,7 +20,7 @@ func ResourceToOtlp(resource *oteltef.Resource, out pmetric.ResourceMetrics) err
 	return nil
 }
 
-func ScopeToOtlp(scope *oteltef.Scope, out pmetric.ScopeMetrics) error {
+func ScopeToOtlp(scope *otelstef.Scope, out pmetric.ScopeMetrics) error {
 	if scope == nil {
 		return nil
 	}
@@ -36,7 +36,7 @@ func ScopeToOtlp(scope *oteltef.Scope, out pmetric.ScopeMetrics) error {
 	return nil
 }
 
-func MetricToOtlp(metric *oteltef.Metric, out pmetric.Metric) error {
+func MetricToOtlp(metric *otelstef.Metric, out pmetric.Metric) error {
 	if metric == nil {
 		return nil
 	}
@@ -50,16 +50,16 @@ func MetricToOtlp(metric *oteltef.Metric, out pmetric.Metric) error {
 		return err
 	}
 
-	switch oteltef.MetricType(metric.Type()) {
-	case oteltef.MetricTypeGauge:
+	switch otelstef.MetricType(metric.Type()) {
+	case otelstef.MetricTypeGauge:
 		out.SetEmptyGauge()
-	case oteltef.MetricTypeSum:
+	case otelstef.MetricTypeSum:
 		out.SetEmptySum()
-	case oteltef.MetricTypeHistogram:
+	case otelstef.MetricTypeHistogram:
 		out.SetEmptyHistogram()
-	case oteltef.MetricTypeExpHistogram:
+	case otelstef.MetricTypeExpHistogram:
 		out.SetEmptyExponentialHistogram()
-	case oteltef.MetricTypeSummary:
+	case otelstef.MetricTypeSummary:
 		out.SetEmptySummary()
 	default:
 		panic("not implemented")

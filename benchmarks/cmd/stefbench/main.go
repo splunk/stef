@@ -13,7 +13,7 @@ import (
 	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/benchmarks/cmd"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
 var InputPath = ""
@@ -36,12 +36,12 @@ func main() {
 	stefBench(InputPath)
 }
 
-func openStef(inputFilePath string) (*oteltef.MetricsReader, func()) {
+func openStef(inputFilePath string) (*otelstef.MetricsReader, func()) {
 	inputFile, err := os.Open(inputFilePath)
 	if err != nil {
 		log.Fatalf("Cannot read file %s: %v", inputFilePath, err)
 	}
-	reader, err := oteltef.NewMetricsReader(bufio.NewReaderSize(inputFile, 64*1024))
+	reader, err := otelstef.NewMetricsReader(bufio.NewReaderSize(inputFile, 64*1024))
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", inputFilePath, err)
 	}
@@ -90,7 +90,7 @@ func writeBench(inputFilePath string) {
 	defer outputFile.Close()
 
 	outputBuf := &pkg.MemChunkWriter{}
-	writer, err := oteltef.NewMetricsWriter(
+	writer, err := otelstef.NewMetricsWriter(
 		outputBuf, pkg.WriterOptions{
 			Compression: reader.Header().Compression,
 		},
@@ -169,8 +169,8 @@ func writeBench(inputFilePath string) {
 
 		var err2 error
 		for {
-			var record *oteltef.Metrics
-			var record2 *oteltef.Metrics
+			var record *otelstef.Metrics
+			var record2 *otelstef.Metrics
 			record, err = reader.Read()
 			record2, err2 = reader2.Read()
 			if err == io.EOF {

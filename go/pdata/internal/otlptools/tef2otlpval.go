@@ -5,10 +5,10 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
-//func TefToOtlpMap(in *oteltef.Attributes, out pcommon.Map) error {
+//func TefToOtlpMap(in *otelstef.Attributes, out pcommon.Map) error {
 //	out.EnsureCapacity(in.Len())
 //
 //	decoder := anyvalue.Decoder{}
@@ -24,7 +24,7 @@ import (
 //	return nil
 //}
 
-func TefToOtlpMap(in *oteltef.Attributes, out pcommon.Map) error {
+func TefToOtlpMap(in *otelstef.Attributes, out pcommon.Map) error {
 	out.EnsureCapacity(in.Len())
 
 	//decoder := anyvalue.Decoder{}
@@ -42,27 +42,27 @@ func TefToOtlpMap(in *oteltef.Attributes, out pcommon.Map) error {
 
 var errDecode = errors.New("decode error")
 
-func tefAnyValueToOtlp(anyVal *oteltef.AnyValue, into pcommon.Value) error {
+func tefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
 	switch anyVal.Type() {
-	case oteltef.AnyValueTypeString:
+	case otelstef.AnyValueTypeString:
 		into.SetStr(anyVal.String())
 
-	case oteltef.AnyValueTypeBytes:
+	case otelstef.AnyValueTypeBytes:
 		bytes := into.SetEmptyBytes()
 		bytes.Append([]byte(anyVal.Bytes())...)
 
-	case oteltef.AnyValueTypeInt64:
+	case otelstef.AnyValueTypeInt64:
 		into.SetInt(anyVal.Int64())
 
-	case oteltef.AnyValueTypeBool:
+	case otelstef.AnyValueTypeBool:
 		into.SetBool(anyVal.Bool())
 
-	case oteltef.AnyValueTypeNone:
+	case otelstef.AnyValueTypeNone:
 
-	case oteltef.AnyValueTypeFloat64:
+	case otelstef.AnyValueTypeFloat64:
 		into.SetDouble(anyVal.Float64())
 
-	case oteltef.AnyValueTypeArray:
+	case otelstef.AnyValueTypeArray:
 		values := into.SetEmptySlice()
 		arr := anyVal.Array()
 		for i := 0; i < arr.Len(); i++ {
@@ -73,7 +73,7 @@ func tefAnyValueToOtlp(anyVal *oteltef.AnyValue, into pcommon.Value) error {
 			}
 		}
 
-	case oteltef.AnyValueTypeKVList:
+	case otelstef.AnyValueTypeKVList:
 		values := into.SetEmptyMap()
 		kvList := anyVal.KVList()
 		for i := 0; i < kvList.Len(); i++ {

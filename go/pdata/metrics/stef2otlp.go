@@ -3,7 +3,7 @@ package metrics
 import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
 // StefToOtlp defines a converter from STEF format to OTLP metrics.
@@ -14,5 +14,5 @@ type StefToOtlp interface {
 	// If untilEOF is true, will read until EOF is reached, otherwise will
 	// read at least one record and then continues reading records from the
 	// reader until the end of the current frame.
-	Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error)
+	Convert(reader *otelstef.MetricsReader, untilEOF bool) (pmetric.Metrics, error)
 }

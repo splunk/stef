@@ -1,7 +1,7 @@
 package traces
 
 import (
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -10,5 +10,5 @@ import (
 type OtlpToStef interface {
 	// Convert OTLP traces to STEF format and write them to the provided writer.
 	// Will not call Flush() on the writer at the end.
-	Convert(src ptrace.Traces, writer *oteltef.SpansWriter) error
+	Convert(src ptrace.Traces, writer *otelstef.SpansWriter) error
 }

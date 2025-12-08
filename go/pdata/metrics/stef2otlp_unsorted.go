@@ -6,7 +6,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 	"github.com/splunk/stef/go/pkg"
@@ -31,7 +31,7 @@ var _ StefToOtlp = (*StefToOtlpUnsorted)(nil)
 // This is useful for converting records from a Reader that uses an underlying
 // GrpcReader that can block on reading from network. This ensures that we won't
 // read a record and keep it in memory while blocked on further reads.
-func (c *StefToOtlpUnsorted) Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
+func (c *StefToOtlpUnsorted) Convert(reader *otelstef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
 	var resourceMetrics pmetric.ResourceMetrics
 	var scopeMetrics pmetric.ScopeMetrics
 	var metric pmetric.Metric

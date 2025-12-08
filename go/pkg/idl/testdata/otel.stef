@@ -3,7 +3,7 @@
 // Protobuf IDL for metrics and traces, see: https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto
 // TODO: add Logs and Profiles.
 
-package oteltef
+package otelstef
 
 multimap Attributes {
   key string dict(AttributeKey)

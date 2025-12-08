@@ -3,7 +3,7 @@ package metrics
 import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 )
@@ -17,7 +17,7 @@ var _ OtlpToStef = (*OtlpToStefUnsorted)(nil)
 
 // Convert OTLP metrics to STEF format and writes them to the provided writer.
 // Will not call Flush() on the writer at the end.
-func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error {
+func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *otelstef.MetricsWriter) error {
 	otlp2stef := &otlptools.Otlp2Stef{}
 	for i := 0; i < src.ResourceMetrics().Len(); i++ {
 		rmm := src.ResourceMetrics().At(i)
@@ -57,18 +57,18 @@ func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *oteltef.Metric
 	return nil
 }
 
-func metricType(typ pmetric.MetricType) oteltef.MetricType {
+func metricType(typ pmetric.MetricType) otelstef.MetricType {
 	switch typ {
 	case pmetric.MetricTypeGauge:
-		return oteltef.MetricTypeGauge
+		return otelstef.MetricTypeGauge
 	case pmetric.MetricTypeSum:
-		return oteltef.MetricTypeSum
+		return otelstef.MetricTypeSum
 	case pmetric.MetricTypeHistogram:
-		return oteltef.MetricTypeHistogram
+		return otelstef.MetricTypeHistogram
 	case pmetric.MetricTypeExponentialHistogram:
-		return oteltef.MetricTypeExpHistogram
+		return otelstef.MetricTypeExpHistogram
 	case pmetric.MetricTypeSummary:
-		return oteltef.MetricTypeSummary
+		return otelstef.MetricTypeSummary
 	default:
 		panic("Unsupported metric value")
 	}
@@ -77,7 +77,7 @@ func metricType(typ pmetric.MetricType) oteltef.MetricType {
 
 func metric2metric(
 	src pmetric.Metric, // histogramBounds []float64,
-	dst *oteltef.Metric,
+	dst *otelstef.Metric,
 	otlp2stef *otlptools.Otlp2Stef,
 ) {
 	otlp2stef.MapUnsorted(src.Metadata(), dst.Metadata())
@@ -87,7 +87,7 @@ func metric2metric(
 	dst.SetType(metricType(src.Type()))
 }
 
-func (d *OtlpToStefUnsorted) writeNumeric(writer *oteltef.MetricsWriter, src pmetric.NumberDataPointSlice) error {
+func (d *OtlpToStefUnsorted) writeNumeric(writer *otelstef.MetricsWriter, src pmetric.NumberDataPointSlice) error {
 	for i := 0; i < src.Len(); i++ {
 		srcPoint := src.At(i)
 		dstPoint := writer.Record.Point()
@@ -104,7 +104,7 @@ func (d *OtlpToStefUnsorted) writeNumeric(writer *oteltef.MetricsWriter, src pme
 	return nil
 }
 
-func (d *OtlpToStefUnsorted) writeHistogram(writer *oteltef.MetricsWriter, src pmetric.HistogramDataPointSlice) error {
+func (d *OtlpToStefUnsorted) writeHistogram(writer *otelstef.MetricsWriter, src pmetric.HistogramDataPointSlice) error {
 	for i := 0; i < src.Len(); i++ {
 		src := src.At(i)
 		dst := writer.Record.Point()
@@ -127,7 +127,7 @@ func (d *OtlpToStefUnsorted) writeHistogram(writer *oteltef.MetricsWriter, src p
 }
 
 func (d *OtlpToStefUnsorted) writeExpHistogram(
-	writer *oteltef.MetricsWriter, src pmetric.ExponentialHistogramDataPointSlice,
+	writer *otelstef.MetricsWriter, src pmetric.ExponentialHistogramDataPointSlice,
 ) error {
 	for i := 0; i < src.Len(); i++ {
 		src := src.At(i)
@@ -149,7 +149,7 @@ func (d *OtlpToStefUnsorted) writeExpHistogram(
 	return nil
 }
 
-func (d *OtlpToStefUnsorted) writeSummary(writer *oteltef.MetricsWriter, src pmetric.SummaryDataPointSlice) error {
+func (d *OtlpToStefUnsorted) writeSummary(writer *otelstef.MetricsWriter, src pmetric.SummaryDataPointSlice) error {
 	for i := 0; i < src.Len(); i++ {
 		srcPoint := src.At(i)
 		dstPoint := writer.Record.Point()

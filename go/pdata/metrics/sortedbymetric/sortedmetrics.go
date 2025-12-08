@@ -10,7 +10,7 @@ import (
 	"github.com/splunk/stef/go/pdata/metrics/internal"
 	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 )
@@ -18,55 +18,55 @@ import (
 type SortedTree struct {
 	//encoder  anyvalue.Encoder
 	otlp2tef otlptools.Otlp2Stef
-	byMetric *b.Tree[*oteltef.Metric, *ByMetric]
+	byMetric *b.Tree[*otelstef.Metric, *ByMetric]
 }
 
 type ByMetric struct {
 	//encoder    *anyvalue.Encoder
 	otlp2tef   *otlptools.Otlp2Stef
-	byResource *b.Tree[*oteltef.Resource, *ByResource]
-	allocators *oteltef.Allocators
+	byResource *b.Tree[*otelstef.Resource, *ByResource]
+	allocators *otelstef.Allocators
 }
 
 type ByResource struct {
 	//encoder  *anyvalue.Encoder
 	otlp2tef   *otlptools.Otlp2Stef
-	byScope    *b.Tree[*oteltef.Scope, *ByScope]
-	allocators *oteltef.Allocators
+	byScope    *b.Tree[*otelstef.Scope, *ByScope]
+	allocators *otelstef.Allocators
 }
 
-type Points []*oteltef.Point
+type Points []*otelstef.Point
 
 func (p Points) SortValues() {
 	slices.SortFunc(
-		p, func(a, b *oteltef.Point) int {
+		p, func(a, b *otelstef.Point) int {
 			return pkg.Uint64Compare(a.Timestamp(), b.Timestamp())
 		},
 	)
 }
 
 type ByScope struct {
-	byAttrs    *b.Tree[*oteltef.Attributes, *Points]
-	allocators *oteltef.Allocators
+	byAttrs    *b.Tree[*otelstef.Attributes, *Points]
+	allocators *otelstef.Allocators
 }
 
 func NewSortedMetrics() *SortedTree {
-	return &SortedTree{byMetric: b.TreeNew[*oteltef.Metric, *ByMetric](oteltef.CmpMetric)}
+	return &SortedTree{byMetric: b.TreeNew[*otelstef.Metric, *ByMetric](otelstef.CmpMetric)}
 }
 
-func (s *SortedTree) ToStef(writer *oteltef.MetricsWriter) error {
+func (s *SortedTree) ToStef(writer *otelstef.MetricsWriter) error {
 	i := 0
 	err := s.Iter(
-		func(metric *oteltef.Metric, byMetric *ByMetric) error {
+		func(metric *otelstef.Metric, byMetric *ByMetric) error {
 			writer.Record.SetMetric(metric)
 			err := byMetric.Iter(
-				func(resource *oteltef.Resource, byResource *ByResource) error {
+				func(resource *otelstef.Resource, byResource *ByResource) error {
 					writer.Record.SetResource(resource)
 					err := byResource.Iter(
-						func(scope *oteltef.Scope, byScope *ByScope) error {
+						func(scope *otelstef.Scope, byScope *ByScope) error {
 							writer.Record.SetScope(scope)
 							err := byScope.Iter(
-								func(attrs *oteltef.Attributes, points *Points) error {
+								func(attrs *otelstef.Attributes, points *Points) error {
 									writer.Record.Attributes().CopyFrom(attrs)
 									for _, value := range *points {
 										writer.Record.Point().CopyFrom(value)
@@ -91,14 +91,14 @@ func (s *SortedTree) ToStef(writer *oteltef.MetricsWriter) error {
 }
 
 func (s *SortedTree) ByMetric(
-	metric pmetric.Metric, metricType oteltef.MetricType, flags internal.MetricFlags,
+	metric pmetric.Metric, metricType otelstef.MetricType, flags internal.MetricFlags,
 	histogramBounds []float64,
 ) *ByMetric {
 	metr := metric2metric(metric, metricType, flags, histogramBounds, &s.otlp2tef)
 	elem, exists := s.byMetric.Get(metr)
 	if !exists {
 		elem = &ByMetric{
-			otlp2tef: &s.otlp2tef, byResource: b.TreeNew[*oteltef.Resource, *ByResource](oteltef.CmpResource),
+			otlp2tef: &s.otlp2tef, byResource: b.TreeNew[*otelstef.Resource, *ByResource](otelstef.CmpResource),
 		}
 		s.byMetric.Set(metr, elem)
 	}
@@ -106,11 +106,11 @@ func (s *SortedTree) ByMetric(
 }
 
 func metric2metric(
-	metric pmetric.Metric, metricType oteltef.MetricType, flags internal.MetricFlags, histogramBounds []float64,
+	metric pmetric.Metric, metricType otelstef.MetricType, flags internal.MetricFlags, histogramBounds []float64,
 	otlp2tef *otlptools.Otlp2Stef,
-) *oteltef.Metric {
+) *otelstef.Metric {
 
-	var dst oteltef.Metric
+	var dst otelstef.Metric
 	otlp2tef.MapSorted(metric.Metadata(), dst.Metadata())
 	dst.SetName(metric.Name())
 	dst.SetDescription(metric.Description())
@@ -137,7 +137,7 @@ func (s *SortedTree) SortValues() {
 	}
 }
 
-func (s *SortedTree) Iter(f func(metric *oteltef.Metric, byMetric *ByMetric) error) error {
+func (s *SortedTree) Iter(f func(metric *otelstef.Metric, byMetric *ByMetric) error) error {
 	iter, err := s.byMetric.SeekFirst()
 	if err != nil {
 		return nil
@@ -154,11 +154,11 @@ func (s *SortedTree) Iter(f func(metric *oteltef.Metric, byMetric *ByMetric) err
 	return nil
 }
 
-func (m *ByMetric) ByResource(res *oteltef.Resource) *ByResource {
+func (m *ByMetric) ByResource(res *otelstef.Resource) *ByResource {
 	elem, exists := m.byResource.Get(res)
 	if !exists {
 		elem = &ByResource{
-			otlp2tef: m.otlp2tef, byScope: b.TreeNew[*oteltef.Scope, *ByScope](oteltef.CmpScope),
+			otlp2tef: m.otlp2tef, byScope: b.TreeNew[*otelstef.Scope, *ByScope](otelstef.CmpScope),
 			allocators: m.allocators,
 		}
 		m.byResource.Set(res, elem)
@@ -180,7 +180,7 @@ func (m *ByMetric) SortValues() {
 	}
 }
 
-func (m *ByMetric) Iter(f func(resource *oteltef.Resource, byResource *ByResource) error) error {
+func (m *ByMetric) Iter(f func(resource *otelstef.Resource, byResource *ByResource) error) error {
 	iter, err := m.byResource.SeekFirst()
 	if err != nil {
 		return nil
@@ -197,11 +197,11 @@ func (m *ByMetric) Iter(f func(resource *oteltef.Resource, byResource *ByResourc
 	return nil
 }
 
-func (m *ByResource) ByScope(dst *oteltef.Scope) *ByScope {
+func (m *ByResource) ByScope(dst *otelstef.Scope) *ByScope {
 	elem, exists := m.byScope.Get(dst)
 	if !exists {
 		elem = &ByScope{
-			byAttrs:    b.TreeNew[*oteltef.Attributes, *Points](oteltef.CmpAttributes),
+			byAttrs:    b.TreeNew[*otelstef.Attributes, *Points](otelstef.CmpAttributes),
 			allocators: m.allocators,
 		}
 		m.byScope.Set(dst, elem)
@@ -209,7 +209,7 @@ func (m *ByResource) ByScope(dst *oteltef.Scope) *ByScope {
 	return elem
 }
 
-func (m *ByResource) Iter(f func(scope *oteltef.Scope, byScope *ByScope) error) error {
+func (m *ByResource) Iter(f func(scope *otelstef.Scope, byScope *ByScope) error) error {
 	iter, err := m.byScope.SeekFirst()
 	if err != nil {
 		return nil
@@ -240,11 +240,11 @@ func (m *ByResource) SortValues() {
 	}
 }
 
-func (m *ByScope) ByAttrs(attrs *oteltef.Attributes) *Points {
+func (m *ByScope) ByAttrs(attrs *otelstef.Attributes) *Points {
 	elem, exists := m.byAttrs.Get(attrs)
 	if !exists {
 		elem = new(Points)
-		var attrsClone oteltef.Attributes
+		var attrsClone otelstef.Attributes
 		attrsClone.CopyFrom(attrs)
 		m.byAttrs.Set(&attrsClone, elem)
 	}
@@ -265,7 +265,7 @@ func (m *ByScope) SortValues() {
 	}
 }
 
-func (m *ByScope) Iter(f func(attrs *oteltef.Attributes, points *Points) error) error {
+func (m *ByScope) Iter(f func(attrs *otelstef.Attributes, points *Points) error) error {
 	iter, err := m.byAttrs.SeekFirst()
 	if err != nil {
 		return nil

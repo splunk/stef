@@ -5,18 +5,18 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/internal/otlptools"
 	"github.com/splunk/stef/go/pkg"
 )
 
 type OtlpToStefUnsorted struct {
-	tempAttrs oteltef.Attributes
+	tempAttrs otelstef.Attributes
 	otlp2stef otlptools.Otlp2Stef
 	Sorted    bool
 }
 
-func (d *OtlpToStefUnsorted) Convert(src ptrace.Traces, writer *oteltef.SpansWriter) error {
+func (d *OtlpToStefUnsorted) Convert(src ptrace.Traces, writer *otelstef.SpansWriter) error {
 	otlp2stef := &d.otlp2stef
 
 	if d.Sorted {
@@ -117,7 +117,7 @@ func sortSpans(spans ptrace.SpanSlice) {
 	)
 }
 
-func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef, sorted bool) {
+func span2span(src ptrace.Span, dst *otelstef.Span, otlp2tef *otlptools.Otlp2Stef, sorted bool) {
 	dst.SetTraceID(pkg.Bytes(src.TraceID().String()))
 	dst.SetSpanID(pkg.Bytes(src.SpanID().String()))
 	dst.SetParentSpanID(pkg.Bytes(src.ParentSpanID().String()))
@@ -125,7 +125,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef
 	dst.SetFlags(uint64(src.Flags()))
 	dst.SetStartTimeUnixNano(uint64(src.StartTimestamp()))
 	dst.SetEndTimeUnixNano(uint64(src.EndTimestamp()))
-	dst.SetKind(oteltef.SpanKind(src.Kind()))
+	dst.SetKind(otelstef.SpanKind(src.Kind()))
 	dst.SetTraceState(src.TraceState().AsRaw())
 	if sorted {
 		otlp2tef.MapSorted(src.Attributes(), dst.Attributes())
@@ -148,7 +148,7 @@ func span2span(src ptrace.Span, dst *oteltef.Span, otlp2tef *otlptools.Otlp2Stef
 	}
 }
 
-func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2Stef) {
+func link2link(src ptrace.SpanLink, dst *otelstef.Link, otlp2tef *otlptools.Otlp2Stef) {
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
 	dst.SetDroppedAttributesCount(uint64(src.DroppedAttributesCount()))
 	dst.SetFlags(uint64(src.Flags()))
@@ -157,7 +157,7 @@ func link2link(src ptrace.SpanLink, dst *oteltef.Link, otlp2tef *otlptools.Otlp2
 	dst.SetSpanID(pkg.Bytes(src.SpanID().String()))
 }
 
-func event2event(src ptrace.SpanEvent, dst *oteltef.Event, otlp2tef *otlptools.Otlp2Stef) {
+func event2event(src ptrace.SpanEvent, dst *otelstef.Event, otlp2tef *otlptools.Otlp2Stef) {
 	dst.SetName(src.Name())
 	dst.SetTimeUnixNano(uint64(src.Timestamp()))
 	otlp2tef.MapUnsorted(src.Attributes(), dst.Attributes())
