@@ -217,9 +217,12 @@ func CmpStringArray(left, right *StringArray) int {
 // random parameter as a deterministic generator. If array elements contain structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (a *StringArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (a *StringArray) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20) == 0 {
-		a.EnsureLen(a.Len() + 1)
+		if limiter.elemCount < mutateRandomMaxElems {
+			a.EnsureLen(a.Len() + 1)
+			limiter.elemCount++
+		}
 	}
 	if random.IntN(20) == 0 && a.Len() > 0 {
 		a.EnsureLen(a.Len() - 1)

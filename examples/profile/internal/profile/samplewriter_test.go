@@ -31,7 +31,8 @@ func genSampleRecords(random *rand.Rand, schem *schema.Schema) (records []Sample
 
 	records = make([]Sample, recCount)
 	for i := 0; i < recCount; i++ {
-		record.mutateRandom(random, schem)
+		limiter := &mutateRandomLimiter{}
+		record.mutateRandom(random, schem, limiter)
 		records[i].Init()
 		records[i].CopyFrom(&record)
 	}

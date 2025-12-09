@@ -265,7 +265,7 @@ func (s *Sample) CopyFrom(src *Sample) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
-func (s *Sample) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *Sample) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this struct from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// fields that are not in the schema.
@@ -281,28 +281,28 @@ func (s *Sample) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Metadata
 	if random.IntN(randRange) == 0 {
-		s.metadata.mutateRandom(random, schem)
+		s.metadata.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 1 {
 		return // Locations and all subsequent fields are skipped.
 	}
 	// Maybe mutate Locations
 	if random.IntN(randRange) == 0 {
-		s.locations.mutateRandom(random, schem)
+		s.locations.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 2 {
 		return // Values and all subsequent fields are skipped.
 	}
 	// Maybe mutate Values
 	if random.IntN(randRange) == 0 {
-		s.values.mutateRandom(random, schem)
+		s.values.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 3 {
 		return // Labels and all subsequent fields are skipped.
 	}
 	// Maybe mutate Labels
 	if random.IntN(randRange) == 0 {
-		s.labels.mutateRandom(random, schem)
+		s.labels.mutateRandom(random, schem, limiter)
 	}
 }
 

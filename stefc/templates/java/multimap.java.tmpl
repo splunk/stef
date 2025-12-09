@@ -288,9 +288,12 @@ public class {{ .MultimapName }} {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random parameter as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         if (random.nextInt(20) == 0) {
-            ensureLen(elemsLen + 1);
+            if (limiter.elemCount < CommonMutateRandomLimiter.maxElems) {
+                ensureLen(elemsLen + 1);
+                limiter.elemCount++;
+            }
         }
         if (random.nextInt(20) == 0 && elemsLen > 0) {
             ensureLen(elemsLen - 1);
@@ -298,14 +301,14 @@ public class {{ .MultimapName }} {
         for (int i = 0; i < elemsLen; i++) {
             if (random.nextInt(4 * elemsLen) == 0) {
                 {{- if not .Key.Type.IsPrimitive }}
-                elems[i].key.mutateRandom(random);
+                elems[i].key.mutateRandom(random, limiter);
                 {{- else }}
                 setKey(i, {{ .Key.Type.RandomFunc }});
                 {{- end}}
             }
             if (random.nextInt(4 * elemsLen) == 0) {
                 {{- if not .Value.Type.IsPrimitive }}
-                elems[i].value.mutateRandom(random);
+                elems[i].value.mutateRandom(random, limiter);
                 {{- else }}
                 setValue(i, {{ .Value.Type.RandomFunc }});
                 {{- end}}

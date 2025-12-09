@@ -215,9 +215,12 @@ public class KeyValueList {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random parameter as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         if (random.nextInt(20) == 0) {
-            ensureLen(elemsLen + 1);
+            if (limiter.elemCount < CommonMutateRandomLimiter.maxElems) {
+                ensureLen(elemsLen + 1);
+                limiter.elemCount++;
+            }
         }
         if (random.nextInt(20) == 0 && elemsLen > 0) {
             ensureLen(elemsLen - 1);
@@ -227,7 +230,7 @@ public class KeyValueList {
                 setKey(i, Types.StringRandom(random));
             }
             if (random.nextInt(4 * elemsLen) == 0) {
-                elems[i].value.mutateRandom(random);
+                elems[i].value.mutateRandom(random, limiter);
             }
         }
     }

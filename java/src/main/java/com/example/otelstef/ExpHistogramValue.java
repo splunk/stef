@@ -579,7 +579,7 @@ public class ExpHistogramValue {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max(9,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
@@ -607,11 +607,11 @@ public class ExpHistogramValue {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.positiveBuckets.mutateRandom(random);
+            this.positiveBuckets.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.negativeBuckets.mutateRandom(random);
+            this.negativeBuckets.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {

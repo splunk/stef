@@ -137,7 +137,8 @@ public class ToolsTest {
                 {{$StructName}}Writer writer = new {{$StructName}}Writer(new WrapChunkWriter(outFile), opts.build());
 
                 for (long i = 0; i < recordCount; i++) {
-                    writer.record.mutateRandom(random);
+                    CommonMutateRandomLimiter limiter = new CommonMutateRandomLimiter();
+                    writer.record.mutateRandom(random, limiter);
                     writer.write();
                 }
 

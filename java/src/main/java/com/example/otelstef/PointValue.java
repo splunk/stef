@@ -359,7 +359,7 @@ public class PointValue {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         int fieldCount = 5;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
@@ -379,17 +379,17 @@ public class PointValue {
             break;
         case TypeHistogram:
             if (typeChanged || random.nextInt(2) == 0) {
-                this.histogram.mutateRandom(random);
+                this.histogram.mutateRandom(random, limiter);
             }
             break;
         case TypeExpHistogram:
             if (typeChanged || random.nextInt(2) == 0) {
-                this.expHistogram.mutateRandom(random);
+                this.expHistogram.mutateRandom(random, limiter);
             }
             break;
         case TypeSummary:
             if (typeChanged || random.nextInt(2) == 0) {
-                this.summary.mutateRandom(random);
+                this.summary.mutateRandom(random, limiter);
             }
             break;
         default:

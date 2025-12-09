@@ -355,9 +355,12 @@ func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {
 // random parameter as a deterministic generator. If key or value contains structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (m *{{ .MultimapName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (m *{{ .MultimapName }}) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20)==0 {
-		m.EnsureLen(m.Len()+1)
+        if limiter.elemCount < mutateRandomMaxElems {
+    		m.EnsureLen(m.Len()+1)
+            limiter.elemCount++
+        }
 	}
 	if random.IntN(20)==0 && m.Len()>0 {
 		m.EnsureLen(m.Len()-1)
@@ -367,14 +370,14 @@ func (m *{{ .MultimapName }}) mutateRandom(random *rand.Rand, schem *schema.Sche
 		_ = i
 		if random.IntN(4*len(m.elems))==0 {
 		{{- if not .Key.Type.IsPrimitive }}
-			m.elems[i].key.mutateRandom(random, schem)
+			m.elems[i].key.mutateRandom(random, schem, limiter)
 		{{- else }}
 			m.SetKey(i, {{ .Key.Type.RandomFunc }})
 		{{- end}}
 		}
 		if random.IntN(4*len(m.elems))==0 {
 		{{- if not .Value.Type.IsPrimitive }}
-			m.elems[i].value.mutateRandom(random, schem)
+			m.elems[i].value.mutateRandom(random, schem, limiter)
 		{{- else }}
 			m.SetValue(i, {{ .Value.Type.RandomFunc }})
 		{{- end}}

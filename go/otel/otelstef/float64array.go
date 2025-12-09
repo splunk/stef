@@ -217,9 +217,12 @@ func CmpFloat64Array(left, right *Float64Array) int {
 // random parameter as a deterministic generator. If array elements contain structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (a *Float64Array) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (a *Float64Array) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20) == 0 {
-		a.EnsureLen(a.Len() + 1)
+		if limiter.elemCount < mutateRandomMaxElems {
+			a.EnsureLen(a.Len() + 1)
+			limiter.elemCount++
+		}
 	}
 	if random.IntN(20) == 0 && a.Len() > 0 {
 		a.EnsureLen(a.Len() - 1)

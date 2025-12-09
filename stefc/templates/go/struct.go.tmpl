@@ -481,7 +481,7 @@ func (s* {{.StructName}}) CopyFrom(src *{{.StructName}}) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
-func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
     // Get the field count for this struct from the schema. If the schema specifies
     // fewer field count than the one we have in this code then we will not mutate
     // fields that are not in the schema.
@@ -500,17 +500,28 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
     if random.IntN(randRange)==0 {
     {{- if not .Type.IsPrimitive }}
         {{- if .Optional}}
-        // Flip the optional field presence bit.
-        s.optionalFieldsPresent ^= fieldPresent{{ $.StructName }}{{.Name}}
-        s.mark{{.Name}}Modified()
-        if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
-            {{if .Type.Flags.StoreByPtr}}
-            if s.{{.name}} == nil {
-                s.{{.name}} = new({{ .Type.Storage }})
-                s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        flipOptional := true
+        if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} == 0 {
+            if limiter.objectCount < mutateRandomMaxObjects {
+        	    limiter.objectCount++
+        	} else {
+        	    flipOptional = false
+       	    }
+        }
+
+        if flipOptional {
+            // Flip the optional field presence bit.
+            s.optionalFieldsPresent ^= fieldPresent{{ $.StructName }}{{.Name}}
+            s.mark{{.Name}}Modified()
+            if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
+                {{if .Type.Flags.StoreByPtr}}
+                if s.{{.name}} == nil {
+                    s.{{.name}} = new({{ .Type.Storage }})
+                    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+                }
+                {{end -}}
+                s.{{.name}}.mutateRandom(random, schem, limiter)
             }
-            {{end -}}
-            s.{{.name}}.mutateRandom(random, schem)
         }
         {{- else}}
         {{- if .Type.DictName}}
@@ -531,7 +542,7 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
             s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
         }
         {{end}}
-        s.{{.name}}.mutateRandom(random, schem)
+        s.{{.name}}.mutateRandom(random, schem, limiter)
         {{- end}}
     {{- else }}
         s.Set{{.Name}}({{.Type.RandomFunc}})

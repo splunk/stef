@@ -434,7 +434,7 @@ public class AnyValue {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         int fieldCount = 7;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
@@ -464,12 +464,12 @@ public class AnyValue {
             break;
         case TypeArray:
             if (typeChanged || random.nextInt(2) == 0) {
-                this.array.mutateRandom(random);
+                this.array.mutateRandom(random, limiter);
             }
             break;
         case TypeKVList:
             if (typeChanged || random.nextInt(2) == 0) {
-                this.kVList.mutateRandom(random);
+                this.kVList.mutateRandom(random, limiter);
             }
             break;
         case TypeBytes:

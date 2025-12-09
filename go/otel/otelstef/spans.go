@@ -347,7 +347,7 @@ func (s *Spans) CopyFrom(src *Spans) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
-func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this struct from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// fields that are not in the schema.
@@ -363,7 +363,7 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	}
 	// Maybe mutate Envelope
 	if random.IntN(randRange) == 0 {
-		s.envelope.mutateRandom(random, schem)
+		s.envelope.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 1 {
 		return // Resource and all subsequent fields are skipped.
@@ -387,7 +387,7 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			s.resource = s.resource.Clone(&Allocators{})
 		}
 
-		s.resource.mutateRandom(random, schem)
+		s.resource.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 2 {
 		return // Scope and all subsequent fields are skipped.
@@ -411,14 +411,14 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			s.scope = s.scope.Clone(&Allocators{})
 		}
 
-		s.scope.mutateRandom(random, schem)
+		s.scope.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 3 {
 		return // Span and all subsequent fields are skipped.
 	}
 	// Maybe mutate Span
 	if random.IntN(randRange) == 0 {
-		s.span.mutateRandom(random, schem)
+		s.span.mutateRandom(random, schem, limiter)
 	}
 }
 

@@ -363,7 +363,7 @@ func CmpPointValue(left, right *PointValue) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schema are mutated, allowing to generate data for specified schema.
-func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this oneof from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// the type of the oneof to the choices that are not in the schema.
@@ -389,15 +389,15 @@ func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 		}
 	case PointValueTypeHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.histogram.mutateRandom(random, schem)
+			s.histogram.mutateRandom(random, schem, limiter)
 		}
 	case PointValueTypeExpHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.expHistogram.mutateRandom(random, schem)
+			s.expHistogram.mutateRandom(random, schem, limiter)
 		}
 	case PointValueTypeSummary:
 		if typeChanged || random.IntN(2) == 0 {
-			s.summary.mutateRandom(random, schem)
+			s.summary.mutateRandom(random, schem, limiter)
 		}
 	}
 }

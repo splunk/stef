@@ -254,9 +254,12 @@ func CmpJsonObject(left, right *JsonObject) int {
 // random parameter as a deterministic generator. If key or value contains structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (m *JsonObject) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (m *JsonObject) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20) == 0 {
-		m.EnsureLen(m.Len() + 1)
+		if limiter.elemCount < mutateRandomMaxElems {
+			m.EnsureLen(m.Len() + 1)
+			limiter.elemCount++
+		}
 	}
 	if random.IntN(20) == 0 && m.Len() > 0 {
 		m.EnsureLen(m.Len() - 1)
@@ -268,7 +271,7 @@ func (m *JsonObject) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 			m.SetKey(i, pkg.StringRandom(random))
 		}
 		if random.IntN(4*len(m.elems)) == 0 {
-			m.elems[i].value.mutateRandom(random, schem)
+			m.elems[i].value.mutateRandom(random, schem, limiter)
 		}
 	}
 }

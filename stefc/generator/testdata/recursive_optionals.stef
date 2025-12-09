@@ -1,0 +1,9 @@
+package com.example.gentest.recursive_optionals
+
+struct Struct1 root {
+  Field1 Struct1 optional
+  Field2 Struct1 optional
+  Field3 Struct1 optional
+  Field4 Struct1 optional
+  Field5 Struct1 optional
+}

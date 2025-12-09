@@ -233,7 +233,7 @@ public class ExemplarValue {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         int fieldCount = 2;
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {

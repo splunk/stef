@@ -348,7 +348,7 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schema are mutated, allowing to generate data for specified schema.
-func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
     // Get the field count for this oneof from the schema. If the schema specifies
     // fewer field count than the one we have in this code then we will not mutate
     // the type of the oneof to the choices that are not in the schema.
@@ -368,7 +368,7 @@ typeChanged := false
     case {{ $.StructName }}Type{{.Name}}:
         if typeChanged || random.IntN(2)==0 {
         {{- if not .Type.IsPrimitive }}
-            s.{{.name}}.mutateRandom(random, schem)
+            s.{{.name}}.mutateRandom(random, schem, limiter)
         {{- else }}
             s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc)}})
         {{- end}}
