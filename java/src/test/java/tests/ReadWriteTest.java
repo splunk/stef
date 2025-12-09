@@ -30,9 +30,9 @@ class ReadWriteTest {
         boolean retVal = true;
 
         List<String> files = Arrays.asList(
-                "hipstershop-otelmetrics.stefz",
-                "hostandcollector-otelmetrics.stefz",
-                "astronomy-otelmetrics.stefz"
+            "hipstershop-otelmetrics.stefz",
+            "hostandcollector-otelmetrics.stefz",
+            "astronomy-otelmetrics.stefz"
         );
 
         for (String file : files) {
