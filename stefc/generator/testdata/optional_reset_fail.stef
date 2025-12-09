@@ -1,0 +1,14 @@
+// This schema was failing (for seed 1765233907441407000) because
+// optional struct fields were not reset correctly by reset() method.
+package com.example.gentest.optional_reset_fail
+
+multimap MultiMap1 {
+  key Struct1
+  value int64
+}
+
+struct Struct1 root {
+  Field1 bytes optional
+  Field2 MultiMap1
+  Field3 Struct1 optional
+}

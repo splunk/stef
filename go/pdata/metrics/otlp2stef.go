@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
@@ -10,7 +10,7 @@ import (
 type OtlpToStef interface {
 	// Convert OTLP metrics to STEF format and write them to the provided writer.
 	// Will not call Flush() on the writer at the end.
-	Convert(src pmetric.Metrics, writer *oteltef.MetricsWriter) error
+	Convert(src pmetric.Metrics, writer *otelstef.MetricsWriter) error
 }
 
 func NewOtlpToStef(sorted bool) OtlpToStef {

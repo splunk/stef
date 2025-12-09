@@ -11,7 +11,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pkg"
 
 	"github.com/splunk/stef/benchmarks/cmd"
@@ -113,7 +113,7 @@ func collectSTEFFileStats(inputFilePath string, fileStats *MetricsStats) {
 		log.Fatalf("Cannot read file %s: %v", inputFilePath, err)
 	}
 	defer func() { _ = inputFile.Close() }()
-	reader, err := oteltef.NewMetricsReader(bufio.NewReaderSize(inputFile, 64*1024))
+	reader, err := otelstef.NewMetricsReader(bufio.NewReaderSize(inputFile, 64*1024))
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", inputFilePath, err)
 	}
@@ -125,7 +125,7 @@ func collectSTEFFileStats(inputFilePath string, fileStats *MetricsStats) {
 	}
 }
 
-func CollectRecordStats(reader *oteltef.MetricsReader, fileStats *MetricsStats) error {
+func CollectRecordStats(reader *otelstef.MetricsReader, fileStats *MetricsStats) error {
 	tsMinTimestamp := uint64(math.MaxUint64)
 	tsMaxTimestamp := uint64(0)
 	var timeseriesDPCount uint64

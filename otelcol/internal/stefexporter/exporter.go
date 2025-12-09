@@ -21,7 +21,7 @@ import (
 	tef_grpc "github.com/splunk/stef/go/grpc"
 	"github.com/splunk/stef/go/grpc/stef_proto"
 	tef_grpctypes "github.com/splunk/stef/go/grpc/types"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -32,7 +32,7 @@ type stefExporter struct {
 
 	grpcConn     *grpc.ClientConn
 	writeMutex   sync.Mutex
-	remoteWriter *oteltef.MetricsWriter
+	remoteWriter *otelstef.MetricsWriter
 
 	lastSent time.Time
 
@@ -165,7 +165,7 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	// Open a stream to the server.
 	grpcClient := stef_proto.NewSTEFDestinationClient(s.grpcConn)
 
-	schema, err := oteltef.MetricsWireSchema()
+	schema, err := otelstef.MetricsWireSchema()
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	settings := tef_grpc.ClientSettings{
 		Logger:       &wrapLogger{s.logger},
 		GrpcClient:   grpcClient,
-		ClientSchema: tef_grpc.ClientSchema{WireSchema: &schema, RootStructName: oteltef.MetricsStructName},
+		ClientSchema: tef_grpc.ClientSchema{WireSchema: &schema, RootStructName: otelstef.MetricsStructName},
 		Callbacks: tef_grpc.ClientCallbacks{
 			OnAck: s.onGrpcAck,
 		},
@@ -194,7 +194,7 @@ func (s *stefExporter) startGrpcClient(compression pkg.Compression) error {
 	}
 
 	// Create record writer.
-	s.remoteWriter, err = oteltef.NewMetricsWriter(grpcWriter, opts)
+	s.remoteWriter, err = otelstef.NewMetricsWriter(grpcWriter, opts)
 	if err != nil {
 		return err
 	}

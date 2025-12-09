@@ -182,7 +182,7 @@ func copyJsonObject(dst *JsonObject, src *JsonObject) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 
-		if !JsonValueEqual(&dst.elems[i].value, &src.elems[i].value) {
+		if !dst.elems[i].value.IsEqual(&src.elems[i].value) {
 			copyJsonValue(&dst.elems[i].value, &src.elems[i].value)
 		}
 	}
@@ -220,10 +220,6 @@ func (e *JsonObject) IsEqual(val *JsonObject) bool {
 		}
 	}
 	return true
-}
-
-func JsonObjectEqual(left, right *JsonObject) bool {
-	return left.IsEqual(right)
 }
 
 func CmpJsonObject(left, right *JsonObject) int {

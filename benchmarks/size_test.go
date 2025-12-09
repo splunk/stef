@@ -21,7 +21,7 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/traces"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -267,11 +267,11 @@ func TestSTEFVeryShortFrames(t *testing.T) {
 		require.NoError(t, err)
 		tefBytes, err := tefEncoding.Encode(inmem)
 
-		tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+		tefReader, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 		require.NoError(t, err)
 
 		shortFrameBuf := pkg.MemChunkWriter{}
-		tefWriter, err := oteltef.NewMetricsWriter(&shortFrameBuf, pkg.WriterOptions{Compression: compression})
+		tefWriter, err := otelstef.NewMetricsWriter(&shortFrameBuf, pkg.WriterOptions{Compression: compression})
 		require.NoError(t, err)
 
 		for {
@@ -366,7 +366,7 @@ func TestTracesMultipart(t *testing.T) {
 				fmt.Println(sortedStr)
 
 				outputBuf := &pkg.MemChunkWriter{}
-				writer, err := oteltef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
+				writer, err := otelstef.NewSpansWriter(outputBuf, pkg.WriterOptions{Compression: compression})
 				require.NoError(t, err)
 
 				converter := traces.OtlpToStefUnsorted{Sorted: sorted}

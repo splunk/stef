@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/benchmarks/encodings"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -56,13 +56,13 @@ func (d *Encoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error
 
 	var datums []Datum
 	err = sorted.Iter(
-		func(metric *oteltef.Metric, byMetric *sortedbymetric.ByMetric) error {
+		func(metric *otelstef.Metric, byMetric *sortedbymetric.ByMetric) error {
 			err := byMetric.Iter(
-				func(resource *oteltef.Resource, byResource *sortedbymetric.ByResource) error {
+				func(resource *otelstef.Resource, byResource *sortedbymetric.ByResource) error {
 					err := byResource.Iter(
-						func(scope *oteltef.Scope, byScope *sortedbymetric.ByScope) error {
+						func(scope *otelstef.Scope, byScope *sortedbymetric.ByScope) error {
 							err := byScope.Iter(
-								func(attrs *oteltef.Attributes, points *sortedbymetric.Points) error {
+								func(attrs *otelstef.Attributes, points *sortedbymetric.Points) error {
 									for _, value := range *points {
 										// TODO: histogram support
 										datums = append(
@@ -126,7 +126,7 @@ func (d *Encoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func convertAttrs(attrs *oteltef.Attributes) (r []Attribute) {
+func convertAttrs(attrs *otelstef.Attributes) (r []Attribute) {
 	for i := 0; i < attrs.Len(); i++ {
 		attr := attrs.At(i)
 		r = append(

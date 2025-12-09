@@ -74,13 +74,6 @@ func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *NumValue) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *NumValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -164,9 +157,9 @@ func (s *NumValue) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *NumValue) CloneShared(allocators *Allocators) NumValue {
+func (s *NumValue) cloneShared(allocators *Allocators) NumValue {
 	return s.Clone(allocators)
 }
 
@@ -244,10 +237,6 @@ func (s *NumValue) IsEqual(right *NumValue) bool {
 	}
 
 	return true
-}
-
-func NumValueEqual(left, right *NumValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpNumValue performs deep comparison and returns an integer that

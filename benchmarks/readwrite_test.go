@@ -10,7 +10,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pkg"
 )
 
@@ -31,11 +31,11 @@ func TestCopy(t *testing.T) {
 		tefBytes, err := os.ReadFile("testdata/generated/" + file)
 		require.NoError(t, err)
 
-		tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+		tefReader, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 		require.NoError(t, err)
 
 		cw := &pkg.MemChunkWriter{}
-		tefWriter, err := oteltef.NewMetricsWriter(cw, pkg.WriterOptions{})
+		tefWriter, err := otelstef.NewMetricsWriter(cw, pkg.WriterOptions{})
 		require.NoError(t, err)
 
 		recCount := 0
@@ -80,11 +80,11 @@ func BenchmarkReadSTEF(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
-	tefSrc, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+	tefSrc, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 	require.NoError(b, err)
 
 	cw := &pkg.MemChunkWriter{}
-	tefWriter, err := oteltef.NewMetricsWriter(cw, pkg.WriterOptions{})
+	tefWriter, err := otelstef.NewMetricsWriter(cw, pkg.WriterOptions{})
 	require.NoError(b, err)
 
 	recCount := 0
@@ -112,7 +112,7 @@ func BenchmarkReadSTEF(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(cw.Bytes()))
+		reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(cw.Bytes()))
 		if err != nil {
 			panic(err)
 		}
@@ -137,7 +137,7 @@ func BenchmarkReadSTEFZ(b *testing.B) {
 	recCount := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+		reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 		if err != nil {
 			panic(err)
 		}
@@ -164,13 +164,13 @@ func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
 	recCount := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+		tefReader, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 		if err != nil {
 			panic(err)
 		}
 
 		cw := &pkg.MemChunkWriter{}
-		tefWriter, err := oteltef.NewMetricsWriter(cw, pkg.WriterOptions{})
+		tefWriter, err := otelstef.NewMetricsWriter(cw, pkg.WriterOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -201,7 +201,7 @@ func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/point")
 }
 
-func copyModified(dst *oteltef.Metrics, src *oteltef.Metrics) {
+func copyModified(dst *otelstef.Metrics, src *otelstef.Metrics) {
 	if src.IsEnvelopeModified() {
 		dst.Envelope().CopyFrom(src.Envelope())
 	}

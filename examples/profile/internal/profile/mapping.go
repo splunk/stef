@@ -407,9 +407,9 @@ func (s *Mapping) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Mapping) CloneShared(allocators *Allocators) *Mapping {
+func (s *Mapping) cloneShared(allocators *Allocators) *Mapping {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -590,10 +590,6 @@ func (s *Mapping) IsEqual(right *Mapping) bool {
 	}
 
 	return true
-}
-
-func MappingEqual(left, right *Mapping) bool {
-	return left.IsEqual(right)
 }
 
 // CmpMapping performs deep comparison and returns an integer that

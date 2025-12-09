@@ -248,7 +248,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 		{{else}}
-		if !{{.Key.Type.EqualFunc}}({{if not .KeyStoreByPtr}}&{{end}}dst.elems[i].key, {{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key) {
+		if !dst.elems[i].key.IsEqual({{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key) {
 			copy{{.Key.Type.TypeName}}({{if not .KeyStoreByPtr}}&{{end}}dst.elems[i].key, {{if not .KeyStoreByPtr}}&{{end}}src.elems[i].key)
 		}
 		{{end}}
@@ -259,7 +259,7 @@ func copy{{.MultimapName}}(dst *{{.MultimapName}}, src *{{.MultimapName}}) {
 			dst.modifiedElems.markValModified(i)
 		}
 		{{else}}
-		if !{{.Value.Type.EqualFunc}}({{if not .ValueStoreByPtr}}&{{end}}dst.elems[i].value, {{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value) {
+		if !dst.elems[i].value.IsEqual({{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value) {
 			copy{{.Value.Type.TypeName}}({{if not .ValueStoreByPtr}}&{{end}}dst.elems[i].value, {{if not .ValueStoreByPtr}}&{{end}}src.elems[i].value)
 		}
 		{{- end}}
@@ -321,10 +321,6 @@ func (e *{{.MultimapName}}) IsEqual(val *{{.MultimapName}}) bool {
 		{{- end}}
 	}
 	return true
-}
-
-func {{.MultimapName}}Equal(left, right *{{.MultimapName}}) bool {
-	return left.IsEqual(right)
 }
 
 func Cmp{{.MultimapName}}(left, right *{{.MultimapName}}) int {

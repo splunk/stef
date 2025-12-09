@@ -18,7 +18,7 @@ import (
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -362,7 +362,7 @@ func BenchmarkSTEFReaderRead(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf := bytes.NewBuffer(bodyBytes)
-		reader, err := oteltef.NewMetricsReader(buf)
+		reader, err := otelstef.NewMetricsReader(buf)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -395,7 +395,7 @@ func BenchmarkSTEFSerializeMultipart(b *testing.B) {
 				pointCount := 0
 				for i := 0; i < b.N; i++ {
 					outputBuf := &pkg.MemChunkWriter{}
-					writer, err := oteltef.NewMetricsWriter(
+					writer, err := otelstef.NewMetricsWriter(
 						outputBuf, pkg.WriterOptions{Compression: pkg.CompressionZstd},
 					)
 					require.NoError(b, err)
@@ -430,7 +430,7 @@ func BenchmarkSTEFDeserializeMultipart(b *testing.B) {
 			file,
 			func(b *testing.B) {
 				outputBuf := &pkg.MemChunkWriter{}
-				writer, err := oteltef.NewMetricsWriter(
+				writer, err := otelstef.NewMetricsWriter(
 					outputBuf, pkg.WriterOptions{Compression: pkg.CompressionZstd},
 				)
 				require.NoError(b, err)

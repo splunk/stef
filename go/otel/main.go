@@ -2,7 +2,7 @@ package main
 
 /*
 var metricSchema = schema.AstSchema{
-	PackageName: "oteltef",
+	PackageName: "otelstef",
 	Multimaps: map[string]*schema.AstMapDef{
 		"EnvelopeAttributes": {
 			Name:  "EnvelopeAttributes",

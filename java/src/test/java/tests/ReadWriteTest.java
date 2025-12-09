@@ -1,8 +1,8 @@
 package tests;
 
-import com.example.oteltef.Metrics;
-import com.example.oteltef.MetricsReader;
-import com.example.oteltef.MetricsWriter;
+import com.example.otelstef.Metrics;
+import com.example.otelstef.MetricsReader;
+import com.example.otelstef.MetricsWriter;
 import net.stef.MemChunkWriter;
 import net.stef.ReadOptions;
 import net.stef.ReadResult;

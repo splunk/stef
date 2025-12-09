@@ -71,13 +71,6 @@ func (s *Record) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Record) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Record) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -131,9 +124,9 @@ func (s *Record) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Record) CloneShared(allocators *Allocators) Record {
+func (s *Record) cloneShared(allocators *Allocators) Record {
 	return s.Clone(allocators)
 }
 
@@ -197,10 +190,6 @@ func (s *Record) IsEqual(right *Record) bool {
 	}
 
 	return true
-}
-
-func RecordEqual(left, right *Record) bool {
-	return left.IsEqual(right)
 }
 
 // CmpRecord performs deep comparison and returns an integer that

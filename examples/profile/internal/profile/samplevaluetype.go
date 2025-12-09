@@ -176,9 +176,9 @@ func (s *SampleValueType) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *SampleValueType) CloneShared(allocators *Allocators) *SampleValueType {
+func (s *SampleValueType) cloneShared(allocators *Allocators) *SampleValueType {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -261,10 +261,6 @@ func (s *SampleValueType) IsEqual(right *SampleValueType) bool {
 	}
 
 	return true
-}
-
-func SampleValueTypeEqual(left, right *SampleValueType) bool {
-	return left.IsEqual(right)
 }
 
 // CmpSampleValueType performs deep comparison and returns an integer that

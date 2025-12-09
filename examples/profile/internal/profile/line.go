@@ -82,13 +82,6 @@ func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
 	s.function.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Line) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Line) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -217,15 +210,15 @@ func (s *Line) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Line) CloneShared(allocators *Allocators) Line {
+func (s *Line) cloneShared(allocators *Allocators) Line {
 	return s.Clone(allocators)
 }
 
 func (s *Line) Clone(allocators *Allocators) Line {
 	c := Line{
-		function: s.function.CloneShared(allocators),
+		function: s.function.cloneShared(allocators),
 		line:     s.line,
 		column:   s.column,
 	}
@@ -348,10 +341,6 @@ func (s *Line) IsEqual(right *Line) bool {
 	}
 
 	return true
-}
-
-func LineEqual(left, right *Line) bool {
-	return left.IsEqual(right)
 }
 
 // CmpLine performs deep comparison and returns an integer that

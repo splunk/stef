@@ -79,6 +79,9 @@ public class {{ .StructName }} {
 
         {{- end }}
         {{- end }}
+        {{- if .OptionalFieldCount}}
+        optionalFieldsPresent = 0;
+        {{- end}}
     }
 
     {{ range .Fields }}

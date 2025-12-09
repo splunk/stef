@@ -105,13 +105,6 @@ func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
 	s.defaultSampleType.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *ProfileMetadata) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *ProfileMetadata) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -401,9 +394,9 @@ func (s *ProfileMetadata) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *ProfileMetadata) CloneShared(allocators *Allocators) ProfileMetadata {
+func (s *ProfileMetadata) cloneShared(allocators *Allocators) ProfileMetadata {
 	return s.Clone(allocators)
 }
 
@@ -413,9 +406,9 @@ func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
 		keepFrames:        s.keepFrames,
 		timeNanos:         s.timeNanos,
 		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.CloneShared(allocators),
+		periodType:        s.periodType.cloneShared(allocators),
 		period:            s.period,
-		defaultSampleType: s.defaultSampleType.CloneShared(allocators),
+		defaultSampleType: s.defaultSampleType.cloneShared(allocators),
 	}
 	copyToNewStringArray(&c.comments, &s.comments, allocators)
 	return c
@@ -639,10 +632,6 @@ func (s *ProfileMetadata) IsEqual(right *ProfileMetadata) bool {
 	}
 
 	return true
-}
-
-func ProfileMetadataEqual(left, right *ProfileMetadata) bool {
-	return left.IsEqual(right)
 }
 
 // CmpProfileMetadata performs deep comparison and returns an integer that

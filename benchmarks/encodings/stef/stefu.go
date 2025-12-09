@@ -8,7 +8,7 @@ import (
 
 	"github.com/splunk/stef/go/pkg"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	otlpconvert "github.com/splunk/stef/go/pdata/metrics"
 
 	"github.com/splunk/stef/benchmarks/encodings"
@@ -31,7 +31,7 @@ func (d *STEFUEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 	metrics := data.(pmetric.Metrics)
 
 	outputBuf := &pkg.MemChunkWriter{}
-	writer, err := oteltef.NewMetricsWriter(outputBuf, d.Opts)
+	writer, err := otelstef.NewMetricsWriter(outputBuf, d.Opts)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (d *STEFUEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 
 func (d *STEFUEncoding) Decode(b []byte) (any, error) {
 	buf := bytes.NewBuffer(b)
-	r, err := oteltef.NewMetricsReader(buf)
+	r, err := otelstef.NewMetricsReader(buf)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (d *STEFUEncoding) Decode(b []byte) (any, error) {
 
 func (*STEFUEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 	buf := bytes.NewBuffer(data)
-	reader, err := oteltef.NewMetricsReader(buf)
+	reader, err := otelstef.NewMetricsReader(buf)
 	if err != nil {
 		return pmetric.NewMetrics(), err
 	}
@@ -101,7 +101,7 @@ func (e *STEFUEncoding) StartMultipart(compression string) (encodings.MetricMult
 		opts.Compression = pkg.CompressionZstd
 	}
 
-	writer, err := oteltef.NewMetricsWriter(
+	writer, err := otelstef.NewMetricsWriter(
 		outputBuf, opts,
 	)
 	if err != nil {
@@ -115,7 +115,7 @@ func (e *STEFUEncoding) StartMultipart(compression string) (encodings.MetricMult
 
 type stefuMultipart struct {
 	outputBuf *pkg.MemChunkWriter
-	writer    *oteltef.MetricsWriter
+	writer    *otelstef.MetricsWriter
 }
 
 func (s *stefuMultipart) AppendPart(part pmetric.Metrics) error {

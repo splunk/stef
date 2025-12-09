@@ -6,7 +6,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbyresource"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -18,7 +18,7 @@ type stefToOtlpSorted struct {
 
 var _ StefToOtlp = (*stefToOtlpSorted)(nil)
 
-func (c *stefToOtlpSorted) Convert(reader *oteltef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
+func (c *stefToOtlpSorted) Convert(reader *otelstef.MetricsReader, untilEOF bool) (pmetric.Metrics, error) {
 	sm := sortedbyresource.NewSortedByResource()
 	metrics := pmetric.NewMetrics()
 
@@ -34,7 +34,7 @@ func (c *stefToOtlpSorted) Convert(reader *oteltef.MetricsReader, untilEOF bool)
 		scope := resource.ByScope(record.Scope())
 		metric := scope.ByMetric(record.Metric())
 		timedValues := metric.ByAttrs(record.Attributes())
-		point := oteltef.NewPoint()
+		point := otelstef.NewPoint()
 		point.CopyFrom(record.Point())
 		*timedValues = append(*timedValues, point)
 

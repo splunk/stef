@@ -16,7 +16,7 @@ import (
 	"github.com/splunk/stef/go/pkg/idl"
 	"github.com/splunk/stef/go/pkg/schema"
 
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 )
 
 type countingChunkWriter struct {
@@ -31,7 +31,7 @@ func (m *countingChunkWriter) WriteChunk(header []byte, content []byte) error {
 
 func TestWriterDictLimit(t *testing.T) {
 	buf := &countingChunkWriter{}
-	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{MaxTotalDictSize: 2000})
+	w, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{MaxTotalDictSize: 2000})
 	require.NoError(t, err)
 
 	// Fixed header is chunk 1, var header is chunk 2.
@@ -72,7 +72,7 @@ func TestWriterDictLimit(t *testing.T) {
 	// Flush must trigger a new frame, so it is chunk 3.
 	assert.EqualValues(t, 4, buf.chunkCount)
 
-	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+	reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
 	err = reader.Read(pkg.ReadOptions{})
@@ -94,7 +94,7 @@ func TestWriterDictLimit(t *testing.T) {
 
 func TestWriterFrameLimit(t *testing.T) {
 	buf := &countingChunkWriter{}
-	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{MaxUncompressedFrameByteSize: 2000})
+	w, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{MaxUncompressedFrameByteSize: 2000})
 	require.NoError(t, err)
 
 	// Header is the first chunk.
@@ -129,7 +129,7 @@ func TestWriterFrameLimit(t *testing.T) {
 	assert.EqualValues(t, 4, buf.chunkCount)
 }
 
-func mapToTef(m map[string]any, out *oteltef.Attributes) {
+func mapToTef(m map[string]any, out *otelstef.Attributes) {
 	out.EnsureLen(len(m))
 	i := 0
 	var keys []string
@@ -145,9 +145,9 @@ func mapToTef(m map[string]any, out *oteltef.Attributes) {
 	}
 }
 
-func valueToTef(v any, into *oteltef.AnyValue) {
+func valueToTef(v any, into *otelstef.AnyValue) {
 	if v == nil {
-		into.SetType(oteltef.AnyValueTypeNone)
+		into.SetType(otelstef.AnyValueTypeNone)
 		return
 	}
 
@@ -168,7 +168,7 @@ func valueToTef(v any, into *oteltef.AnyValue) {
 		into.SetBytes(pkg.Bytes(val))
 
 	case []any:
-		into.SetType(oteltef.AnyValueTypeArray)
+		into.SetType(otelstef.AnyValueTypeArray)
 		arr := into.Array()
 		arr.EnsureLen(len(val))
 
@@ -177,7 +177,7 @@ func valueToTef(v any, into *oteltef.AnyValue) {
 		}
 
 	case map[string]any:
-		into.SetType(oteltef.AnyValueTypeKVList)
+		into.SetType(otelstef.AnyValueTypeKVList)
 		kvList := into.KVList()
 		kvList.EnsureLen(len(val))
 
@@ -192,7 +192,7 @@ func valueToTef(v any, into *oteltef.AnyValue) {
 	}
 }
 
-func tefToMap(in *oteltef.Attributes) map[string]any {
+func tefToMap(in *otelstef.Attributes) map[string]any {
 	out := map[string]any{}
 
 	for i := 0; i < in.Len(); i++ {
@@ -203,27 +203,27 @@ func tefToMap(in *oteltef.Attributes) map[string]any {
 	return out
 }
 
-func tefToValue(src *oteltef.AnyValue) any {
+func tefToValue(src *otelstef.AnyValue) any {
 	switch src.Type() {
-	case oteltef.AnyValueTypeString:
+	case otelstef.AnyValueTypeString:
 		return src.String()
 
-	case oteltef.AnyValueTypeBytes:
+	case otelstef.AnyValueTypeBytes:
 		return []byte(src.Bytes())
 
-	case oteltef.AnyValueTypeInt64:
+	case otelstef.AnyValueTypeInt64:
 		return src.Int64()
 
-	case oteltef.AnyValueTypeBool:
+	case otelstef.AnyValueTypeBool:
 		return src.Bool()
 
-	case oteltef.AnyValueTypeNone:
+	case otelstef.AnyValueTypeNone:
 		return nil
 
-	case oteltef.AnyValueTypeFloat64:
+	case otelstef.AnyValueTypeFloat64:
 		return src.Float64()
 
-	case oteltef.AnyValueTypeArray:
+	case otelstef.AnyValueTypeArray:
 		values := []any{}
 		arr := src.Array()
 		for i := 0; i < arr.Len(); i++ {
@@ -232,7 +232,7 @@ func tefToValue(src *oteltef.AnyValue) any {
 		}
 		return values
 
-	case oteltef.AnyValueTypeKVList:
+	case otelstef.AnyValueTypeKVList:
 		values := map[string]any{}
 		kvList := src.KVList()
 		for i := 0; i < kvList.Len(); i++ {
@@ -277,7 +277,7 @@ func (g *attrGenerator) genAttr() map[string]any {
 
 func TestAnyValue(t *testing.T) {
 	buf := &countingChunkWriter{}
-	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
+	w, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
 	require.NoError(t, err)
 
 	g := attrGenerator{r: rand.New(rand.NewPCG(0, 0))}
@@ -295,7 +295,7 @@ func TestAnyValue(t *testing.T) {
 	err = w.Flush()
 	require.NoError(t, err)
 
-	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+	reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
 	for i := 0; i < len(writeAttrs); i++ {
@@ -307,9 +307,9 @@ func TestAnyValue(t *testing.T) {
 	}
 }
 
-func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metrics {
+func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *otelstef.Metrics {
 	buf := &countingChunkWriter{}
-	writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{Schema: withSchema})
+	writer, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{Schema: withSchema})
 	require.NoError(t, err)
 
 	writer.Record.Metric().SetName("abc")
@@ -323,7 +323,7 @@ func writeReadRecord(t *testing.T, withSchema *schema.WireSchema) *oteltef.Metri
 	err = writer.Flush()
 	require.NoError(t, err)
 
-	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+	reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
 	err = reader.Read(pkg.ReadOptions{})
@@ -341,7 +341,7 @@ func loadSchema(inputFile string) (*schema.Schema, error) {
 }
 
 func TestWriteOverrideSchema(t *testing.T) {
-	wireSchema, err := oteltef.MetricsWireSchema()
+	wireSchema, err := otelstef.MetricsWireSchema()
 	require.NoError(t, err)
 
 	// Write/read using nil schema, which is equal to full schema
@@ -356,7 +356,7 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, "abc", readRecord.Metric().Name())
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	assert.EqualValues(t, 123, readRecord.Point().Timestamp())
-	assert.EqualValues(t, oteltef.PointValueTypeFloat64, readRecord.Point().Value().Type())
+	assert.EqualValues(t, otelstef.PointValueTypeFloat64, readRecord.Point().Value().Type())
 	assert.EqualValues(t, 4.5, readRecord.Point().Value().Float64())
 
 	schem, err := loadSchema("otel.stef")
@@ -379,7 +379,7 @@ func TestWriteOverrideSchema(t *testing.T) {
 
 	// PointValue type is None since it was Float64 in the original and Float64 field is removed
 	// from PointValue schema. Removed fields in oneof structs result in None type when decoding.
-	assert.EqualValues(t, oteltef.PointValueTypeNone, readRecord.Point().Value().Type())
+	assert.EqualValues(t, otelstef.PointValueTypeNone, readRecord.Point().Value().Type())
 
 	// Float64 is 0.0 which is the default value.
 	assert.EqualValues(t, 0.0, readRecord.Point().Value().Float64())
@@ -394,13 +394,13 @@ func TestWriteOverrideSchema(t *testing.T) {
 	assert.EqualValues(t, "scope", readRecord.Scope().Name())
 	// All Point fields are default values because Point field was not encoded by Writer.
 	assert.EqualValues(t, 0, readRecord.Point().Timestamp())
-	assert.EqualValues(t, oteltef.PointValueTypeNone, readRecord.Point().Value().Type())
+	assert.EqualValues(t, otelstef.PointValueTypeNone, readRecord.Point().Value().Type())
 	assert.EqualValues(t, 0.0, readRecord.Point().Value().Float64())
 }
 
 func TestLargeMultimap(t *testing.T) {
 	buf := &countingChunkWriter{}
-	w, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
+	w, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
 	require.NoError(t, err)
 
 	attrs := w.Record.Attributes()
@@ -412,7 +412,7 @@ func TestLargeMultimap(t *testing.T) {
 		attrs.SetKey(i, strconv.Itoa(i))
 		attrs.At(i).Value().SetInt64(int64(i))
 	}
-	var attrs1Copy oteltef.Attributes
+	var attrs1Copy otelstef.Attributes
 	attrs1Copy.CopyFrom(attrs)
 	err = w.Write()
 	require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestLargeMultimap(t *testing.T) {
 	// but since the multimap is large it will use full encoding. This is
 	// precisely the case that this test verifies.
 	attrs.At(0).Value().SetString("abc")
-	var attrs2Copy oteltef.Attributes
+	var attrs2Copy otelstef.Attributes
 	attrs2Copy.CopyFrom(attrs)
 	err = w.Write()
 	require.NoError(t, err)
@@ -429,7 +429,7 @@ func TestLargeMultimap(t *testing.T) {
 	err = w.Flush()
 	require.NoError(t, err)
 
-	reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+	reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 	require.NoError(t, err)
 
 	err = reader.Read(pkg.ReadOptions{})

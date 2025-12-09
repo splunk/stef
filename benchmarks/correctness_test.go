@@ -12,7 +12,7 @@ import (
 
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/testutils"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pdata/metrics/testtools"
 	"github.com/splunk/stef/go/pkg"
@@ -40,7 +40,7 @@ func TestConvertSTEFFromToOTLP(t *testing.T) {
 				srcCount := otlpDataSrc.DataPointCount()
 
 				buf := &pkg.MemChunkWriter{}
-				writer, err := oteltef.NewMetricsWriter(buf, pkg.WriterOptions{})
+				writer, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
 				require.NoError(t, err)
 
 				toStef := metrics.OtlpToStefSorted{}
@@ -50,7 +50,7 @@ func TestConvertSTEFFromToOTLP(t *testing.T) {
 				err = writer.Flush()
 				require.NoError(t, err)
 
-				reader, err := oteltef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
+				reader, err := otelstef.NewMetricsReader(bytes.NewBuffer(buf.Bytes()))
 				require.NoError(t, err)
 
 				toOtlp := metrics.StefToOtlpUnsorted{}
@@ -102,7 +102,7 @@ func TestTEFMultiPart(t *testing.T) {
 				tefBytes, err := tefStream.FinishStream()
 				require.NoError(t, err)
 
-				tefReader, err := oteltef.NewMetricsReader(bytes.NewBuffer(tefBytes))
+				tefReader, err := otelstef.NewMetricsReader(bytes.NewBuffer(tefBytes))
 				require.NoError(t, err)
 
 				i := 0

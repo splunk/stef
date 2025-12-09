@@ -127,8 +127,8 @@ func (s *LabelValue) canBeShared() bool {
 	return false
 }
 
-func (s *LabelValue) CloneShared(allocators *Allocators) LabelValue {
-	// Oneof is not shareable, so CloneShared is just a Clone.
+func (s *LabelValue) cloneShared(allocators *Allocators) LabelValue {
+	// Oneof is not shareable, so cloneShared is just a Clone.
 	return s.Clone(allocators)
 }
 
@@ -243,10 +243,6 @@ func (e *LabelValue) IsEqual(val *LabelValue) bool {
 	}
 
 	return true
-}
-
-func LabelValueEqual(left, right *LabelValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpLabelValue performs deep comparison and returns an integer that

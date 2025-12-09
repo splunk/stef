@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/benchmarks/encodings"
-	"github.com/splunk/stef/go/otel/oteltef"
+	"github.com/splunk/stef/go/otel/otelstef"
 	"github.com/splunk/stef/go/pdata/metrics/sortedbymetric"
 )
 
@@ -142,13 +142,13 @@ func (d *EncodingZ) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, erro
 
 	var datums []DatumZ
 	err = sorted.Iter(
-		func(metric *oteltef.Metric, byMetric *sortedbymetric.ByMetric) error {
+		func(metric *otelstef.Metric, byMetric *sortedbymetric.ByMetric) error {
 			err := byMetric.Iter(
-				func(resource *oteltef.Resource, byResource *sortedbymetric.ByResource) error {
+				func(resource *otelstef.Resource, byResource *sortedbymetric.ByResource) error {
 					err := byResource.Iter(
-						func(scope *oteltef.Scope, byScope *sortedbymetric.ByScope) error {
+						func(scope *otelstef.Scope, byScope *sortedbymetric.ByScope) error {
 							err := byScope.Iter(
-								func(attrs *oteltef.Attributes, points *sortedbymetric.Points) error {
+								func(attrs *otelstef.Attributes, points *sortedbymetric.Points) error {
 									for _, value := range *points {
 										datums = append(
 											datums, DatumZ{
@@ -209,7 +209,7 @@ func (d *EncodingZ) Encode(data encodings.InMemoryData) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func convertAttrsZ(attrs *oteltef.Attributes) (r []AttributeZ) {
+func convertAttrsZ(attrs *otelstef.Attributes) (r []AttributeZ) {
 	for i := 0; i < attrs.Len(); i++ {
 		attr := attrs.At(i)
 		r = append(
