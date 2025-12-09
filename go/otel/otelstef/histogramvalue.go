@@ -98,13 +98,6 @@ func (s *HistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *HistogramValue) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *HistogramValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -358,9 +351,9 @@ func (s *HistogramValue) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *HistogramValue) CloneShared(allocators *Allocators) HistogramValue {
+func (s *HistogramValue) cloneShared(allocators *Allocators) HistogramValue {
 	return s.Clone(allocators)
 }
 
@@ -527,10 +520,6 @@ func (s *HistogramValue) IsEqual(right *HistogramValue) bool {
 	}
 
 	return true
-}
-
-func HistogramValueEqual(left, right *HistogramValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpHistogramValue performs deep comparison and returns an integer that

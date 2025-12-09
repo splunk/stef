@@ -261,9 +261,9 @@ func (s *Location) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Location) CloneShared(allocators *Allocators) *Location {
+func (s *Location) cloneShared(allocators *Allocators) *Location {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -274,7 +274,7 @@ func (s *Location) CloneShared(allocators *Allocators) *Location {
 func (s *Location) Clone(allocators *Allocators) *Location {
 	c := allocators.Location.Alloc()
 	*c = Location{
-		mapping:  s.mapping.CloneShared(allocators),
+		mapping:  s.mapping.cloneShared(allocators),
 		address:  s.address,
 		isFolded: s.isFolded,
 	}
@@ -411,10 +411,6 @@ func (s *Location) IsEqual(right *Location) bool {
 	}
 
 	return true
-}
-
-func LocationEqual(left, right *Location) bool {
-	return left.IsEqual(right)
 }
 
 // CmpLocation performs deep comparison and returns an integer that

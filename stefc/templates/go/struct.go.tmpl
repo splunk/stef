@@ -161,12 +161,14 @@ func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
     {{- end -}}
 }
 
+{{if .DictName}}
 // Freeze the struct. Any attempt to modify it after this will panic.
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *{{ $.StructName }}) Freeze() {
     s.modifiedFields.freeze()
 }
+{{end}}
 
 func (s *{{ $.StructName }}) isFrozen() bool {
     return s.modifiedFields.isFrozen()
@@ -318,9 +320,9 @@ func (s *{{ .StructName }}) canBeShared() bool {
     return {{if .DictName}}s.isFrozen(){{else}}false{{end}}
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 {{- if .DictName}}
     if s.isFrozen() {
         // If s is frozen it means it is safe to share without cloning.
@@ -341,7 +343,7 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
         {{- if .Type.IsPrimitive}}
         {{.name}}: s.{{.name}},
         {{- else if .Type.Flags.StoreByPtr}}
-        {{.name}}: s.{{.name}}.CloneShared(allocators),
+        {{.name}}: s.{{.name}}.cloneShared(allocators),
         {{- end}}
         {{- end }}
 	}
@@ -565,10 +567,6 @@ func (s *{{ .StructName }}) IsEqual(right *{{ .StructName }}) bool {
     {{- end }}
 
     return true
-}
-
-func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
-    return left.IsEqual(right)
 }
 
 // Cmp{{.StructName}} performs deep comparison and returns an integer that

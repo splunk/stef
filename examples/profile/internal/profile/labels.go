@@ -182,7 +182,7 @@ func copyLabels(dst *Labels, src *Labels) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 
-		if !LabelValueEqual(&dst.elems[i].value, &src.elems[i].value) {
+		if !dst.elems[i].value.IsEqual(&src.elems[i].value) {
 			copyLabelValue(&dst.elems[i].value, &src.elems[i].value)
 		}
 	}
@@ -220,10 +220,6 @@ func (e *Labels) IsEqual(val *Labels) bool {
 		}
 	}
 	return true
-}
-
-func LabelsEqual(left, right *Labels) bool {
-	return left.IsEqual(right)
 }
 
 func CmpLabels(left, right *Labels) int {

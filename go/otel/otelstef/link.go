@@ -89,13 +89,6 @@ func (s *Link) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Link) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Link) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -295,9 +288,9 @@ func (s *Link) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Link) CloneShared(allocators *Allocators) Link {
+func (s *Link) cloneShared(allocators *Allocators) Link {
 	return s.Clone(allocators)
 }
 
@@ -431,10 +424,6 @@ func (s *Link) IsEqual(right *Link) bool {
 	}
 
 	return true
-}
-
-func LinkEqual(left, right *Link) bool {
-	return left.IsEqual(right)
 }
 
 // CmpLink performs deep comparison and returns an integer that

@@ -182,7 +182,7 @@ func copyKeyValueList(dst *KeyValueList, src *KeyValueList) {
 			dst.modifiedElems.markKeyModified(i)
 		}
 
-		if !AnyValueEqual(&dst.elems[i].value, &src.elems[i].value) {
+		if !dst.elems[i].value.IsEqual(&src.elems[i].value) {
 			copyAnyValue(&dst.elems[i].value, &src.elems[i].value)
 		}
 	}
@@ -220,10 +220,6 @@ func (e *KeyValueList) IsEqual(val *KeyValueList) bool {
 		}
 	}
 	return true
-}
-
-func KeyValueListEqual(left, right *KeyValueList) bool {
-	return left.IsEqual(right)
 }
 
 func CmpKeyValueList(left, right *KeyValueList) int {

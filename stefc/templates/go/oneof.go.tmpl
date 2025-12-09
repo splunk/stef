@@ -162,8 +162,8 @@ func (s *{{ .StructName }}) canBeShared() bool {
     return false
 }
 
-func (s *{{ .StructName }}) CloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-    // Oneof is not shareable, so CloneShared is just a Clone.
+func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+    // Oneof is not shareable, so cloneShared is just a Clone.
     return s.Clone(allocators)
 }
 
@@ -180,7 +180,7 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
         {{- if .Type.IsPrimitive}}
         c.{{.name}} = s.{{.name}}
         {{- else if .Type.Flags.StoreByPtr}}
-        c.{{.name}} = s.{{.name}}.CloneShared(allocators)
+        c.{{.name}} = s.{{.name}}.cloneShared(allocators)
         {{- else}}
         copyToNew{{.Type.Storage}}({{if .Type.Flags.TakePtr}}&{{end}}c.{{.name}}, {{if .Type.Flags.TakePtr}}&{{end}}s.{{.name}}, allocators)
         {{- end}}
@@ -324,10 +324,6 @@ func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
     }
 
     return true
-}
-
-func {{.StructName}}Equal(left, right *{{.StructName}}) bool {
-    return left.IsEqual(right)
 }
 
 // Cmp{{.StructName}} performs deep comparison and returns an integer that

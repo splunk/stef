@@ -372,9 +372,9 @@ func (s *Metric) canBeShared() bool {
 	return s.isFrozen()
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Metric) CloneShared(allocators *Allocators) *Metric {
+func (s *Metric) cloneShared(allocators *Allocators) *Metric {
 	if s.isFrozen() {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
@@ -541,10 +541,6 @@ func (s *Metric) IsEqual(right *Metric) bool {
 	}
 
 	return true
-}
-
-func MetricEqual(left, right *Metric) bool {
-	return left.IsEqual(right)
 }
 
 // CmpMetric performs deep comparison and returns an integer that

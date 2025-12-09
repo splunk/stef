@@ -96,13 +96,6 @@ func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
 	s.span.fixParent(&s.modifiedFields)
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *Spans) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *Spans) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -268,16 +261,16 @@ func (s *Spans) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *Spans) CloneShared(allocators *Allocators) Spans {
+func (s *Spans) cloneShared(allocators *Allocators) Spans {
 	return s.Clone(allocators)
 }
 
 func (s *Spans) Clone(allocators *Allocators) Spans {
 	c := Spans{
-		resource: s.resource.CloneShared(allocators),
-		scope:    s.scope.CloneShared(allocators),
+		resource: s.resource.cloneShared(allocators),
+		scope:    s.scope.cloneShared(allocators),
 	}
 	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
 	copyToNewSpan(&c.span, &s.span, allocators)
@@ -449,10 +442,6 @@ func (s *Spans) IsEqual(right *Spans) bool {
 	}
 
 	return true
-}
-
-func SpansEqual(left, right *Spans) bool {
-	return left.IsEqual(right)
 }
 
 // CmpSpans performs deep comparison and returns an integer that

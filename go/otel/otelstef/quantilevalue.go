@@ -74,13 +74,6 @@ func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
-// Freeze the struct. Any attempt to modify it after this will panic.
-// This marks the struct as eligible for safely sharing by pointer without cloning,
-// which can improve encoding performance.
-func (s *QuantileValue) Freeze() {
-	s.modifiedFields.freeze()
-}
-
 func (s *QuantileValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }
@@ -164,9 +157,9 @@ func (s *QuantileValue) canBeShared() bool {
 	return false
 }
 
-// CloneShared returns a clone of s. It may return s if it is safe to share without cloning
+// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *QuantileValue) CloneShared(allocators *Allocators) QuantileValue {
+func (s *QuantileValue) cloneShared(allocators *Allocators) QuantileValue {
 	return s.Clone(allocators)
 }
 
@@ -244,10 +237,6 @@ func (s *QuantileValue) IsEqual(right *QuantileValue) bool {
 	}
 
 	return true
-}
-
-func QuantileValueEqual(left, right *QuantileValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpQuantileValue performs deep comparison and returns an integer that

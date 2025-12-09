@@ -197,10 +197,6 @@ func (e *Uint64Array) IsEqual(val *Uint64Array) bool {
 	return true
 }
 
-func Uint64ArrayEqual(left, right *Uint64Array) bool {
-	return left.IsEqual(right)
-}
-
 // CmpUint64Array performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpUint64Array(left, right *Uint64Array) int {

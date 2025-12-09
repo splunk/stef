@@ -170,8 +170,8 @@ func (s *PointValue) canBeShared() bool {
 	return false
 }
 
-func (s *PointValue) CloneShared(allocators *Allocators) PointValue {
-	// Oneof is not shareable, so CloneShared is just a Clone.
+func (s *PointValue) cloneShared(allocators *Allocators) PointValue {
+	// Oneof is not shareable, so cloneShared is just a Clone.
 	return s.Clone(allocators)
 }
 
@@ -335,10 +335,6 @@ func (e *PointValue) IsEqual(val *PointValue) bool {
 	}
 
 	return true
-}
-
-func PointValueEqual(left, right *PointValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpPointValue performs deep comparison and returns an integer that

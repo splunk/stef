@@ -225,10 +225,6 @@ func (e *EnvelopeAttributes) IsEqual(val *EnvelopeAttributes) bool {
 	return true
 }
 
-func EnvelopeAttributesEqual(left, right *EnvelopeAttributes) bool {
-	return left.IsEqual(right)
-}
-
 func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 	l := min(len(left.elems), len(right.elems))
 	for i := 0; i < l; i++ {

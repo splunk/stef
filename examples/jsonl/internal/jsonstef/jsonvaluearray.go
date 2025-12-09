@@ -235,10 +235,6 @@ func (e *JsonValueArray) IsEqual(val *JsonValueArray) bool {
 	return true
 }
 
-func JsonValueArrayEqual(left, right *JsonValueArray) bool {
-	return left.IsEqual(right)
-}
-
 // CmpJsonValueArray performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpJsonValueArray(left, right *JsonValueArray) int {

@@ -131,8 +131,8 @@ func (s *ExemplarValue) canBeShared() bool {
 	return false
 }
 
-func (s *ExemplarValue) CloneShared(allocators *Allocators) ExemplarValue {
-	// Oneof is not shareable, so CloneShared is just a Clone.
+func (s *ExemplarValue) cloneShared(allocators *Allocators) ExemplarValue {
+	// Oneof is not shareable, so cloneShared is just a Clone.
 	return s.Clone(allocators)
 }
 
@@ -242,10 +242,6 @@ func (e *ExemplarValue) IsEqual(val *ExemplarValue) bool {
 	}
 
 	return true
-}
-
-func ExemplarValueEqual(left, right *ExemplarValue) bool {
-	return left.IsEqual(right)
 }
 
 // CmpExemplarValue performs deep comparison and returns an integer that
