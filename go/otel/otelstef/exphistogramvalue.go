@@ -101,6 +101,7 @@ func (s *ExpHistogramValue) reset() {
 	s.positiveBuckets.reset()
 	s.negativeBuckets.reset()
 	s.zeroThreshold = 0.0
+	s.optionalFieldsPresent = 0
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.

@@ -90,6 +90,7 @@ public class ExpHistogramValue {
             negativeBuckets.reset();
         }
         zeroThreshold = 0.0;
+        optionalFieldsPresent = 0;
     }
 
     

@@ -72,6 +72,7 @@ public class HistogramValue {
         if (bucketCounts != null) {
             bucketCounts.reset();
         }
+        optionalFieldsPresent = 0;
     }
 
     

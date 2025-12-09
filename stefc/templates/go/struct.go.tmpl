@@ -138,6 +138,9 @@ func (s *{{ $.StructName }}) reset() {
     {{- end -}}
     {{- end -}}
     {{- end -}}
+    {{- if .OptionalFieldCount}}
+    s.optionalFieldsPresent = 0
+    {{- end}}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
