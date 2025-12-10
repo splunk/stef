@@ -29,10 +29,8 @@ func TefToOtlpMap(in *otelstef.Attributes, out pcommon.Map) error {
 
 	//decoder := anyvalue.Decoder{}
 	for i := 0; i < in.Len(); i++ {
-		kv := in.At(i)
-		val := out.PutEmpty(kv.Key())
-		//decoder.Reset(anyvalue.ImmutableBytes(kv.Value()))
-		err := tefAnyValueToOtlp(kv.Value(), val)
+		val := out.PutEmpty(in.Key(i))
+		err := tefAnyValueToOtlp(in.Value(i), val)
 		if err != nil {
 			return err
 		}
@@ -77,9 +75,8 @@ func tefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
 		values := into.SetEmptyMap()
 		kvList := anyVal.KVList()
 		for i := 0; i < kvList.Len(); i++ {
-			pair := kvList.At(i)
-			val := values.PutEmpty(pair.Key())
-			err := tefAnyValueToOtlp(pair.Value(), val)
+			val := values.PutEmpty(kvList.Key(i))
+			err := tefAnyValueToOtlp(kvList.Value(i), val)
 			if err != nil {
 				return err
 			}

@@ -28,14 +28,6 @@ type AttributesElem struct {
 	value AnyValue
 }
 
-func (e *AttributesElem) Key() string {
-	return e.key
-}
-
-func (e *AttributesElem) Value() *AnyValue {
-	return &e.value
-}
-
 func (m *Attributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
@@ -70,11 +62,6 @@ func (m *Attributes) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *Attributes) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *Attributes) At(i int) *AttributesElem {
-	return &m.elems[i]
 }
 
 func (m *Attributes) ensureLen(newLen int) {
@@ -154,6 +141,14 @@ func (m *Attributes) computeDiff(val *Attributes) (ret bool) {
 		m.elems[i].value.setModifiedRecursively()
 	}
 	return ret
+}
+
+func (m *Attributes) Key(i int) string {
+	return m.elems[i].key
+}
+
+func (m *Attributes) Value(i int) *AnyValue {
+	return &m.elems[i].value
 }
 
 // SetKey sets the key of the element at index i.

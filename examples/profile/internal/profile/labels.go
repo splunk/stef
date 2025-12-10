@@ -28,14 +28,6 @@ type LabelsElem struct {
 	value LabelValue
 }
 
-func (e *LabelsElem) Key() string {
-	return e.key
-}
-
-func (e *LabelsElem) Value() *LabelValue {
-	return &e.value
-}
-
 func (m *Labels) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
@@ -70,11 +62,6 @@ func (m *Labels) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *Labels) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *Labels) At(i int) *LabelsElem {
-	return &m.elems[i]
 }
 
 func (m *Labels) ensureLen(newLen int) {
@@ -154,6 +141,14 @@ func (m *Labels) computeDiff(val *Labels) (ret bool) {
 		m.elems[i].value.setModifiedRecursively()
 	}
 	return ret
+}
+
+func (m *Labels) Key(i int) string {
+	return m.elems[i].key
+}
+
+func (m *Labels) Value(i int) *LabelValue {
+	return &m.elems[i].value
 }
 
 // SetKey sets the key of the element at index i.

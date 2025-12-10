@@ -28,14 +28,6 @@ type EnvelopeAttributesElem struct {
 	value pkg.Bytes
 }
 
-func (e *EnvelopeAttributesElem) Key() string {
-	return e.key
-}
-
-func (e *EnvelopeAttributesElem) Value() pkg.Bytes {
-	return e.value
-}
-
 func (m *EnvelopeAttributes) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
@@ -69,11 +61,6 @@ func (m *EnvelopeAttributes) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *EnvelopeAttributes) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *EnvelopeAttributes) At(i int) *EnvelopeAttributesElem {
-	return &m.elems[i]
 }
 
 func (m *EnvelopeAttributes) ensureLen(newLen int) {
@@ -153,6 +140,14 @@ func (m *EnvelopeAttributes) Append(k string, v pkg.Bytes) {
 	m.elems = append(m.elems, EnvelopeAttributesElem{key: k, value: v})
 }
 
+func (m *EnvelopeAttributes) Key(i int) string {
+	return m.elems[i].key
+}
+
+func (m *EnvelopeAttributes) Value(i int) pkg.Bytes {
+	return m.elems[i].value
+}
+
 // SetKey sets the key of the element at index i.
 func (m *EnvelopeAttributes) SetKey(i int, k string) {
 	if m.elems[i].key != k {
@@ -163,7 +158,7 @@ func (m *EnvelopeAttributes) SetKey(i int, k string) {
 
 // SetValue sets the value of the element at index i.
 func (m *EnvelopeAttributes) SetValue(i int, v pkg.Bytes) {
-	if !pkg.BytesEqual(m.elems[i].value, v) {
+	if m.elems[i].value != v {
 		m.elems[i].value = v
 		m.modifiedElems.markValModified(i)
 	}
