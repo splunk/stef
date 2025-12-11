@@ -43,10 +43,12 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	err = genGo.GenFile(parsedSchema)
 	require.NoError(t, err)
 
+	parsedSchema = schema.ShrinkRandomly(random, parsedSchema)
+
 	fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
 
 	// Run tests in the generated code
-	cmd := exec.Command("go", "test", "-v", genGo.OutputDir+"/...")
+	cmd := exec.Command("go", "test", "-v", genGo.OutputDir+"/...", "-count=1")
 	cmd.Dir = genGo.OutputDir
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
