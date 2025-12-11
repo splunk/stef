@@ -251,23 +251,23 @@ public class Spans {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max(4,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
-            this.envelope.mutateRandom(random);
+            this.envelope.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.resource.mutateRandom(random);
+            this.resource.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.scope.mutateRandom(random);
+            this.scope.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.span.mutateRandom(random);
+            this.span.mutateRandom(random, limiter);
         }
         
     }

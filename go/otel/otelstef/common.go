@@ -203,3 +203,16 @@ type Allocators struct {
 	Spans               SpansAllocator
 	SummaryValue        SummaryValueAllocator
 }
+
+// Maximum number of objects to create per mutateRandom call.
+const mutateRandomMaxObjects = 100
+
+// Maximum number of array or multimap elements to create per mutateRandom call.
+const mutateRandomMaxElems = 100
+
+// mutateRandomLimiter is used to track and limit the total number of objects and elements
+// created during a mutateRandom call.
+type mutateRandomLimiter struct {
+	objectCount int
+	elemCount   int
+}

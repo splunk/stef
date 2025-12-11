@@ -26,7 +26,8 @@ class {{.StructName}}WriterTest {
         List<{{.StructName}}> records = new ArrayList<>(recCount);
         {{.StructName}} record = new {{.StructName}}();
         for (int i = 0; i < recCount; i++) {
-            record.mutateRandom(random);
+            CommonMutateRandomLimiter limiter = new CommonMutateRandomLimiter();
+            record.mutateRandom(random, limiter);
             {{.StructName}} copy = new {{.StructName}}();
             copy.copyFrom(record);
             records.add(copy);

@@ -255,9 +255,12 @@ func CmpEventArray(left, right *EventArray) int {
 // random parameter as a deterministic generator. If array elements contain structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (a *EventArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (a *EventArray) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20) == 0 {
-		a.EnsureLen(a.Len() + 1)
+		if limiter.elemCount < mutateRandomMaxElems {
+			a.EnsureLen(a.Len() + 1)
+			limiter.elemCount++
+		}
 	}
 	if random.IntN(20) == 0 && a.Len() > 0 {
 		a.EnsureLen(a.Len() - 1)
@@ -266,7 +269,7 @@ func (a *EventArray) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 	for i := range a.elems {
 		_ = i
 		if random.IntN(2*len(a.elems)) == 0 {
-			a.elems[i].mutateRandom(random, schem)
+			a.elems[i].mutateRandom(random, schem, limiter)
 		}
 	}
 }

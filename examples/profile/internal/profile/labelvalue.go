@@ -265,7 +265,7 @@ func CmpLabelValue(left, right *LabelValue) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schema are mutated, allowing to generate data for specified schema.
-func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this oneof from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// the type of the oneof to the choices that are not in the schema.
@@ -287,7 +287,7 @@ func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
 		}
 	case LabelValueTypeNum:
 		if typeChanged || random.IntN(2) == 0 {
-			s.num.mutateRandom(random, schem)
+			s.num.mutateRandom(random, schem, limiter)
 		}
 	}
 }

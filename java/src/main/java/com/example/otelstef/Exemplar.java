@@ -301,7 +301,7 @@ public class Exemplar {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max(5,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
@@ -309,7 +309,7 @@ public class Exemplar {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.value.mutateRandom(random);
+            this.value.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {
@@ -321,7 +321,7 @@ public class Exemplar {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.filteredAttributes.mutateRandom(random);
+            this.filteredAttributes.mutateRandom(random, limiter);
         }
         
     }

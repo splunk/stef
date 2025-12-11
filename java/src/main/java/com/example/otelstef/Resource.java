@@ -219,7 +219,7 @@ public class Resource {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max(3,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
@@ -227,7 +227,7 @@ public class Resource {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.attributes.mutateRandom(random);
+            this.attributes.mutateRandom(random, limiter);
         }
         
         if (random.nextInt(fieldCount) == 0) {

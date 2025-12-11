@@ -199,9 +199,12 @@ public class Uint64Array {
 
     // mutateRandom mutates fields in a random, deterministic manner using
     // random parameter as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         if (random.nextInt(20) == 0) {
-            ensureLen(len() + 1);
+            if (limiter.elemCount < CommonMutateRandomLimiter.maxElems) {
+                ensureLen(len() + 1);
+                limiter.elemCount++;
+            }
         }
         if (random.nextInt(20) == 0 && len() > 0) {
             ensureLen(len() - 1);

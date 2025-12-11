@@ -493,7 +493,7 @@ func (s *ProfileMetadata) CopyFrom(src *ProfileMetadata) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
-func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this struct from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// fields that are not in the schema.
@@ -554,7 +554,7 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 			s.periodType = s.periodType.Clone(&Allocators{})
 		}
 
-		s.periodType.mutateRandom(random, schem)
+		s.periodType.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 5 {
 		return // Period and all subsequent fields are skipped.
@@ -568,7 +568,7 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 	}
 	// Maybe mutate Comments
 	if random.IntN(randRange) == 0 {
-		s.comments.mutateRandom(random, schem)
+		s.comments.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 7 {
 		return // DefaultSampleType and all subsequent fields are skipped.
@@ -592,7 +592,7 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema) 
 			s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
 		}
 
-		s.defaultSampleType.mutateRandom(random, schem)
+		s.defaultSampleType.mutateRandom(random, schem, limiter)
 	}
 }
 

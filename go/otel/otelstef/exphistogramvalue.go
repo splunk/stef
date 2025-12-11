@@ -567,7 +567,7 @@ func (s *ExpHistogramValue) CopyFrom(src *ExpHistogramValue) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
-func (s *ExpHistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *ExpHistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this struct from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// fields that are not in the schema.
@@ -625,14 +625,14 @@ func (s *ExpHistogramValue) mutateRandom(random *rand.Rand, schem *schema.Schema
 	}
 	// Maybe mutate PositiveBuckets
 	if random.IntN(randRange) == 0 {
-		s.positiveBuckets.mutateRandom(random, schem)
+		s.positiveBuckets.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 7 {
 		return // NegativeBuckets and all subsequent fields are skipped.
 	}
 	// Maybe mutate NegativeBuckets
 	if random.IntN(randRange) == 0 {
-		s.negativeBuckets.mutateRandom(random, schem)
+		s.negativeBuckets.mutateRandom(random, schem, limiter)
 	}
 	if fieldCount <= 8 {
 		return // ZeroThreshold and all subsequent fields are skipped.

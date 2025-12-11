@@ -280,25 +280,36 @@ public class {{ .StructName }} {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max({{len .Fields}},2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         {{ range .Fields }}
         if (random.nextInt(fieldCount) == 0) {
             {{- if not .Type.IsPrimitive }}
             {{- if .Optional}}
-            // Flip the optional field presence bit.
-            this.optionalFieldsPresent ^= fieldPresent{{.Name}};
-            this.mark{{.Name}}Modified();
-            if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) !=0) {
-                if (this.{{.name}} == null) {
-                    this.{{.name}} = new {{ .Type.Storage }}(this.modifiedFields, fieldModified{{.Name}});
+            boolean flipOptional = true;
+            if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) == 0) {
+                if (limiter.objectCount < CommonMutateRandomLimiter.maxObjects) {
+                    limiter.objectCount++;
+                } else {
+                    flipOptional = false;
                 }
-                this.{{.name}}.mutateRandom(random);
-            } else {
-                this.{{.name}}.reset();
+            }
+
+            if (flipOptional) {
+                // Flip the optional field presence bit.
+                this.optionalFieldsPresent ^= fieldPresent{{.Name}};
+                this.mark{{.Name}}Modified();
+                if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) !=0) {
+                    if (this.{{.name}} == null) {
+                        this.{{.name}} = new {{ .Type.Storage }}(this.modifiedFields, fieldModified{{.Name}});
+                    }
+                    this.{{.name}}.mutateRandom(random, limiter);
+                } else {
+                    this.{{.name}}.reset();
+                }
             }
             {{- else}}
-            this.{{.name}}.mutateRandom(random);
+            this.{{.name}}.mutateRandom(random, limiter);
             {{- end}}
             {{- else }}
             this.set{{.Name}}({{.Type.RandomFunc}});

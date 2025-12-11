@@ -257,9 +257,12 @@ func CmpEnvelopeAttributes(left, right *EnvelopeAttributes) int {
 // random parameter as a deterministic generator. If key or value contains structs/oneofs
 // only fields that exist in the schema are mutated, allowing to generate data for
 // specified schema.
-func (m *EnvelopeAttributes) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (m *EnvelopeAttributes) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	if random.IntN(20) == 0 {
-		m.EnsureLen(m.Len() + 1)
+		if limiter.elemCount < mutateRandomMaxElems {
+			m.EnsureLen(m.Len() + 1)
+			limiter.elemCount++
+		}
 	}
 	if random.IntN(20) == 0 && m.Len() > 0 {
 		m.EnsureLen(m.Len() - 1)

@@ -252,7 +252,7 @@ public class {{ .StructName }} {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         int fieldCount = {{len .Fields}};
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
@@ -264,7 +264,7 @@ public class {{ .StructName }} {
         case Type{{.Name}}:
             if (typeChanged || random.nextInt(2) == 0) {
             {{- if not .Type.IsPrimitive }}
-                this.{{.name}}.mutateRandom(random);
+                this.{{.name}}.mutateRandom(random, limiter);
             {{- else }}
                 this.set{{.Name}}({{.Type.RandomFunc}});
             {{- end }}

@@ -264,7 +264,7 @@ func CmpExemplarValue(left, right *ExemplarValue) int {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schema are mutated, allowing to generate data for specified schema.
-func (s *ExemplarValue) mutateRandom(random *rand.Rand, schem *schema.Schema) {
+func (s *ExemplarValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this oneof from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate
 	// the type of the oneof to the choices that are not in the schema.

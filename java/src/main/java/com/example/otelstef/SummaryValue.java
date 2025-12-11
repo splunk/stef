@@ -219,7 +219,7 @@ public class SummaryValue {
     }
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
-    void mutateRandom(Random random) {
+    void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
         final int fieldCount = Math.max(3,2); // At least 2 to ensure we don't recurse infinitely if there is only 1 field.
         
         if (random.nextInt(fieldCount) == 0) {
@@ -231,7 +231,7 @@ public class SummaryValue {
         }
         
         if (random.nextInt(fieldCount) == 0) {
-            this.quantileValues.mutateRandom(random);
+            this.quantileValues.mutateRandom(random, limiter);
         }
         
     }
