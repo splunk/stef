@@ -82,7 +82,7 @@ func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *otelstef.Attributes) {
 
 	out.EnsureLen(m.Len())
 	for i := range o.attrElems {
-		otlpValueToTefAnyValue(o.attrElems[i].val, out.At(i).Value())
+		otlpValueToTefAnyValue(o.attrElems[i].val, out.Value(i))
 		out.SetKey(i, o.attrElems[i].str)
 	}
 }
@@ -92,7 +92,7 @@ func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *otelstef.Attributes) {
 	i := 0
 	m.Range(
 		func(k string, v pcommon.Value) bool {
-			otlpValueToTefAnyValue(v, out.At(i).Value())
+			otlpValueToTefAnyValue(v, out.Value(i))
 			out.SetKey(i, k)
 			i++
 			return true
@@ -138,7 +138,7 @@ func otlpValueToTefAnyValue(val pcommon.Value, into *otelstef.AnyValue) {
 		val.Map().Range(
 			func(k string, v pcommon.Value) bool {
 				kvList.SetKey(i, k)
-				otlpValueToTefAnyValue(v, kvList.At(i).Value())
+				otlpValueToTefAnyValue(v, kvList.Value(i))
 				return true
 			},
 		)

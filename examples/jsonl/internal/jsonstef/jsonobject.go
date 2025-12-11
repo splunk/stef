@@ -28,14 +28,6 @@ type JsonObjectElem struct {
 	value JsonValue
 }
 
-func (e *JsonObjectElem) Key() string {
-	return e.key
-}
-
-func (e *JsonObjectElem) Value() *JsonValue {
-	return &e.value
-}
-
 func (m *JsonObject) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
@@ -70,11 +62,6 @@ func (m *JsonObject) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *JsonObject) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *JsonObject) At(i int) *JsonObjectElem {
-	return &m.elems[i]
 }
 
 func (m *JsonObject) ensureLen(newLen int) {
@@ -154,6 +141,14 @@ func (m *JsonObject) computeDiff(val *JsonObject) (ret bool) {
 		m.elems[i].value.setModifiedRecursively()
 	}
 	return ret
+}
+
+func (m *JsonObject) Key(i int) string {
+	return m.elems[i].key
+}
+
+func (m *JsonObject) Value(i int) *JsonValue {
+	return &m.elems[i].value
 }
 
 // SetKey sets the key of the element at index i.

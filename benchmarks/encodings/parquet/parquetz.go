@@ -211,11 +211,10 @@ func (d *EncodingZ) Encode(data encodings.InMemoryData) ([]byte, error) {
 
 func convertAttrsZ(attrs *otelstef.Attributes) (r []AttributeZ) {
 	for i := 0; i < attrs.Len(); i++ {
-		attr := attrs.At(i)
 		r = append(
 			r, AttributeZ{
-				Key:   attr.Key(),
-				Value: string(attr.Value().String()),
+				Key:   attrs.Key(i),
+				Value: string(attrs.Value(i).String()),
 			},
 		)
 	}

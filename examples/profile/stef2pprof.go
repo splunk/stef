@@ -170,8 +170,8 @@ func convertStefToPprof(src io.Reader) (*profile.Profile, error) {
 
 		stefLabels := reader.Record.Labels()
 		for i := 0; i < stefLabels.Len(); i++ {
-			key := stefLabels.At(i).Key()
-			stefLabelValue := stefLabels.At(i).Value()
+			key := stefLabels.Key(i)
+			stefLabelValue := stefLabels.Value(i)
 
 			if stefLabelValue.Type() == stefprofile.LabelValueTypeStr {
 				value := stefLabelValue.Str()

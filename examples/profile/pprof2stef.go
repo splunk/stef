@@ -125,7 +125,7 @@ func (c *pprof2stef) convertSample(srcSample *profile.Sample, srcProf *profile.P
 	for key, values := range srcSample.Label {
 		for _, value := range values {
 			dstLabels.SetKey(labelIndex, key)
-			dstLabelValue := dstLabels.At(labelIndex).Value()
+			dstLabelValue := dstLabels.Value(labelIndex)
 			dstLabelValue.SetStr(value)
 			labelIndex++
 		}
@@ -135,7 +135,7 @@ func (c *pprof2stef) convertSample(srcSample *profile.Sample, srcProf *profile.P
 	for key, values := range srcSample.NumLabel {
 		for _, value := range values {
 			dstLabels.SetKey(labelIndex, key)
-			dstLabelValue := dstLabels.At(labelIndex).Value()
+			dstLabelValue := dstLabels.Value(labelIndex)
 			dstLabelValue.SetType(stefprofile.LabelValueTypeNum)
 			numValue := dstLabelValue.Num()
 			numValue.SetVal(value)
