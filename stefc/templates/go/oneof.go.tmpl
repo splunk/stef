@@ -1,3 +1,4 @@
+{{- /*gotype: github.com/splunk/stef/stefc/generator.StructTemplateModel*/ -}}
 package {{ .PackageName }}
 
 import (
@@ -349,6 +350,7 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
 // random parameter as a deterministic generator. Only fields that exist
 // in the schema are mutated, allowing to generate data for specified schema.
 func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
+    {{- if len .Fields }}
     // Get the field count for this oneof from the schema. If the schema specifies
     // fewer field count than the one we have in this code then we will not mutate
     // the type of the oneof to the choices that are not in the schema.
@@ -362,7 +364,7 @@ typeChanged := false
         s.SetType({{$.StructName }}Type(random.IntN(fieldCount+1)))
         typeChanged = true
     }
-
+    {{ end }}
     switch s.typ {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
@@ -510,7 +512,9 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
     columnSet.SetBits(&e.buf)
+    {{- if len .Fields }}
     colIdx := 0
+    {{- end }}
     {{ range $i,$e := .Fields }}
     // Collect {{.Name}} field.
     if e.fieldCount <= {{$i}} {

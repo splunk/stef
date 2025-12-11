@@ -118,3 +118,24 @@ func (g *Generator) oStruct(str *genStructDef) error {
 
 	return g.lastErr
 }
+
+// StructTemplateModel is the data model passed to the struct template to facilitate autocompletion.
+type StructTemplateModel struct {
+	PackageName string
+	StructName  string
+	Fields      []StructFieldTemplateModel
+}
+
+// StructFieldTemplateModel is the data model passed to the struct template to facilitate autocompletion.
+type StructFieldTemplateModel struct {
+	name          string
+	Name          string
+	Type          genFieldTypeRef
+	Optional      bool
+	FieldIndex    int
+	OptionalIndex int
+	ConstModifier string
+	PassByPtr     bool
+	IsPrimitive   bool
+	IsStructType  bool
+}

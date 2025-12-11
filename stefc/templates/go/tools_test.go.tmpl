@@ -9,6 +9,10 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,15 +21,17 @@ import (
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var generateFlag = flag.Bool("generate", false, "stef -generate -root=structname -out=filename [-seed=seed]")
+var generateFlag = flag.Bool("generate", false, "stef -generate -root=structname -out=filename [-seed=seed] [-records=n] [-withschema]")
 
 var rootFlag = flag.String("root", "", "root struct name")
 var seedFlag = flag.Uint64("seed", 0, "non-zero seed for random number generation (optional, default is current time)")
-var countFlag = flag.Uint64("count", 1000, "number of records to generate (default is 1000)")
+var countFlag = flag.Uint64("records", 1000, "number of records to generate (default is 1000)")
 var outFlag = flag.String("out", "", "output file name for the generated data")
+var schemaFlag = flag.Bool("withschema", false, "to force specifying schema in the output file")
 
 var diffFlag = flag.Bool("diff", false, "stef -diff -root=structname file1 file2")
 var copyFlag = flag.Bool("copy", false, "stef -copy -root=structname input-file output-file")
+var compatFlag = flag.Bool("compat", false, "stef -compat -root=structname [-seed=seed] [-records=n]")
 
 func TestTool(t *testing.T) {
 	// This test can be invoked via command line to generate data, compare files, or copy data.
@@ -36,12 +42,12 @@ func TestTool(t *testing.T) {
 		if *rootFlag == "" || *outFlag == "" {
 			fmt.Println("Error: -root and -out flags are required for generation.")
 			flag.Usage()
-			os.Exit(1)
+			t.Fail()
 		}
-		err := generateData(*rootFlag, *outFlag, *seedFlag, *countFlag)
+		err := generateData(*rootFlag, *outFlag, *seedFlag, *countFlag, *schemaFlag)
 		if err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			t.Fail()
 		}
 		return
 	}
@@ -50,12 +56,12 @@ func TestTool(t *testing.T) {
 		if len(flag.Args()) != 2 {
 			fmt.Println("Error: -diff requires exactly two file arguments.")
 			flag.Usage()
-			os.Exit(1)
+			t.Fail()
 		}
 		if *rootFlag == "" {
 			fmt.Println("Error: -root flag is required for diff.")
 			flag.Usage()
-			os.Exit(1)
+			t.Fail()
 		}
 		file1 := flag.Args()[0]
 		file2 := flag.Args()[1]
@@ -63,7 +69,7 @@ func TestTool(t *testing.T) {
 		err := diffData(*rootFlag, file1, file2)
 		if err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			t.Fail()
 		}
 		return
 	}
@@ -72,20 +78,35 @@ func TestTool(t *testing.T) {
 		if len(flag.Args()) != 2 {
 			fmt.Println("Error: -copy requires exactly two file arguments.")
 			flag.Usage()
-			os.Exit(1)
+			t.Fail()
 		}
 		if *rootFlag == "" {
 			fmt.Println("Error: -root flag is required for copy.")
 			flag.Usage()
-			os.Exit(1)
+			t.Fail()
 		}
 		file1 := flag.Args()[0]
 		file2 := flag.Args()[1]
 
-		err := copyData(*rootFlag, file1, file2)
+		err := copyData(*rootFlag, file1, file2, *schemaFlag)
 		if err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			t.Fail()
+		}
+		return
+	}
+
+	if *compatFlag {
+		if *rootFlag == "" {
+			fmt.Println("Error: -root flag is required for compat.")
+			flag.Usage()
+			t.Fail()
+		}
+
+		err := verifyCompat(*rootFlag, *seedFlag, *countFlag)
+		if err != nil {
+			fmt.Println(err)
+			t.Fail()
 		}
 		return
 	}
@@ -156,7 +177,7 @@ func diffData(rootStruct, fname1, fname2 string) error {
 }
 
 // copyData copies records from one STEF file to another for the specified root struct.
-func copyData(rootStruct, sourceFname, destFname string) (retErr error) {
+func copyData(rootStruct, sourceFname, destFname string, includeSchema bool) (retErr error) {
 	fmt.Printf("Copying content from %s to %s...\n", sourceFname, destFname)
 
 	// Open source file for reading
@@ -187,8 +208,14 @@ func copyData(rootStruct, sourceFname, destFname string) (retErr error) {
 		if err != nil {
 			return fmt.Errorf("Cannot create reader for %s: %v", sourceFname, err)
 		}
+		opts := pkg.WriterOptions{}
+		if includeSchema {
+		    // Include the schema from the source file in the copy.
+			opts.Schema = reader.Schema()
+			opts.IncludeDescriptor = true
+		}
 
-		writer, err := New{{$StructName}}Writer(dst, pkg.WriterOptions{})
+		writer, err := New{{$StructName}}Writer(dst, opts)
 		if err != nil {
 			return fmt.Errorf("Cannot create writer for %s: %v", destFname, err)
 		}
@@ -226,7 +253,7 @@ func copyData(rootStruct, sourceFname, destFname string) (retErr error) {
 }
 
 // generateData generates random records of the specified root struct and writes them to the output file.
-func generateData(rootStruct, outFileName string, randSeed uint64, recordCount uint64) (retErr error) {
+func generateData(rootStruct, outFileName string, randSeed uint64, recordCount uint64, specifySchema bool) (retErr error) {
 	fmt.Printf("Generating %d random %s records...\n", recordCount, rootStruct)
 
 	outFile, err := os.Create(outFileName)
@@ -256,7 +283,8 @@ func generateData(rootStruct, outFileName string, randSeed uint64, recordCount u
 		random := rand.New(rand.NewPCG(randSeed, 0))
 
 		opts := pkg.WriterOptions{}
-		if random.IntN(2) == 0 { // Approx half of the times specify the schema in the writer.
+		if specifySchema || random.IntN(2) == 0 {
+		    // Specify the schema in the writer.
 			if random.IntN(2) == 0 { // Randomly shrink the schema.
 				// This is to test that the writer/reader can handle schema changes.
 				schema.ShrinkRandomly(random, schem)
@@ -295,3 +323,87 @@ func generateData(rootStruct, outFileName string, randSeed uint64, recordCount u
 		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
 	}
 }
+
+func runGoTestTool(inDir string, args []string) error {
+	args = append([]string{"test", "-v", "-run=TestTool"}, args...)
+	cmd := exec.Command("go", args...)
+    var err error
+    cmd.Dir, err = filepath.Abs(inDir)
+    if err != nil {
+        return err
+    }
+
+    stdoutStderr, err := cmd.CombinedOutput()
+    if err != nil {
+        fmt.Printf("%s\n", stdoutStderr)
+        return fmt.Errorf("go test command failed: %v", err)
+    }
+    return nil
+}
+
+func verifyCompat(rootStruct string, randSeed uint64, recordCount uint64) (retErr error) {
+    fmt.Printf("Verifying backward compatibility for %s...\n", rootStruct)
+
+    if randSeed == 0 {
+        randSeed = uint64(time.Now().UnixNano())
+    }
+    fmt.Printf("Using random seed: %d\n", randSeed)
+
+	switch rootStruct {
+{{ range $i, $StructName := .RootStructs }}
+	case "{{$StructName}}":
+		dataDir, err := filepath.Abs("tempdata")
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(dataDir, 0755); err!=nil {
+			return err
+		}
+
+		sourceFile := path.Join(dataDir, "gen_by_shrunk_MainRoot.stef")
+		copiedFile := path.Join(dataDir, "copied_from_shrunk_MainRoot.stef")
+
+        // Generate data using shrunk schema
+        shrunkPkgDir := "../shrunk/{{ $.PackageName }}"
+        err = runGoTestTool(shrunkPkgDir, []string{
+            "-generate",
+            "-root="+rootStruct,
+            "-seed="+strconv.FormatUint(randSeed, 10),
+            "-records="+strconv.FormatUint(recordCount, 10),
+            "-out="+sourceFile,
+            "-withschema", // Make sure schema is specified in generated file.
+        })
+        if err!=nil {
+            return err
+        }
+
+        // Copy using current schema
+        if err := copyData(rootStruct, sourceFile, copiedFile, true); err!=nil {
+            return err
+        }
+
+        // Diff using shrunk schema
+        err = runGoTestTool(shrunkPkgDir, []string{
+            "-diff",
+            "-root="+rootStruct,
+            sourceFile, copiedFile,
+        })
+        if err!=nil {
+            return err
+        }
+
+		return nil
+{{end}}
+	default:
+		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
+	}
+}
+
+{{ range $i, $StructName := .RootStructs }}
+func Test{{$StructName}}BackwardCompatiblity(t *testing.T) {
+    if os.Getenv("STEF_ENABLE_SLOW_TESTS") != "1" {
+        t.Skip("Skipping slow test. Set STEF_ENABLE_SLOW_TESTS=1 to enable.")
+    }
+    verifyCompat("{{$StructName}}", 0, 10000)
+}
+{{end}}

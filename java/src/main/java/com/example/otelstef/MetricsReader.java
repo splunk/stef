@@ -100,4 +100,9 @@ public class MetricsReader {
         decoder.decode(record);
         return ReadResult.Success;
     }
+
+    // Returns the schema of the STEF stream being read.
+    public WireSchema getSchema() {
+        return base.getSchema();
+    }
 }

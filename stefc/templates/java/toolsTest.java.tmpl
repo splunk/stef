@@ -76,7 +76,7 @@ public class ToolsTest {
     }
 
     // copyData copies records from one STEF file to another for the specified root struct.
-    private void copyData(String rootStruct, String fname1, String fname2) throws Exception {
+    private void copyData(String rootStruct, String fname1, String fname2, boolean includeSchema) throws Exception {
         System.out.printf("Copying content from %s to %s...%n", fname1, fname2);
 
         try (FileInputStream sourceFile = new FileInputStream(fname1);
@@ -86,7 +86,11 @@ public class ToolsTest {
 {{ range $i, $StructName := .RootStructs }}
             case "{{$StructName}}": {
                 {{$StructName}}Reader reader = new {{$StructName}}Reader(sourceFile);
-                {{$StructName}}Writer writer = new {{$StructName}}Writer(new WrapChunkWriter(destFile), WriterOptions.builder().build());
+                WriterOptions.Builder optsBuilder = WriterOptions.builder();
+                if (includeSchema) {
+                    optsBuilder = optsBuilder.includeDescriptor(includeSchema).schema(reader.getSchema());
+                }
+                {{$StructName}}Writer writer = new {{$StructName}}Writer(new WrapChunkWriter(destFile), optsBuilder.build());
 
                 long recordCount = 0;
                 while (true) {
@@ -154,7 +158,9 @@ public class ToolsTest {
 
     private static final String packageFull = "{{ .PackageName }}";
     private static final String packageName = packageFull.substring(packageFull.lastIndexOf(".")+1);
-    private static String goPkgDir = "../stefc/generator/testdata/out/"+packageName+".stef/"+packageName;
+    private static String goDir = "../stefc/generator/testdata/out/"+packageName+".stef/";
+    private static String goPkgDir = goDir+packageName;
+    private static String goPkgShrunkDir = goDir+"shrunk/"+packageName;
 
     // runGoTest runs the Go test tool with the specified command line flags in the given directory.
     private int runGoTest(String inDir, String... command) throws Exception {
@@ -178,6 +184,7 @@ public class ToolsTest {
 
 {{ range $i, $StructName := .RootStructs }}
     @Test
+    // Test interoperability between Java and Go implementations for {{$StructName}}.
     void testFormatInterop{{$StructName}}() throws Exception {
         File tempDir = new File(goPkgDir+"/tempdata");
         if (!tempDir.exists()) {
@@ -192,31 +199,94 @@ public class ToolsTest {
             // Test interop: generate in Java, copy in Go, compare in Java.
 
             // Generate data using Java code
-            generateData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef", seed1, 1000);
+            generateData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef", seed1, 10000);
 
             // Run the Go test tool to create a copy of the data
-            int exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-copy", "tempdata/{{$StructName}}_java_gen_for_go.stef", "tempdata/{{$StructName}}_go_copy_from_java.stef");
+            int exitCode = runGoTest(goPkgDir,
+                "-root={{$StructName}}",
+                "-copy",
+                "tempdata/{{$StructName}}_java_gen_for_go.stef",
+                "tempdata/{{$StructName}}_go_copy_from_java.stef");
             assertEquals(0, exitCode, "go test failed, seed " + seed1);
 
             // Verify that the generated data matches the copied data.
-            diffData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef", goPkgDir+"/tempdata/{{$StructName}}_go_copy_from_java.stef");
+            diffData("{{$StructName}}",
+                goPkgDir+"/tempdata/{{$StructName}}_java_gen_for_go.stef",
+                goPkgDir+"/tempdata/{{$StructName}}_go_copy_from_java.stef");
 
             // Now test the opposite direction: generate in Go, copy in Java, compare in Go.
 
             // Run the Go test tool to generate data
-            exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-generate", "-seed="+seed1, "-out=tempdata/{{$StructName}}_go_gen_for_java.stef");
+            exitCode = runGoTest(goPkgDir,
+                "-root={{$StructName}}",
+                "-generate",
+                "-records=11000",
+                "-seed="+seed1,
+                "-out=tempdata/{{$StructName}}_go_gen_for_java.stef");
             assertEquals(0, exitCode, "go test failed, seed " + seed1);
 
             // Copy using Java code
-            copyData("{{$StructName}}", goPkgDir+"/tempdata/{{$StructName}}_go_gen_for_java.stef", goPkgDir+"/tempdata/{{$StructName}}_java_copy_from_go.stef");
+            copyData("{{$StructName}}",
+                goPkgDir+"/tempdata/{{$StructName}}_go_gen_for_java.stef",
+                goPkgDir+"/tempdata/{{$StructName}}_java_copy_from_go.stef",
+                false);
 
             // Run the Go test tool to compare data
-            exitCode = runGoTest(goPkgDir,"-root={{$StructName}}", "-diff", "tempdata/{{$StructName}}_go_gen_for_java.stef", "tempdata/{{$StructName}}_java_copy_from_go.stef");
+            exitCode = runGoTest(goPkgDir,
+                "-root={{$StructName}}",
+                "-diff",
+                "tempdata/{{$StructName}}_go_gen_for_java.stef",
+                "tempdata/{{$StructName}}_java_copy_from_go.stef");
             assertEquals(0, exitCode, "go test failed, seed " + seed1);
 
         } catch (Exception e) {
             fail("seed " + seed1 + ": " + e.getMessage());
         }
     }
+
+    @Test
+    // Test interoperability between this Java implementation and Go implementations
+    // of shrunk (older) version of schema for {{$StructName}}.
+    void testFormatInterop{{$StructName}}Compat() throws Exception {
+        File tempDir = new File(goPkgShrunkDir+"/tempdata");
+        if (!tempDir.exists()) {
+            assertTrue(tempDir.mkdir());
+        }
+
+        // Choose a seed (non-pseudo) randomly. We will print the seed
+        // on failure for easy reproduction.
+        long seed1 = System.nanoTime();
+
+        try {
+            // Generate in Go, copy in Java, compare in Go.
+
+            // Run the Go test tool to generate data
+            int exitCode = runGoTest(goPkgShrunkDir,
+                "-root={{$StructName}}",
+                "-generate",
+                "-withschema",
+                "-seed="+seed1,
+                "-out=tempdata/{{$StructName}}_go_gen_for_java.stef");
+            assertEquals(0, exitCode, "go test failed, seed " + seed1);
+
+            // Copy using Java code
+            copyData("{{$StructName}}",
+                goPkgShrunkDir+"/tempdata/{{$StructName}}_go_gen_for_java.stef",
+                goPkgShrunkDir+"/tempdata/{{$StructName}}_java_copy_from_go.stef",
+                true);
+
+            // Run the Go test tool to compare data
+            exitCode = runGoTest(goPkgShrunkDir,
+                "-root={{$StructName}}",
+                "-diff",
+                "tempdata/{{$StructName}}_go_gen_for_java.stef",
+                "tempdata/{{$StructName}}_java_copy_from_go.stef");
+            assertEquals(0, exitCode, "go test failed, seed " + seed1);
+
+        } catch (Exception e) {
+            fail("seed " + seed1 + ": " + e.getMessage());
+        }
+    }
+
 {{end}}
 }
