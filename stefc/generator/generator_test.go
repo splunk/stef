@@ -28,7 +28,9 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	parsedSchema := parser.Schema()
 
 	// Clean Go directory
-	goDir := path.Join("testdata", "out", path.Base(schemaFileName))
+	goDir, err := filepath.Abs(path.Join("testdata", "out", path.Base(schemaFileName)))
+	require.NoError(t, err)
+
 	err = os.RemoveAll(goDir)
 	require.NoError(t, err)
 
@@ -54,10 +56,11 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	err = genGo.GenFile(parsedSchema)
 	require.NoError(t, err)
 
-	fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
-
 	// Run tests in the generated code
-	cmd := exec.Command("go", "test", "-v", genGo.OutputDir+"/...", "-count=1")
+	testDir := goDir + "/" + parsedSchema.PackageName[len(parsedSchema.PackageName)-1]
+	fmt.Printf("Testing generated code in %s\n", testDir)
+
+	cmd := exec.Command("go", "test", "-v", testDir, "-count=1")
 	cmd.Dir = genGo.OutputDir
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {

@@ -396,3 +396,12 @@ func verifyCompat(rootStruct string, randSeed uint64, recordCount uint64) (retEr
 		return fmt.Errorf("Unsupported root struct: %s", rootStruct)
 	}
 }
+
+{{ range $i, $StructName := .RootStructs }}
+func Test{{$StructName}}BackwardCompatiblity(t *testing.T) {
+    if os.Getenv("STEF_ENABLE_SLOW_TESTS") != "1" {
+        t.Skip("Skipping slow test. Set STEF_ENABLE_SLOW_TESTS=1 to enable.")
+    }
+    verifyCompat("{{$StructName}}", 0, 1000)
+}
+{{end}}

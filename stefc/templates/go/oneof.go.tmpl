@@ -511,8 +511,8 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
 
 // CollectColumns collects all buffers from all encoders into buf.
 func (e *{{ .StructName }}Encoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
-    {{ if len .Fields }}
     columnSet.SetBits(&e.buf)
+    {{ if len .Fields }}
     colIdx := 0
     {{ end }}
     {{ range $i,$e := .Fields }}
