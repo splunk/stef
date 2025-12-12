@@ -2,7 +2,11 @@
 default: test
 
 .PHONY: all
-all: test build
+all: all-test build
+
+.PHONY: test
+all-test:
+	STEF_ENABLE_SLOW_TESTS=1 make test
 
 .PHONY: test
 test:
