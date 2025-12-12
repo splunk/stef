@@ -43,7 +43,16 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	err = genGo.GenFile(parsedSchema)
 	require.NoError(t, err)
 
-	parsedSchema = schema.ShrinkRandomly(random, parsedSchema)
+	// Produce randomly shrunk schema and generate code for it
+	seed := uint64(time.Now().UnixNano())
+	random := rand.New(rand.NewPCG(seed, 0))
+	for i := 0; i < 3; i++ {
+		schema.ShrinkRandomly(random, parsedSchema)
+	}
+	genGo.OutputDir += "/" + "shrunk"
+	genGo.SchemaContent = []byte(parsedSchema.PrettyPrint())
+	err = genGo.GenFile(parsedSchema)
+	require.NoError(t, err)
 
 	fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
 

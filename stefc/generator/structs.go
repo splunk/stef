@@ -118,3 +118,22 @@ func (g *Generator) oStruct(str *genStructDef) error {
 
 	return g.lastErr
 }
+
+type StructTemplateModel struct {
+	PackageName string
+	StructName  string
+	Fields      []StructFieldTemplateModel
+}
+
+type StructFieldTemplateModel struct {
+	name          string
+	Name          string
+	Type          genFieldTypeRef
+	Optional      bool
+	FieldIndex    int
+	OptionalIndex int
+	ConstModifier string
+	PassByPtr     bool
+	IsPrimitive   bool
+	IsStructType  bool
+}
