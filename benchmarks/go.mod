@@ -6,7 +6,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.6.7
 	github.com/klauspost/compress v1.18.2
 	github.com/open-telemetry/otel-arrow/go v0.45.0
-	github.com/parquet-go/parquet-go v0.26.0
+	github.com/parquet-go/parquet-go v0.26.3
 	github.com/splunk/stef/go/otel v0.0.9
 	github.com/splunk/stef/go/pdata v0.0.0
 	github.com/splunk/stef/go/pkg v0.0.9
@@ -37,8 +37,8 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/parquet-go/bitpack v0.2.0 // indirect
-	github.com/parquet-go/jsonlite v0.8.1 // indirect
+	github.com/parquet-go/bitpack v1.0.0 // indirect
+	github.com/parquet-go/jsonlite v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
