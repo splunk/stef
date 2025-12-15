@@ -13,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.47.0
 	golang.org/x/text v0.32.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 	modernc.org/b/v2 v2.1.10
 )
 
