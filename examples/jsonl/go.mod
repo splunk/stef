@@ -7,7 +7,7 @@ require (
 	github.com/klauspost/compress v1.18.2
 	github.com/splunk/stef/go/pkg v0.0.9
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
