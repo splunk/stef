@@ -29,7 +29,7 @@ func convertToJsonValue(src interface{}, dst *jsonstef.JsonValue) {
 
 		for _, k := range keys {
 			obj.SetKey(i, k)
-			convertToJsonValue(v[k], obj.At(i).Value())
+			convertToJsonValue(v[k], obj.Value(i))
 			i++
 		}
 		//obj.Sort()

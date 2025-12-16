@@ -139,7 +139,7 @@ func mapToTef(m map[string]any, out *otelstef.Attributes) {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		valueToTef(m[k], out.At(i).Value())
+		valueToTef(m[k], out.Value(i))
 		out.SetKey(i, k)
 		i++
 	}
@@ -184,7 +184,7 @@ func valueToTef(v any, into *otelstef.AnyValue) {
 		i := 0
 		for k, v := range val {
 			kvList.SetKey(i, k)
-			valueToTef(v, kvList.At(i).Value())
+			valueToTef(v, kvList.Value(i))
 		}
 
 	default:
@@ -196,9 +196,8 @@ func tefToMap(in *otelstef.Attributes) map[string]any {
 	out := map[string]any{}
 
 	for i := 0; i < in.Len(); i++ {
-		kv := in.At(i)
-		val := tefToValue(kv.Value())
-		out[kv.Key()] = val
+		val := tefToValue(in.Value(i))
+		out[in.Key(i)] = val
 	}
 	return out
 }
@@ -236,9 +235,8 @@ func tefToValue(src *otelstef.AnyValue) any {
 		values := map[string]any{}
 		kvList := src.KVList()
 		for i := 0; i < kvList.Len(); i++ {
-			pair := kvList.At(i)
-			val := tefToValue(pair.Value())
-			values[pair.Key()] = val
+			val := tefToValue(kvList.Value(i))
+			values[kvList.Key(i)] = val
 		}
 		return values
 
@@ -410,7 +408,7 @@ func TestLargeMultimap(t *testing.T) {
 	attrs.EnsureLen(attrCount)
 	for i := 0; i < attrCount; i++ {
 		attrs.SetKey(i, strconv.Itoa(i))
-		attrs.At(i).Value().SetInt64(int64(i))
+		attrs.Value(i).SetInt64(int64(i))
 	}
 	var attrs1Copy otelstef.Attributes
 	attrs1Copy.CopyFrom(attrs)
@@ -420,7 +418,7 @@ func TestLargeMultimap(t *testing.T) {
 	// Modify one key. This normally would result in differential encoding
 	// but since the multimap is large it will use full encoding. This is
 	// precisely the case that this test verifies.
-	attrs.At(0).Value().SetString("abc")
+	attrs.Value(0).SetString("abc")
 	var attrs2Copy otelstef.Attributes
 	attrs2Copy.CopyFrom(attrs)
 	err = w.Write()

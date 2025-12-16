@@ -28,14 +28,6 @@ type KeyValueListElem struct {
 	value AnyValue
 }
 
-func (e *KeyValueListElem) Key() string {
-	return e.key
-}
-
-func (e *KeyValueListElem) Value() *AnyValue {
-	return &e.value
-}
-
 func (m *KeyValueList) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	m.modifiedElems.init(parentModifiedFields, parentModifiedBit)
 }
@@ -70,11 +62,6 @@ func (m *KeyValueList) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *KeyValueList) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *KeyValueList) At(i int) *KeyValueListElem {
-	return &m.elems[i]
 }
 
 func (m *KeyValueList) ensureLen(newLen int) {
@@ -154,6 +141,14 @@ func (m *KeyValueList) computeDiff(val *KeyValueList) (ret bool) {
 		m.elems[i].value.setModifiedRecursively()
 	}
 	return ret
+}
+
+func (m *KeyValueList) Key(i int) string {
+	return m.elems[i].key
+}
+
+func (m *KeyValueList) Value(i int) *AnyValue {
+	return &m.elems[i].value
 }
 
 // SetKey sets the key of the element at index i.
