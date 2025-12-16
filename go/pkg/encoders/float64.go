@@ -48,9 +48,9 @@ func (e *Float64Encoder) Encode(val float64) {
 	prevTrailing := e.trailingBits
 	sigbits := 64 - leading - trailing
 
-	if prevLeading != -1 && leading >= prevLeading && trailing >= prevTrailing {
+	if leading >= prevLeading && trailing >= prevTrailing {
 		// Fits in previous [leading..trailing] range.
-		if 53-prevLeading-prevTrailing < sigbits {
+		if 53-prevLeading-prevTrailing <= sigbits {
 			// Current scheme is smaller than trying reset the range. Use the current scheme.
 			e.buf.WriteBits(0b10, 2)
 			bitCount := uint(64 - prevLeading - prevTrailing)
