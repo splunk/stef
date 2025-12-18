@@ -55,6 +55,7 @@ func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
+	allocators.addAllocSize(int(unsafe.Sizeof(JsonValue{})))
 	s.value = allocators.JsonValue.Alloc()
 	s.value.initAlloc(&s.modifiedFields, fieldModifiedRecordValue, allocators)
 }
@@ -178,6 +179,7 @@ func copyToNewRecord(dst *Record, src *Record, allocators *Allocators) {
 	if src.value.canBeShared() {
 		dst.value = src.value
 	} else {
+		allocators.addAllocSize(int(unsafe.Sizeof(JsonValue{})))
 		dst.value = allocators.JsonValue.Alloc()
 		dst.value.init(&dst.modifiedFields, fieldModifiedRecordValue)
 		copyToNewJsonValue(dst.value, src.value, allocators)
@@ -444,6 +446,9 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 { // Value is changed.
 
 		if val.value == nil {
+			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.value))); err != nil {
+				return err
+			}
 			val.value = d.allocators.JsonValue.Alloc()
 			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
 		}

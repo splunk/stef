@@ -242,7 +242,9 @@ func copyToNew{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}, allocator
             dst.elems[j] = src.elems[j]
         } else {
             // Alloc and init the element.
-            {{if .IsStructType}}dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc(){{end}}
+            {{if .IsStructType -}}
+            allocators.addAllocSize(int(unsafe.Sizeof({{.ElemType.Storage}}{})))
+            dst.elems[j] = allocators.{{.ElemType.Storage}}.Alloc(){{end}}
             dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
             // Copy the element.
             copyToNew{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[j], {{if not .IsStructType}}&{{end}}src.elems[j], allocators)
@@ -534,7 +536,16 @@ func (d *{{ .ArrayName }}Decoder) Reset() {
 func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-    {{if not .ElemType.IsPrimitive}}oldLen := len(dst.elems){{end}}
+    oldLen := len(dst.elems)
+
+    // Account for allocation size.
+    lenDelta := newLen - oldLen
+    if lenDelta > 0 {
+        if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0]){{- if .IsStructType}}+unsafe.Sizeof({{.ElemType.Storage}}{}){{end}})); err != nil {
+            return err
+        }
+    }
+
 	dst.ensureLen(newLen, d.allocators)
 
     {{- if not .ElemType.IsPrimitive}}

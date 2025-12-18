@@ -133,6 +133,37 @@ type Allocators struct {
 	Sample          SampleAllocator
 	SampleValue     SampleValueAllocator
 	SampleValueType SampleValueTypeAllocator
+
+	// allocatedSize tracks the total allocated size in bytes since last resetAllocSize call.
+	// This tracking is independent from the individual allocators above, i.e. calls
+	// to Alloc() DO NOT result in allocatedSize being updated automatically.
+	allocatedSize int
+}
+
+// resetAllocSize resets the allocated size counter to zero.
+func (a *Allocators) resetAllocSize() {
+	a.allocatedSize = 0
+}
+
+// addAllocSize adds the size to the allocated size counter.
+func (a *Allocators) addAllocSize(size int) {
+	a.allocatedSize += size
+}
+
+// isOverLimit checks if the allocated size exceeds the allocation limit.
+func (a *Allocators) isOverLimit() bool {
+	return a.allocatedSize > pkg.RecordAllocLimit
+}
+
+// prepAllocSize checks if allocating size bytes would exceed the allocation limit.
+// It adds the size to the total allocated so far.
+// Returns ErrRecordAllocLimitExceeded if the limit is exceeded.
+func (a *Allocators) prepAllocSize(size int) error {
+	a.addAllocSize(size)
+	if a.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
 }
 
 // Maximum number of objects to create per mutateRandom call.
