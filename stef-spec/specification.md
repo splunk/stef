@@ -875,7 +875,31 @@ PrevVal = CurVal
 ### Float64 Codec
 
 64-bit IEEE numbers are encoded using 
-[Gorilla encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf) (section 4.1.2)
+[Gorilla encoding](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf) (section 4.1.2) with
+the following state of the encoder/decoder:
+
+- The "previous" value at the start and at the codec reset is initialized to 0.0.
+- The "previous leading zeros" and "previous trailing zeros" values at the start
+  and at the codec reset are initialized to 0.
+
+We also modify the encoding with the following optimization for the case 3 of encoding
+scheme. The original algorithm says:
+
+>If the block of meaningful bits falls within the block of previous meaningful bits,
+>i.e., there are at least as many leading zeros and as many trailing zeros as with
+>the previous value, use that information for the block position and
+>just store the meaningful XORed value.
+
+We modify this clause in the following way:
+
+If the block of meaningful bits falls within the block of previous meaningful bits,
+i.e., there are at least as many leading zeros and as many trailing zeros as with
+the previous value, calculate the total number of bits require for encoding via schema 3a 
+(Control bit '0') and for encoding via schema 3b (Control bit '1') and choose the
+schema with fewer total number of bits encoding. The net result of this optimization is
+that if the condition `53-prevLeading-prevTrailing > sigbits` is true it is beneficial
+to to switch to schema 3b with new values of leading and trailing zeros even though
+the XOR value fits in the previous values of leading and trailing zeros.
 
 ### Bool Codec
 

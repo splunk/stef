@@ -42,9 +42,9 @@ public class Float64Encoder {
         int prevTrailing = trailingBits;
         int sigbits = 64 - leading - trailing;
 
-        if (leadingBits != -1 && leading >= leadingBits && trailing >= trailingBits) {
+        if (leading >= leadingBits && trailing >= trailingBits) {
             // Fits in previous [leading..trailing] range.
-            if (53-prevLeading-prevTrailing < sigbits) {
+            if (53-prevLeading-prevTrailing <= sigbits) {
                 // Current scheme is smaller than trying reset the range. Use the current scheme.
                 buf.writeBits(0b10, 2);
                 buf.writeBits(xorVal>>>prevTrailing, 64-prevLeading-prevTrailing);
