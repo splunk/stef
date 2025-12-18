@@ -52,7 +52,7 @@ func (r *BaseReader) ReadFixedHeader() error {
 		return err
 	}
 
-	if contentSize < 2 || contentSize > HdrContentSizeLimit {
+	if contentSize < 2 || contentSize > FixedHdrContentSizeLimit {
 		return ErrInvalidHeader
 	}
 
@@ -85,7 +85,12 @@ func (r *BaseReader) ReadVarHeader(ownSchema schema.WireSchema) error {
 		return err
 	}
 
-	hdrBytes := make([]byte, r.FrameDecoder.RemainingSize())
+	hdrSize := r.FrameDecoder.RemainingSize()
+	if hdrSize > VarHdrContentSizeLimit {
+		return ErrInvalidVarHeader
+	}
+
+	hdrBytes := make([]byte, hdrSize)
 	n, err := r.FrameDecoder.Read(hdrBytes)
 	if err != nil {
 		return err
@@ -124,7 +129,7 @@ func (r *BaseReader) NextFrame() (FrameFlags, error) {
 		return 0, err
 	}
 
-	if err := r.ReadBufs.ReadFrom(&r.FrameDecoder); err != nil {
+	if err := r.ReadBufs.ReadFrom(&r.FrameDecoder, r.FrameDecoder.RemainingSize()); err != nil {
 		return 0, err
 	}
 

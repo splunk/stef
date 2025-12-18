@@ -155,9 +155,12 @@ func (s *ReadColumnSet) SubColumnLen() int {
 	return len(s.subColumns)
 }
 
-func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader) error {
+func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader, readLimit uint64) error {
 	// Read data size
 	dataSize := buf.ReadUvarintCompact()
+	if dataSize > readLimit {
+		return ErrColumnSizeLimitExceeded
+	}
 	s.column.data = EnsureLen(s.column.data, int(dataSize))
 
 	if dataSize == 0 {
@@ -170,7 +173,7 @@ func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader) error {
 
 	// Recursively read subcolumns
 	for i := 0; i < len(s.subColumns); i++ {
-		if err := s.subColumns[i].ReadSizesFrom(buf); err != nil {
+		if err := s.subColumns[i].ReadSizesFrom(buf, readLimit); err != nil {
 			return err
 		}
 	}
@@ -191,16 +194,7 @@ func (s *ReadColumnSet) ReadDataFrom(buf ByteAndBlockReader) error {
 		}
 	}
 
-	//s.readIndex = 0
-
 	return nil
-}
-
-func (s *ReadColumnSet) PrintSchema(indent int) {
-	//fmt.Printf("%s%d\n", strings.Repeat("-", indent), len(s.subColumns))
-	//for _, subColumn := range s.subColumns {
-	//	subColumn.PrintSchema(indent + 1)
-	//}
 }
 
 func (s *ReadColumnSet) ResetData() {
@@ -216,18 +210,23 @@ type ReadBufs struct {
 	tempBufBytes []byte
 }
 
-func (s *ReadBufs) ReadFrom(buf ByteAndBlockReader) error {
+func (s *ReadBufs) ReadFrom(buf ByteAndBlockReader, readLimit uint64) error {
 	bufSize, err := binary.ReadUvarint(buf)
 	if err != nil {
 		return err
 	}
+
+	if bufSize > readLimit {
+		return ErrTotalColumnSizeLimitExceeded
+	}
+
 	s.tempBufBytes = EnsureLen(s.tempBufBytes, int(bufSize))
 	if _, err := io.ReadFull(buf, s.tempBufBytes); err != nil {
 		return err
 	}
 	s.tempBuf.Reset(s.tempBufBytes)
 
-	if err := s.Columns.ReadSizesFrom(&s.tempBuf); err != nil {
+	if err := s.Columns.ReadSizesFrom(&s.tempBuf, readLimit-bufSize); err != nil {
 		return err
 	}
 
