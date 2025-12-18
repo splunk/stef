@@ -96,19 +96,19 @@ type FrameDecoder struct {
 	frameContentSrc           ByteAndBlockReader
 	decompressedContentReader *bufio.Reader
 	decompressor              *zstd.Decoder
-	chunkReader               chunkedReader
+	limitedReader             limitedReader
 	flags                     FrameFlags
 	frameLoaded               bool
 	notFirstFrame             bool
 }
 
-type chunkedReader struct {
-	src       ByteAndBlockReader
-	limit     int64
-	nextChunk func() error
+// limitedReader wraps a ByteAndBlockReader and limits the number of bytes read.
+type limitedReader struct {
+	src   ByteAndBlockReader
+	limit int64
 }
 
-func (r *chunkedReader) readByte() (byte, error) {
+func (r *limitedReader) ReadByte() (byte, error) {
 	if r.limit <= 0 {
 		return 0, io.EOF
 	}
@@ -117,25 +117,7 @@ func (r *chunkedReader) readByte() (byte, error) {
 	return b, err
 }
 
-func (r *chunkedReader) ReadByte() (byte, error) {
-loop:
-	for {
-		b, err := r.readByte()
-		if err == nil {
-			return b, err
-		}
-		if err == io.EOF {
-			err = r.nextChunk()
-			if err != nil {
-				return 0, err
-			}
-			goto loop
-		}
-		return 0, err
-	}
-}
-
-func (r *chunkedReader) readBlock(p []byte) (n int, err error) {
+func (r *limitedReader) Read(p []byte) (n int, err error) {
 	if r.limit <= 0 {
 		return 0, io.EOF
 	}
@@ -147,25 +129,7 @@ func (r *chunkedReader) readBlock(p []byte) (n int, err error) {
 	return
 }
 
-func (r *chunkedReader) Read(p []byte) (n int, err error) {
-loop:
-	for {
-		n, err := r.readBlock(p)
-		if err == nil {
-			return n, err
-		}
-		if err == io.EOF {
-			err = r.nextChunk()
-			if err != nil {
-				return 0, err
-			}
-			goto loop
-		}
-		return 0, err
-	}
-}
-
-func (r *chunkedReader) Init(src ByteAndBlockReader) {
+func (r *limitedReader) Init(src ByteAndBlockReader) {
 	r.src = src
 }
 
@@ -176,12 +140,11 @@ const readBufSize = 64 * 1024
 func (d *FrameDecoder) Init(src ByteAndBlockReader, compression Compression) error {
 	d.src = src
 	d.compression = compression
-	d.chunkReader.Init(src)
-	d.chunkReader.nextChunk = d.nextFrame
+	d.limitedReader.Init(src)
 
 	switch d.compression {
 	case CompressionNone:
-		d.frameContentSrc = &d.chunkReader
+		d.frameContentSrc = &d.limitedReader
 
 	case CompressionZstd:
 		var err error
@@ -222,11 +185,11 @@ func (d *FrameDecoder) nextFrame() error {
 		if err != nil {
 			return err
 		}
-		d.chunkReader.limit = int64(compressedSize)
+		d.limitedReader.limit = int64(compressedSize)
 
 		if !d.notFirstFrame || d.flags&RestartCompression != 0 {
 			d.notFirstFrame = true
-			if err := d.decompressor.Reset(&d.chunkReader); err != nil {
+			if err := d.decompressor.Reset(&d.limitedReader); err != nil {
 				return err
 			}
 		}
@@ -234,7 +197,7 @@ func (d *FrameDecoder) nextFrame() error {
 		d.decompressedContentReader.Reset(d.decompressor)
 	} else {
 		compressedSize = uncompressedSize
-		d.chunkReader.limit = int64(uncompressedSize)
+		d.limitedReader.limit = int64(uncompressedSize)
 	}
 
 	d.frameLoaded = true
