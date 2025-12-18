@@ -169,19 +169,27 @@ func (e *Float64Array) EnsureLen(newLen int) {
 
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
-func (e *Float64Array) ensureLen(newLen int, allocators *Allocators) {
+func (e *Float64Array) ensureLen(newLen int, allocators *Allocators) error {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Check if the underlying array is reallocated.
 
+		// Account for allocation size.
+		lenDelta := newLen - oldLen
+		allocators.addAllocSize(lenDelta * int(unsafe.Sizeof(e.elems[0])))
+		if allocators.isOverLimit() {
+			return pkg.ErrRecordAllocLimitExceeded
+		}
+
 		// Grow the array
-		e.elems = append(e.elems, make([]float64, newLen-oldLen)...)
+		e.elems = append(e.elems, make([]float64, lenDelta)...)
 		e.markModified()
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]
 		e.markModified()
 	}
+	return nil
 }
 
 // IsEqual performs deep comparison and returns true if array is equal to val.
@@ -333,7 +341,9 @@ func (d *Float64ArrayDecoder) Reset() {
 func (d *Float64ArrayDecoder) Decode(dst *Float64Array) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+		return err
+	}
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])

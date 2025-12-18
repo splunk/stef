@@ -467,6 +467,14 @@ func (d *QuantileValueDecoder) Reset() {
 	d.valueDecoder.Reset()
 }
 
+func (d *QuantileValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
 	val := dstPtr
 

@@ -586,6 +586,14 @@ func (d *SummaryValueDecoder) Reset() {
 
 }
 
+func (d *SummaryValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 	val := dstPtr
 

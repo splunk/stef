@@ -872,6 +872,14 @@ func (d *SpansDecoder) Reset() {
 
 }
 
+func (d *SpansDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	val := dstPtr
 
@@ -892,6 +900,9 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 { // Resource is changed.
 
 		if val.resource == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.resource))); err != nil {
+				return err
+			}
 			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
 		}
@@ -905,6 +916,9 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 { // Scope is changed.
 
 		if val.scope == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.scope))); err != nil {
+				return err
+			}
 			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
 		}

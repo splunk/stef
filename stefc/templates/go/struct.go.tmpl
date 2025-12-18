@@ -968,6 +968,14 @@ func (d *{{ .StructName }}Decoder) Reset() {
     {{- end}}
 }
 
+func (d *{{ .StructName }}Decoder) tryAllocSize(size int) error {
+    d.allocators.addAllocSize(size)
+    if d.allocators.isOverLimit() {
+        return pkg.ErrRecordAllocLimitExceeded
+    }
+    return nil
+}
+
 func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.StructName}}) error {
     {{- if .DictName}}
 	// Check if this is a dictionary-based decoding.
@@ -985,6 +993,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.isOverLimit() {
+        return pkg.ErrRecordAllocLimitExceeded
+    }
     *dstPtr = val
 	{{- else}}
     val := dstPtr
@@ -1025,6 +1036,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         {{- end}}
             {{- if .Type.Flags.StoreByPtr}}
             if val.{{.name}} == nil {
+                if err := d.tryAllocSize(int(unsafe.Sizeof(*val.{{.name}}))); err != nil {
+                    return err
+                }
                 val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
                 val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             }
@@ -1046,6 +1060,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         // {{.Name}} is not changed. It is an optional field. We need to init it if it is present.
         if val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
             if val.{{.name}} == nil {
+                if err := d.tryAllocSize(int(unsafe.Sizeof(*val.{{.name}}))); err != nil {
+                    return err
+                }
                 val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
                 val.{{.name}}.init(&val.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             }

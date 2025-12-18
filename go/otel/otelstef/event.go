@@ -679,6 +679,14 @@ func (d *EventDecoder) Reset() {
 	d.droppedAttributesCountDecoder.Reset()
 }
 
+func (d *EventDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *EventDecoder) Decode(dstPtr *Event) error {
 	val := dstPtr
 

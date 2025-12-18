@@ -865,6 +865,14 @@ func (d *LinkDecoder) Reset() {
 	d.droppedAttributesCountDecoder.Reset()
 }
 
+func (d *LinkDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *LinkDecoder) Decode(dstPtr *Link) error {
 	val := dstPtr
 

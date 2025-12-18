@@ -798,6 +798,14 @@ func (d *ExemplarDecoder) Reset() {
 
 }
 
+func (d *ExemplarDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 	val := dstPtr
 

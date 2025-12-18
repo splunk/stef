@@ -1349,6 +1349,14 @@ func (d *ExpHistogramValueDecoder) Reset() {
 	d.zeroThresholdDecoder.Reset()
 }
 
+func (d *ExpHistogramValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 	val := dstPtr
 

@@ -424,6 +424,14 @@ func (d *RecordDecoder) Reset() {
 
 }
 
+func (d *RecordDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val := dstPtr
 
@@ -436,6 +444,9 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	if val.modifiedFields.mask&fieldModifiedRecordValue != 0 { // Value is changed.
 
 		if val.value == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.value))); err != nil {
+				return err
+			}
 			val.value = d.allocators.JsonValue.Alloc()
 			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
 		}

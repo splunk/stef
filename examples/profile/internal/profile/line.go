@@ -644,6 +644,14 @@ func (d *LineDecoder) Reset() {
 	d.columnDecoder.Reset()
 }
 
+func (d *LineDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *LineDecoder) Decode(dstPtr *Line) error {
 	val := dstPtr
 
@@ -656,6 +664,9 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 { // Function is changed.
 
 		if val.function == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.function))); err != nil {
+				return err
+			}
 			val.function = d.allocators.Function.Alloc()
 			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
 		}

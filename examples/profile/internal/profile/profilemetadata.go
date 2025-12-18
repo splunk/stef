@@ -1219,6 +1219,14 @@ func (d *ProfileMetadataDecoder) Reset() {
 
 }
 
+func (d *ProfileMetadataDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	val := dstPtr
 
@@ -1263,6 +1271,9 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 { // PeriodType is changed.
 
 		if val.periodType == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.periodType))); err != nil {
+				return err
+			}
 			val.periodType = d.allocators.SampleValueType.Alloc()
 			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 		}
@@ -1292,6 +1303,9 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 { // DefaultSampleType is changed.
 
 		if val.defaultSampleType == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.defaultSampleType))); err != nil {
+				return err
+			}
 			val.defaultSampleType = d.allocators.SampleValueType.Alloc()
 			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		}

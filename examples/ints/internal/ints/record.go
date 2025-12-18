@@ -374,6 +374,14 @@ func (d *RecordDecoder) Reset() {
 	d.uint64Decoder.Reset()
 }
 
+func (d *RecordDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val := dstPtr
 

@@ -399,6 +399,14 @@ func (d *EnvelopeDecoder) Reset() {
 
 }
 
+func (d *EnvelopeDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
 	val := dstPtr
 

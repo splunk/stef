@@ -951,6 +951,14 @@ func (d *HistogramValueDecoder) Reset() {
 
 }
 
+func (d *HistogramValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 	val := dstPtr
 

@@ -70,6 +70,20 @@ func (s *StructFieldCounts) AllFetched() bool {
 
 type Allocators struct {
 	Record RecordAllocator
+
+	allocatedSize int
+}
+
+func (a *Allocators) resetAllocSize() {
+	a.allocatedSize = 0
+}
+
+func (a *Allocators) addAllocSize(size int) {
+	a.allocatedSize += size
+}
+
+func (a *Allocators) isOverLimit() bool {
+	return a.allocatedSize > pkg.RecordAllocLimit
 }
 
 // Maximum number of objects to create per mutateRandom call.

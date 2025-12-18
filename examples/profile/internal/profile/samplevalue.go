@@ -551,6 +551,14 @@ func (d *SampleValueDecoder) Reset() {
 
 }
 
+func (d *SampleValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	val := dstPtr
 
@@ -571,6 +579,9 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 { // Type is changed.
 
 		if val.type_ == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.type_))); err != nil {
+				return err
+			}
 			val.type_ = d.allocators.SampleValueType.Alloc()
 			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
 		}

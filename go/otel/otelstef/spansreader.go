@@ -101,6 +101,7 @@ func (r *SpansReader) Read(opts pkg.ReadOptions) error {
 	}
 	r.base.FrameRecordCount--
 	r.base.RecordCount++
+	r.state.Allocators.resetAllocSize()
 	return r.decoder.Decode(r.recordPtr)
 }
 

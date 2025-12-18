@@ -467,6 +467,14 @@ func (d *SpanStatusDecoder) Reset() {
 	d.codeDecoder.Reset()
 }
 
+func (d *SpanStatusDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 	val := dstPtr
 

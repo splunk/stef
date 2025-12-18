@@ -672,6 +672,10 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         // Decode {{.Name}}
         {{- if .Type.Flags.StoreByPtr}}
         if dst.{{.name}} == nil {
+            d.allocators.addAllocSize(int(unsafe.Sizeof(*dst.{{.name}})))
+            if d.allocators.isOverLimit() {
+                return pkg.ErrRecordAllocLimitExceeded
+            }
             dst.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
             dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
         }

@@ -875,6 +875,14 @@ func (d *LocationDecoder) Reset() {
 	d.isFoldedDecoder.Reset()
 }
 
+func (d *LocationDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.PeekBit()
@@ -891,6 +899,9 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
 	*dstPtr = val
 
 	var err error
@@ -902,6 +913,9 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 { // Mapping is changed.
 
 		if val.mapping == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.mapping))); err != nil {
+				return err
+			}
 			val.mapping = d.allocators.Mapping.Alloc()
 			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
 		}

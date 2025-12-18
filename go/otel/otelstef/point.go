@@ -705,6 +705,14 @@ func (d *PointDecoder) Reset() {
 
 }
 
+func (d *PointDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *PointDecoder) Decode(dstPtr *Point) error {
 	val := dstPtr
 

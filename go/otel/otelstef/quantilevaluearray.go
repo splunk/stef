@@ -194,14 +194,21 @@ func (e *QuantileValueArray) EnsureLen(newLen int) {
 
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
-func (e *QuantileValueArray) ensureLen(newLen int, allocators *Allocators) {
+func (e *QuantileValueArray) ensureLen(newLen int, allocators *Allocators) error {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Check if the underlying array is reallocated.
 		beforePtr := unsafe.SliceData(e.elems)
 
+		// Account for allocation size.
+		lenDelta := newLen - oldLen
+		allocators.addAllocSize(lenDelta * int(unsafe.Sizeof(e.elems[0])+unsafe.Sizeof(QuantileValue{})))
+		if allocators.isOverLimit() {
+			return pkg.ErrRecordAllocLimitExceeded
+		}
+
 		// Grow the array
-		e.elems = append(e.elems, make([]*QuantileValue, newLen-oldLen)...)
+		e.elems = append(e.elems, make([]*QuantileValue, lenDelta)...)
 		e.markModified()
 		// Initialize newly added elements.
 		for ; oldLen < newLen; oldLen++ {
@@ -220,6 +227,7 @@ func (e *QuantileValueArray) ensureLen(newLen int, allocators *Allocators) {
 		e.elems = e.elems[:newLen]
 		e.markModified()
 	}
+	return nil
 }
 
 // IsEqual performs deep comparison and returns true if array is equal to val.
@@ -392,7 +400,9 @@ func (d *QuantileValueArrayDecoder) Decode(dst *QuantileValueArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
 	oldLen := len(dst.elems)
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+		return err
+	}
 	for i := min(oldLen, newLen); i < newLen; i++ {
 		// Reset newly created elements to initial state.
 		dst.elems[i].reset()

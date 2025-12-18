@@ -1167,6 +1167,14 @@ func (d *MetricsDecoder) Reset() {
 
 }
 
+func (d *MetricsDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	val := dstPtr
 
@@ -1187,6 +1195,9 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 { // Metric is changed.
 
 		if val.metric == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.metric))); err != nil {
+				return err
+			}
 			val.metric = d.allocators.Metric.Alloc()
 			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
 		}
@@ -1200,6 +1211,9 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 { // Resource is changed.
 
 		if val.resource == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.resource))); err != nil {
+				return err
+			}
 			val.resource = d.allocators.Resource.Alloc()
 			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
 		}
@@ -1213,6 +1227,9 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 { // Scope is changed.
 
 		if val.scope == nil {
+			if err := d.tryAllocSize(int(unsafe.Sizeof(*val.scope))); err != nil {
+				return err
+			}
 			val.scope = d.allocators.Scope.Alloc()
 			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
 		}

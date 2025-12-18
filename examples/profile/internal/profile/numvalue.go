@@ -467,6 +467,14 @@ func (d *NumValueDecoder) Reset() {
 	d.unitDecoder.Reset()
 }
 
+func (d *NumValueDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 	val := dstPtr
 

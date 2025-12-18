@@ -579,6 +579,14 @@ func (d *SampleValueTypeDecoder) Reset() {
 	d.unitDecoder.Reset()
 }
 
+func (d *SampleValueTypeDecoder) tryAllocSize(size int) error {
+	d.allocators.addAllocSize(size)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
+	return nil
+}
+
 func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	// Check if this is a dictionary-based decoding.
 	dictFlag := d.buf.PeekBit()
@@ -595,6 +603,9 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.isOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
 	*dstPtr = val
 
 	var err error
