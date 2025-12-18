@@ -43,7 +43,7 @@ public class ModifiedFieldsMultimap {
         if (index >= 64) {
             keys.markModified(~0L);
         } else {
-            keys.markModified(1 << index);
+            keys.markModified(1L << index);
         }
     }
     
@@ -51,7 +51,7 @@ public class ModifiedFieldsMultimap {
         if (index >= 64) {
             vals.markModified(~0L);
         } else {
-            vals.markModified(1 << index);
+            vals.markModified(1L << index);
         }
     }
     
@@ -92,6 +92,6 @@ public class ModifiedFieldsMultimap {
     
     // areKeysModified returns true if the length or any key was modified.
     boolean areKeysModified() {
-        return modifiedLen || keys.mask!=0;
+        return modifiedLen || keys.mask!=0L;
     }
 }

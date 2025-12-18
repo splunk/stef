@@ -22,7 +22,7 @@ class {{.StructName}}WriterTest {
     // using the supplied Random generator. Generated records will be always
     // the same for the same input state of Random generator.
     static List<{{.StructName}}> gen{{.StructName}}Records(Random random) {
-        final int recCount = 1000;
+        final int recCount = 2000;
         List<{{.StructName}}> records = new ArrayList<>(recCount);
         {{.StructName}} record = new {{.StructName}}();
         for (int i = 0; i < recCount; i++) {
