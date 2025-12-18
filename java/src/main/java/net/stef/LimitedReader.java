@@ -3,10 +3,12 @@ package net.stef;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class ChunkedReader extends ByteAndBlockReader {
+// LimitedReader is an InputStream wrapper that limits
+// the number of bytes that can be read from the underlying
+// InputStream.
+public class LimitedReader extends ByteAndBlockReader {
     private InputStream src;
     private long limit;
-    private NextChunkCallback nextChunk;
 
     public void init(InputStream src) {
         this.src = src;
@@ -16,14 +18,10 @@ public class ChunkedReader extends ByteAndBlockReader {
         this.limit = limit;
     }
 
-    public void setNextChunk(NextChunkCallback nextChunk) {
-        this.nextChunk = nextChunk;
-    }
-
     @Override
     public int read() throws IOException {
         if (limit <= 0) {
-            nextChunk.next();
+            return -1;
         }
         limit--;
         return src.read();
@@ -32,16 +30,11 @@ public class ChunkedReader extends ByteAndBlockReader {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         if (limit <= 0) {
-            nextChunk.next();
+            return -1;
         }
         int toRead = (int) Math.min(limit, b.length);
         int n = src.read(b, off, toRead);
         limit -= n;
         return n;
-    }
-
-    @FunctionalInterface
-    public interface NextChunkCallback {
-        void next() throws IOException;
     }
 }
