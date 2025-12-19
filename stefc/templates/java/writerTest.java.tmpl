@@ -90,8 +90,9 @@ class {{.StructName}}WriterTest {
                     assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed + " optIdx " + optIdx);
                 }
                 assertThrows(EOFException.class, () -> reader.read(ReadOptions.none));
-            } catch (Throwable t) {
-                System.out.printf("Test failed with seed %d optIdx %d: %s%n", seed, optIdx, t);
+            } catch (Exception e) {
+                System.out.printf("Test failed with seed %d optIdx %d: %s%n", seed, optIdx, e.getMessage());
+                e.printStackTrace();
                 retVal = false;
             }
         }
