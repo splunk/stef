@@ -9,7 +9,7 @@ This directory stores **random seeds that previously caused failures in Java-gen
 Each file is named:
 `<javaPackage>_<RootStruct>_seeds.txt`
 Example:
-`com.example.otelstef_Metrics_seeds.txt`
+`com.example.gentest.json_like_Record_seeds.txt`
 
 ## Important
 - Only add seeds that were found by **Java** failures. Go/other-language seeds are not portable because RNGs differ.
