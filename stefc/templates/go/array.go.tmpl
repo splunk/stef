@@ -19,6 +19,7 @@ var _ = (*strings.Builder)(nil)
 // {{ .ArrayName }} is a variable size array.
 type {{ .ArrayName }} struct {
 	elems []{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit uint64
@@ -260,7 +261,13 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
     {{- if not .ElemType.IsPrimitive}}
     for i:=min(oldLen, newLen); i < newLen; i++ {
         // Reset newly created elements to initial state.
+        //e.elems[i].reset()
+        // Reset newly created keys to initial state.
+        {{- if .ElemType.DictName}}
+        e.elems[i] = &empty{{.ElemType.Storage}}
+        {{- else}}
         e.elems[i].reset()
+        {{- end}}
     }
     {{- end}}
 }
@@ -276,15 +283,19 @@ func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
 		{{- end}}
 
 		// Grow the array
-		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		{{- if .IsStructType}}
 		// Initialize newly added elements.
-		for ; oldLen<newLen; oldLen++ {
-			e.elems[oldLen] = allocators.{{.ElemType.Storage}}.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.{{.ElemType.Storage}}.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 		{{- end}}
+		if e.initedCount < newLen {
+            e.initedCount = newLen
+        }
 
         {{- if not .ElemType.IsPrimitive}}
 		if beforePtr != unsafe.SliceData(e.elems) {
@@ -445,7 +456,7 @@ type {{ .ArrayName }}Decoder struct {
 	isRecursive bool
 	allocators *Allocators
 
-    {{- if .DictName}}
+    {{- if .ElemType.DictName}}
 	// Zero-inited elem. New array entries point into this temporarily during decoding.
 	emptyElem {{.ElemType.Storage}}
 	{{- end}}
@@ -466,6 +477,10 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 		return err
 	}
 {{- else}}
+    {{- if .ElemType.DictName}}
+    d.emptyElem.Freeze()
+    {{- end}}
+
 	// Remember this encoder in the state so that we can detect recursion.
 	if state.{{ .ArrayName }}Decoder != nil {
 		panic("cannot initialize {{ .ArrayName }}Decoder: already initialized")
@@ -511,15 +526,19 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
     {{if not .ElemType.IsPrimitive}}oldLen := len(dst.elems){{end}}
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+	    return err
+    }
 
     {{- if not .ElemType.IsPrimitive}}
     for i:=min(oldLen, newLen); i < newLen; i++ {
-        // Reset newly created elements to initial state.
-        {{- if .DictName}}
-        dst.elems[i] = &d.emptyElem
+        {{- if not .ElemType.IsPrimitive}}
+        // Reset newly created keys to initial state.
+        {{- if .ElemType.DictName}}
+        dst.elems[i] = &empty{{.ElemType.Storage}}
         {{- else}}
         dst.elems[i].reset()
+        {{- end}}
         {{- end}}
     }
     {{- end}}

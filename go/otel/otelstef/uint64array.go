@@ -19,7 +19,8 @@ var _ = (*strings.Builder)(nil)
 
 // Uint64Array is a variable size array.
 type Uint64Array struct {
-	elems []uint64
+	elems       []uint64
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -175,8 +176,12 @@ func (e *Uint64Array) ensureLen(newLen int, allocators *Allocators) {
 		// Check if the underlying array is reallocated.
 
 		// Grow the array
-		e.elems = append(e.elems, make([]uint64, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
+		if e.initedCount < newLen {
+			e.initedCount = newLen
+		}
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]
@@ -333,7 +338,9 @@ func (d *Uint64ArrayDecoder) Reset() {
 func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+		return err
+	}
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])
