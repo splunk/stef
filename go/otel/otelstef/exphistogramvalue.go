@@ -113,6 +113,15 @@ func (s *ExpHistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.negativeBuckets.fixParent(&s.modifiedFields)
 }
 
+func (s *ExpHistogramValue) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.positiveBuckets.freeze()
+	s.negativeBuckets.freeze()
+}
+
 func (s *ExpHistogramValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

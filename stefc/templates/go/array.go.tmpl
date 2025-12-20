@@ -18,7 +18,8 @@ var _ = (*strings.Builder)(nil)
 
 // {{ .ArrayName }} is a variable size array.
 type {{ .ArrayName }} struct {
-	elems []{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}
+	elems []{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}{{if .IsStructType}} // all pointers are non-nil{{end}}
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit uint64
@@ -37,6 +38,14 @@ func (e *{{.ArrayName}}) initAlloc(parentModifiedFields *modifiedFields, parentM
 // Will not reset internal fields such as parentModifiedFields.
 func (e *{{.ArrayName}}) reset() {
     e.elems = e.elems[:0]
+}
+
+func (e *{{.ArrayName}}) freeze() {
+    {{- if not .ElemType.IsPrimitive}}
+    for i:=0; i < len(e.elems); i++ {
+        e.elems[i].freeze()
+    }
+    {{- end}}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -174,7 +183,13 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 				isModified = true
 			}
 		} else {
-		    copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
+		    {{- if .ElemType.DictName -}}
+		    if dst.elems[i].canBeShared() {
+		        dst.elems[i] = {{if .IsStructType}}&{{end}}{{.ElemType.Storage}}{}
+		        dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+		    }
+		    {{- end}}
+	        copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
     		isModified = true
 		}
 		{{- else}}
@@ -260,7 +275,11 @@ func (e *{{.ArrayName}}) EnsureLen(newLen int) {
     {{- if not .ElemType.IsPrimitive}}
     for i:=min(oldLen, newLen); i < newLen; i++ {
         // Reset newly created elements to initial state.
+        {{- if .ElemType.DictName}}
+        e.elems[i] = &empty{{.ElemType.Storage}}
+        {{- else}}
         e.elems[i].reset()
+        {{- end}}
     }
     {{- end}}
 }
@@ -276,15 +295,19 @@ func (e *{{.ArrayName}}) ensureLen(newLen int, allocators *Allocators) {
 		{{- end}}
 
 		// Grow the array
-		e.elems = append(e.elems, make([]{{if .IsStructType}}*{{end}}{{.ElemType.Storage}}, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		{{- if .IsStructType}}
 		// Initialize newly added elements.
-		for ; oldLen<newLen; oldLen++ {
-			e.elems[oldLen] = allocators.{{.ElemType.Storage}}.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.{{.ElemType.Storage}}.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
 		}
 		{{- end}}
+		if e.initedCount < newLen {
+            e.initedCount = newLen
+        }
 
         {{- if not .ElemType.IsPrimitive}}
 		if beforePtr != unsafe.SliceData(e.elems) {
@@ -356,6 +379,12 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand, schem *schema.Schema,
 		_ = i
 		if random.IntN(2*len(a.elems))==0 {
 		{{- if not .ElemType.IsPrimitive }}
+		    {{- if .ElemType.DictName}}
+		    if a.elems[i].canBeShared() {
+                // Elem may be shared by pointer. Clone it to have exclusive ownership.
+                a.elems[i] = a.elems[i].Clone(&Allocators{})
+            }
+		    {{- end}}
 			a.elems[i].mutateRandom(random, schem, limiter)
 		{{- else}}
 			v := {{ .ElemType.RandomFunc }}
@@ -444,11 +473,6 @@ type {{ .ArrayName }}Decoder struct {
 	elemDecoder *{{.ElemType.EncoderType}}Decoder
 	isRecursive bool
 	allocators *Allocators
-
-    {{- if .DictName}}
-	// Zero-inited elem. New array entries point into this temporarily during decoding.
-	emptyElem {{.ElemType.Storage}}
-	{{- end}}
 }
 
 // Init is called once in the lifetime of the stream.
@@ -515,11 +539,13 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 
     {{- if not .ElemType.IsPrimitive}}
     for i:=min(oldLen, newLen); i < newLen; i++ {
-        // Reset newly created elements to initial state.
-        {{- if .DictName}}
-        dst.elems[i] = &d.emptyElem
+        {{- if not .ElemType.IsPrimitive}}
+        // Reset newly created keys to initial state.
+        {{- if .ElemType.DictName}}
+        dst.elems[i] = &empty{{.ElemType.Storage}}
         {{- else}}
         dst.elems[i].reset()
+        {{- end}}
         {{- end}}
     }
     {{- end}}

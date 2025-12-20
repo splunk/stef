@@ -42,6 +42,12 @@ func (m *Attributes) reset() {
 	m.elems = m.elems[:0]
 }
 
+func (m *Attributes) freeze() {
+	for i := 0; i < len(m.elems); i++ {
+		m.elems[i].value.freeze()
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

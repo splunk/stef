@@ -74,6 +74,10 @@ func (s *SpanStatus) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+func (s *SpanStatus) freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *SpanStatus) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

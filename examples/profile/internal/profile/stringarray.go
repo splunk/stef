@@ -19,7 +19,8 @@ var _ = (*strings.Builder)(nil)
 
 // StringArray is a variable size array.
 type StringArray struct {
-	elems []string
+	elems       []string
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -38,6 +39,9 @@ func (e *StringArray) initAlloc(parentModifiedFields *modifiedFields, parentModi
 // Will not reset internal fields such as parentModifiedFields.
 func (e *StringArray) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *StringArray) freeze() {
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -175,8 +179,12 @@ func (e *StringArray) ensureLen(newLen int, allocators *Allocators) {
 		// Check if the underlying array is reallocated.
 
 		// Grow the array
-		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
+		if e.initedCount < newLen {
+			e.initedCount = newLen
+		}
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]

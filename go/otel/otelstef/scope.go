@@ -102,7 +102,15 @@ func (s *Scope) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *Scope) Freeze() {
+	s.freeze()
+}
+
+func (s *Scope) freeze() {
+	if s.isFrozen() {
+		return
+	}
 	s.modifiedFields.freeze()
+	s.attributes.freeze()
 }
 
 func (s *Scope) isFrozen() bool {

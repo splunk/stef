@@ -111,6 +111,10 @@ func (s *Mapping) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *Mapping) Freeze() {
+	s.freeze()
+}
+
+func (s *Mapping) freeze() {
 	s.modifiedFields.freeze()
 }
 

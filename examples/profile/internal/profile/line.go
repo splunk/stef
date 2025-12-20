@@ -82,6 +82,14 @@ func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
 	s.function.fixParent(&s.modifiedFields)
 }
 
+func (s *Line) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.function.freeze()
+}
+
 func (s *Line) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

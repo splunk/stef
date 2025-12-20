@@ -74,6 +74,10 @@ func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+func (s *NumValue) freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *NumValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

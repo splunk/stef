@@ -74,6 +74,14 @@ func (s *Envelope) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+func (s *Envelope) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.attributes.freeze()
+}
+
 func (s *Envelope) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

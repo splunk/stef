@@ -105,6 +105,16 @@ func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
 	s.defaultSampleType.fixParent(&s.modifiedFields)
 }
 
+func (s *ProfileMetadata) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.periodType.freeze()
+	s.comments.freeze()
+	s.defaultSampleType.freeze()
+}
+
 func (s *ProfileMetadata) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

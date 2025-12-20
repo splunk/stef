@@ -89,6 +89,14 @@ func (s *Link) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+func (s *Link) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.attributes.freeze()
+}
+
 func (s *Link) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

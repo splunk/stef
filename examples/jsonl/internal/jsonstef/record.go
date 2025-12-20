@@ -78,6 +78,14 @@ func (s *Record) fixParent(parentModifiedFields *modifiedFields) {
 	s.value.fixParent(&s.modifiedFields)
 }
 
+func (s *Record) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.value.freeze()
+}
+
 func (s *Record) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

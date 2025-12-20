@@ -55,6 +55,11 @@ func (s *ExemplarValue) reset() {
 	// when the type is changed, see SetType().
 }
 
+func (s *ExemplarValue) freeze() {
+	switch s.typ {
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

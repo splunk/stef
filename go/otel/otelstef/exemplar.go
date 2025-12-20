@@ -89,6 +89,15 @@ func (s *Exemplar) fixParent(parentModifiedFields *modifiedFields) {
 	s.filteredAttributes.fixParent(&s.modifiedFields)
 }
 
+func (s *Exemplar) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.value.freeze()
+	s.filteredAttributes.freeze()
+}
+
 func (s *Exemplar) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

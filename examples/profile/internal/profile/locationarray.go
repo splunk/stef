@@ -17,7 +17,8 @@ var _ = (*strings.Builder)(nil)
 
 // LocationArray is a variable size array.
 type LocationArray struct {
-	elems []*Location
+	elems       []*Location // all pointers are non-nil
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -36,6 +37,12 @@ func (e *LocationArray) initAlloc(parentModifiedFields *modifiedFields, parentMo
 // Will not reset internal fields such as parentModifiedFields.
 func (e *LocationArray) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *LocationArray) freeze() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].freeze()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -128,6 +135,10 @@ func copyLocationArray(dst *LocationArray, src *LocationArray) {
 				isModified = true
 			}
 		} else {
+			if dst.elems[i].canBeShared() {
+				dst.elems[i] = &Location{}
+				dst.elems[i].init(dst.parentModifiedFields, dst.parentModifiedBit)
+			}
 			copyLocation(dst.elems[i], src.elems[i])
 			isModified = true
 		}
@@ -188,7 +199,7 @@ func (e *LocationArray) EnsureLen(newLen int) {
 	e.ensureLen(newLen, &Allocators{})
 	for i := min(oldLen, newLen); i < newLen; i++ {
 		// Reset newly created elements to initial state.
-		e.elems[i].reset()
+		e.elems[i] = &emptyLocation
 	}
 }
 
@@ -201,12 +212,16 @@ func (e *LocationArray) ensureLen(newLen int, allocators *Allocators) {
 		beforePtr := unsafe.SliceData(e.elems)
 
 		// Grow the array
-		e.elems = append(e.elems, make([]*Location, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		// Initialize newly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = allocators.Location.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.Location.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if e.initedCount < newLen {
+			e.initedCount = newLen
 		}
 		if beforePtr != unsafe.SliceData(e.elems) {
 			// Underlying array was reallocated, we need to fix parent pointers
@@ -269,6 +284,10 @@ func (a *LocationArray) mutateRandom(random *rand.Rand, schem *schema.Schema, li
 	for i := range a.elems {
 		_ = i
 		if random.IntN(2*len(a.elems)) == 0 {
+			if a.elems[i].canBeShared() {
+				// Elem may be shared by pointer. Clone it to have exclusive ownership.
+				a.elems[i] = a.elems[i].Clone(&Allocators{})
+			}
 			a.elems[i].mutateRandom(random, schem, limiter)
 		}
 	}
@@ -394,8 +413,8 @@ func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 	oldLen := len(dst.elems)
 	dst.ensureLen(newLen, d.allocators)
 	for i := min(oldLen, newLen); i < newLen; i++ {
-		// Reset newly created elements to initial state.
-		dst.elems[i].reset()
+		// Reset newly created keys to initial state.
+		dst.elems[i] = &emptyLocation
 	}
 
 	for i := 0; i < newLen; i++ {

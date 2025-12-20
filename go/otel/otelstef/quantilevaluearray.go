@@ -17,7 +17,8 @@ var _ = (*strings.Builder)(nil)
 
 // QuantileValueArray is a variable size array.
 type QuantileValueArray struct {
-	elems []*QuantileValue
+	elems       []*QuantileValue // all pointers are non-nil
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -36,6 +37,12 @@ func (e *QuantileValueArray) initAlloc(parentModifiedFields *modifiedFields, par
 // Will not reset internal fields such as parentModifiedFields.
 func (e *QuantileValueArray) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *QuantileValueArray) freeze() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].freeze()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -201,12 +208,16 @@ func (e *QuantileValueArray) ensureLen(newLen int, allocators *Allocators) {
 		beforePtr := unsafe.SliceData(e.elems)
 
 		// Grow the array
-		e.elems = append(e.elems, make([]*QuantileValue, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		// Initialize newly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = allocators.QuantileValue.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.QuantileValue.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if e.initedCount < newLen {
+			e.initedCount = newLen
 		}
 		if beforePtr != unsafe.SliceData(e.elems) {
 			// Underlying array was reallocated, we need to fix parent pointers
@@ -394,7 +405,7 @@ func (d *QuantileValueArrayDecoder) Decode(dst *QuantileValueArray) error {
 	oldLen := len(dst.elems)
 	dst.ensureLen(newLen, d.allocators)
 	for i := min(oldLen, newLen); i < newLen; i++ {
-		// Reset newly created elements to initial state.
+		// Reset newly created keys to initial state.
 		dst.elems[i].reset()
 	}
 
