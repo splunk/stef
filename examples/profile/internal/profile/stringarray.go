@@ -169,27 +169,19 @@ func (e *StringArray) EnsureLen(newLen int) {
 
 // EnsureLen ensures the length of the array is equal to newLen.
 // It will grow or shrink the array if needed.
-func (e *StringArray) ensureLen(newLen int, allocators *Allocators) error {
+func (e *StringArray) ensureLen(newLen int, allocators *Allocators) {
 	oldLen := len(e.elems)
 	if newLen > oldLen {
 		// Check if the underlying array is reallocated.
 
-		// Account for allocation size.
-		lenDelta := newLen - oldLen
-		allocators.addAllocSize(lenDelta * int(unsafe.Sizeof(e.elems[0])))
-		if allocators.isOverLimit() {
-			return pkg.ErrRecordAllocLimitExceeded
-		}
-
 		// Grow the array
-		e.elems = append(e.elems, make([]string, lenDelta)...)
+		e.elems = append(e.elems, make([]string, newLen-oldLen)...)
 		e.markModified()
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]
 		e.markModified()
 	}
-	return nil
 }
 
 // IsEqual performs deep comparison and returns true if array is equal to val.
@@ -341,9 +333,18 @@ func (d *StringArrayDecoder) Reset() {
 func (d *StringArrayDecoder) Decode(dst *StringArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	if err := dst.ensureLen(newLen, d.allocators); err != nil {
-		return err
+	oldLen := len(dst.elems)
+
+	// Account for allocation size.
+	lenDelta := newLen - oldLen
+	if lenDelta > 0 {
+		d.allocators.addAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0])))
+		if d.allocators.isOverLimit() {
+			return pkg.ErrRecordAllocLimitExceeded
+		}
 	}
+
+	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])
