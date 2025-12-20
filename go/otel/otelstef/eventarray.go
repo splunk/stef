@@ -17,7 +17,8 @@ var _ = (*strings.Builder)(nil)
 
 // EventArray is a variable size array.
 type EventArray struct {
-	elems []*Event
+	elems       []*Event
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -188,6 +189,8 @@ func (e *EventArray) EnsureLen(newLen int) {
 	e.ensureLen(newLen, &Allocators{})
 	for i := min(oldLen, newLen); i < newLen; i++ {
 		// Reset newly created elements to initial state.
+		//e.elems[i].reset()
+		// Reset newly created keys to initial state.
 		e.elems[i].reset()
 	}
 }
@@ -201,12 +204,16 @@ func (e *EventArray) ensureLen(newLen int, allocators *Allocators) {
 		beforePtr := unsafe.SliceData(e.elems)
 
 		// Grow the array
-		e.elems = append(e.elems, make([]*Event, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		// Initialize newly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = allocators.Event.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.Event.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if e.initedCount < newLen {
+			e.initedCount = newLen
 		}
 		if beforePtr != unsafe.SliceData(e.elems) {
 			// Underlying array was reallocated, we need to fix parent pointers
@@ -348,6 +355,7 @@ type EventArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *EventArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
+
 	// Remember this encoder in the state so that we can detect recursion.
 	if state.EventArrayDecoder != nil {
 		panic("cannot initialize EventArrayDecoder: already initialized")
@@ -392,9 +400,11 @@ func (d *EventArrayDecoder) Decode(dst *EventArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
 	oldLen := len(dst.elems)
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+		return err
+	}
 	for i := min(oldLen, newLen); i < newLen; i++ {
-		// Reset newly created elements to initial state.
+		// Reset newly created keys to initial state.
 		dst.elems[i].reset()
 	}
 

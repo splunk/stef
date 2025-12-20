@@ -19,7 +19,8 @@ var _ = (*strings.Builder)(nil)
 
 // Float64Array is a variable size array.
 type Float64Array struct {
-	elems []float64
+	elems       []float64
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -175,8 +176,12 @@ func (e *Float64Array) ensureLen(newLen int, allocators *Allocators) {
 		// Check if the underlying array is reallocated.
 
 		// Grow the array
-		e.elems = append(e.elems, make([]float64, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
+		if e.initedCount < newLen {
+			e.initedCount = newLen
+		}
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]
@@ -333,7 +338,9 @@ func (d *Float64ArrayDecoder) Reset() {
 func (d *Float64ArrayDecoder) Decode(dst *Float64Array) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
-	dst.ensureLen(newLen, d.allocators)
+	if err := dst.ensureLen(newLen, d.allocators); err != nil {
+		return err
+	}
 
 	for i := 0; i < newLen; i++ {
 		err := d.elemDecoder.Decode(&dst.elems[i])
