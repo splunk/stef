@@ -105,7 +105,9 @@ class {{ .StructName }}Encoder {
     // collectColumns collects all buffers from all encoders into buf.
     public void collectColumns(WriteColumnSet columnSet) {
         columnSet.setBits(this.buf);
+        {{- if len .Fields }}
         int colIdx = 0;
+        {{- end}}
         {{ range $i,$e := .Fields }}
         // Collect {{.Name}} field.
         if (this.fieldCount <= {{$i}}) {

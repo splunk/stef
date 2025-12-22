@@ -28,7 +28,9 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	parsedSchema := parser.Schema()
 
 	// Clean Go directory
-	goDir := path.Join("testdata", "out", path.Base(schemaFileName))
+	goDir, err := filepath.Abs(path.Join("testdata", "out", path.Base(schemaFileName)))
+	require.NoError(t, err)
+
 	err = os.RemoveAll(goDir)
 	require.NoError(t, err)
 
@@ -42,22 +44,6 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 
 	err = genGo.GenFile(parsedSchema)
 	require.NoError(t, err)
-
-	fmt.Printf("Testing generated code in %s\n", genGo.OutputDir)
-
-	// Run tests in the generated code
-	cmd := exec.Command("go", "test", "-v", genGo.OutputDir+"/...")
-	cmd.Dir = genGo.OutputDir
-	stdoutStderr, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("%s\n", stdoutStderr)
-		if failOnTest {
-			t.Fatal(err)
-		} else {
-			t.Skipf("Warning: go test failed: %v\n", err)
-			return
-		}
-	}
 
 	// Clean Java directory
 	javaDir := path.Join("../../java/src/test/java")
@@ -76,6 +62,40 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 
 	err = genJava.GenFile(parsedSchema)
 	require.NoError(t, err)
+
+	// Produce randomly shrunk schema and generate Go code for it
+	seed := uint64(time.Now().UnixNano())
+	fmt.Printf("Seed for %s is %v\n", schemaFileName, seed)
+
+	random := rand.New(rand.NewPCG(seed, 0))
+	for i := 0; i < random.IntN(2)+1; i++ {
+		schema.ShrinkRandomly(random, parsedSchema)
+	}
+	genGo = Generator{
+		SchemaContent: []byte(parsedSchema.PrettyPrint()),
+		OutputDir:     goDir + "/" + "shrunk",
+		Lang:          LangGo,
+		genTools:      true, // Generate testing tools
+	}
+	err = genGo.GenFile(parsedSchema)
+	require.NoError(t, err)
+
+	// Run tests in the generated code
+	testDir := goDir + "/" + parsedSchema.PackageName[len(parsedSchema.PackageName)-1]
+	fmt.Printf("Testing generated code in %s\n", testDir)
+
+	cmd := exec.Command("go", "test", "-v", testDir, "-count=1")
+	cmd.Dir = genGo.OutputDir
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%s\n", stdoutStderr)
+		if failOnTest {
+			t.Fatal(err)
+		} else {
+			t.Skipf("Warning: go test failed: %v\n", err)
+			return
+		}
+	}
 }
 
 func TestGenerate(t *testing.T) {
@@ -86,6 +106,7 @@ func TestGenerate(t *testing.T) {
 	for _, file := range files {
 		t.Run(
 			file, func(t *testing.T) {
+				t.Parallel()
 				// Read the schema file
 				schemaContent, err := os.ReadFile(file)
 				require.NoError(t, err)
@@ -252,6 +273,8 @@ func (g *schemaGenerator) genRandomType(allowArray bool) schema.FieldType {
 }
 
 func TestRandomizedSchema(t *testing.T) {
+	t.Parallel()
+
 	seed1 := uint64(time.Now().UnixNano())
 	random := rand.New(rand.NewPCG(seed1, 0))
 

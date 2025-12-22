@@ -24,10 +24,12 @@ func (g *Generator) getMultiMaps(struc *genStructDef) (ret []*genStructFieldDef)
 }
 
 type MultimapTemplateModel struct {
-	PackageName  string
-	MultimapName string
-	Key          genMapFieldDef
-	Value        genMapFieldDef
+	PackageName     string
+	MultimapName    string
+	Key             genFieldDef
+	Value           genFieldDef
+	KeyStoreByPtr   bool
+	ValueStoreByPtr bool
 }
 
 func (g *Generator) oMultimap(multimap *genMapDef) error {

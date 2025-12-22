@@ -1,3 +1,4 @@
+{{- /*gotype: github.com/splunk/stef/stefc/generator.StructTemplateModel*/ -}}
 // {{ .StructName }} Java class generated from template
 package {{ .PackageName }};
 
@@ -253,12 +254,14 @@ public class {{ .StructName }} {
 
     // mutateRandom mutates fields in a random, deterministic manner using random as a deterministic generator.
     void mutateRandom(Random random, CommonMutateRandomLimiter limiter) {
+        {{- if len .Fields }}
         int fieldCount = {{len .Fields}};
         boolean typeChanged = false;
         if (random.nextInt(10) == 0) {
             this.setType(Type.values()[random.nextInt(fieldCount + 1)]);
             typeChanged = true;
         }
+        {{- end}}
         switch (this.typ) {
         {{- range .Fields }}
         case Type{{.Name}}:

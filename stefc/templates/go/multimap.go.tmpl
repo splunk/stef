@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/splunk/stef/go/pkg/generator.MultimapTemplateModel*/ -}}
+{{- /*gotype: github.com/splunk/stef/stefc/generator.MultimapTemplateModel*/ -}}
 package {{ .PackageName }}
 
 import (
@@ -26,14 +26,6 @@ type {{ .MultimapName }} struct {
 type {{ .MultimapName }}Elem struct {
 	key   {{if .KeyStoreByPtr}}*{{end}}{{.Key.Type.Storage}}
 	value {{if .ValueStoreByPtr}}*{{end}}{{.Value.Type.Storage}}
-}
-
-func (e* {{ .MultimapName }}Elem) Key() {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
-	return {{if and .Key.Type.Flags.PassByPtr (not .KeyStoreByPtr)}}&{{end}}{{.Key.Type.ToExported ("e.key")}}
-}
-
-func (e* {{ .MultimapName }}Elem) Value() {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}} {
-	return {{if and .Value.Type.Flags.PassByPtr (not .ValueStoreByPtr)}}&{{end}}{{.Value.Type.ToExported ("e.value")}}
 }
 
 func (m *{{.MultimapName}}) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
@@ -75,11 +67,6 @@ func (m *{{.MultimapName}}) canBeShared() bool {
 // Len returns the number of elements in the multimap.
 func (m *{{.MultimapName}}) Len() int {
 	return len(m.elems)
-}
-
-// At returns element at index i.
-func (m *{{.MultimapName}}) At(i int) *{{.MultimapName}}Elem {
-	return &m.elems[i]
 }
 
 func (m *{{.MultimapName}}) ensureLen(newLen int) {
@@ -209,23 +196,71 @@ func (m *{{.MultimapName}}) Append(k {{.Key.Type.Exported}}, v {{.Value.Type.Exp
 }
 {{end}}
 
+func (m *{{.MultimapName}}) Key(i int) {{if.Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}} {
+	return {{if and .Key.Type.Flags.PassByPtr (not .KeyStoreByPtr)}}&{{end}}{{.Key.Type.ToExported ("m.elems[i].key")}}
+}
+
+func (m *{{.MultimapName}}) Value(i int) {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}} {
+	return {{if and .Value.Type.Flags.PassByPtr (not .ValueStoreByPtr)}}&{{end}}{{.Value.Type.ToExported ("m.elems[i].value")}}
+}
+
 {{if .Key.Type.IsPrimitive}}
 // SetKey sets the key of the element at index i.
 func (m *{{.MultimapName}}) SetKey(i int, k {{.Key.Type.Exported}}) {
-	if m.elems[i].key != {{.Key.Type.ToStorage "k"}} {
+    if m.elems[i].key != {{.Key.Type.ToStorage "k"}} {
 		m.elems[i].key = {{.Key.Type.ToStorage "k"}}
 		m.modifiedElems.markKeyModified(i)
 	}
+}
+{{else if .Key.Type.DictName}}
+// SetKey sets the key of the element at index i.
+func (m *{{.MultimapName}}) SetKey(i int, k {{if .Key.Type.Flags.PassByPtr}}*{{end}}{{.Key.Type.Exported}}) {
+    if k.canBeShared() {
+        // v can be shared by pointer. Compute its difference from current {{.name}}
+        if {{.Key.Type.ToStorage "k"}}.computeDiff(m.elems[i].key) {
+            // It is different. Update to it.
+            m.elems[i].key = {{.Key.Type.ToStorage "k"}}
+            m.modifiedElems.markKeyModified(i)
+        }
+    } else {
+    	if !m.elems[i].key.IsEqual(k) {
+            if m.elems[i].key.canBeShared() {
+                m.elems[i].key = m.elems[i].key.Clone(&Allocators{})
+            }
+            m.elems[i].key.CopyFrom({{.Key.Type.ToStorage "k"}})
+            m.modifiedElems.markKeyModified(i)
+        }
+    }
 }
 {{end}}
 
 {{if .Value.Type.IsPrimitive}}
 // SetValue sets the value of the element at index i.
 func (m *{{.MultimapName}}) SetValue(i int, v {{.Value.Type.Exported}}) {
-	if !{{.Value.Type.EqualFunc}}(m.elems[i].value, {{.Value.Type.ToStorage "v"}}) {
+    if m.elems[i].value != {{.Value.Type.ToStorage "v"}} {
 		m.elems[i].value = {{.Value.Type.ToStorage "v"}}
 		m.modifiedElems.markValModified(i)
 	}
+}
+{{else if .Value.Type.DictName}}
+// SetValue sets the value of the element at index i.
+func (m *{{.MultimapName}}) SetValue(i int, v {{if.Value.Type.Flags.PassByPtr}}*{{end}}{{.Value.Type.Exported}}) {
+    if v.canBeShared() {
+        // v can be shared by pointer. Compute its difference from current {{.name}}
+        if {{.Value.Type.ToStorage "v"}}.computeDiff(m.elems[i].value) {
+            // It is different. Update to it.
+            m.elems[i].value = {{.Value.Type.ToStorage "v"}}
+            m.modifiedElems.markValModified(i)
+        }
+    } else {
+    	if !m.elems[i].value.IsEqual(v) {
+            if m.elems[i].value.canBeShared() {
+                m.elems[i].value = m.elems[i].value.Clone(&Allocators{})
+            }
+            m.elems[i].value.CopyFrom({{.Value.Type.ToStorage "v"}})
+            m.modifiedElems.markValModified(i)
+        }
+    }
 }
 {{end}}
 

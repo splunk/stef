@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/splunk/stef/go/pkg"
+	"github.com/splunk/stef/go/pkg/schema"
 )
 
 type SampleReader struct {
@@ -127,4 +128,9 @@ func (r *SampleReader) nextFrame() error {
 
 	r.decoder.Continue()
 	return nil
+}
+
+// Schema returns the schema of the STEF stream being read.
+func (r *SampleReader) Schema() *schema.WireSchema {
+	return r.base.Schema
 }

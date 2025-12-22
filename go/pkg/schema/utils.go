@@ -9,10 +9,17 @@ import (
 // schema by removing the last field from one of the structs or oneofs.
 // This function is used for testing schema changes.
 func ShrinkRandomly(r *rand.Rand, schem *Schema) {
+	totalFieldCount := 0
 	var structNames []string
 	for structName := range schem.Structs {
 		structNames = append(structNames, structName)
+		totalFieldCount += len(schem.Structs[structName].Fields)
 	}
+	if totalFieldCount == 0 {
+		// Nothing to shrink
+		return
+	}
+
 	sort.Strings(structNames)
 
 	for {
