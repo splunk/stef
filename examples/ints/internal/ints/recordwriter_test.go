@@ -43,30 +43,6 @@ func genRecordRecords(random *rand.Rand, schem *schema.Schema) (records []Record
 func testRecordWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 	retVal = true
 
-	opts := []pkg.WriterOptions{
-		{},
-		{Compression: pkg.CompressionZstd},
-		{MaxUncompressedFrameByteSize: 500},
-		{MaxTotalDictSize: 500},
-		{
-			Compression:                  pkg.CompressionZstd,
-			MaxUncompressedFrameByteSize: 500,
-			MaxTotalDictSize:             500,
-		},
-		{FrameRestartFlags: pkg.RestartDictionaries},
-		{FrameRestartFlags: pkg.RestartCodecs},
-		{FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs},
-		{FrameRestartFlags: pkg.RestartCompression, Compression: pkg.CompressionZstd},
-		{
-			FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs | pkg.RestartCompression,
-			Compression:       pkg.CompressionZstd,
-		},
-		{
-			FrameRestartFlags:            pkg.RestartCodecs,
-			MaxUncompressedFrameByteSize: 500,
-		},
-	}
-
 	random := rand.New(rand.NewPCG(seed, 0))
 
 	// Load the schema from the allSchemaContent variable.
@@ -83,7 +59,7 @@ func testRecordWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 	}
 	wireSchema := schema.NewWireSchema(schem, "Record")
 
-	for _, opt := range opts {
+	for _, opt := range testWriterOpts {
 		t.Run(
 			"", func(t *testing.T) {
 				succeeded := false
@@ -95,10 +71,11 @@ func testRecordWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				}()
 
 				// Write data according to (possibly modified) schema
-				opt.Schema = &wireSchema
+				optCpy := opt
+				optCpy.Schema = &wireSchema
 
 				buf := &pkg.MemChunkWriter{}
-				writer, err := NewRecordWriter(buf, opt)
+				writer, err := NewRecordWriter(buf, optCpy)
 				require.NoError(t, err, "seed %v", seed)
 
 				// Generate records pseudo-randomly
@@ -162,4 +139,48 @@ func TestRecordWriteRead(t *testing.T) {
 	}()
 
 	succeeded = testRecordWriteReadSeed(t, seed)
+}
+
+func FuzzRecordReader(f *testing.F) {
+	f.Add([]byte(""))
+
+	random := rand.New(rand.NewPCG(0, 0))
+	schem, err := idl.Parse([]byte(allSchemaContent), "")
+	require.NoError(f, err)
+
+	for _, opt := range testWriterOpts {
+		for i := 0; i <= 3; i++ {
+			buf := &pkg.MemChunkWriter{}
+			writer, err := NewRecordWriter(buf, opt)
+			require.NoError(f, err)
+
+			recCount := (1 << (2 * i)) - 1
+			for range recCount {
+				limiter := &mutateRandomLimiter{}
+				writer.Record.mutateRandom(random, schem, limiter)
+				err = writer.Write()
+				require.NoError(f, err)
+			}
+
+			err = writer.Flush()
+			require.NoError(f, err)
+
+			f.Add(buf.Bytes())
+		}
+	}
+
+	f.Fuzz(
+		func(t *testing.T, data []byte) {
+			reader, err := NewRecordReader(bytes.NewBuffer(data))
+			if err != nil {
+				return
+			}
+			for {
+				err = reader.Read(pkg.ReadOptions{})
+				if err != nil {
+					break
+				}
+			}
+		},
+	)
 }

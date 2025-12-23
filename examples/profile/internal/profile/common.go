@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/splunk/stef/go/pkg"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
@@ -145,4 +146,28 @@ const mutateRandomMaxElems = 100
 type mutateRandomLimiter struct {
 	objectCount int
 	elemCount   int
+}
+
+var testWriterOpts []pkg.WriterOptions = []pkg.WriterOptions{
+	{},
+	{Compression: pkg.CompressionZstd},
+	{MaxUncompressedFrameByteSize: 500},
+	{MaxTotalDictSize: 500},
+	{
+		Compression:                  pkg.CompressionZstd,
+		MaxUncompressedFrameByteSize: 500,
+		MaxTotalDictSize:             500,
+	},
+	{FrameRestartFlags: pkg.RestartDictionaries},
+	{FrameRestartFlags: pkg.RestartCodecs},
+	{FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs},
+	{FrameRestartFlags: pkg.RestartCompression, Compression: pkg.CompressionZstd},
+	{
+		FrameRestartFlags: pkg.RestartDictionaries | pkg.RestartCodecs | pkg.RestartCompression,
+		Compression:       pkg.CompressionZstd,
+	},
+	{
+		FrameRestartFlags:            pkg.RestartCodecs,
+		MaxUncompressedFrameByteSize: 500,
+	},
 }
