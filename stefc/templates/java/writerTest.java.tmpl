@@ -11,6 +11,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -35,8 +39,9 @@ class {{.StructName}}WriterTest {
         return records;
     }
 
-    @Test
-    void test{{.StructName}}WriteRead() throws Exception {
+    boolean test{{.StructName}}WriteReadSeed(long seed) {
+        boolean retVal = true;
+
         List<WriterOptions.Builder> opts = Arrays.asList(
             WriterOptions.builder(),
             WriterOptions.builder().compression(Compression.Zstd),
@@ -61,12 +66,9 @@ class {{.StructName}}WriterTest {
             WriterOptions.builder().frameRestartFlags(FrameFlags.RestartCodecs).maxUncompressedFrameByteSize(500)
         );
 
-        // Choose a seed (non-pseudo) randomly. We will print the seed
-        // on failure for easy reproduction.
-        long seed1 = System.nanoTime();
-        Random random = new Random(seed1);
+        Random random = new Random(seed);
 
-        for (int optIdx=0; optIdx < opts.size(); optIdx++) {
+        for (int optIdx = 0; optIdx < opts.size(); optIdx++) {
             WriterOptions.Builder opt = opts.get(optIdx);
             try {
                 MemChunkWriter buf = new MemChunkWriter();
@@ -85,12 +87,44 @@ class {{.StructName}}WriterTest {
                 {{.StructName}}Reader reader = new {{.StructName}}Reader(new ByteArrayInputStream(buf.getBytes()));
                 for (int i = 0; i < records.size(); i++) {
                     assertEquals(ReadResult.Success, reader.read(ReadOptions.none));
-                    assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed1 + " optIdx " + optIdx);
+                    assertTrue(reader.record.equals(records.get(i)), "record " + i + " seed " + seed + " optIdx " + optIdx);
                 }
                 assertThrows(EOFException.class, () -> reader.read(ReadOptions.none));
             } catch (Exception e) {
-                fail("seed " + seed1 + " optIdx " + optIdx + ": " + e.getMessage());
+                System.out.printf("Test failed with seed %d optIdx %d: %s%n", seed, optIdx, e.getMessage());
+                e.printStackTrace();
+                retVal = false;
             }
+        }
+
+        return retVal;
+    }
+
+    @Test
+    void test{{.StructName}}WriteRead() throws Exception {
+        // Seed files are stored in-repo so previously-failing seeds can be replayed to prevent regressions.
+        Path seedFilePath = Paths.get("../stefc/generator/testdata/seeds/java/{{ .PackageName }}_{{.StructName}}_seeds.txt");
+
+        if (Files.exists(seedFilePath)) {
+            for (String line : Files.readAllLines(seedFilePath)) {
+                String s = line.trim();
+                if (s.isEmpty()) continue;
+                long seed = Long.parseLong(s);
+                System.out.printf("Testing with seed from file: %d%n", seed);
+                boolean passed = test{{.StructName}}WriteReadSeed(seed);
+                if (!passed) {
+                    fail("Previously-failing seed " + seed + " still fails");
+                }
+            }
+        }
+
+        long seed = System.nanoTime();
+        boolean succeeded = test{{.StructName}}WriteReadSeed(seed);
+        if (!succeeded) {
+            System.out.printf("Test failed with seed %d, adding to seed file%n", seed);
+            Files.createDirectories(seedFilePath.getParent());
+            Files.writeString(seedFilePath, seed + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            fail("Test failed with seed " + seed);
         }
     }
 }
