@@ -24,7 +24,7 @@ require (
 	github.com/splunk/stef/go/pkg v0.0.9
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.48.0
-	go.opentelemetry.io/collector/component/componentstatus v0.140.0
+	go.opentelemetry.io/collector/component/componentstatus v0.142.0
 	go.opentelemetry.io/collector/component/componenttest v0.142.0
 	go.opentelemetry.io/collector/config/configgrpc v0.140.0
 	go.opentelemetry.io/collector/config/confignet v1.46.0
