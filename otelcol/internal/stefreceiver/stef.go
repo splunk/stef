@@ -53,7 +53,7 @@ func newStefReceiver(cfg *Config, set *receiver.Settings, nextMetrics consumer.M
 func (r *stefReceiver) startGRPCServer(host component.Host) error {
 	var err error
 	if r.serverGRPC, err = r.cfg.ServerConfig.ToServer(
-		context.Background(), host, r.settings.TelemetrySettings,
+		context.Background(), host.GetExtensions(), r.settings.TelemetrySettings,
 	); err != nil {
 		return err
 	}
