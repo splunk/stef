@@ -176,6 +176,9 @@ func (d *FrameDecoder) nextFrame() error {
 	if err != nil {
 		return err
 	}
+	if uncompressedSize > FrameSizeLimit {
+		return ErrFrameSizeLimit
+	}
 
 	d.uncompressedSize = uncompressedSize
 
@@ -185,6 +188,10 @@ func (d *FrameDecoder) nextFrame() error {
 		if err != nil {
 			return err
 		}
+		if compressedSize > FrameSizeLimit {
+			return ErrFrameSizeLimit
+		}
+
 		d.limitedReader.limit = int64(compressedSize)
 
 		if !d.notFirstFrame || d.flags&RestartCompression != 0 {
