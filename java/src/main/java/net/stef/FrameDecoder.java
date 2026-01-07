@@ -13,7 +13,7 @@ public class FrameDecoder extends InputStream {
     private int ofs;
     private InputStream frameContentSrc;
     private ZstdInputStream decompressor;
-    private ChunkedReader chunkReader = new ChunkedReader();
+    final private LimitedReader limitedReader = new LimitedReader();
     private int flags;
     private boolean frameLoaded;
     private boolean notFirstFrame;
@@ -21,15 +21,14 @@ public class FrameDecoder extends InputStream {
     public void init(InputStream src, Compression compression) throws IOException {
         this.src = src;
         this.compression = compression;
-        chunkReader.init(src);
-        chunkReader.setNextChunk(this::nextFrame);
+        limitedReader.init(src);
 
         switch (compression) {
             case None:
-                this.frameContentSrc = chunkReader;
+                this.frameContentSrc = limitedReader;
                 break;
             case Zstd:
-                this.decompressor = new ZstdInputStream(chunkReader);
+                this.decompressor = new ZstdInputStream(limitedReader);
                 this.frameContentSrc = decompressor;
                 break;
             default:
@@ -53,16 +52,16 @@ public class FrameDecoder extends InputStream {
         if (compression != Compression.None) {
             long compressedSize = Serde.readUvarint(src);
 
-            chunkReader.setLimit(compressedSize);
+            limitedReader.setLimit(compressedSize);
 
             if (!notFirstFrame || (flags & FrameFlags.RestartCompression)!=0) {
                 notFirstFrame = true;
                 decompressor.close();
-                decompressor = new ZstdInputStream(chunkReader);
+                decompressor = new ZstdInputStream(limitedReader);
                 frameContentSrc = decompressor;
             }
         } else {
-            chunkReader.setLimit(uncompressedSize);
+            limitedReader.setLimit(uncompressedSize);
         }
 
         frameLoaded = true;
