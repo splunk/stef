@@ -1,13 +1,28 @@
 package pkg
 
-import "errors"
+var ErrMultimap = NewDecodeError("invalid multimap")
+var ErrMultimapCountLimit = NewDecodeError("too many elements in the multimap")
+var ErrInvalidRefNum = NewDecodeError("invalid refNum")
+var ErrInvalidOneOfType = NewDecodeError("invalid oneof type")
 
-var ErrMultimap = errors.New("invalid multimap")
-var ErrMultimapCountLimit = errors.New("too many elements in the multimap")
-var ErrInvalidRefNum = errors.New("invalid refNum")
-var ErrInvalidOneOfType = errors.New("invalid oneof type")
+var ErrInvalidHeader = NewDecodeError("invalid FixedHeader")
+var ErrInvalidHeaderSignature = NewDecodeError("invalid FixedHeader signature")
+var ErrInvalidFormatVersion = NewDecodeError("invalid format version in the FixedHeader")
+var ErrInvalidCompression = NewDecodeError("invalid compression method")
 
-var ErrInvalidHeader = errors.New("invalid FixedHeader")
-var ErrInvalidHeaderSignature = errors.New("invalid FixedHeader signature")
-var ErrInvalidFormatVersion = errors.New("invalid format version in the FixedHeader")
-var ErrInvalidCompression = errors.New("invalid compression method")
+var ErrInvalidVarHeader = NewDecodeError("invalid VarHeader")
+
+var ErrColumnSizeLimitExceeded = NewDecodeError("column size limit exceeded")
+var ErrTotalColumnSizeLimitExceeded = NewDecodeError("total column size limit exceeded")
+
+type DecodeError struct {
+	msg string
+}
+
+func (e *DecodeError) Error() string {
+	return e.msg
+}
+
+func NewDecodeError(msg string) error {
+	return &DecodeError{msg: msg}
+}

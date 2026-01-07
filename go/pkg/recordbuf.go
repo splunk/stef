@@ -155,9 +155,17 @@ func (s *ReadColumnSet) SubColumnLen() int {
 	return len(s.subColumns)
 }
 
-func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader) error {
+// ReadSizesFrom reads sizes of the column and its subcolumns from buf.
+// It will honor the readLimit to avoid reading too much data and will
+// decrease the readLimit by the size of data that is read.
+func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader, readLimit *uint64) error {
 	// Read data size
 	dataSize := buf.ReadUvarintCompact()
+	if dataSize > *readLimit {
+		return ErrColumnSizeLimitExceeded
+	}
+	*readLimit -= dataSize
+
 	s.column.data = EnsureLen(s.column.data, int(dataSize))
 
 	if dataSize == 0 {
@@ -170,7 +178,7 @@ func (s *ReadColumnSet) ReadSizesFrom(buf *BitsReader) error {
 
 	// Recursively read subcolumns
 	for i := 0; i < len(s.subColumns); i++ {
-		if err := s.subColumns[i].ReadSizesFrom(buf); err != nil {
+		if err := s.subColumns[i].ReadSizesFrom(buf, readLimit); err != nil {
 			return err
 		}
 	}
@@ -191,16 +199,7 @@ func (s *ReadColumnSet) ReadDataFrom(buf ByteAndBlockReader) error {
 		}
 	}
 
-	//s.readIndex = 0
-
 	return nil
-}
-
-func (s *ReadColumnSet) PrintSchema(indent int) {
-	//fmt.Printf("%s%d\n", strings.Repeat("-", indent), len(s.subColumns))
-	//for _, subColumn := range s.subColumns {
-	//	subColumn.PrintSchema(indent + 1)
-	//}
 }
 
 func (s *ReadColumnSet) ResetData() {
@@ -214,20 +213,28 @@ type ReadBufs struct {
 	Columns      ReadColumnSet
 	tempBuf      BitsReader
 	tempBufBytes []byte
+	readLimit    uint64
 }
 
-func (s *ReadBufs) ReadFrom(buf ByteAndBlockReader) error {
+func (s *ReadBufs) ReadFrom(buf ByteAndBlockReader, readLimit uint64) error {
 	bufSize, err := binary.ReadUvarint(buf)
 	if err != nil {
 		return err
 	}
+
+	if bufSize > readLimit {
+		return ErrTotalColumnSizeLimitExceeded
+	}
+
 	s.tempBufBytes = EnsureLen(s.tempBufBytes, int(bufSize))
 	if _, err := io.ReadFull(buf, s.tempBufBytes); err != nil {
 		return err
 	}
 	s.tempBuf.Reset(s.tempBufBytes)
 
-	if err := s.Columns.ReadSizesFrom(&s.tempBuf); err != nil {
+	// Keep track of remaining read limit for column sizes and data
+	s.readLimit = readLimit - bufSize
+	if err := s.Columns.ReadSizesFrom(&s.tempBuf, &s.readLimit); err != nil {
 		return err
 	}
 
