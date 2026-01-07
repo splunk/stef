@@ -47,6 +47,7 @@ require (
 	go.opentelemetry.io/collector/receiver v1.48.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.142.0
 	go.opentelemetry.io/collector/receiver/receivertest v0.142.0
+	go.opentelemetry.io/collector/service v0.142.0
 	google.golang.org/grpc v1.78.0
 )
 
@@ -227,11 +228,12 @@ require (
 	go.opentelemetry.io/collector/receiver/xreceiver v0.142.0 // indirect
 	go.opentelemetry.io/collector/scraper v0.142.0 // indirect
 	go.opentelemetry.io/collector/scraper/scraperhelper v0.142.0 // indirect
-	go.opentelemetry.io/collector/service v0.142.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.142.0 // indirect
+	go.opentelemetry.io/contrib/bridges/otelzap v0.13.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.18.0 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.38.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.63.0 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0 // indirect
