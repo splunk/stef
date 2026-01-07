@@ -59,6 +59,7 @@ func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
+	allocators.addAllocSize(int(unsafe.Sizeof(Function{})))
 	s.function = allocators.Function.Alloc()
 	s.function.initAlloc(&s.modifiedFields, fieldModifiedLineFunction, allocators)
 }
@@ -257,6 +258,7 @@ func copyToNewLine(dst *Line, src *Line, allocators *Allocators) {
 	if src.function.canBeShared() {
 		dst.function = src.function
 	} else {
+		allocators.addAllocSize(int(unsafe.Sizeof(Function{})))
 		dst.function = allocators.Function.Alloc()
 		dst.function.init(&dst.modifiedFields, fieldModifiedLineFunction)
 		copyToNewFunction(dst.function, src.function, allocators)
@@ -656,6 +658,9 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 	if val.modifiedFields.mask&fieldModifiedLineFunction != 0 { // Function is changed.
 
 		if val.function == nil {
+			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.function))); err != nil {
+				return err
+			}
 			val.function = d.allocators.Function.Alloc()
 			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
 		}

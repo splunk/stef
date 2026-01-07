@@ -15,6 +15,8 @@ var ErrInvalidVarHeader = NewDecodeError("invalid VarHeader")
 var ErrColumnSizeLimitExceeded = NewDecodeError("column size limit exceeded")
 var ErrTotalColumnSizeLimitExceeded = NewDecodeError("total column size limit exceeded")
 
+var ErrRecordAllocLimitExceeded = NewDecodeError("record allocation limit exceeded")
+
 type DecodeError struct {
 	msg string
 }
