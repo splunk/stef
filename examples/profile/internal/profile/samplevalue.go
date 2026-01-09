@@ -79,6 +79,14 @@ func (s *SampleValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.type_.fixParent(&s.modifiedFields)
 }
 
+func (s *SampleValue) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.type_.freeze()
+}
+
 func (s *SampleValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

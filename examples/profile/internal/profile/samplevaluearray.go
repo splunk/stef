@@ -17,7 +17,8 @@ var _ = (*strings.Builder)(nil)
 
 // SampleValueArray is a variable size array.
 type SampleValueArray struct {
-	elems []*SampleValue
+	elems       []*SampleValue
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -36,6 +37,12 @@ func (e *SampleValueArray) initAlloc(parentModifiedFields *modifiedFields, paren
 // Will not reset internal fields such as parentModifiedFields.
 func (e *SampleValueArray) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *SampleValueArray) freeze() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].freeze()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -128,6 +135,9 @@ func copySampleValueArray(dst *SampleValueArray, src *SampleValueArray) {
 				isModified = true
 			}
 		} else {
+			if dst.elems[i].canBeShared() {
+				dst.elems[i] = &SampleValue{}
+			}
 			copySampleValue(dst.elems[i], src.elems[i])
 			isModified = true
 		}
@@ -188,6 +198,8 @@ func (e *SampleValueArray) EnsureLen(newLen int) {
 	e.ensureLen(newLen, &Allocators{})
 	for i := min(oldLen, newLen); i < newLen; i++ {
 		// Reset newly created elements to initial state.
+		//e.elems[i].reset()
+		// Reset newly created keys to initial state.
 		e.elems[i].reset()
 	}
 }
@@ -201,12 +213,16 @@ func (e *SampleValueArray) ensureLen(newLen int, allocators *Allocators) {
 		beforePtr := unsafe.SliceData(e.elems)
 
 		// Grow the array
-		e.elems = append(e.elems, make([]*SampleValue, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		// Initialize newly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = allocators.SampleValue.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.SampleValue.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if e.initedCount < newLen {
+			e.initedCount = newLen
 		}
 		if beforePtr != unsafe.SliceData(e.elems) {
 			// Underlying array was reallocated, we need to fix parent pointers
@@ -348,6 +364,7 @@ type SampleValueArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *SampleValueArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
+
 	// Remember this encoder in the state so that we can detect recursion.
 	if state.SampleValueArrayDecoder != nil {
 		panic("cannot initialize SampleValueArrayDecoder: already initialized")
@@ -394,7 +411,7 @@ func (d *SampleValueArrayDecoder) Decode(dst *SampleValueArray) error {
 	oldLen := len(dst.elems)
 	dst.ensureLen(newLen, d.allocators)
 	for i := min(oldLen, newLen); i < newLen; i++ {
-		// Reset newly created elements to initial state.
+		// Reset newly created keys to initial state.
 		dst.elems[i].reset()
 	}
 

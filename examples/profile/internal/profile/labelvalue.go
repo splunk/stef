@@ -57,6 +57,13 @@ func (s *LabelValue) reset() {
 	// when the type is changed, see SetType().
 }
 
+func (s *LabelValue) freeze() {
+	switch s.typ {
+	case LabelValueTypeNum:
+		s.num.freeze()
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

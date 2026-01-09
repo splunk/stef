@@ -40,6 +40,14 @@ func (e *{{.ArrayName}}) reset() {
     e.elems = e.elems[:0]
 }
 
+func (e *{{.ArrayName}}) freeze() {
+    {{- if not .ElemType.IsPrimitive}}
+    for i:=0; i < len(e.elems); i++ {
+        e.elems[i].freeze()
+    }
+    {{- end}}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.
@@ -175,7 +183,10 @@ func copy{{.ArrayName}}(dst* {{.ArrayName}}, src *{{.ArrayName}}) {
 				isModified = true
 			}
 		} else {
-		    copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
+		    if dst.elems[i].canBeShared() {
+		        dst.elems[i] = {{if .IsStructType}}&{{end}}{{.ElemType.Storage}}{}
+		    }
+	        copy{{.ElemType.TypeName}}({{if not .IsStructType}}&{{end}}dst.elems[i], {{if not .IsStructType}}&{{end}}src.elems[i])
     		isModified = true
 		}
 		{{- else}}
@@ -367,6 +378,12 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand, schem *schema.Schema,
 		_ = i
 		if random.IntN(2*len(a.elems))==0 {
 		{{- if not .ElemType.IsPrimitive }}
+		    {{- if .ElemType.DictName}}
+		    if a.elems[i].canBeShared() {
+                // Elem may be shared by pointer. Clone it to have exclusive ownership.
+                a.elems[i] = a.elems[i].Clone(&Allocators{})
+            }
+		    {{- end}}
 			a.elems[i].mutateRandom(random, schem, limiter)
 		{{- else}}
 			v := {{ .ElemType.RandomFunc }}
@@ -458,7 +475,7 @@ type {{ .ArrayName }}Decoder struct {
 
     {{- if .ElemType.DictName}}
 	// Zero-inited elem. New array entries point into this temporarily during decoding.
-	emptyElem {{.ElemType.Storage}}
+	//emptyElem {{.ElemType.Storage}}
 	{{- end}}
 }
 
@@ -478,7 +495,7 @@ func (d *{{ .ArrayName }}Decoder) Init(state* ReaderState, columns *pkg.ReadColu
 	}
 {{- else}}
     {{- if .ElemType.DictName}}
-    d.emptyElem.Freeze()
+    //d.emptyElem.Freeze()
     {{- end}}
 
 	// Remember this encoder in the state so that we can detect recursion.
@@ -526,9 +543,7 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
     {{if not .ElemType.IsPrimitive}}oldLen := len(dst.elems){{end}}
-	if err := dst.ensureLen(newLen, d.allocators); err != nil {
-	    return err
-    }
+	dst.ensureLen(newLen, d.allocators)
 
     {{- if not .ElemType.IsPrimitive}}
     for i:=min(oldLen, newLen); i < newLen; i++ {

@@ -167,9 +167,31 @@ func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *{{ $.StructName }}) Freeze() {
-    s.modifiedFields.freeze()
+    s.freeze()
 }
 {{end}}
+
+func (s *{{ $.StructName }}) freeze() {
+    {{- $hasNonPrimitiveField := false}}
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    {{- $hasNonPrimitiveField = true}}
+    {{- end}}
+    {{- end}}
+
+    {{- if $hasNonPrimitiveField}}
+    if s.isFrozen() {
+        return
+    }
+    {{- end}}
+    s.modifiedFields.freeze()
+
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    s.{{.name}}.freeze()
+    {{- end}}
+    {{- end}}
+}
 
 func (s *{{ $.StructName }}) isFrozen() bool {
     return s.modifiedFields.isFrozen()
