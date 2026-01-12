@@ -12,6 +12,8 @@ var ErrInvalidCompression = NewDecodeError("invalid compression method")
 
 var ErrInvalidVarHeader = NewDecodeError("invalid VarHeader")
 
+var ErrFrameSizeLimit = NewDecodeError("frame is too large")
+
 var ErrColumnSizeLimitExceeded = NewDecodeError("column size limit exceeded")
 var ErrTotalColumnSizeLimitExceeded = NewDecodeError("total column size limit exceeded")
 
