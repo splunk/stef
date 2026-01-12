@@ -3,10 +3,10 @@ package jsonstef
 
 import (
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type WriterState struct {
 	limiter pkg.SizeLimiter

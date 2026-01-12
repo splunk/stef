@@ -3,10 +3,10 @@ package profile
 
 import (
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type WriterState struct {
 	limiter pkg.SizeLimiter
@@ -14,17 +14,17 @@ type WriterState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	BuildID         encoders.StringDictEncoderDict
-	Filename        encoders.StringDictEncoderDict
+	BuildID         codecs.StringDictEncoderDict
+	Filename        codecs.StringDictEncoderDict
 	Function        FunctionEncoderDict
-	FunctionName    encoders.StringDictEncoderDict
-	LabelKey        encoders.StringDictEncoderDict
-	LabelValue      encoders.StringDictEncoderDict
+	FunctionName    codecs.StringDictEncoderDict
+	LabelKey        codecs.StringDictEncoderDict
+	LabelValue      codecs.StringDictEncoderDict
 	Location        LocationEncoderDict
 	Mapping         MappingEncoderDict
-	NumValueUnit    encoders.StringDictEncoderDict
+	NumValueUnit    codecs.StringDictEncoderDict
 	SampleValueType SampleValueTypeEncoderDict
-	SystemName      encoders.StringDictEncoderDict
+	SystemName      codecs.StringDictEncoderDict
 
 	// Encoders that are being Init-ed, to detect recursion.
 	FunctionEncoder         *FunctionEncoder

@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -601,16 +601,16 @@ type MetricEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	nameEncoder                   encoders.StringDictEncoder
-	descriptionEncoder            encoders.StringDictEncoder
-	unitEncoder                   encoders.StringDictEncoder
-	type_Encoder                  encoders.Uint64Encoder
+	nameEncoder                   codecs.StringDictEncoder
+	descriptionEncoder            codecs.StringDictEncoder
+	unitEncoder                   codecs.StringDictEncoder
+	type_Encoder                  codecs.Uint64Encoder
 	metadataEncoder               *AttributesEncoder
 	isMetadataRecursive           bool // Indicates Metadata field's type is recursive.
 	histogramBoundsEncoder        *Float64ArrayEncoder
 	isHistogramBoundsRecursive    bool // Indicates HistogramBounds field's type is recursive.
-	aggregationTemporalityEncoder encoders.Uint64Encoder
-	monotonicEncoder              encoders.BoolEncoder
+	aggregationTemporalityEncoder codecs.Uint64Encoder
+	monotonicEncoder              codecs.BoolEncoder
 
 	allocators *Allocators
 	dict       *MetricEncoderDict
@@ -980,21 +980,21 @@ type MetricDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDictDecoder
+	nameDecoder codecs.StringDictDecoder
 
-	descriptionDecoder encoders.StringDictDecoder
+	descriptionDecoder codecs.StringDictDecoder
 
-	unitDecoder encoders.StringDictDecoder
+	unitDecoder codecs.StringDictDecoder
 
-	type_Decoder encoders.Uint64Decoder
+	type_Decoder codecs.Uint64Decoder
 
 	metadataDecoder               *AttributesDecoder
 	isMetadataRecursive           bool
 	histogramBoundsDecoder        *Float64ArrayDecoder
 	isHistogramBoundsRecursive    bool
-	aggregationTemporalityDecoder encoders.Uint64Decoder
+	aggregationTemporalityDecoder codecs.Uint64Decoder
 
-	monotonicDecoder encoders.BoolDecoder
+	monotonicDecoder codecs.BoolDecoder
 
 	dict       *MetricDecoderDict
 	allocators *Allocators

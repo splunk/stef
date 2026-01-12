@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 
 // ExemplarValue is a oneof struct.
 type ExemplarValue struct {
@@ -302,9 +302,9 @@ type ExemplarValueEncoder struct {
 	typeBitCount uint
 
 	// Field encoders.
-	int64Encoder encoders.Int64Encoder
+	int64Encoder codecs.Int64Encoder
 
-	float64Encoder encoders.Float64Encoder
+	float64Encoder codecs.Float64Encoder
 }
 
 func (e *ExemplarValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -419,9 +419,9 @@ type ExemplarValueDecoder struct {
 
 	// Field decoders.
 
-	int64Decoder encoders.Int64Decoder
+	int64Decoder codecs.Int64Decoder
 
-	float64Decoder encoders.Float64Decoder
+	float64Decoder codecs.Float64Decoder
 
 	allocators *Allocators
 }

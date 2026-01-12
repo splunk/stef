@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -582,10 +582,10 @@ type HistogramValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder            encoders.Int64Encoder
-	sumEncoder              encoders.Float64Encoder
-	minEncoder              encoders.Float64Encoder
-	maxEncoder              encoders.Float64Encoder
+	countEncoder            codecs.Int64Encoder
+	sumEncoder              codecs.Float64Encoder
+	minEncoder              codecs.Float64Encoder
+	maxEncoder              codecs.Float64Encoder
 	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
@@ -808,13 +808,13 @@ type HistogramValueDecoder struct {
 	column             *pkg.ReadableColumn
 	fieldCount         uint
 	optionalFieldCount uint
-	countDecoder       encoders.Int64Decoder
+	countDecoder       codecs.Int64Decoder
 
-	sumDecoder encoders.Float64Decoder
+	sumDecoder codecs.Float64Decoder
 
-	minDecoder encoders.Float64Decoder
+	minDecoder codecs.Float64Decoder
 
-	maxDecoder encoders.Float64Decoder
+	maxDecoder codecs.Float64Decoder
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool

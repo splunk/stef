@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -297,8 +297,8 @@ type SampleValueTypeEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	type_Encoder encoders.StringEncoder
-	unitEncoder  encoders.StringEncoder
+	type_Encoder codecs.StringEncoder
+	unitEncoder  codecs.StringEncoder
 
 	allocators *Allocators
 	dict       *SampleValueTypeEncoderDict
@@ -502,9 +502,9 @@ type SampleValueTypeDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	type_Decoder encoders.StringDecoder
+	type_Decoder codecs.StringDecoder
 
-	unitDecoder encoders.StringDecoder
+	unitDecoder codecs.StringDecoder
 
 	dict       *SampleValueTypeDecoderDict
 	allocators *Allocators

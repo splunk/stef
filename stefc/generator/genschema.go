@@ -299,7 +299,7 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 	var prefix string
 	switch r.Lang {
 	case LangGo:
-		prefix = "encoders."
+		prefix = "codecs."
 	case LangJava:
 		prefix = ""
 	default:
@@ -307,7 +307,7 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 	}
 
 	if s, ok := primitiveTypeMangledNames[r.Type]; ok {
-		name := prefix + s // e.g. encoders.Uint64
+		name := prefix + s // e.g. codecs.Uint64
 		if r.Dict != "" {
 			name += "Dict"
 		}
@@ -330,7 +330,7 @@ func (r *genPrimitiveTypeRef) DictTypeNamePrefix() string {
 	var prefix string
 	switch r.Lang {
 	case LangGo:
-		prefix = "encoders."
+		prefix = "codecs."
 	case LangJava:
 		prefix = ""
 	default:

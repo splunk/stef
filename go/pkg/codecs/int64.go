@@ -1,4 +1,4 @@
-package encoders
+package codecs
 
 type Int64Encoder struct {
 	Uint64Encoder

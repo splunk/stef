@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 
 // JsonValue is a oneof struct.
 type JsonValue struct {
@@ -418,11 +418,11 @@ type JsonValueEncoder struct {
 	arrayEncoder     *JsonValueArrayEncoder
 	isArrayRecursive bool // Indicates Array field's type is recursive.
 
-	stringEncoder encoders.StringEncoder
+	stringEncoder codecs.StringEncoder
 
-	numberEncoder encoders.Float64Encoder
+	numberEncoder codecs.Float64Encoder
 
-	boolEncoder encoders.BoolEncoder
+	boolEncoder codecs.BoolEncoder
 }
 
 func (e *JsonValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -642,11 +642,11 @@ type JsonValueDecoder struct {
 	arrayDecoder     *JsonValueArrayDecoder
 	isArrayRecursive bool
 
-	stringDecoder encoders.StringDecoder
+	stringDecoder codecs.StringDecoder
 
-	numberDecoder encoders.Float64Decoder
+	numberDecoder codecs.Float64Decoder
 
-	boolDecoder encoders.BoolDecoder
+	boolDecoder codecs.BoolDecoder
 
 	allocators *Allocators
 }

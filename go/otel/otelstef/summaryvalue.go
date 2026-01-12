@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -313,8 +313,8 @@ type SummaryValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder              encoders.Uint64Encoder
-	sumEncoder                encoders.Float64Encoder
+	countEncoder              codecs.Uint64Encoder
+	sumEncoder                codecs.Float64Encoder
 	quantileValuesEncoder     *QuantileValueArrayEncoder
 	isQuantileValuesRecursive bool // Indicates QuantileValues field's type is recursive.
 
@@ -479,9 +479,9 @@ type SummaryValueDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	countDecoder encoders.Uint64Decoder
+	countDecoder codecs.Uint64Decoder
 
-	sumDecoder encoders.Float64Decoder
+	sumDecoder codecs.Float64Decoder
 
 	quantileValuesDecoder     *QuantileValueArrayDecoder
 	isQuantileValuesRecursive bool

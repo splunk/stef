@@ -7,11 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 var _ = (*strings.Builder)(nil)
 
 // EnvelopeAttributes is a multimap, (aka an associative array or a list) of key value
@@ -285,9 +285,9 @@ type EnvelopeAttributesEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder       *encoders.StringEncoder
+	keyEncoder       *codecs.StringEncoder
 	isKeyRecursive   bool
-	valueEncoder     *encoders.BytesEncoder
+	valueEncoder     *codecs.BytesEncoder
 	isValueRecursive bool
 }
 
@@ -302,12 +302,12 @@ func (e *EnvelopeAttributesEncoder) Init(state *WriterState, columns *pkg.WriteC
 	e.limiter = &state.limiter
 
 	var err error
-	e.keyEncoder = new(encoders.StringEncoder)
+	e.keyEncoder = new(codecs.StringEncoder)
 	err = e.keyEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
-	e.valueEncoder = new(encoders.BytesEncoder)
+	e.valueEncoder = new(codecs.BytesEncoder)
 	err = e.valueEncoder.Init(e.limiter, columns.AddSubColumn())
 
 	return err
@@ -394,9 +394,9 @@ type EnvelopeAttributesDecoder struct {
 	buf    pkg.BytesReader
 	column *pkg.ReadableColumn
 
-	keyDecoder       *encoders.StringDecoder
+	keyDecoder       *codecs.StringDecoder
 	isKeyRecursive   bool
-	valueDecoder     *encoders.BytesDecoder
+	valueDecoder     *codecs.BytesDecoder
 	isValueRecursive bool
 }
 
@@ -412,13 +412,13 @@ func (d *EnvelopeAttributesDecoder) Init(state *ReaderState, columns *pkg.ReadCo
 	d.column = columns.Column()
 
 	var err error
-	d.keyDecoder = new(encoders.StringDecoder)
+	d.keyDecoder = new(codecs.StringDecoder)
 	err = d.keyDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return nil
 	}
 
-	d.valueDecoder = new(encoders.BytesDecoder)
+	d.valueDecoder = new(codecs.BytesDecoder)
 	err = d.valueDecoder.Init(columns.AddSubColumn())
 
 	return err

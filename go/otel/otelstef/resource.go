@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -347,10 +347,10 @@ type ResourceEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	schemaURLEncoder              encoders.StringDictEncoder
+	schemaURLEncoder              codecs.StringDictEncoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder codecs.Uint64Encoder
 
 	allocators *Allocators
 	dict       *ResourceEncoderDict
@@ -589,11 +589,11 @@ type ResourceDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	schemaURLDecoder encoders.StringDictDecoder
+	schemaURLDecoder codecs.StringDictDecoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder codecs.Uint64Decoder
 
 	dict       *ResourceDecoderDict
 	allocators *Allocators

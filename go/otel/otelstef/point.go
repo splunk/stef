@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -363,8 +363,8 @@ type PointEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	startTimestampEncoder encoders.Uint64Encoder
-	timestampEncoder      encoders.Uint64Encoder
+	startTimestampEncoder codecs.Uint64Encoder
+	timestampEncoder      codecs.Uint64Encoder
 	valueEncoder          *PointValueEncoder
 	isValueRecursive      bool // Indicates Value field's type is recursive.
 	exemplarsEncoder      *ExemplarArrayEncoder
@@ -566,9 +566,9 @@ type PointDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	startTimestampDecoder encoders.Uint64Decoder
+	startTimestampDecoder codecs.Uint64Decoder
 
-	timestampDecoder encoders.Uint64Decoder
+	timestampDecoder codecs.Uint64Decoder
 
 	valueDecoder         *PointValueDecoder
 	isValueRecursive     bool

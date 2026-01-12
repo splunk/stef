@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -263,8 +263,8 @@ type NumValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	valEncoder  encoders.Int64Encoder
-	unitEncoder encoders.StringDictEncoder
+	valEncoder  codecs.Int64Encoder
+	unitEncoder codecs.StringDictEncoder
 
 	allocators *Allocators
 
@@ -392,9 +392,9 @@ type NumValueDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	valDecoder encoders.Int64Decoder
+	valDecoder codecs.Int64Decoder
 
-	unitDecoder encoders.StringDictDecoder
+	unitDecoder codecs.StringDictDecoder
 
 	allocators *Allocators
 }

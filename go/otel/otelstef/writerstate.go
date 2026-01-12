@@ -3,10 +3,10 @@ package otelstef
 
 import (
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type WriterState struct {
 	limiter pkg.SizeLimiter
@@ -14,19 +14,19 @@ type WriterState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	AnyValueString    encoders.StringDictEncoderDict
-	AttributeKey      encoders.StringDictEncoderDict
+	AnyValueString    codecs.StringDictEncoderDict
+	AttributeKey      codecs.StringDictEncoderDict
 	Metric            MetricEncoderDict
-	MetricDescription encoders.StringDictEncoderDict
-	MetricName        encoders.StringDictEncoderDict
-	MetricUnit        encoders.StringDictEncoderDict
+	MetricDescription codecs.StringDictEncoderDict
+	MetricName        codecs.StringDictEncoderDict
+	MetricUnit        codecs.StringDictEncoderDict
 	Resource          ResourceEncoderDict
-	SchemaURL         encoders.StringDictEncoderDict
+	SchemaURL         codecs.StringDictEncoderDict
 	Scope             ScopeEncoderDict
-	ScopeName         encoders.StringDictEncoderDict
-	ScopeVersion      encoders.StringDictEncoderDict
-	SpanEventName     encoders.StringDictEncoderDict
-	SpanName          encoders.StringDictEncoderDict
+	ScopeName         codecs.StringDictEncoderDict
+	ScopeVersion      codecs.StringDictEncoderDict
+	SpanEventName     codecs.StringDictEncoderDict
+	SpanName          codecs.StringDictEncoderDict
 
 	// Encoders that are being Init-ed, to detect recursion.
 	AnyValueEncoder            *AnyValueEncoder

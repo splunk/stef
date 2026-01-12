@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -414,11 +414,11 @@ type ExemplarEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	timestampEncoder              encoders.Uint64Encoder
+	timestampEncoder              codecs.Uint64Encoder
 	valueEncoder                  *ExemplarValueEncoder
 	isValueRecursive              bool // Indicates Value field's type is recursive.
-	spanIDEncoder                 encoders.BytesEncoder
-	traceIDEncoder                encoders.BytesEncoder
+	spanIDEncoder                 codecs.BytesEncoder
+	traceIDEncoder                codecs.BytesEncoder
 	filteredAttributesEncoder     *AttributesEncoder
 	isFilteredAttributesRecursive bool // Indicates FilteredAttributes field's type is recursive.
 
@@ -642,13 +642,13 @@ type ExemplarDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	timestampDecoder encoders.Uint64Decoder
+	timestampDecoder codecs.Uint64Decoder
 
 	valueDecoder     *ExemplarValueDecoder
 	isValueRecursive bool
-	spanIDDecoder    encoders.BytesDecoder
+	spanIDDecoder    codecs.BytesDecoder
 
-	traceIDDecoder encoders.BytesDecoder
+	traceIDDecoder codecs.BytesDecoder
 
 	filteredAttributesDecoder     *AttributesDecoder
 	isFilteredAttributesRecursive bool

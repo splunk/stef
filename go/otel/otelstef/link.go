@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -466,13 +466,13 @@ type LinkEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	traceIDEncoder                encoders.BytesEncoder
-	spanIDEncoder                 encoders.BytesEncoder
-	traceStateEncoder             encoders.StringEncoder
-	flagsEncoder                  encoders.Uint64Encoder
+	traceIDEncoder                codecs.BytesEncoder
+	spanIDEncoder                 codecs.BytesEncoder
+	traceStateEncoder             codecs.StringEncoder
+	flagsEncoder                  codecs.Uint64Encoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder codecs.Uint64Encoder
 
 	allocators *Allocators
 
@@ -707,17 +707,17 @@ type LinkDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	traceIDDecoder encoders.BytesDecoder
+	traceIDDecoder codecs.BytesDecoder
 
-	spanIDDecoder encoders.BytesDecoder
+	spanIDDecoder codecs.BytesDecoder
 
-	traceStateDecoder encoders.StringDecoder
+	traceStateDecoder codecs.StringDecoder
 
-	flagsDecoder encoders.Uint64Decoder
+	flagsDecoder codecs.Uint64Decoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder codecs.Uint64Decoder
 
 	allocators *Allocators
 }
