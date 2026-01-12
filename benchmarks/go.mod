@@ -12,7 +12,7 @@ require (
 	github.com/splunk/stef/go/pkg v0.0.9
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.49.0
-	golang.org/x/text v0.32.0
+	golang.org/x/text v0.33.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/b/v2 v2.1.10
 )
