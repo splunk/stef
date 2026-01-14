@@ -1,6 +1,7 @@
 package {{ .PackageName }}
 
 import (
+	"bytes"
     "fmt"
     "math"
 
@@ -114,4 +115,30 @@ var testWriterOpts []pkg.WriterOptions = []pkg.WriterOptions{
 		FrameRestartFlags:            pkg.RestartCodecs,
 		MaxUncompressedFrameByteSize: 500,
 	},
+}
+
+// memReaderWriter is an in-memory implementation of ChunkWriter and ByteAndBlockReader interfaces
+// that allows to first write to the buffer and then read from it.
+type memReaderWriter struct {
+    buf bytes.Buffer
+}
+
+func (m *memReaderWriter) ReadByte() (byte, error) {
+    return m.buf.ReadByte()
+}
+
+func (m *memReaderWriter) Read(p []byte) (n int, err error) {
+    return m.buf.Read(p)
+}
+
+func (m *memReaderWriter) WriteChunk(header []byte, content []byte) error {
+    if _, err := m.buf.Write(header); err != nil {
+        return err
+    }
+    _, err := m.buf.Write(content)
+    return err
+}
+
+func (m *memReaderWriter) Bytes() []byte {
+    return m.buf.Bytes()
 }

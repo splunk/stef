@@ -24,8 +24,7 @@ import (
 // the same for the same input state of Rand generator.
 // Generated records will only have fields set (mutated) that are defined
 // in the supplied schema. This allows testing schema evolution.
-func genMetricsRecords(random *rand.Rand, schem *schema.Schema) (records []Metrics) {
-	const recCount = 1000
+func genMetricsRecords(random *rand.Rand, schem *schema.Schema, recCount int) (records []Metrics) {
 	var record Metrics
 	record.Init()
 
@@ -79,7 +78,7 @@ func testMetricsWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				require.NoError(t, err, "seed %v", seed)
 
 				// Generate records pseudo-randomly
-				records := genMetricsRecords(random, schem)
+				records := genMetricsRecords(random, schem, 1000)
 				// Write the records
 				for i := 0; i < len(records); i++ {
 					writer.Record.CopyFrom(&records[i])
@@ -96,7 +95,6 @@ func testMetricsWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				for i := 0; i < len(records); i++ {
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed)
-					require.NotNil(t, reader.Record, "record %d seed %v", i, seed)
 					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed)
 				}
 				err = reader.Read(pkg.ReadOptions{})
@@ -139,6 +137,52 @@ func TestMetricsWriteRead(t *testing.T) {
 	}()
 
 	succeeded = testMetricsWriteReadSeed(t, seed)
+}
+
+func TestMetricsWriteReadLong(t *testing.T) {
+	seed := uint64(time.Now().UnixNano())
+	random := rand.New(rand.NewPCG(seed, 0))
+
+	schem, err := idl.Parse([]byte(allSchemaContent), "")
+	require.NoError(t, err, "seed %v", seed)
+
+	schem, err = schem.PrunedForRoot("Metrics")
+	require.NoError(t, err, "seed %v", seed)
+
+	mem := &memReaderWriter{}
+
+	writer, err := NewMetricsWriter(mem, pkg.WriterOptions{})
+	require.NoError(t, err, "seed %v", seed)
+
+	reader, err := NewMetricsReader(mem)
+	require.NoError(t, err, "seed %v", seed)
+
+	iterations := 10
+	if os.Getenv("STEF_ENABLE_SLOW_TESTS") == "1" {
+		iterations = 100
+	}
+
+	for i := 0; i < iterations; i++ {
+		records := genMetricsRecords(random, schem, 1+random.IntN(1000))
+
+		for recIdx := range records {
+			writer.Record.CopyFrom(&records[recIdx])
+			err = writer.Write()
+			require.NoError(t, err, "record %d:%d seed %v", i, recIdx, seed)
+		}
+
+		err = writer.Flush()
+		require.NoError(t, err, "seed %d %v", i, seed)
+
+		for recIdx := range records {
+			err = reader.Read(pkg.ReadOptions{})
+			require.NoError(t, err, "record %d:%d seed %v", i, recIdx, seed)
+			require.True(t, reader.Record.IsEqual(&records[recIdx]), "record %d:%d seed %v", i, recIdx, seed)
+		}
+	}
+
+	err = reader.Read(pkg.ReadOptions{})
+	require.ErrorIs(t, err, io.EOF, seed)
 }
 
 func FuzzMetricsReader(f *testing.F) {
