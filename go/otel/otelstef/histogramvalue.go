@@ -143,9 +143,9 @@ func (s *HistogramValue) markSumModified() {
 	s.modifiedFields.markModified(fieldModifiedHistogramValueSum)
 }
 
-// UnsetSum unsets the precense flag of Sum field. A subsequent HasSum() will return false.
+// UnsetSum unsets the presence flag of Sum field. A subsequent HasSum() will return false.
 func (s *HistogramValue) UnsetSum() {
-	if s.optionalFieldsPresent&fieldPresentHistogramValueSum != 0 {
+	if s.HasSum() {
 		s.optionalFieldsPresent &= ^fieldPresentHistogramValueSum
 		s.markSumModified()
 	}
@@ -181,9 +181,9 @@ func (s *HistogramValue) markMinModified() {
 	s.modifiedFields.markModified(fieldModifiedHistogramValueMin)
 }
 
-// UnsetMin unsets the precense flag of Min field. A subsequent HasMin() will return false.
+// UnsetMin unsets the presence flag of Min field. A subsequent HasMin() will return false.
 func (s *HistogramValue) UnsetMin() {
-	if s.optionalFieldsPresent&fieldPresentHistogramValueMin != 0 {
+	if s.HasMin() {
 		s.optionalFieldsPresent &= ^fieldPresentHistogramValueMin
 		s.markMinModified()
 	}
@@ -219,9 +219,9 @@ func (s *HistogramValue) markMaxModified() {
 	s.modifiedFields.markModified(fieldModifiedHistogramValueMax)
 }
 
-// UnsetMax unsets the precense flag of Max field. A subsequent HasMax() will return false.
+// UnsetMax unsets the presence flag of Max field. A subsequent HasMax() will return false.
 func (s *HistogramValue) UnsetMax() {
-	if s.optionalFieldsPresent&fieldPresentHistogramValueMax != 0 {
+	if s.HasMax() {
 		s.optionalFieldsPresent &= ^fieldPresentHistogramValueMax
 		s.markMaxModified()
 	}

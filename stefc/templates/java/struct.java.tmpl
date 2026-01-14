@@ -305,6 +305,8 @@ public class {{ .StructName }} {
                 if ((this.optionalFieldsPresent & fieldPresent{{.Name}}) !=0) {
                     if (this.{{.name}} == null) {
                         this.{{.name}} = new {{ .Type.Storage }}(this.modifiedFields, fieldModified{{.Name}});
+                    } else {
+                        this.{{.name}}.reset();
                     }
                     this.{{.name}}.mutateRandom(random, limiter);
                 } else {
