@@ -219,8 +219,8 @@ func (s *StreamServer) Stream(server stef_proto.STEFDestination_StreamServer) er
 	message := stef_proto.STEFServerMessage{
 		Message: &stef_proto.STEFServerMessage_Capabilities{
 			Capabilities: &stef_proto.STEFDestinationCapabilities{
-				DictionaryLimits: &stef_proto.STEFDictionaryLimits{MaxDictBytes: s.maxDictBytes},
-				Schema:           schemaBytes.Bytes(),
+				Limits: &stef_proto.Limits{MaxDictBytes: s.maxDictBytes},
+				Schema: schemaBytes.Bytes(),
 			},
 		},
 	}

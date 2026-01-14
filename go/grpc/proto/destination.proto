@@ -53,8 +53,8 @@ message STEFClientFirstMessage {
 }
 
 message STEFDestinationCapabilities {
-  // dictionary_limits of the destination. The client MUST honor the limits.
-  STEFDictionaryLimits dictionary_limits = 1;
+  // dictionary limits of the destination. The client MUST honor the limits.
+  Limits limits = 1;
 
   // schema is the STEF schema supported by the destination. The schema description
   // is in binary format defined by STEF spec.
@@ -76,7 +76,7 @@ message STEFDestinationCapabilities {
 // DictionaryLimits defines the limits of the recipient. Once any of the limits
 // are reached the sender will reset the dictionaries. This prevents the
 // dictionaries growing indefinitely large.
-message STEFDictionaryLimits {
+message Limits {
   // Maximum total in-memory byte size of all dictionaries.
   // 0 means no limit.
   // The sender's total byte size calculation may be approximate. Senders

@@ -18,7 +18,7 @@ JAVA_FILES := $(PROTO_FILES:$(PROTO_DIR)/%.proto=$(OUT_DIR)/%.java)
 PROTOC     := protoc
 
 # In case of errors such as "program not found or is not executable", please specify a program using absolute path or make sure the program is available in your PATH system variable
-GRPC_JAVA_PLUGIN := protoc-gen-grpc-java
+GRPC_JAVA_PLUGIN := $(shell which protoc-gen-grpc-java)
 PROTO_FLAGS := -I$(PROTO_DIR) --java_out=$(OUT_DIR) --grpc-java_out=$(OUT_DIR)
 
 .PHONY: all generate clean

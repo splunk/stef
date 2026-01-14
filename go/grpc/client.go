@@ -267,8 +267,8 @@ func (c *Client) Connect(ctx context.Context) (pkg.ChunkWriter, pkg.WriterOption
 	}
 
 	// Apply dictionary limits.
-	if capabilities.Capabilities.DictionaryLimits != nil {
-		opts.MaxTotalDictSize = uint(capabilities.Capabilities.DictionaryLimits.MaxDictBytes)
+	if capabilities.Capabilities.Limits != nil {
+		opts.MaxTotalDictSize = uint(capabilities.Capabilities.Limits.MaxDictBytes)
 	}
 
 	// Unmarshal server schema.

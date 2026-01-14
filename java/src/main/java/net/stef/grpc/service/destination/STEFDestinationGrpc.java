@@ -7,9 +7,6 @@ import static io.grpc.MethodDescriptor.generateFullMethodName;
  * Destination is a service to which STEF data can be sent.
  * </pre>
  */
-@javax.annotation.Generated(
-    value = "by gRPC proto compiler (version 1.73.0)",
-    comments = "Source: destination.proto")
 @io.grpc.stub.annotations.GrpcGenerated
 public final class STEFDestinationGrpc {
 
