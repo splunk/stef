@@ -114,7 +114,16 @@ func (s *Metric) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *Metric) Freeze() {
+	s.freeze()
+}
+
+func (s *Metric) freeze() {
+	if s.isFrozen() {
+		return
+	}
 	s.modifiedFields.freeze()
+	s.metadata.freeze()
+	s.histogramBounds.freeze()
 }
 
 func (s *Metric) isFrozen() bool {

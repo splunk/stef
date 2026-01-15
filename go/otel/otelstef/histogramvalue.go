@@ -98,6 +98,14 @@ func (s *HistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
+func (s *HistogramValue) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.bucketCounts.freeze()
+}
+
 func (s *HistogramValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

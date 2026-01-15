@@ -68,6 +68,23 @@ func (s *{{ $.StructName }}) reset() {
     // when the type is changed, see SetType().
 }
 
+func (s *{{ $.StructName }}) freeze() {
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive}}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.Flags.StoreByPtr}}
+        if s.{{.name}} != nil {
+            s.{{.name}}.freeze()
+        }
+        {{- else}}
+        s.{{.name}}.freeze()
+        {{- end -}}
+    {{- end -}}
+    {{- end }}
+    }
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

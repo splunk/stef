@@ -104,7 +104,16 @@ func (s *Location) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *Location) Freeze() {
+	s.freeze()
+}
+
+func (s *Location) freeze() {
+	if s.isFrozen() {
+		return
+	}
 	s.modifiedFields.freeze()
+	s.mapping.freeze()
+	s.lines.freeze()
 }
 
 func (s *Location) isFrozen() bool {

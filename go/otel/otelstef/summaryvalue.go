@@ -80,6 +80,14 @@ func (s *SummaryValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.quantileValues.fixParent(&s.modifiedFields)
 }
 
+func (s *SummaryValue) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.quantileValues.freeze()
+}
+
 func (s *SummaryValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

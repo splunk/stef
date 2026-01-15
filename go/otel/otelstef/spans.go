@@ -96,6 +96,17 @@ func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
 	s.span.fixParent(&s.modifiedFields)
 }
 
+func (s *Spans) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.envelope.freeze()
+	s.resource.freeze()
+	s.scope.freeze()
+	s.span.freeze()
+}
+
 func (s *Spans) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

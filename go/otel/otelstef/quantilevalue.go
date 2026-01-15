@@ -74,6 +74,10 @@ func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+func (s *QuantileValue) freeze() {
+	s.modifiedFields.freeze()
+}
+
 func (s *QuantileValue) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

@@ -17,7 +17,8 @@ var _ = (*strings.Builder)(nil)
 
 // LinkArray is a variable size array.
 type LinkArray struct {
-	elems []*Link
+	elems       []*Link // all pointers are non-nil
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -36,6 +37,12 @@ func (e *LinkArray) initAlloc(parentModifiedFields *modifiedFields, parentModifi
 // Will not reset internal fields such as parentModifiedFields.
 func (e *LinkArray) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *LinkArray) freeze() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].freeze()
+	}
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -201,12 +208,16 @@ func (e *LinkArray) ensureLen(newLen int, allocators *Allocators) {
 		beforePtr := unsafe.SliceData(e.elems)
 
 		// Grow the array
-		e.elems = append(e.elems, make([]*Link, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
 		// Initialize newly added elements.
-		for ; oldLen < newLen; oldLen++ {
-			e.elems[oldLen] = allocators.Link.Alloc()
-			e.elems[oldLen].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		for i := e.initedCount; i < newLen; i++ {
+			e.elems[i] = allocators.Link.Alloc()
+			e.elems[i].initAlloc(e.parentModifiedFields, e.parentModifiedBit, allocators)
+		}
+		if e.initedCount < newLen {
+			e.initedCount = newLen
 		}
 		if beforePtr != unsafe.SliceData(e.elems) {
 			// Underlying array was reallocated, we need to fix parent pointers
@@ -394,7 +405,7 @@ func (d *LinkArrayDecoder) Decode(dst *LinkArray) error {
 	oldLen := len(dst.elems)
 	dst.ensureLen(newLen, d.allocators)
 	for i := min(oldLen, newLen); i < newLen; i++ {
-		// Reset newly created elements to initial state.
+		// Reset newly created keys to initial state.
 		dst.elems[i].reset()
 	}
 

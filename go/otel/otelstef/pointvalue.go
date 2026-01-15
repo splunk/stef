@@ -64,6 +64,17 @@ func (s *PointValue) reset() {
 	// when the type is changed, see SetType().
 }
 
+func (s *PointValue) freeze() {
+	switch s.typ {
+	case PointValueTypeHistogram:
+		s.histogram.freeze()
+	case PointValueTypeExpHistogram:
+		s.expHistogram.freeze()
+	case PointValueTypeSummary:
+		s.summary.freeze()
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

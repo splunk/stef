@@ -86,6 +86,15 @@ func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
 	s.exemplars.fixParent(&s.modifiedFields)
 }
 
+func (s *Point) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.value.freeze()
+	s.exemplars.freeze()
+}
+
 func (s *Point) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

@@ -92,6 +92,17 @@ func (s *Sample) fixParent(parentModifiedFields *modifiedFields) {
 	s.labels.fixParent(&s.modifiedFields)
 }
 
+func (s *Sample) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.metadata.freeze()
+	s.locations.freeze()
+	s.values.freeze()
+	s.labels.freeze()
+}
+
 func (s *Sample) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

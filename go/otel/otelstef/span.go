@@ -122,6 +122,17 @@ func (s *Span) fixParent(parentModifiedFields *modifiedFields) {
 	s.status.fixParent(&s.modifiedFields)
 }
 
+func (s *Span) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.attributes.freeze()
+	s.events.freeze()
+	s.links.freeze()
+	s.status.freeze()
+}
+
 func (s *Span) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

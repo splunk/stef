@@ -19,7 +19,8 @@ var _ = (*strings.Builder)(nil)
 
 // Float64Array is a variable size array.
 type Float64Array struct {
-	elems []float64
+	elems       []float64
+	initedCount int
 
 	parentModifiedFields *modifiedFields
 	parentModifiedBit    uint64
@@ -38,6 +39,9 @@ func (e *Float64Array) initAlloc(parentModifiedFields *modifiedFields, parentMod
 // Will not reset internal fields such as parentModifiedFields.
 func (e *Float64Array) reset() {
 	e.elems = e.elems[:0]
+}
+
+func (e *Float64Array) freeze() {
 }
 
 // fixParent sets the parentModifiedFields pointer to the supplied value.
@@ -175,8 +179,12 @@ func (e *Float64Array) ensureLen(newLen int, allocators *Allocators) {
 		// Check if the underlying array is reallocated.
 
 		// Grow the array
-		e.elems = append(e.elems, make([]float64, newLen-oldLen)...)
+		e.elems = pkg.EnsureLen(e.elems, newLen)
+
 		e.markModified()
+		if e.initedCount < newLen {
+			e.initedCount = newLen
+		}
 	} else if oldLen > newLen {
 		// Shrink it
 		e.elems = e.elems[:newLen]

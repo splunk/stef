@@ -64,6 +64,15 @@ func (s *AnyValue) reset() {
 	// when the type is changed, see SetType().
 }
 
+func (s *AnyValue) freeze() {
+	switch s.typ {
+	case AnyValueTypeArray:
+		s.array.freeze()
+	case AnyValueTypeKVList:
+		s.kVList.freeze()
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

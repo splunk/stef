@@ -83,6 +83,14 @@ func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+func (s *Event) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.attributes.freeze()
+}
+
 func (s *Event) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

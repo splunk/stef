@@ -110,6 +110,19 @@ func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
 	s.point.fixParent(&s.modifiedFields)
 }
 
+func (s *Metrics) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.envelope.freeze()
+	s.metric.freeze()
+	s.resource.freeze()
+	s.scope.freeze()
+	s.attributes.freeze()
+	s.point.freeze()
+}
+
 func (s *Metrics) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

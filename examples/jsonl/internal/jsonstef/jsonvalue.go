@@ -62,6 +62,15 @@ func (s *JsonValue) reset() {
 	// when the type is changed, see SetType().
 }
 
+func (s *JsonValue) freeze() {
+	switch s.typ {
+	case JsonValueTypeObject:
+		s.object.freeze()
+	case JsonValueTypeArray:
+		s.array.freeze()
+	}
+}
+
 // fixParent sets the parentModifiedFields pointer to the supplied value.
 // This is used when the parent is moved in memory for example because the parent
 // an array element and the array was expanded.

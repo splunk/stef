@@ -77,6 +77,14 @@ func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
+func (s *ExpHistogramBuckets) freeze() {
+	if s.isFrozen() {
+		return
+	}
+	s.modifiedFields.freeze()
+	s.bucketCounts.freeze()
+}
+
 func (s *ExpHistogramBuckets) isFrozen() bool {
 	return s.modifiedFields.isFrozen()
 }

@@ -90,6 +90,10 @@ func (s *SampleValueType) fixParent(parentModifiedFields *modifiedFields) {
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
 func (s *SampleValueType) Freeze() {
+	s.freeze()
+}
+
+func (s *SampleValueType) freeze() {
 	s.modifiedFields.freeze()
 }
 
