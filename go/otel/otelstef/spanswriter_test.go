@@ -151,7 +151,7 @@ func TestSpansWriteReadLong(t *testing.T) {
 
 	mem := &memReaderWriter{}
 
-	writer, err := NewSpansWriter(mem, pkg.WriterOptions{})
+	writer, err := NewSpansWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
 
 	reader, err := NewSpansReader(mem)

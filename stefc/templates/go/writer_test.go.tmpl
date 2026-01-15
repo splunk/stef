@@ -150,7 +150,7 @@ func Test{{.StructName}}WriteReadLong(t *testing.T) {
 
     mem := &memReaderWriter{}
 
-    writer, err := New{{.StructName}}Writer(mem, pkg.WriterOptions{})
+    writer, err := New{{.StructName}}Writer(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
     require.NoError(t, err, "seed %v", seed)
 
     reader, err := New{{.StructName}}Reader(mem)

@@ -151,7 +151,7 @@ func TestMetricsWriteReadLong(t *testing.T) {
 
 	mem := &memReaderWriter{}
 
-	writer, err := NewMetricsWriter(mem, pkg.WriterOptions{})
+	writer, err := NewMetricsWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
 
 	reader, err := NewMetricsReader(mem)

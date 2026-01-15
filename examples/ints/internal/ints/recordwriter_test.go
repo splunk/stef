@@ -151,7 +151,7 @@ func TestRecordWriteReadLong(t *testing.T) {
 
 	mem := &memReaderWriter{}
 
-	writer, err := NewRecordWriter(mem, pkg.WriterOptions{})
+	writer, err := NewRecordWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
 
 	reader, err := NewRecordReader(mem)
