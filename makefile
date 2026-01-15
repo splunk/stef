@@ -49,6 +49,7 @@ RELEASE_MODULES := go/pkg go/grpc go/otel go/pdata
 ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile examples/ints otelcol benchmarks
 
 COVERAGE_OUT ?= go/coverage.out
+COVERPKG := $(shell echo $(addsuffix /...,$(addprefix github.com/splunk/stef/,$(ALL_MODULES))) | tr ' ' ',')
 
 .PHONY: coverage
 coverage:
@@ -59,7 +60,7 @@ coverage:
 		for mod in $(ALL_MODULES); do \
 			echo "→ $$mod"; \
 			outfile=$$(echo $$mod | tr '/' '_').cov; \
-			( cd $$mod && go test ./... -covermode=set -coverprofile="$$OLDPWD/$$tmpdir/$$outfile" ); \
+			( cd $$mod && go test ./... -covermode=set -coverpkg=$(COVERPKG) -coverprofile="$$OLDPWD/$$tmpdir/$$outfile" ); \
 		done; \
 		first=1; \
 		for f in $$tmpdir/*.cov; do \
