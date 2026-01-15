@@ -244,6 +244,24 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .Type.Flags.PassByPtr}}*{{end}}
         {{- end}}
     }
 }
+{{else if .Optional}}
+// Set{{.Name}} sets the presence flag of {{.Name}} field. A subsequent Has{{.Name}}() will return true.
+// The value of the field will be set to initial state for the field type.
+func (s *{{ $.StructName }}) Set{{.Name}}() {
+    if !s.Has{{.Name}}() {
+        {{if .Type.Flags.StoreByPtr}}
+        if s.{{.name}} == nil {
+            s.{{.name}} = new({{ .Type.Storage }})
+            s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        }
+        {{end -}}
+        s.optionalFieldsPresent |= fieldPresent{{ $.StructName }}{{.Name}}
+        {{- if not .Type.IsPrimitive}}
+        s.{{.name}}.reset()
+        {{- end}}
+        s.mark{{.Name}}Modified()
+    }
+}
 {{end}}
 
 func (s *{{ $.StructName }}) mark{{.Name}}Modified() {
@@ -251,9 +269,9 @@ func (s *{{ $.StructName }}) mark{{.Name}}Modified() {
 }
 
 {{ if .Optional}}
-// Unset{{.Name}} unsets the precense flag of {{.Name}} field. A subsequent Has{{.Name}}() will return false.
+// Unset{{.Name}} unsets the presence flag of {{.Name}} field. A subsequent Has{{.Name}}() will return false.
 func (s *{{ $.StructName }}) Unset{{.Name}}() {
-    if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
+    if s.Has{{.Name}}() {
         s.optionalFieldsPresent &= ^fieldPresent{{ $.StructName }}{{.Name}}
         s.mark{{.Name}}Modified()
     }
@@ -535,16 +553,10 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
         }
 
         if flipOptional {
-            // Flip the optional field presence bit.
-            s.optionalFieldsPresent ^= fieldPresent{{ $.StructName }}{{.Name}}
-            s.mark{{.Name}}Modified()
-            if s.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} !=0 {
-                {{if .Type.Flags.StoreByPtr}}
-                if s.{{.name}} == nil {
-                    s.{{.name}} = new({{ .Type.Storage }})
-                    s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
-                }
-                {{end -}}
+            if s.Has{{.Name}}() {
+                s.Unset{{.Name}}()
+            } else {
+                s.Set{{.Name}}() // Mark as present.
                 s.{{.name}}.mutateRandom(random, schem, limiter)
             }
         }
