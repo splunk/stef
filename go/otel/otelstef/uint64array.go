@@ -10,11 +10,11 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 var _ = (*strings.Builder)(nil)
 
 // Uint64Array is a variable size array.
@@ -243,7 +243,7 @@ func (a *Uint64Array) mutateRandom(random *rand.Rand, schem *schema.Schema, limi
 type Uint64ArrayEncoder struct {
 	buf         pkg.BitsWriter
 	limiter     *pkg.SizeLimiter
-	elemEncoder *encoders.Uint64Encoder
+	elemEncoder *codecs.Uint64Encoder
 	isRecursive bool
 	state       *WriterState
 }
@@ -252,7 +252,7 @@ func (e *Uint64ArrayEncoder) Init(state *WriterState, columns *pkg.WriteColumnSe
 	e.state = state
 	e.limiter = &state.limiter
 
-	e.elemEncoder = new(encoders.Uint64Encoder)
+	e.elemEncoder = new(codecs.Uint64Encoder)
 	if err := e.elemEncoder.Init(e.limiter, columns.AddSubColumn()); err != nil {
 		return err
 	}
@@ -293,7 +293,7 @@ func (e *Uint64ArrayEncoder) CollectColumns(columnSet *pkg.WriteColumnSet) {
 type Uint64ArrayDecoder struct {
 	buf         pkg.BitsReader
 	column      *pkg.ReadableColumn
-	elemDecoder *encoders.Uint64Decoder
+	elemDecoder *codecs.Uint64Decoder
 	isRecursive bool
 	allocators  *Allocators
 }
@@ -301,7 +301,7 @@ type Uint64ArrayDecoder struct {
 // Init is called once in the lifetime of the stream.
 func (d *Uint64ArrayDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) error {
 	d.column = columns.Column()
-	d.elemDecoder = new(encoders.Uint64Decoder)
+	d.elemDecoder = new(codecs.Uint64Decoder)
 	err := d.elemDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return err

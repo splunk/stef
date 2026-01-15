@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -373,8 +373,8 @@ type LineEncoder struct {
 
 	functionEncoder     *FunctionEncoder
 	isFunctionRecursive bool // Indicates Function field's type is recursive.
-	lineEncoder         encoders.Uint64Encoder
-	columnEncoder       encoders.Uint64Encoder
+	lineEncoder         codecs.Uint64Encoder
+	columnEncoder       codecs.Uint64Encoder
 
 	allocators *Allocators
 
@@ -539,9 +539,9 @@ type LineDecoder struct {
 
 	functionDecoder     *FunctionDecoder
 	isFunctionRecursive bool
-	lineDecoder         encoders.Uint64Decoder
+	lineDecoder         codecs.Uint64Decoder
 
-	columnDecoder encoders.Uint64Decoder
+	columnDecoder codecs.Uint64Decoder
 
 	allocators *Allocators
 }

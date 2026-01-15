@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -682,13 +682,13 @@ type ProfileMetadataEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	dropFramesEncoder            encoders.StringDictEncoder
-	keepFramesEncoder            encoders.StringDictEncoder
-	timeNanosEncoder             encoders.Int64Encoder
-	durationNanosEncoder         encoders.Int64Encoder
+	dropFramesEncoder            codecs.StringDictEncoder
+	keepFramesEncoder            codecs.StringDictEncoder
+	timeNanosEncoder             codecs.Int64Encoder
+	durationNanosEncoder         codecs.Int64Encoder
 	periodTypeEncoder            *SampleValueTypeEncoder
 	isPeriodTypeRecursive        bool // Indicates PeriodType field's type is recursive.
-	periodEncoder                encoders.Int64Encoder
+	periodEncoder                codecs.Int64Encoder
 	commentsEncoder              *StringArrayEncoder
 	isCommentsRecursive          bool // Indicates Comments field's type is recursive.
 	defaultSampleTypeEncoder     *SampleValueTypeEncoder
@@ -997,17 +997,17 @@ type ProfileMetadataDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	dropFramesDecoder encoders.StringDictDecoder
+	dropFramesDecoder codecs.StringDictDecoder
 
-	keepFramesDecoder encoders.StringDictDecoder
+	keepFramesDecoder codecs.StringDictDecoder
 
-	timeNanosDecoder encoders.Int64Decoder
+	timeNanosDecoder codecs.Int64Decoder
 
-	durationNanosDecoder encoders.Int64Decoder
+	durationNanosDecoder codecs.Int64Decoder
 
 	periodTypeDecoder     *SampleValueTypeDecoder
 	isPeriodTypeRecursive bool
-	periodDecoder         encoders.Int64Decoder
+	periodDecoder         codecs.Int64Decoder
 
 	commentsDecoder              *StringArrayDecoder
 	isCommentsRecursive          bool

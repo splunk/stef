@@ -2,11 +2,11 @@
 package ints
 
 import (
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type ReaderState struct {
 	StructFieldCounts StructFieldCounts

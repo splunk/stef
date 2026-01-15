@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -263,8 +263,8 @@ type QuantileValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	quantileEncoder encoders.Float64Encoder
-	valueEncoder    encoders.Float64Encoder
+	quantileEncoder codecs.Float64Encoder
+	valueEncoder    codecs.Float64Encoder
 
 	allocators *Allocators
 
@@ -392,9 +392,9 @@ type QuantileValueDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	quantileDecoder encoders.Float64Decoder
+	quantileDecoder codecs.Float64Decoder
 
-	valueDecoder encoders.Float64Decoder
+	valueDecoder codecs.Float64Decoder
 
 	allocators *Allocators
 }

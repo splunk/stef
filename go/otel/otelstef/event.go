@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -364,11 +364,11 @@ type EventEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	nameEncoder                   encoders.StringDictEncoder
-	timeUnixNanoEncoder           encoders.Uint64Encoder
+	nameEncoder                   codecs.StringDictEncoder
+	timeUnixNanoEncoder           codecs.Uint64Encoder
 	attributesEncoder             *AttributesEncoder
 	isAttributesRecursive         bool // Indicates Attributes field's type is recursive.
-	droppedAttributesCountEncoder encoders.Uint64Encoder
+	droppedAttributesCountEncoder codecs.Uint64Encoder
 
 	allocators *Allocators
 
@@ -555,13 +555,13 @@ type EventDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDictDecoder
+	nameDecoder codecs.StringDictDecoder
 
-	timeUnixNanoDecoder encoders.Uint64Decoder
+	timeUnixNanoDecoder codecs.Uint64Decoder
 
 	attributesDecoder             *AttributesDecoder
 	isAttributesRecursive         bool
-	droppedAttributesCountDecoder encoders.Uint64Decoder
+	droppedAttributesCountDecoder codecs.Uint64Decoder
 
 	allocators *Allocators
 }

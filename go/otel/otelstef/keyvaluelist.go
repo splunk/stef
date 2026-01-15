@@ -7,11 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 var _ = (*strings.Builder)(nil)
 
 // KeyValueList is a multimap, (aka an associative array or a list) of key value
@@ -282,7 +282,7 @@ type KeyValueListEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder       *encoders.StringEncoder
+	keyEncoder       *codecs.StringEncoder
 	isKeyRecursive   bool
 	valueEncoder     *AnyValueEncoder
 	isValueRecursive bool
@@ -299,7 +299,7 @@ func (e *KeyValueListEncoder) Init(state *WriterState, columns *pkg.WriteColumnS
 	e.limiter = &state.limiter
 
 	var err error
-	e.keyEncoder = new(encoders.StringEncoder)
+	e.keyEncoder = new(codecs.StringEncoder)
 	err = e.keyEncoder.Init(e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
@@ -397,7 +397,7 @@ type KeyValueListDecoder struct {
 	buf    pkg.BytesReader
 	column *pkg.ReadableColumn
 
-	keyDecoder       *encoders.StringDecoder
+	keyDecoder       *codecs.StringDecoder
 	isKeyRecursive   bool
 	valueDecoder     *AnyValueDecoder
 	isValueRecursive bool
@@ -415,7 +415,7 @@ func (d *KeyValueListDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	d.column = columns.Column()
 
 	var err error
-	d.keyDecoder = new(encoders.StringDecoder)
+	d.keyDecoder = new(codecs.StringDecoder)
 	err = d.keyDecoder.Init(columns.AddSubColumn())
 	if err != nil {
 		return nil

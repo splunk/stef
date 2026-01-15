@@ -7,11 +7,11 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 var _ = (*strings.Builder)(nil)
 
 // Attributes is a multimap, (aka an associative array or a list) of key value
@@ -282,7 +282,7 @@ type AttributesEncoder struct {
 	columns pkg.WriteColumnSet
 	limiter *pkg.SizeLimiter
 
-	keyEncoder       *encoders.StringDictEncoder
+	keyEncoder       *codecs.StringDictEncoder
 	isKeyRecursive   bool
 	valueEncoder     *AnyValueEncoder
 	isValueRecursive bool
@@ -299,7 +299,7 @@ func (e *AttributesEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet
 	e.limiter = &state.limiter
 
 	var err error
-	e.keyEncoder = new(encoders.StringDictEncoder)
+	e.keyEncoder = new(codecs.StringDictEncoder)
 	err = e.keyEncoder.Init(&state.AttributeKey, e.limiter, columns.AddSubColumn())
 	if err != nil {
 		return nil
@@ -397,7 +397,7 @@ type AttributesDecoder struct {
 	buf    pkg.BytesReader
 	column *pkg.ReadableColumn
 
-	keyDecoder       *encoders.StringDictDecoder
+	keyDecoder       *codecs.StringDictDecoder
 	isKeyRecursive   bool
 	valueDecoder     *AnyValueDecoder
 	isValueRecursive bool
@@ -415,7 +415,7 @@ func (d *AttributesDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	d.column = columns.Column()
 
 	var err error
-	d.keyDecoder = new(encoders.StringDictDecoder)
+	d.keyDecoder = new(codecs.StringDictDecoder)
 	err = d.keyDecoder.Init(&state.AttributeKey, columns.AddSubColumn())
 	if err != nil {
 		return nil

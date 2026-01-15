@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 
 // LabelValue is a oneof struct.
 type LabelValue struct {
@@ -303,7 +303,7 @@ type LabelValueEncoder struct {
 	typeBitCount uint
 
 	// Field encoders.
-	strEncoder encoders.StringDictEncoder
+	strEncoder codecs.StringDictEncoder
 
 	numEncoder     *NumValueEncoder
 	isNumRecursive bool // Indicates Num field's type is recursive.
@@ -434,7 +434,7 @@ type LabelValueDecoder struct {
 
 	// Field decoders.
 
-	strDecoder encoders.StringDictDecoder
+	strDecoder codecs.StringDictDecoder
 
 	numDecoder     *NumValueDecoder
 	isNumRecursive bool

@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -262,7 +262,7 @@ type ExpHistogramBucketsEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	offsetEncoder           encoders.Int64Encoder
+	offsetEncoder           codecs.Int64Encoder
 	bucketCountsEncoder     *Uint64ArrayEncoder
 	isBucketCountsRecursive bool // Indicates BucketCounts field's type is recursive.
 
@@ -403,7 +403,7 @@ type ExpHistogramBucketsDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	offsetDecoder encoders.Int64Decoder
+	offsetDecoder codecs.Int64Decoder
 
 	bucketCountsDecoder     *Uint64ArrayDecoder
 	isBucketCountsRecursive bool

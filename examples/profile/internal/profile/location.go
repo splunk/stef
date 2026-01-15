@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -457,10 +457,10 @@ type LocationEncoder struct {
 
 	mappingEncoder     *MappingEncoder
 	isMappingRecursive bool // Indicates Mapping field's type is recursive.
-	addressEncoder     encoders.Uint64Encoder
+	addressEncoder     codecs.Uint64Encoder
 	linesEncoder       *LineArrayEncoder
 	isLinesRecursive   bool // Indicates Lines field's type is recursive.
-	isFoldedEncoder    encoders.BoolEncoder
+	isFoldedEncoder    codecs.BoolEncoder
 
 	allocators *Allocators
 	dict       *LocationEncoderDict
@@ -736,11 +736,11 @@ type LocationDecoder struct {
 
 	mappingDecoder     *MappingDecoder
 	isMappingRecursive bool
-	addressDecoder     encoders.Uint64Decoder
+	addressDecoder     codecs.Uint64Decoder
 
 	linesDecoder     *LineArrayDecoder
 	isLinesRecursive bool
-	isFoldedDecoder  encoders.BoolDecoder
+	isFoldedDecoder  codecs.BoolDecoder
 
 	dict       *LocationDecoderDict
 	allocators *Allocators

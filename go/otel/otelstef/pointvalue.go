@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 
 // PointValue is a oneof struct.
 type PointValue struct {
@@ -413,9 +413,9 @@ type PointValueEncoder struct {
 	typeBitCount uint
 
 	// Field encoders.
-	int64Encoder encoders.Int64Encoder
+	int64Encoder codecs.Int64Encoder
 
-	float64Encoder encoders.Float64Encoder
+	float64Encoder codecs.Float64Encoder
 
 	histogramEncoder     *HistogramValueEncoder
 	isHistogramRecursive bool // Indicates Histogram field's type is recursive.
@@ -651,9 +651,9 @@ type PointValueDecoder struct {
 
 	// Field decoders.
 
-	int64Decoder encoders.Int64Decoder
+	int64Decoder codecs.Int64Decoder
 
-	float64Decoder encoders.Float64Decoder
+	float64Decoder codecs.Float64Decoder
 
 	histogramDecoder     *HistogramValueDecoder
 	isHistogramRecursive bool

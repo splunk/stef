@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -263,8 +263,8 @@ type SpanStatusEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	messageEncoder encoders.StringEncoder
-	codeEncoder    encoders.Uint64Encoder
+	messageEncoder codecs.StringEncoder
+	codeEncoder    codecs.Uint64Encoder
 
 	allocators *Allocators
 
@@ -392,9 +392,9 @@ type SpanStatusDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	messageDecoder encoders.StringDecoder
+	messageDecoder codecs.StringDecoder
 
-	codeDecoder encoders.Uint64Decoder
+	codeDecoder codecs.Uint64Decoder
 
 	allocators *Allocators
 }

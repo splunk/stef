@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -785,17 +785,17 @@ type ExpHistogramValueEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	countEncoder               encoders.Uint64Encoder
-	sumEncoder                 encoders.Float64Encoder
-	minEncoder                 encoders.Float64Encoder
-	maxEncoder                 encoders.Float64Encoder
-	scaleEncoder               encoders.Int64Encoder
-	zeroCountEncoder           encoders.Uint64Encoder
+	countEncoder               codecs.Uint64Encoder
+	sumEncoder                 codecs.Float64Encoder
+	minEncoder                 codecs.Float64Encoder
+	maxEncoder                 codecs.Float64Encoder
+	scaleEncoder               codecs.Int64Encoder
+	zeroCountEncoder           codecs.Uint64Encoder
 	positiveBucketsEncoder     *ExpHistogramBucketsEncoder
 	isPositiveBucketsRecursive bool // Indicates PositiveBuckets field's type is recursive.
 	negativeBucketsEncoder     *ExpHistogramBucketsEncoder
 	isNegativeBucketsRecursive bool // Indicates NegativeBuckets field's type is recursive.
-	zeroThresholdEncoder       encoders.Float64Encoder
+	zeroThresholdEncoder       codecs.Float64Encoder
 
 	allocators *Allocators
 
@@ -1123,23 +1123,23 @@ type ExpHistogramValueDecoder struct {
 	column             *pkg.ReadableColumn
 	fieldCount         uint
 	optionalFieldCount uint
-	countDecoder       encoders.Uint64Decoder
+	countDecoder       codecs.Uint64Decoder
 
-	sumDecoder encoders.Float64Decoder
+	sumDecoder codecs.Float64Decoder
 
-	minDecoder encoders.Float64Decoder
+	minDecoder codecs.Float64Decoder
 
-	maxDecoder encoders.Float64Decoder
+	maxDecoder codecs.Float64Decoder
 
-	scaleDecoder encoders.Int64Decoder
+	scaleDecoder codecs.Int64Decoder
 
-	zeroCountDecoder encoders.Uint64Decoder
+	zeroCountDecoder codecs.Uint64Decoder
 
 	positiveBucketsDecoder     *ExpHistogramBucketsDecoder
 	isPositiveBucketsRecursive bool
 	negativeBucketsDecoder     *ExpHistogramBucketsDecoder
 	isNegativeBucketsRecursive bool
-	zeroThresholdDecoder       encoders.Float64Decoder
+	zeroThresholdDecoder       codecs.Float64Decoder
 
 	allocators *Allocators
 }

@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -654,15 +654,15 @@ type MappingEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	memoryStartEncoder     encoders.Uint64Encoder
-	memoryLimitEncoder     encoders.Uint64Encoder
-	fileOffsetEncoder      encoders.Uint64Encoder
-	filenameEncoder        encoders.StringDictEncoder
-	buildIdEncoder         encoders.StringDictEncoder
-	hasFunctionsEncoder    encoders.BoolEncoder
-	hasFilenamesEncoder    encoders.BoolEncoder
-	hasLineNumbersEncoder  encoders.BoolEncoder
-	hasInlineFramesEncoder encoders.BoolEncoder
+	memoryStartEncoder     codecs.Uint64Encoder
+	memoryLimitEncoder     codecs.Uint64Encoder
+	fileOffsetEncoder      codecs.Uint64Encoder
+	filenameEncoder        codecs.StringDictEncoder
+	buildIdEncoder         codecs.StringDictEncoder
+	hasFunctionsEncoder    codecs.BoolEncoder
+	hasFilenamesEncoder    codecs.BoolEncoder
+	hasLineNumbersEncoder  codecs.BoolEncoder
+	hasInlineFramesEncoder codecs.BoolEncoder
 
 	allocators *Allocators
 	dict       *MappingEncoderDict
@@ -1034,23 +1034,23 @@ type MappingDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	memoryStartDecoder encoders.Uint64Decoder
+	memoryStartDecoder codecs.Uint64Decoder
 
-	memoryLimitDecoder encoders.Uint64Decoder
+	memoryLimitDecoder codecs.Uint64Decoder
 
-	fileOffsetDecoder encoders.Uint64Decoder
+	fileOffsetDecoder codecs.Uint64Decoder
 
-	filenameDecoder encoders.StringDictDecoder
+	filenameDecoder codecs.StringDictDecoder
 
-	buildIdDecoder encoders.StringDictDecoder
+	buildIdDecoder codecs.StringDictDecoder
 
-	hasFunctionsDecoder encoders.BoolDecoder
+	hasFunctionsDecoder codecs.BoolDecoder
 
-	hasFilenamesDecoder encoders.BoolDecoder
+	hasFilenamesDecoder codecs.BoolDecoder
 
-	hasLineNumbersDecoder encoders.BoolDecoder
+	hasLineNumbersDecoder codecs.BoolDecoder
 
-	hasInlineFramesDecoder encoders.BoolDecoder
+	hasInlineFramesDecoder codecs.BoolDecoder
 
 	dict       *MappingDecoderDict
 	allocators *Allocators

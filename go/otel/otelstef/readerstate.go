@@ -2,29 +2,29 @@
 package otelstef
 
 import (
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type ReaderState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	AnyValueString    encoders.StringDictDecoderDict
-	AttributeKey      encoders.StringDictDecoderDict
+	AnyValueString    codecs.StringDictDecoderDict
+	AttributeKey      codecs.StringDictDecoderDict
 	Metric            MetricDecoderDict
-	MetricDescription encoders.StringDictDecoderDict
-	MetricName        encoders.StringDictDecoderDict
-	MetricUnit        encoders.StringDictDecoderDict
+	MetricDescription codecs.StringDictDecoderDict
+	MetricName        codecs.StringDictDecoderDict
+	MetricUnit        codecs.StringDictDecoderDict
 	Resource          ResourceDecoderDict
-	SchemaURL         encoders.StringDictDecoderDict
+	SchemaURL         codecs.StringDictDecoderDict
 	Scope             ScopeDecoderDict
-	ScopeName         encoders.StringDictDecoderDict
-	ScopeVersion      encoders.StringDictDecoderDict
-	SpanEventName     encoders.StringDictDecoderDict
-	SpanName          encoders.StringDictDecoderDict
+	ScopeName         codecs.StringDictDecoderDict
+	ScopeVersion      codecs.StringDictDecoderDict
+	SpanEventName     codecs.StringDictDecoderDict
+	SpanName          codecs.StringDictDecoderDict
 
 	// Decoders that are being Init-ed, to detect recursion.
 	AnyValueDecoder            *AnyValueDecoder

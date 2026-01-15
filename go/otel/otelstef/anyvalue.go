@@ -9,12 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 
 // AnyValue is a oneof struct.
 type AnyValue struct {
@@ -484,13 +484,13 @@ type AnyValueEncoder struct {
 	typeBitCount uint
 
 	// Field encoders.
-	stringEncoder encoders.StringDictEncoder
+	stringEncoder codecs.StringDictEncoder
 
-	boolEncoder encoders.BoolEncoder
+	boolEncoder codecs.BoolEncoder
 
-	int64Encoder encoders.Int64Encoder
+	int64Encoder codecs.Int64Encoder
 
-	float64Encoder encoders.Float64Encoder
+	float64Encoder codecs.Float64Encoder
 
 	arrayEncoder     *AnyValueArrayEncoder
 	isArrayRecursive bool // Indicates Array field's type is recursive.
@@ -498,7 +498,7 @@ type AnyValueEncoder struct {
 	kVListEncoder     *KeyValueListEncoder
 	isKVListRecursive bool // Indicates KVList field's type is recursive.
 
-	bytesEncoder encoders.BytesEncoder
+	bytesEncoder codecs.BytesEncoder
 }
 
 func (e *AnyValueEncoder) Init(state *WriterState, columns *pkg.WriteColumnSet) error {
@@ -762,13 +762,13 @@ type AnyValueDecoder struct {
 
 	// Field decoders.
 
-	stringDecoder encoders.StringDictDecoder
+	stringDecoder codecs.StringDictDecoder
 
-	boolDecoder encoders.BoolDecoder
+	boolDecoder codecs.BoolDecoder
 
-	int64Decoder encoders.Int64Decoder
+	int64Decoder codecs.Int64Decoder
 
-	float64Decoder encoders.Float64Decoder
+	float64Decoder codecs.Float64Decoder
 
 	arrayDecoder     *AnyValueArrayDecoder
 	isArrayRecursive bool
@@ -776,7 +776,7 @@ type AnyValueDecoder struct {
 	kVListDecoder     *KeyValueListDecoder
 	isKVListRecursive bool
 
-	bytesDecoder encoders.BytesDecoder
+	bytesDecoder codecs.BytesDecoder
 
 	allocators *Allocators
 }

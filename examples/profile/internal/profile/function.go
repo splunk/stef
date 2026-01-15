@@ -11,12 +11,12 @@ import (
 	"modernc.org/b/v2"
 
 	"github.com/splunk/stef/go/pkg"
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
 var _ = strings.Compare
-var _ = encoders.StringEncoder{}
+var _ = codecs.StringEncoder{}
 var _ = schema.WireSchema{}
 var _ = bytes.NewBuffer
 
@@ -399,10 +399,10 @@ type FunctionEncoder struct {
 	// restarts so that the data can be decoded from the frame start.
 	forceModifiedFields uint64
 
-	nameEncoder       encoders.StringDictEncoder
-	systemNameEncoder encoders.StringDictEncoder
-	filenameEncoder   encoders.StringDictEncoder
-	startLineEncoder  encoders.Uint64Encoder
+	nameEncoder       codecs.StringDictEncoder
+	systemNameEncoder codecs.StringDictEncoder
+	filenameEncoder   codecs.StringDictEncoder
+	startLineEncoder  codecs.Uint64Encoder
 
 	allocators *Allocators
 	dict       *FunctionEncoderDict
@@ -654,13 +654,13 @@ type FunctionDecoder struct {
 	column     *pkg.ReadableColumn
 	fieldCount uint
 
-	nameDecoder encoders.StringDictDecoder
+	nameDecoder codecs.StringDictDecoder
 
-	systemNameDecoder encoders.StringDictDecoder
+	systemNameDecoder codecs.StringDictDecoder
 
-	filenameDecoder encoders.StringDictDecoder
+	filenameDecoder codecs.StringDictDecoder
 
-	startLineDecoder encoders.Uint64Decoder
+	startLineDecoder codecs.Uint64Decoder
 
 	dict       *FunctionDecoderDict
 	allocators *Allocators

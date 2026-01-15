@@ -2,27 +2,27 @@
 package profile
 
 import (
-	"github.com/splunk/stef/go/pkg/encoders"
+	"github.com/splunk/stef/go/pkg/codecs"
 	"github.com/splunk/stef/go/pkg/schema"
 )
 
-var _ = (*encoders.StringEncoder)(nil)
+var _ = (*codecs.StringEncoder)(nil)
 
 type ReaderState struct {
 	StructFieldCounts StructFieldCounts
 
 	// Dictionaries
-	BuildID         encoders.StringDictDecoderDict
-	Filename        encoders.StringDictDecoderDict
+	BuildID         codecs.StringDictDecoderDict
+	Filename        codecs.StringDictDecoderDict
 	Function        FunctionDecoderDict
-	FunctionName    encoders.StringDictDecoderDict
-	LabelKey        encoders.StringDictDecoderDict
-	LabelValue      encoders.StringDictDecoderDict
+	FunctionName    codecs.StringDictDecoderDict
+	LabelKey        codecs.StringDictDecoderDict
+	LabelValue      codecs.StringDictDecoderDict
 	Location        LocationDecoderDict
 	Mapping         MappingDecoderDict
-	NumValueUnit    encoders.StringDictDecoderDict
+	NumValueUnit    codecs.StringDictDecoderDict
 	SampleValueType SampleValueTypeDecoderDict
-	SystemName      encoders.StringDictDecoderDict
+	SystemName      codecs.StringDictDecoderDict
 
 	// Decoders that are being Init-ed, to detect recursion.
 	FunctionDecoder         *FunctionDecoder

@@ -1,4 +1,4 @@
-package encoders
+package codecs
 
 import (
 	"github.com/splunk/stef/go/pkg"
