@@ -86,7 +86,13 @@ message Limits {
   // the sender computes and what receiver's re-created dictionary ends up using.
   // Receivers that are memory constrained should specify conservatively low values
   // for the limit.
-  uint64 max_dict_bytes = 2;
+  uint64 max_dict_bytes = 1;
+
+  // Maximum windows size when compressions is used. 0 means no limit.
+  // The sender's compressor SHOULD to honor this value. For zstd compression
+  // this sets the compression window size. This allows receivers to limit memory
+  // usage when decompressing compressed STEF data.
+  uint64 max_compressor_window_size = 2;
 }
 
 
