@@ -23,7 +23,7 @@ PROTO_FLAGS := -I$(PROTO_DIR) --java_out=$(OUT_DIR) --grpc-java_out=$(OUT_DIR)
 
 .PHONY: all generate clean
 
-all: generate
+all:
 
 # Main code generation target
 generate: $(JAVA_FILES)

@@ -12,7 +12,7 @@ TEF_PROTO_FILES := $(wildcard ./proto/*.proto)
 default: test
 
 .PHONY: all
-all: genproto test
+all: test
 
 .PHONY: genproto
 genproto:
