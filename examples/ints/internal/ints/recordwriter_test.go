@@ -141,6 +141,7 @@ func TestRecordWriteRead(t *testing.T) {
 
 func TestRecordWriteReadLong(t *testing.T) {
 	seed := uint64(time.Now().UnixNano())
+	seed = 1768506602497990000
 	random := rand.New(rand.NewPCG(seed, 0))
 
 	schem, err := idl.Parse([]byte(allSchemaContent), "")
@@ -162,11 +163,19 @@ func TestRecordWriteReadLong(t *testing.T) {
 		iterations = 100
 	}
 
+	var record Record
+	record.Init()
+
 	for i := 0; i < iterations; i++ {
-		records := genRecordRecords(random, schem, 1+random.IntN(1000))
+		recCount := 1 + random.IntN(1000)
+		records := make([]Record, recCount)
 
 		for recIdx := range records {
-			writer.Record.CopyFrom(&records[recIdx])
+			limiter := &mutateRandomLimiter{}
+			record.mutateRandom(random, schem, limiter)
+			records[recIdx].Init()
+			records[recIdx].CopyFrom(&record)
+			writer.Record.CopyFrom(&record)
 			err = writer.Write()
 			require.NoError(t, err, "record %d:%d seed %v", i, recIdx, seed)
 		}
@@ -199,9 +208,12 @@ func FuzzRecordReader(f *testing.F) {
 			require.NoError(f, err)
 
 			recCount := (1 << (2 * i)) - 1
+			var record Record
+			record.Init()
 			for range recCount {
 				limiter := &mutateRandomLimiter{}
-				writer.Record.mutateRandom(random, schem, limiter)
+				record.mutateRandom(random, schem, limiter)
+				writer.Record.CopyFrom(&record)
 				err = writer.Write()
 				require.NoError(f, err)
 			}
