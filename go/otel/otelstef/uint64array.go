@@ -341,6 +341,16 @@ func (d *Uint64ArrayDecoder) Reset() {
 func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
+	oldLen := len(dst.elems)
+
+	// Account for allocation size.
+	lenDelta := newLen - oldLen
+	if lenDelta > 0 {
+		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0]))); err != nil {
+			return err
+		}
+	}
+
 	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {

@@ -57,6 +57,7 @@ func (s *SampleValue) initAlloc(parentModifiedFields *modifiedFields, parentModi
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
+	allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
 	s.type_ = allocators.SampleValueType.Alloc()
 	s.type_.initAlloc(&s.modifiedFields, fieldModifiedSampleValueType, allocators)
 }
@@ -231,6 +232,7 @@ func copyToNewSampleValue(dst *SampleValue, src *SampleValue, allocators *Alloca
 	if src.type_.canBeShared() {
 		dst.type_ = src.type_
 	} else {
+		allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
 		dst.type_ = allocators.SampleValueType.Alloc()
 		dst.type_.init(&dst.modifiedFields, fieldModifiedSampleValueType)
 		copyToNewSampleValueType(dst.type_, src.type_, allocators)
@@ -579,6 +581,9 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	if val.modifiedFields.mask&fieldModifiedSampleValueType != 0 { // Type is changed.
 
 		if val.type_ == nil {
+			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.type_))); err != nil {
+				return err
+			}
 			val.type_ = d.allocators.SampleValueType.Alloc()
 			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
 		}

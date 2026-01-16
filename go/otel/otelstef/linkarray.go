@@ -170,6 +170,7 @@ func copyToNewLinkArray(dst *LinkArray, src *LinkArray, allocators *Allocators) 
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
+			allocators.addAllocSize(int(unsafe.Sizeof(Link{})))
 			dst.elems[j] = allocators.Link.Alloc()
 			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Copy the element.
@@ -403,6 +404,15 @@ func (d *LinkArrayDecoder) Decode(dst *LinkArray) error {
 	newLen := int(d.buf.ReadUvarintCompact())
 
 	oldLen := len(dst.elems)
+
+	// Account for allocation size.
+	lenDelta := newLen - oldLen
+	if lenDelta > 0 {
+		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(Link{}))); err != nil {
+			return err
+		}
+	}
+
 	dst.ensureLen(newLen, d.allocators)
 	for i := min(oldLen, newLen); i < newLen; i++ {
 		// Reset newly created keys to initial state.

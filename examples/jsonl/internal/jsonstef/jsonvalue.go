@@ -189,6 +189,7 @@ func (s *JsonValue) cloneShared(allocators *Allocators) *JsonValue {
 }
 
 func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
+	allocators.addAllocSize(int(unsafe.Sizeof(JsonValue{})))
 	c := allocators.JsonValue.Alloc()
 	c.typ = s.typ
 	switch s.typ {
