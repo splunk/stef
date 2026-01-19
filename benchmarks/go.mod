@@ -6,7 +6,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.6.7
 	github.com/klauspost/compress v1.18.2
 	github.com/open-telemetry/otel-arrow/go v0.46.0
-	github.com/parquet-go/parquet-go v0.26.4
+	github.com/parquet-go/parquet-go v0.27.0
 	github.com/splunk/stef/go/otel v0.0.9
 	github.com/splunk/stef/go/pdata v0.0.0
 	github.com/splunk/stef/go/pkg v0.0.9
@@ -42,6 +42,7 @@ require (
 	github.com/parquet-go/jsonlite v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/twpayne/go-geom v1.6.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
