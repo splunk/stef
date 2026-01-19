@@ -2,7 +2,7 @@
 default: build
 
 .PHONY: all
-all: generate default
+all: default
 
 .PHONY: build
 build:
