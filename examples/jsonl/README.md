@@ -37,3 +37,14 @@ The times below show the duration of deserializing of one record (one line).
 | currencies_historical          | 1147.5n            | 479.7n            | -58.20%       | 1445.5n               | +25.97%           |
 | macosx_releases                | 1219.5n            | 748.0n            | -38.66%       | 1763.0n               | +44.57%           |
 | programming_languages_keywords | 6.215µ             | 4.462µ            | -28.21%       | 9.636µ                | +55.06%           |
+
+## How to run
+
+- Prereqs: Go 1.24+, `protoc`.
+- Build/tests: `make build`
+- Regenerate STEF + Protobuf bindings: `make generate`
+  - Invokes `stefc` for Go bindings under `internal/jsonstef`
+  - Invokes `protoc` to emit JSONL protobuf types under `internal/jsonpb`
+- Benchmarks: `make benchmark`
+
+Sample data lives in `testdata/`; generated bindings stay under `internal/`.

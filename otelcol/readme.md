@@ -1,12 +1,7 @@
-## Running
+## STEF OpenTelemetry Collector distribution
 
-Now build the Collector:
+This module builds an OTEL Collector binary with the STEF exporter bundled.
 
-`make otelcol`
-
-And run the Collector:
-
-```
-otelcol --config otelconfigs/config.yaml
-```
-
+## Build and run
+- Build collector binary: `make otelcol`
+- Run with sample config: `otelcol --config otelconfigs/config.yaml`

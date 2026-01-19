@@ -17,3 +17,15 @@ them in [src/test/java/com/example/gentest](./src/test/java/com/example/gentest)
 Then run `./gradlew test` to test generated code.
 
 To generate the JMH performance benchmarks run `./gradlew jmh`.
+
+# Project layout
+
+- Runtime library lives under `src/main/java/net/stef`.
+- Generated bindings from schema tests live under `src/test/java`.
+- Benchmarks are under `src/jmh/java` and use JMH.
+
+# Typical workflows
+
+- Build + tests: `./gradlew build`
+- JMH benchmarks: `./gradlew jmh`
+- Update generated schema tests: `cd ../stefc && make test`
