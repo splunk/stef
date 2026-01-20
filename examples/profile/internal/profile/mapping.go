@@ -422,7 +422,7 @@ func (s *Mapping) cloneShared(allocators *Allocators) *Mapping {
 }
 
 func (s *Mapping) Clone(allocators *Allocators) *Mapping {
-	allocators.addAllocSize(int(unsafe.Sizeof(Mapping{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Mapping{})))
 	c := allocators.Mapping.Alloc()
 	*c = Mapping{
 		memoryStart:     s.memoryStart,
@@ -1251,7 +1251,7 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
-	if d.allocators.isOverLimit() {
+	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}
 	*dstPtr = val

@@ -170,7 +170,7 @@ func copyToNewLineArray(dst *LineArray, src *LineArray, allocators *Allocators) 
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			allocators.addAllocSize(int(unsafe.Sizeof(Line{})))
+			allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Line{})))
 			dst.elems[j] = allocators.Line.Alloc()
 			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Copy the element.
@@ -408,7 +408,7 @@ func (d *LineArrayDecoder) Decode(dst *LineArray) error {
 	// Account for allocation size.
 	lenDelta := newLen - oldLen
 	if lenDelta > 0 {
-		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(Line{}))); err != nil {
+		if err := d.allocators.allocSizeChecker.PrepAllocSizeN(uint(lenDelta), uint(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(Line{}))); err != nil {
 			return err
 		}
 	}

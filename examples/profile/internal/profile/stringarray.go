@@ -346,7 +346,7 @@ func (d *StringArrayDecoder) Decode(dst *StringArray) error {
 	// Account for allocation size.
 	lenDelta := newLen - oldLen
 	if lenDelta > 0 {
-		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0]))); err != nil {
+		if err := d.allocators.allocSizeChecker.PrepAllocSizeN(uint(lenDelta), uint(unsafe.Sizeof(dst.elems[0]))); err != nil {
 			return err
 		}
 	}

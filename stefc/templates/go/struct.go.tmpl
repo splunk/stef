@@ -103,7 +103,7 @@ func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, par
     {{- if not .Type.IsPrimitive }}
     {{- if .Type.Flags.StoreByPtr}}
     {{- if not .Optional}}
-    allocators.addAllocSize(int(unsafe.Sizeof({{.Type.Storage}}{})))
+    allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
     s.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
     s.{{.name}}.initAlloc(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}}, allocators)
     {{- end}}
@@ -376,7 +376,7 @@ func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags
 
 func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 {{- if .Type.Flags.StoreByPtr}}
-    allocators.addAllocSize(int(unsafe.Sizeof({{.StructName}}{})))
+    allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.StructName}}{})))
     c := allocators.{{.StructName}}.Alloc()
     *c = {{.StructName}}{
 {{- else}}
@@ -486,7 +486,7 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
         if src.{{.name}}.canBeShared() {
             dst.{{.name}} = src.{{.name}}
         } else {
-            allocators.addAllocSize(int(unsafe.Sizeof({{.Type.Storage}}{})))
+            allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
             dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
             dst.{{.name}}.init(&dst.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             copyToNew{{.Type.TypeName}}(
@@ -1022,7 +1022,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
-	if d.allocators.isOverLimit() {
+	if d.allocators.allocSizeChecker.IsOverLimit() {
         return pkg.ErrRecordAllocLimitExceeded
     }
     *dstPtr = val
@@ -1065,7 +1065,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         {{- end}}
             {{- if .Type.Flags.StoreByPtr}}
             if val.{{.name}} == nil {
-                if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.{{.name}}))); err != nil {
+                if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.{{.name}}))); err != nil {
                     return err
                 }
                 val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
@@ -1089,7 +1089,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         // {{.Name}} is not changed. It is an optional field. We need to init it if it is present.
         if val.optionalFieldsPresent & fieldPresent{{ $.StructName }}{{.Name}} != 0 {
             if val.{{.name}} == nil {
-                if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.{{.name}}))); err != nil {
+                if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.{{.name}}))); err != nil {
                     return err
                 }
                 val.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()

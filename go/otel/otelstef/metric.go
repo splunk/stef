@@ -392,7 +392,7 @@ func (s *Metric) cloneShared(allocators *Allocators) *Metric {
 }
 
 func (s *Metric) Clone(allocators *Allocators) *Metric {
-	allocators.addAllocSize(int(unsafe.Sizeof(Metric{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Metric{})))
 	c := allocators.Metric.Alloc()
 	*c = Metric{
 		name:                   s.name,
@@ -1215,7 +1215,7 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
-	if d.allocators.isOverLimit() {
+	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}
 	*dstPtr = val

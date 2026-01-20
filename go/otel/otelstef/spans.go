@@ -66,10 +66,10 @@ func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.modifiedFields.parentBit = parentModifiedBit
 
 	s.envelope.initAlloc(&s.modifiedFields, fieldModifiedSpansEnvelope, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(Resource{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Resource{})))
 	s.resource = allocators.Resource.Alloc()
 	s.resource.initAlloc(&s.modifiedFields, fieldModifiedSpansResource, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(Scope{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Scope{})))
 	s.scope = allocators.Scope.Alloc()
 	s.scope.initAlloc(&s.modifiedFields, fieldModifiedSpansScope, allocators)
 	s.span.initAlloc(&s.modifiedFields, fieldModifiedSpansSpan, allocators)
@@ -336,7 +336,7 @@ func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
 	if src.resource.canBeShared() {
 		dst.resource = src.resource
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Resource{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Resource{})))
 		dst.resource = allocators.Resource.Alloc()
 		dst.resource.init(&dst.modifiedFields, fieldModifiedSpansResource)
 		copyToNewResource(dst.resource, src.resource, allocators)
@@ -345,7 +345,7 @@ func copyToNewSpans(dst *Spans, src *Spans, allocators *Allocators) {
 	if src.scope.canBeShared() {
 		dst.scope = src.scope
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Scope{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Scope{})))
 		dst.scope = allocators.Scope.Alloc()
 		dst.scope.init(&dst.modifiedFields, fieldModifiedSpansScope)
 		copyToNewScope(dst.scope, src.scope, allocators)
@@ -907,7 +907,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansResource != 0 { // Resource is changed.
 
 		if val.resource == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.resource))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.resource))); err != nil {
 				return err
 			}
 			val.resource = d.allocators.Resource.Alloc()
@@ -923,7 +923,7 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	if val.modifiedFields.mask&fieldModifiedSpansScope != 0 { // Scope is changed.
 
 		if val.scope == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.scope))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.scope))); err != nil {
 				return err
 			}
 			val.scope = d.allocators.Scope.Alloc()

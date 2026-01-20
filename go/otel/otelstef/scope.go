@@ -293,7 +293,7 @@ func (s *Scope) cloneShared(allocators *Allocators) *Scope {
 }
 
 func (s *Scope) Clone(allocators *Allocators) *Scope {
-	allocators.addAllocSize(int(unsafe.Sizeof(Scope{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Scope{})))
 	c := allocators.Scope.Alloc()
 	*c = Scope{
 		name:                   s.name,
@@ -909,7 +909,7 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
-	if d.allocators.isOverLimit() {
+	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}
 	*dstPtr = val

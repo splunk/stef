@@ -73,13 +73,13 @@ func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModified
 	s.modifiedFields.parentBit = parentModifiedBit
 
 	s.envelope.initAlloc(&s.modifiedFields, fieldModifiedMetricsEnvelope, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(Metric{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Metric{})))
 	s.metric = allocators.Metric.Alloc()
 	s.metric.initAlloc(&s.modifiedFields, fieldModifiedMetricsMetric, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(Resource{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Resource{})))
 	s.resource = allocators.Resource.Alloc()
 	s.resource.initAlloc(&s.modifiedFields, fieldModifiedMetricsResource, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(Scope{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Scope{})))
 	s.scope = allocators.Scope.Alloc()
 	s.scope.initAlloc(&s.modifiedFields, fieldModifiedMetricsScope, allocators)
 	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedMetricsAttributes, allocators)
@@ -440,7 +440,7 @@ func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 	if src.metric.canBeShared() {
 		dst.metric = src.metric
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Metric{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Metric{})))
 		dst.metric = allocators.Metric.Alloc()
 		dst.metric.init(&dst.modifiedFields, fieldModifiedMetricsMetric)
 		copyToNewMetric(dst.metric, src.metric, allocators)
@@ -449,7 +449,7 @@ func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 	if src.resource.canBeShared() {
 		dst.resource = src.resource
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Resource{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Resource{})))
 		dst.resource = allocators.Resource.Alloc()
 		dst.resource.init(&dst.modifiedFields, fieldModifiedMetricsResource)
 		copyToNewResource(dst.resource, src.resource, allocators)
@@ -458,7 +458,7 @@ func copyToNewMetrics(dst *Metrics, src *Metrics, allocators *Allocators) {
 	if src.scope.canBeShared() {
 		dst.scope = src.scope
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Scope{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Scope{})))
 		dst.scope = allocators.Scope.Alloc()
 		dst.scope.init(&dst.modifiedFields, fieldModifiedMetricsScope)
 		copyToNewScope(dst.scope, src.scope, allocators)
@@ -1206,7 +1206,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsMetric != 0 { // Metric is changed.
 
 		if val.metric == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.metric))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.metric))); err != nil {
 				return err
 			}
 			val.metric = d.allocators.Metric.Alloc()
@@ -1222,7 +1222,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsResource != 0 { // Resource is changed.
 
 		if val.resource == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.resource))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.resource))); err != nil {
 				return err
 			}
 			val.resource = d.allocators.Resource.Alloc()
@@ -1238,7 +1238,7 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	if val.modifiedFields.mask&fieldModifiedMetricsScope != 0 { // Scope is changed.
 
 		if val.scope == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.scope))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.scope))); err != nil {
 				return err
 			}
 			val.scope = d.allocators.Scope.Alloc()

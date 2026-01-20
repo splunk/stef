@@ -72,11 +72,11 @@ func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parent
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
-	allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SampleValueType{})))
 	s.periodType = allocators.SampleValueType.Alloc()
 	s.periodType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType, allocators)
 	s.comments.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataComments, allocators)
-	allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SampleValueType{})))
 	s.defaultSampleType = allocators.SampleValueType.Alloc()
 	s.defaultSampleType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
 }
@@ -479,7 +479,7 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 	if src.periodType.canBeShared() {
 		dst.periodType = src.periodType
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SampleValueType{})))
 		dst.periodType = allocators.SampleValueType.Alloc()
 		dst.periodType.init(&dst.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 		copyToNewSampleValueType(dst.periodType, src.periodType, allocators)
@@ -491,7 +491,7 @@ func copyToNewProfileMetadata(dst *ProfileMetadata, src *ProfileMetadata, alloca
 	if src.defaultSampleType.canBeShared() {
 		dst.defaultSampleType = src.defaultSampleType
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(SampleValueType{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SampleValueType{})))
 		dst.defaultSampleType = allocators.SampleValueType.Alloc()
 		dst.defaultSampleType.init(&dst.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		copyToNewSampleValueType(dst.defaultSampleType, src.defaultSampleType, allocators)
@@ -1277,7 +1277,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriodType != 0 { // PeriodType is changed.
 
 		if val.periodType == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.periodType))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.periodType))); err != nil {
 				return err
 			}
 			val.periodType = d.allocators.SampleValueType.Alloc()
@@ -1309,7 +1309,7 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDefaultSampleType != 0 { // DefaultSampleType is changed.
 
 		if val.defaultSampleType == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.defaultSampleType))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.defaultSampleType))); err != nil {
 				return err
 			}
 			val.defaultSampleType = d.allocators.SampleValueType.Alloc()

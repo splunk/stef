@@ -103,7 +103,7 @@ func (r *RecordReader) Read(opts pkg.ReadOptions) error {
 	r.base.RecordCount++
 
 	// Track new memory allocated during decoding of this record.
-	r.state.Allocators.resetAllocSize()
+	r.state.Allocators.allocSizeChecker.ResetAllocSize()
 
 	return r.decoder.Decode(r.recordPtr)
 }

@@ -187,7 +187,7 @@ func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags
 
 func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
 {{- if .Type.Flags.StoreByPtr}}
-    allocators.addAllocSize(int(unsafe.Sizeof({{.StructName}}{})))
+    allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.StructName}}{})))
     c := allocators.{{.StructName}}.Alloc()
 {{- else}}
     c := {{.StructName}}{}
@@ -248,7 +248,7 @@ func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, alloca
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.MustClone}}
         {{- if .Type.Flags.StoreByPtr}}
-        allocators.addAllocSize(int(unsafe.Sizeof({{.Type.Storage}}{})))
+        allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
         dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
         dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
         {{- end}}
@@ -691,7 +691,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
         // Decode {{.Name}}
         {{- if .Type.Flags.StoreByPtr}}
         if dst.{{.name}} == nil {
-            if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*dst.{{.name}}))); err != nil {
+            if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*dst.{{.name}}))); err != nil {
                 return err
             }
             dst.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()

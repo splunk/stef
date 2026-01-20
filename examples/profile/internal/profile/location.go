@@ -73,7 +73,7 @@ func (s *Location) initAlloc(parentModifiedFields *modifiedFields, parentModifie
 	s.modifiedFields.parent = parentModifiedFields
 	s.modifiedFields.parentBit = parentModifiedBit
 
-	allocators.addAllocSize(int(unsafe.Sizeof(Mapping{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Mapping{})))
 	s.mapping = allocators.Mapping.Alloc()
 	s.mapping.initAlloc(&s.modifiedFields, fieldModifiedLocationMapping, allocators)
 	s.lines.initAlloc(&s.modifiedFields, fieldModifiedLocationLines, allocators)
@@ -282,7 +282,7 @@ func (s *Location) cloneShared(allocators *Allocators) *Location {
 }
 
 func (s *Location) Clone(allocators *Allocators) *Location {
-	allocators.addAllocSize(int(unsafe.Sizeof(Location{})))
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Location{})))
 	c := allocators.Location.Alloc()
 	*c = Location{
 		mapping:  s.mapping.cloneShared(allocators),
@@ -326,7 +326,7 @@ func copyToNewLocation(dst *Location, src *Location, allocators *Allocators) {
 	if src.mapping.canBeShared() {
 		dst.mapping = src.mapping
 	} else {
-		allocators.addAllocSize(int(unsafe.Sizeof(Mapping{})))
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Mapping{})))
 		dst.mapping = allocators.Mapping.Alloc()
 		dst.mapping.init(&dst.modifiedFields, fieldModifiedLocationMapping)
 		copyToNewMapping(dst.mapping, src.mapping, allocators)
@@ -903,7 +903,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
-	if d.allocators.isOverLimit() {
+	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}
 	*dstPtr = val
@@ -917,7 +917,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	if val.modifiedFields.mask&fieldModifiedLocationMapping != 0 { // Mapping is changed.
 
 		if val.mapping == nil {
-			if err := d.allocators.prepAllocSize(int(unsafe.Sizeof(*val.mapping))); err != nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*val.mapping))); err != nil {
 				return err
 			}
 			val.mapping = d.allocators.Mapping.Alloc()

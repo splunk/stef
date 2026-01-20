@@ -170,7 +170,7 @@ func copyToNewJsonValueArray(dst *JsonValueArray, src *JsonValueArray, allocator
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			allocators.addAllocSize(int(unsafe.Sizeof(JsonValue{})))
+			allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonValue{})))
 			dst.elems[j] = allocators.JsonValue.Alloc()
 			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Copy the element.
@@ -408,7 +408,7 @@ func (d *JsonValueArrayDecoder) Decode(dst *JsonValueArray) error {
 	// Account for allocation size.
 	lenDelta := newLen - oldLen
 	if lenDelta > 0 {
-		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(JsonValue{}))); err != nil {
+		if err := d.allocators.allocSizeChecker.PrepAllocSizeN(uint(lenDelta), uint(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(JsonValue{}))); err != nil {
 			return err
 		}
 	}

@@ -170,7 +170,7 @@ func copyToNewAnyValueArray(dst *AnyValueArray, src *AnyValueArray, allocators *
 			dst.elems[j] = src.elems[j]
 		} else {
 			// Alloc and init the element.
-			allocators.addAllocSize(int(unsafe.Sizeof(AnyValue{})))
+			allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(AnyValue{})))
 			dst.elems[j] = allocators.AnyValue.Alloc()
 			dst.elems[j].initAlloc(dst.parentModifiedFields, dst.parentModifiedBit, allocators)
 			// Copy the element.
@@ -408,7 +408,7 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 	// Account for allocation size.
 	lenDelta := newLen - oldLen
 	if lenDelta > 0 {
-		if err := d.allocators.prepAllocSize(lenDelta * int(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(AnyValue{}))); err != nil {
+		if err := d.allocators.allocSizeChecker.PrepAllocSizeN(uint(lenDelta), uint(unsafe.Sizeof(dst.elems[0])+unsafe.Sizeof(AnyValue{}))); err != nil {
 			return err
 		}
 	}
