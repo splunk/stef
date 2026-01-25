@@ -223,6 +223,7 @@ func (s *AnyValue) cloneShared(allocators *Allocators) *AnyValue {
 }
 
 func (s *AnyValue) Clone(allocators *Allocators) *AnyValue {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(AnyValue{})))
 	c := allocators.AnyValue.Alloc()
 	c.typ = s.typ
 	switch s.typ {

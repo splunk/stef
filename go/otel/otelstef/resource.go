@@ -227,6 +227,7 @@ func (s *Resource) cloneShared(allocators *Allocators) *Resource {
 }
 
 func (s *Resource) Clone(allocators *Allocators) *Resource {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Resource{})))
 	c := allocators.Resource.Alloc()
 	*c = Resource{
 		schemaURL:              s.schemaURL,
@@ -722,6 +723,9 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.allocSizeChecker.IsOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
 	*dstPtr = val
 
 	var err error

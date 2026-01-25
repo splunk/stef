@@ -191,6 +191,7 @@ func (s *SampleValueType) cloneShared(allocators *Allocators) *SampleValueType {
 }
 
 func (s *SampleValueType) Clone(allocators *Allocators) *SampleValueType {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SampleValueType{})))
 	c := allocators.SampleValueType.Alloc()
 	*c = SampleValueType{
 		type_: s.type_,
@@ -599,6 +600,9 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.allocSizeChecker.IsOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
 	*dstPtr = val
 
 	var err error

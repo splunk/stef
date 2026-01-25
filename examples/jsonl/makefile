@@ -2,7 +2,7 @@
 default: build
 
 .PHONY: all
-all: default
+all: generate default
 
 .PHONY: build
 build:
@@ -12,6 +12,9 @@ build:
 generate:
 	cd ../../stefc && make build
 	../../stefc/bin/stefc --lang=go --outdir=internal jsonl.stef
+
+.PHONY: genproto
+genproto:
 	mkdir -p internal/jsonpb
 	protoc --go_out=internal/jsonpb --go_opt=paths=source_relative jsonl.proto
 

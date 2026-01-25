@@ -101,6 +101,10 @@ func (r *SampleReader) Read(opts pkg.ReadOptions) error {
 	}
 	r.base.FrameRecordCount--
 	r.base.RecordCount++
+
+	// Track new memory allocated during decoding of this record.
+	r.state.Allocators.allocSizeChecker.ResetAllocSize()
+
 	return r.decoder.Decode(r.recordPtr)
 }
 

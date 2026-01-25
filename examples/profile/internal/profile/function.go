@@ -257,6 +257,7 @@ func (s *Function) cloneShared(allocators *Allocators) *Function {
 }
 
 func (s *Function) Clone(allocators *Allocators) *Function {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Function{})))
 	c := allocators.Function.Alloc()
 	*c = Function{
 		name:       s.name,
@@ -785,6 +786,9 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
 	val := (*dstPtr).Clone(d.allocators)
+	if d.allocators.allocSizeChecker.IsOverLimit() {
+		return pkg.ErrRecordAllocLimitExceeded
+	}
 	*dstPtr = val
 
 	var err error

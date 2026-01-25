@@ -203,6 +203,11 @@ type Allocators struct {
 	SpanStatus          SpanStatusAllocator
 	Spans               SpansAllocator
 	SummaryValue        SummaryValueAllocator
+
+	// allocatedSize tracks the total allocated size in bytes since last resetAllocSize call.
+	// This tracking is independent from the individual allocators above, i.e. calls
+	// to Alloc() DO NOT result in allocatedSize being updated automatically.
+	allocSizeChecker pkg.AllocSizeChecker
 }
 
 // Maximum number of objects to create per mutateRandom call.
