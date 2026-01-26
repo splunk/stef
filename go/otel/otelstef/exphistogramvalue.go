@@ -1170,6 +1170,9 @@ func (d *ExpHistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadCol
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExpHistogramValue", err)
 	}
+	if d.fieldCount > 9 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.optionalFieldCount = pkg.OptionalFieldCount(0b1110, d.fieldCount)
 

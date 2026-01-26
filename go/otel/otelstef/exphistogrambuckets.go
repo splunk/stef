@@ -435,6 +435,9 @@ func (d *ExpHistogramBucketsDecoder) Init(state *ReaderState, columns *pkg.ReadC
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "ExpHistogramBuckets", err)
 	}
+	if d.fieldCount > 2 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 
