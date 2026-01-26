@@ -989,6 +989,10 @@ func (d *MetricsDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) er
 		return pkg.ErrTooManyFieldsToDecode
 	}
 
+	if d.fieldCount == 0 {
+		return pkg.ErrEmptyRootStructDisallowed
+	}
+
 	d.column = columns.Column()
 
 	if d.fieldCount <= 0 {

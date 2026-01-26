@@ -15,7 +15,12 @@ func ShrinkRandomly(r *rand.Rand, schem *Schema) bool {
 	var structNames []string
 	for structName := range schem.Structs {
 		structNames = append(structNames, structName)
-		totalFieldCount += len(schem.Structs[structName].Fields)
+		str := schem.Structs[structName]
+		shrinkableCount := len(str.Fields)
+		if str.IsRoot && shrinkableCount > 0 {
+			shrinkableCount-- // Do not remove the last field from the root struct
+		}
+		totalFieldCount += shrinkableCount
 	}
 	if totalFieldCount == 0 {
 		// Nothing to shrink
@@ -34,6 +39,11 @@ func ShrinkRandomly(r *rand.Rand, schem *Schema) bool {
 }
 
 func shrinkStruct(r *rand.Rand, schem *Schema, str *Struct) bool {
+	if str.IsRoot && len(str.Fields) <= 1 {
+		// Do not remove the last field from the root struct
+		return false
+	}
+
 	if r.IntN(10) == 0 && len(str.Fields) > 0 {
 		str.Fields = str.Fields[0 : len(str.Fields)-1]
 		return true
