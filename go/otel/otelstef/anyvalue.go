@@ -807,6 +807,9 @@ func (d *AnyValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "AnyValue", err)
 	}
+	if d.fieldCount > 7 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 

@@ -465,6 +465,9 @@ func (d *LabelValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet)
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "LabelValue", err)
 	}
+	if d.fieldCount > 2 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 

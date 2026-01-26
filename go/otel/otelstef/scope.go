@@ -781,6 +781,9 @@ func (d *ScopeDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "Scope", err)
 	}
+	if d.fieldCount > 5 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 	d.dict = &state.Scope
