@@ -688,6 +688,9 @@ func (d *FunctionDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) e
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "Function", err)
 	}
+	if d.fieldCount > 4 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 	d.dict = &state.Function

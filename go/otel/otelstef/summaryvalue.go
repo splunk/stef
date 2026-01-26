@@ -513,6 +513,9 @@ func (d *SummaryValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSe
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "SummaryValue", err)
 	}
+	if d.fieldCount > 3 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 

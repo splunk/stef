@@ -1047,6 +1047,9 @@ func (d *ProfileMetadataDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "ProfileMetadata", err)
 	}
+	if d.fieldCount > 8 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 
