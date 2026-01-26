@@ -82,6 +82,10 @@ func TestParserErrors(t *testing.T) {
 			input: "package abc oneof Oneof dict(abc) {}",
 			err:   "test.stef:1:25: oneof cannot have dict modifier",
 		},
+		{
+			input: "package abc struct Empty root {}",
+			err:   "test.stef:1:33: root struct must have at least one field",
+		},
 	}
 
 	for _, test := range tests {
@@ -99,30 +103,30 @@ func TestParserWarnings(t *testing.T) {
 		warn  []string
 	}{
 		{
-			input: "package abc struct R root {} struct U {}",
+			input: "package abc struct R root { x bool } struct U {}",
 			warn:  []string{`Warning: struct "U" is defined but not used`},
 		},
 		{
-			input: "package abc struct R root {} multimap M { key string value int64 }",
+			input: "package abc struct R root { x bool } multimap M { key string value int64 }",
 			warn:  []string{`Warning: multimap "M" is defined but not used`},
 		},
 		{
-			input: "package abc struct R root {} oneof O {}",
+			input: "package abc struct R root { x bool } oneof O {}",
 			warn:  []string{`Warning: oneof "O" is defined but not used`},
 		},
 		{
-			input: "package abc struct R root {} enum E {}",
+			input: "package abc struct R root { x bool } enum E {}",
 			warn:  []string{`Warning: enum "E" is defined but not used`},
 		},
 		{
-			input: "package abc struct R root {} struct A { B B optional } struct B { A A optional }",
+			input: "package abc struct R root { x bool } struct A { B B optional } struct B { A A optional }",
 			warn: []string{
 				`Warning: struct "A" is defined but not used`, `Warning: struct "B" is defined but not used`,
 			},
 		},
 		// Multiple unused types of different kinds
 		{
-			input: "package abc struct R root {} struct U1 {} struct U2 {} oneof O {} multimap M { key string value int64 } enum E {}",
+			input: "package abc struct R root { x bool } struct U1 {} struct U2 {} oneof O {} multimap M { key string value int64 } enum E {}",
 			warn: []string{
 				`Warning: oneof "O" is defined but not used`,
 				`Warning: struct "U1" is defined but not used`,
@@ -133,7 +137,7 @@ func TestParserWarnings(t *testing.T) {
 		},
 		// Chain of unused structs where one references another
 		{
-			input: "package abc struct R root {} struct A { b B } struct B { c C } struct C {}",
+			input: "package abc struct R root { x bool } struct A { b B } struct B { c C } struct C {}",
 			warn: []string{
 				`Warning: struct "A" is defined but not used`,
 				`Warning: struct "B" is defined but not used`,
@@ -142,7 +146,7 @@ func TestParserWarnings(t *testing.T) {
 		},
 		// Circular dependency that's unused
 		{
-			input: "package abc struct R root {} struct A { b []B c C } struct B { a A } struct C { name string }",
+			input: "package abc struct R root { x bool } struct A { b []B c C } struct B { a A } struct C { name string }",
 			warn: []string{
 				`Warning: struct "A" is defined but not used`,
 				`Warning: struct "B" is defined but not used`,
@@ -205,14 +209,14 @@ func TestParserWarnings(t *testing.T) {
 		},
 		// Self-referencing unused struct
 		{
-			input: "package abc struct R root {} struct SelfRef { next SelfRef optional }",
+			input: "package abc struct R root { x bool } struct SelfRef { next SelfRef optional }",
 			warn: []string{
 				`Warning: struct "SelfRef" is defined but not used`,
 			},
 		},
 		// Multiple levels of mutual references that are unused
 		{
-			input: "package abc struct R root {} struct A { b B } struct B { c C } struct C { a A optional }",
+			input: "package abc struct R root { x bool } struct A { b B } struct B { c C } struct C { a A optional }",
 			warn: []string{
 				`Warning: struct "A" is defined but not used`,
 				`Warning: struct "B" is defined but not used`,
