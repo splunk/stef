@@ -750,6 +750,10 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 		return pkg.ErrTooManyFieldsToDecode
 	}
 
+	if d.fieldCount == 0 {
+		return pkg.ErrEmptyRootStructDisallowed
+	}
+
 	d.column = columns.Column()
 
 	if d.fieldCount <= 0 {

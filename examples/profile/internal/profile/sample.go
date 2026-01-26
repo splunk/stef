@@ -630,6 +630,10 @@ func (d *SampleDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) err
 		return pkg.ErrTooManyFieldsToDecode
 	}
 
+	if d.fieldCount == 0 {
+		return pkg.ErrEmptyRootStructDisallowed
+	}
+
 	d.column = columns.Column()
 
 	if d.fieldCount <= 0 {
