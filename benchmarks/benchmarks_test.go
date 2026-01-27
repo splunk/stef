@@ -316,7 +316,6 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 	b.ReportAllocs()
 }
 
-/* Need to rewrite this to use STEF.ReadMany() API when it becomes available.
 func BenchmarkReaderReadMany(b *testing.B) {
 	generator := &generators.File{
 		FilePath: "testdata/hipstershop-otelmetrics.zst",
@@ -332,26 +331,39 @@ func BenchmarkReaderReadMany(b *testing.B) {
 		log.Fatal(err)
 	}
 
+	pointCount := 100_000
+	records := make([]otelstef.Metrics, pointCount)
+	for i := 0; i < pointCount; i++ {
+		records[i].Init()
+	}
+
 	b.ResetTimer()
-	var records metrics.Records
 	for i := 0; i < b.N; i++ {
 		buf := bytes.NewBuffer(bodyBytes)
-		reader, err := metrics.NewReader(buf)
+		reader, err := otelstef.NewMetricsReader(buf)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = reader.ReadMany(0, &records)
-		if err != nil && err != io.EOF {
-			log.Fatal(err)
+		for j := 0; ; j++ {
+			err = reader.Read(pkg.ReadOptions{})
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			records[j%pointCount].Reset()
+			records[j%pointCount].CopyFrom(&reader.Record)
 		}
 	}
 	b.ReportMetric(
-		float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+		nsPerPoint(b, batch.DataPointCount()),
+		//float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
 		"ns/point",
 	)
 }
-*/
 
 func BenchmarkSTEFReaderRead(b *testing.B) {
 	generator := &generators.File{

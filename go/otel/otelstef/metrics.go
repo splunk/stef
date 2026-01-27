@@ -86,6 +86,10 @@ func (s *Metrics) initAlloc(parentModifiedFields *modifiedFields, parentModified
 	s.point.initAlloc(&s.modifiedFields, fieldModifiedMetricsPoint, allocators)
 }
 
+func (s *Metrics) Reset() {
+	s.reset()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Metrics) reset() {
