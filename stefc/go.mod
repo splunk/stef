@@ -3,7 +3,7 @@ module github.com/splunk/stef/stefc
 go 1.24.0
 
 require (
-	github.com/splunk/stef/go/pkg v0.0.9
+	github.com/splunk/stef/go/pkg v0.1.0
 	github.com/stretchr/testify v1.11.1
 )
 
