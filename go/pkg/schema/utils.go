@@ -8,7 +8,9 @@ import (
 // ShrinkRandomly will deterministically, pseudo-randomly shrink the provided
 // schema by removing the last field from one of the structs or oneofs.
 // This function is used for testing schema changes.
-func ShrinkRandomly(r *rand.Rand, schem *Schema) {
+// Returns true if the schema was changed, false if there was nothing to shrink,
+// i.e. the schema has no fields.
+func ShrinkRandomly(r *rand.Rand, schem *Schema) bool {
 	totalFieldCount := 0
 	var structNames []string
 	for structName := range schem.Structs {
@@ -17,7 +19,7 @@ func ShrinkRandomly(r *rand.Rand, schem *Schema) {
 	}
 	if totalFieldCount == 0 {
 		// Nothing to shrink
-		return
+		return false
 	}
 
 	sort.Strings(structNames)
@@ -26,7 +28,7 @@ func ShrinkRandomly(r *rand.Rand, schem *Schema) {
 		structName := structNames[r.IntN(len(structNames))]
 		str := schem.Structs[structName]
 		if shrinkStruct(r, schem, str) {
-			return
+			return true
 		}
 	}
 }
