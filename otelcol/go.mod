@@ -28,7 +28,7 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.144.0
 	go.opentelemetry.io/collector/config/configgrpc v0.144.0
 	go.opentelemetry.io/collector/config/confignet v1.50.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.48.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.50.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.50.0
 	go.opentelemetry.io/collector/connector v0.144.0
 	go.opentelemetry.io/collector/consumer v1.50.0
