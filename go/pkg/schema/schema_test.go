@@ -601,14 +601,17 @@ func TestSchemaShrink(t *testing.T) {
 		require.NoError(t, err)
 
 		// Srhink it
-		ShrinkRandomly(r, shrinked)
+		if !ShrinkRandomly(r, shrinked) {
+			// Nothing to shrink anymore, schema is empty for the particular root
+			break
+		}
 		shrinkedWire := NewWireSchema(shrinked, "Metrics")
 		require.NoError(t, err)
 
 		// Shrinking is incompatible
 		origWire := NewWireSchema(orig, "Metrics")
 		compat, err := shrinkedWire.Compatible(&origWire)
-		require.Error(t, err)
+		require.Error(t, err, i)
 		require.EqualValues(t, CompatibilityIncompatible, compat)
 
 		// Opposite direction is compatible/superset
