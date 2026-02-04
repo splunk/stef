@@ -532,6 +532,9 @@ func (d *SampleValueTypeDecoder) Init(state *ReaderState, columns *pkg.ReadColum
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "SampleValueType", err)
 	}
+	if d.fieldCount > 2 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 	d.dict = &state.SampleValueType

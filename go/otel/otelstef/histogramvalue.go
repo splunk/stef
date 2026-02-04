@@ -846,6 +846,9 @@ func (d *HistogramValueDecoder) Init(state *ReaderState, columns *pkg.ReadColumn
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "HistogramValue", err)
 	}
+	if d.fieldCount > 5 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.optionalFieldCount = pkg.OptionalFieldCount(0b1110, d.fieldCount)
 

@@ -19,6 +19,8 @@ var ErrTotalColumnSizeLimitExceeded = NewDecodeError("total column size limit ex
 
 var ErrRecordAllocLimitExceeded = NewDecodeError("record allocation limit exceeded")
 
+var ErrTooManyFieldsToDecode = NewDecodeError("too many fields to decode")
+
 type DecodeError struct {
 	msg string
 }

@@ -746,6 +746,9 @@ func (d *SpansDecoder) Init(state *ReaderState, columns *pkg.ReadColumnSet) erro
 	if err != nil {
 		return fmt.Errorf("cannot find struct %s in override schema: %w", "Spans", err)
 	}
+	if d.fieldCount > 4 {
+		return pkg.ErrTooManyFieldsToDecode
+	}
 
 	d.column = columns.Column()
 
