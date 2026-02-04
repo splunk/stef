@@ -1,14 +1,5 @@
 GO=$(shell which go)
 
-BENCH_COUNT ?= 6
-CI_BENCHMARKS=STEF\|/STEF
-
-MASTER_BRANCH ?= main
-REF_NAME ?= $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
-SHELL := /bin/bash
-VERSION=1.1
-BENCHSTAT=$(shell which benchstat)
-
 .PHONY: default
 default: build test
 
@@ -45,26 +36,3 @@ benchmark: gentestfiles
 build-ci:
 	make testcompat
 	make all
-
-.PHONY: benchmark-ci
-benchmark-ci: gentestfiles bench-run bench-stat-diff bench-stat
-
-.PHONY: bench-stat-cli
-bench-stat-cli:
-	@test -s $(GOPATH)/bin/benchstat || sudo GOFLAGS= GOBIN=$(GOPATH)/bin $(GO) install golang.org/x/perf/cmd/benchstat@latest
-
-.PHONY: bench-run
-bench-run:
-	@set -o pipefail && $(GO) test -test.benchmem -bench=$(CI_BENCHMARKS) -count=$(BENCH_COUNT) -run=^a  ./... | tee bench-$(REF_NAME).txt
-
-.PHONY: bench-stat-diff
-bench-stat-diff: bench-stat-cli
-	@test ! -e bench-$(MASTER_BRANCH).txt || benchstat bench-$(MASTER_BRANCH).txt bench-$(REF_NAME).txt
-
-.PHONY: bench-stat
-bench-stat: bench-stat-cli
-	benchstat bench-$(REF_NAME).txt
-
-.PHONY: update-charts
-update-charts:
-	UPDATE_BENCH_HTML=1 go test -run TestMetricsSize\|Multipart -bench \(alizeNative\|Pdata\) -benchtime=5s

@@ -148,6 +148,7 @@ func BenchmarkSerializeNative(b *testing.B) {
 							log.Fatal(err)
 						}
 					}
+					b.StopTimer()
 					chart.RecordStacked(
 						b,
 						encoding.LongName(),
