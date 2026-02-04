@@ -936,6 +936,11 @@ func (d *{{ .StructName }}Decoder) Init(state* ReaderState, columns *pkg.ReadCol
     if d.fieldCount > {{len .Fields}} {
         return pkg.ErrTooManyFieldsToDecode
     }
+    {{if .IsMainStruct}}
+    if d.fieldCount == 0 {
+        return pkg.ErrEmptyRootStructDisallowed
+    }
+    {{end}}
 
     {{if .OptionalFieldCount}}
     d.optionalFieldCount = pkg.OptionalFieldCount({{printf "0b%b" .OptionalsMask}}, d.fieldCount)

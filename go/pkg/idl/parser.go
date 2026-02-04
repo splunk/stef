@@ -192,6 +192,10 @@ func (p *Parser) parseStruct(isOneOf bool) (*schema.Struct, error) {
 		return nil, err
 	}
 
+	if str.IsRoot && len(str.Fields) == 0 {
+		return nil, p.error("root struct must have at least one field")
+	}
+
 	if err := p.eat(tRBrace); err != nil {
 		return nil, err
 	}
