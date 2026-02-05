@@ -3,8 +3,8 @@ module github.com/splunk/stef/go/otel
 go 1.24.0
 
 require (
-	github.com/splunk/stef/go/grpc v0.1.0
-	github.com/splunk/stef/go/pkg v0.1.0
+	github.com/splunk/stef/go/grpc v0.1.1
+	github.com/splunk/stef/go/pkg v0.1.1
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.78.0
 )

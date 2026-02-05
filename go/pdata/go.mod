@@ -4,8 +4,8 @@ go 1.24.0
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/splunk/stef/go/otel v0.1.0
-	github.com/splunk/stef/go/pkg v0.1.0
+	github.com/splunk/stef/go/otel v0.1.1
+	github.com/splunk/stef/go/pkg v0.1.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.50.0
 	modernc.org/b/v2 v2.1.10
