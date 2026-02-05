@@ -1,0 +1,78 @@
+name: benchmarks-go
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  GO_VERSION: 1.24.x
+  # Include sub-benchmarks under Native/STEF.
+  BENCH_REGEX: "Native/STEF($|/)"
+  BENCH_ITERATIONS: "10"
+  BENCH_COUNT: "10"
+
+jobs:
+  benchdiff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/head
+          fetch-depth: 0
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install benchstat
+        run: |
+          echo "${HOME}/go/bin" >> "$GITHUB_PATH"
+          go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmark diff
+        run: |
+          set -euo pipefail
+
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+
+          rm -f bench_base.txt bench_current.txt benchstat.txt benchstat-comment.md
+
+          for i in $(seq 1 "$BENCH_ITERATIONS"); do
+            echo "Iteration ${i} of ${BENCH_ITERATIONS}"
+
+            echo "Checking out base commit ${base_sha}"
+            git checkout "$base_sha"
+            echo "Running benchmarks on base"
+            (cd benchmarks && go test -run noname -bench "$BENCH_REGEX" -benchmem ./... -count "$BENCH_COUNT") | tee -a bench_base.txt
+
+            echo "Checking out head commit ${head_sha}"
+            git checkout "$head_sha"
+            echo "Running benchmarks on PR head"
+            (cd benchmarks && go test -run noname -bench "$BENCH_REGEX" -benchmem ./... -count "$BENCH_COUNT") | tee -a bench_current.txt
+          done
+
+          benchstat bench_base.txt bench_current.txt | tee benchstat.txt
+
+          {
+            echo "## Go Benchstat report"
+            echo
+            echo "\`\`\`"
+            cat benchstat.txt
+            echo "\`\`\`"
+          } > benchstat-comment.md
+
+      - name: Post benchstat comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: benchstat
+          path: benchstat-comment.md
