@@ -1196,16 +1196,13 @@ func (d *MetricsDecoder) Reset() {
 func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedMetricsEnvelope != 0 { // Envelope is changed.
 
-		err = d.envelopeDecoder.Decode(&val.envelope)
-		if err != nil {
+		if err := d.envelopeDecoder.Decode(&val.envelope); err != nil {
 			return err
 		}
 	}
@@ -1220,9 +1217,11 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 			val.metric.init(&val.modifiedFields, fieldModifiedMetricsMetric)
 		}
 
-		err = d.metricDecoder.Decode(&val.metric)
-		if err != nil {
+		if err := d.metricDecoder.Decode(&val.metric); err != nil {
 			return err
+		}
+		if val.metric == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
@@ -1236,9 +1235,11 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 			val.resource.init(&val.modifiedFields, fieldModifiedMetricsResource)
 		}
 
-		err = d.resourceDecoder.Decode(&val.resource)
-		if err != nil {
+		if err := d.resourceDecoder.Decode(&val.resource); err != nil {
 			return err
+		}
+		if val.resource == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
@@ -1252,24 +1253,24 @@ func (d *MetricsDecoder) Decode(dstPtr *Metrics) error {
 			val.scope.init(&val.modifiedFields, fieldModifiedMetricsScope)
 		}
 
-		err = d.scopeDecoder.Decode(&val.scope)
-		if err != nil {
+		if err := d.scopeDecoder.Decode(&val.scope); err != nil {
 			return err
+		}
+		if val.scope == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricsPoint != 0 { // Point is changed.
 
-		err = d.pointDecoder.Decode(&val.point)
-		if err != nil {
+		if err := d.pointDecoder.Decode(&val.point); err != nil {
 			return err
 		}
 	}

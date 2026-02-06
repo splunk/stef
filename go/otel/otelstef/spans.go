@@ -897,16 +897,13 @@ func (d *SpansDecoder) Reset() {
 func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSpansEnvelope != 0 { // Envelope is changed.
 
-		err = d.envelopeDecoder.Decode(&val.envelope)
-		if err != nil {
+		if err := d.envelopeDecoder.Decode(&val.envelope); err != nil {
 			return err
 		}
 	}
@@ -921,9 +918,11 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 			val.resource.init(&val.modifiedFields, fieldModifiedSpansResource)
 		}
 
-		err = d.resourceDecoder.Decode(&val.resource)
-		if err != nil {
+		if err := d.resourceDecoder.Decode(&val.resource); err != nil {
 			return err
+		}
+		if val.resource == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
@@ -937,16 +936,17 @@ func (d *SpansDecoder) Decode(dstPtr *Spans) error {
 			val.scope.init(&val.modifiedFields, fieldModifiedSpansScope)
 		}
 
-		err = d.scopeDecoder.Decode(&val.scope)
-		if err != nil {
+		if err := d.scopeDecoder.Decode(&val.scope); err != nil {
 			return err
+		}
+		if val.scope == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpansSpan != 0 { // Span is changed.
 
-		err = d.spanDecoder.Decode(&val.span)
-		if err != nil {
+		if err := d.spanDecoder.Decode(&val.span); err != nil {
 			return err
 		}
 	}

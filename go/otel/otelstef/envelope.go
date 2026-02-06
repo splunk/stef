@@ -413,16 +413,13 @@ func (d *EnvelopeDecoder) Reset() {
 func (d *EnvelopeDecoder) Decode(dstPtr *Envelope) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedEnvelopeAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}

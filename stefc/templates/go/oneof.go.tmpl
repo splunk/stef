@@ -677,6 +677,9 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
     }
+    if err := d.buf.Error(); err != nil {
+        return err
+    }
 
 	dst := dstPtr
 	if dst.typ != {{.StructName}}Type(typ) {
@@ -701,10 +704,19 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
             dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
         }
         {{end}}
-        return d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
+        {{ $isDictPtr := and .Type.Flags.StoreByPtr .Type.DictName -}}
+        {{if $isDictPtr}}err := {{else}}return {{end}}d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
+        {{- if $isDictPtr}}
+        if err != nil {
+            return err
+        }
+        if dst.{{.name}} == nil {
+            return pkg.ErrDecodeError // This may happen with dict-encoded fields, with invalid input data.
+        }
+        {{- end}}
     {{- end }}
     }
-	return d.buf.Error()
+	return nil
 }
 
 {{if .DictName}}

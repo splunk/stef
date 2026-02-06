@@ -879,56 +879,48 @@ func (d *LinkDecoder) Reset() {
 func (d *LinkDecoder) Decode(dstPtr *Link) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedLinkTraceID != 0 { // TraceID is changed.
 
-		err = d.traceIDDecoder.Decode(&val.traceID)
-		if err != nil {
+		if err := d.traceIDDecoder.Decode(&val.traceID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkSpanID != 0 { // SpanID is changed.
 
-		err = d.spanIDDecoder.Decode(&val.spanID)
-		if err != nil {
+		if err := d.spanIDDecoder.Decode(&val.spanID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkTraceState != 0 { // TraceState is changed.
 
-		err = d.traceStateDecoder.Decode(&val.traceState)
-		if err != nil {
+		if err := d.traceStateDecoder.Decode(&val.traceState); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkFlags != 0 { // Flags is changed.
 
-		err = d.flagsDecoder.Decode(&val.flags)
-		if err != nil {
+		if err := d.flagsDecoder.Decode(&val.flags); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLinkDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
 
-		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
-		if err != nil {
+		if err := d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount); err != nil {
 			return err
 		}
 	}

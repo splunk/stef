@@ -513,6 +513,9 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
+	if err := d.buf.Error(); err != nil {
+		return err
+	}
 
 	dst := dstPtr
 	if dst.typ != ExemplarValueType(typ) {
@@ -532,7 +535,7 @@ func (d *ExemplarValueDecoder) Decode(dstPtr *ExemplarValue) error {
 		// Decode Float64
 		return d.float64Decoder.Decode(&dst.float64)
 	}
-	return d.buf.Error()
+	return nil
 }
 
 // ExemplarValueAllocator implements a custom allocator for ExemplarValue.

@@ -567,16 +567,13 @@ func (d *SampleValueDecoder) Reset() {
 func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueVal != 0 { // Val is changed.
 
-		err = d.valDecoder.Decode(&val.val)
-		if err != nil {
+		if err := d.valDecoder.Decode(&val.val); err != nil {
 			return err
 		}
 	}
@@ -591,9 +588,11 @@ func (d *SampleValueDecoder) Decode(dstPtr *SampleValue) error {
 			val.type_.init(&val.modifiedFields, fieldModifiedSampleValueType)
 		}
 
-		err = d.type_Decoder.Decode(&val.type_)
-		if err != nil {
+		if err := d.type_Decoder.Decode(&val.type_); err != nil {
 			return err
+		}
+		if val.type_ == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
