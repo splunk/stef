@@ -813,48 +813,41 @@ func (d *ExemplarDecoder) Reset() {
 func (d *ExemplarDecoder) Decode(dstPtr *Exemplar) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedExemplarTimestamp != 0 { // Timestamp is changed.
 
-		err = d.timestampDecoder.Decode(&val.timestamp)
-		if err != nil {
+		if err := d.timestampDecoder.Decode(&val.timestamp); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarValue != 0 { // Value is changed.
 
-		err = d.valueDecoder.Decode(&val.value)
-		if err != nil {
+		if err := d.valueDecoder.Decode(&val.value); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarSpanID != 0 { // SpanID is changed.
 
-		err = d.spanIDDecoder.Decode(&val.spanID)
-		if err != nil {
+		if err := d.spanIDDecoder.Decode(&val.spanID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarTraceID != 0 { // TraceID is changed.
 
-		err = d.traceIDDecoder.Decode(&val.traceID)
-		if err != nil {
+		if err := d.traceIDDecoder.Decode(&val.traceID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExemplarFilteredAttributes != 0 { // FilteredAttributes is changed.
 
-		err = d.filteredAttributesDecoder.Decode(&val.filteredAttributes)
-		if err != nil {
+		if err := d.filteredAttributesDecoder.Decode(&val.filteredAttributes); err != nil {
 			return err
 		}
 	}

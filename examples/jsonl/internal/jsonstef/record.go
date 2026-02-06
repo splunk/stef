@@ -444,8 +444,6 @@ func (d *RecordDecoder) Reset() {
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
@@ -460,8 +458,7 @@ func (d *RecordDecoder) Decode(dstPtr *Record) error {
 			val.value.init(&val.modifiedFields, fieldModifiedRecordValue)
 		}
 
-		err = d.valueDecoder.Decode(val.value)
-		if err != nil {
+		if err := d.valueDecoder.Decode(val.value); err != nil {
 			return err
 		}
 	}

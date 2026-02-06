@@ -850,6 +850,9 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
+	if err := d.buf.Error(); err != nil {
+		return err
+	}
 
 	dst := dstPtr
 	if dst.typ != PointValueType(typ) {
@@ -878,7 +881,7 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 		// Decode Summary
 		return d.summaryDecoder.Decode(&dst.summary)
 	}
-	return d.buf.Error()
+	return nil
 }
 
 // PointValueAllocator implements a custom allocator for PointValue.

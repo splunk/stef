@@ -917,48 +917,41 @@ func (d *ScopeDecoder) Decode(dstPtr **Scope) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedScopeName != 0 { // Name is changed.
 
-		err = d.nameDecoder.Decode(&val.name)
-		if err != nil {
+		if err := d.nameDecoder.Decode(&val.name); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeVersion != 0 { // Version is changed.
 
-		err = d.versionDecoder.Decode(&val.version)
-		if err != nil {
+		if err := d.versionDecoder.Decode(&val.version); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeSchemaURL != 0 { // SchemaURL is changed.
 
-		err = d.schemaURLDecoder.Decode(&val.schemaURL)
-		if err != nil {
+		if err := d.schemaURLDecoder.Decode(&val.schemaURL); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedScopeDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
 
-		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
-		if err != nil {
+		if err := d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount); err != nil {
 			return err
 		}
 	}

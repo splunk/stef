@@ -428,9 +428,11 @@ func (d *LocationArrayDecoder) Decode(dst *LocationArray) error {
 	}
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&dst.elems[i])
-		if err != nil {
+		if err := d.elemDecoder.Decode(&dst.elems[i]); err != nil {
 			return err
+		}
+		if dst.elems[i] == nil {
+			return pkg.ErrDecodeError // This may happen with dict-encoded fields, with invalid input data.
 		}
 	}
 

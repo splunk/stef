@@ -608,24 +608,20 @@ func (d *SampleValueTypeDecoder) Decode(dstPtr **SampleValueType) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueTypeType != 0 { // Type is changed.
 
-		err = d.type_Decoder.Decode(&val.type_)
-		if err != nil {
+		if err := d.type_Decoder.Decode(&val.type_); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValueTypeUnit != 0 { // Unit is changed.
 
-		err = d.unitDecoder.Decode(&val.unit)
-		if err != nil {
+		if err := d.unitDecoder.Decode(&val.unit); err != nil {
 			return err
 		}
 	}

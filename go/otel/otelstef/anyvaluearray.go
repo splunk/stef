@@ -420,8 +420,7 @@ func (d *AnyValueArrayDecoder) Decode(dst *AnyValueArray) error {
 	}
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(dst.elems[i])
-		if err != nil {
+		if err := d.elemDecoder.Decode(dst.elems[i]); err != nil {
 			return err
 		}
 	}

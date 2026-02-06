@@ -965,8 +965,6 @@ func (d *HistogramValueDecoder) Reset() {
 func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
@@ -979,16 +977,14 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueCount != 0 { // Count is changed.
 
-		err = d.countDecoder.Decode(&val.count)
-		if err != nil {
+		if err := d.countDecoder.Decode(&val.count); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueSum != 0 { // Sum is changed.
 		if val.optionalFieldsPresent&fieldPresentHistogramValueSum != 0 { // Sum is present.
-			err = d.sumDecoder.Decode(&val.sum)
-			if err != nil {
+			if err := d.sumDecoder.Decode(&val.sum); err != nil {
 				return err
 			}
 		}
@@ -996,8 +992,7 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueMin != 0 { // Min is changed.
 		if val.optionalFieldsPresent&fieldPresentHistogramValueMin != 0 { // Min is present.
-			err = d.minDecoder.Decode(&val.min)
-			if err != nil {
+			if err := d.minDecoder.Decode(&val.min); err != nil {
 				return err
 			}
 		}
@@ -1005,8 +1000,7 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueMax != 0 { // Max is changed.
 		if val.optionalFieldsPresent&fieldPresentHistogramValueMax != 0 { // Max is present.
-			err = d.maxDecoder.Decode(&val.max)
-			if err != nil {
+			if err := d.maxDecoder.Decode(&val.max); err != nil {
 				return err
 			}
 		}
@@ -1014,8 +1008,7 @@ func (d *HistogramValueDecoder) Decode(dstPtr *HistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedHistogramValueBucketCounts != 0 { // BucketCounts is changed.
 
-		err = d.bucketCountsDecoder.Decode(&val.bucketCounts)
-		if err != nil {
+		if err := d.bucketCountsDecoder.Decode(&val.bucketCounts); err != nil {
 			return err
 		}
 	}

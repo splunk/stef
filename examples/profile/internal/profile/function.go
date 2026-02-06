@@ -794,40 +794,34 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedFunctionName != 0 { // Name is changed.
 
-		err = d.nameDecoder.Decode(&val.name)
-		if err != nil {
+		if err := d.nameDecoder.Decode(&val.name); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionSystemName != 0 { // SystemName is changed.
 
-		err = d.systemNameDecoder.Decode(&val.systemName)
-		if err != nil {
+		if err := d.systemNameDecoder.Decode(&val.systemName); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionFilename != 0 { // Filename is changed.
 
-		err = d.filenameDecoder.Decode(&val.filename)
-		if err != nil {
+		if err := d.filenameDecoder.Decode(&val.filename); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedFunctionStartLine != 0 { // StartLine is changed.
 
-		err = d.startLineDecoder.Decode(&val.startLine)
-		if err != nil {
+		if err := d.startLineDecoder.Decode(&val.startLine); err != nil {
 			return err
 		}
 	}

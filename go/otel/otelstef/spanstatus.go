@@ -477,24 +477,20 @@ func (d *SpanStatusDecoder) Reset() {
 func (d *SpanStatusDecoder) Decode(dstPtr *SpanStatus) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatusMessage != 0 { // Message is changed.
 
-		err = d.messageDecoder.Decode(&val.message)
-		if err != nil {
+		if err := d.messageDecoder.Decode(&val.message); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatusCode != 0 { // Code is changed.
 
-		err = d.codeDecoder.Decode(&val.code)
-		if err != nil {
+		if err := d.codeDecoder.Decode(&val.code); err != nil {
 			return err
 		}
 	}

@@ -388,16 +388,13 @@ func (d *RecordDecoder) Reset() {
 func (d *RecordDecoder) Decode(dstPtr *Record) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedRecordUint64 != 0 { // Uint64 is changed.
 
-		err = d.uint64Decoder.Decode(&val.uint64)
-		if err != nil {
+		if err := d.uint64Decoder.Decode(&val.uint64); err != nil {
 			return err
 		}
 	}

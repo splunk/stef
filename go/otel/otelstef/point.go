@@ -720,40 +720,34 @@ func (d *PointDecoder) Reset() {
 func (d *PointDecoder) Decode(dstPtr *Point) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedPointStartTimestamp != 0 { // StartTimestamp is changed.
 
-		err = d.startTimestampDecoder.Decode(&val.startTimestamp)
-		if err != nil {
+		if err := d.startTimestampDecoder.Decode(&val.startTimestamp); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointTimestamp != 0 { // Timestamp is changed.
 
-		err = d.timestampDecoder.Decode(&val.timestamp)
-		if err != nil {
+		if err := d.timestampDecoder.Decode(&val.timestamp); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointValue != 0 { // Value is changed.
 
-		err = d.valueDecoder.Decode(&val.value)
-		if err != nil {
+		if err := d.valueDecoder.Decode(&val.value); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedPointExemplars != 0 { // Exemplars is changed.
 
-		err = d.exemplarsDecoder.Decode(&val.exemplars)
-		if err != nil {
+		if err := d.exemplarsDecoder.Decode(&val.exemplars); err != nil {
 			return err
 		}
 	}
