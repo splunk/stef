@@ -110,11 +110,16 @@ func (c *BarOutput) EndChart(unit string, globalopts ...charts.GlobalOpts) {
 	require.NoError(c.t, err)
 }
 
+func roundFloat(val float64, decimals int) float64 {
+	pow := math.Pow(10, float64(decimals))
+	return math.Round(val*pow) / pow
+}
+
 func (c *BarOutput) Record(b *testing.B, encoding string, series string, val float64) {
 	if b != nil {
 		b.ReportMetric(val, "ns/point")
 	}
-	c.results[encoding] = map[string]float64{series: math.Round(val)}
+	c.results[encoding] = map[string]float64{series: val}
 }
 
 func (c *BarOutput) RecordStacked(b *testing.B, encoding string, series string, val float64) {

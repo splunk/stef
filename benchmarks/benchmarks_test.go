@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"testing"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -215,6 +216,14 @@ func BenchmarkDeserializeNative(b *testing.B) {
 	b.ReportAllocs()
 }
 
+func nsPerPoint(b *testing.B, dataPointCount int) float64 {
+	totalDpCount := b.N * dataPointCount
+	if totalDpCount == 0 {
+		return 0
+	}
+	return math.Round(float64(b.Elapsed().Nanoseconds()) / float64(totalDpCount))
+}
+
 func BenchmarkSerializeFromPdata(b *testing.B) {
 	chart.BeginChart("Serialization From pdata Speed", b)
 	defer chart.EndChart(
@@ -245,7 +254,7 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 						b,
 						encoding.LongName(),
 						"CPU time to serialize one data point",
-						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+						nsPerPoint(b, batch.DataPointCount()),
 					)
 				},
 			)
@@ -297,7 +306,7 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 						b,
 						encoding.LongName(),
 						"CPU time to deserialize one data point",
-						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+						nsPerPoint(b, batch.DataPointCount()),
 					)
 				},
 			)
