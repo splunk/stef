@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"testing"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -245,7 +246,7 @@ func BenchmarkSerializeFromPdata(b *testing.B) {
 						b,
 						encoding.LongName(),
 						"CPU time to serialize one data point",
-						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+						math.Round(float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount())),
 					)
 				},
 			)
@@ -297,7 +298,7 @@ func BenchmarkDeserializeToPdata(b *testing.B) {
 						b,
 						encoding.LongName(),
 						"CPU time to deserialize one data point",
-						float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount()),
+						math.Round(float64(b.Elapsed().Nanoseconds())/float64(b.N*batch.DataPointCount())),
 					)
 				},
 			)
