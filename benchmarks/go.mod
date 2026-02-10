@@ -11,7 +11,7 @@ require (
 	github.com/splunk/stef/go/pdata v0.0.0
 	github.com/splunk/stef/go/pkg v0.1.1
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/pdata v1.50.0
+	go.opentelemetry.io/collector/pdata v1.51.0
 	golang.org/x/text v0.33.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/b/v2 v2.1.10
@@ -46,7 +46,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.51.0 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
