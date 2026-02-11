@@ -1365,8 +1365,6 @@ func (d *ExpHistogramValueDecoder) Reset() {
 func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
@@ -1379,16 +1377,14 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueCount != 0 { // Count is changed.
 
-		err = d.countDecoder.Decode(&val.count)
-		if err != nil {
+		if err := d.countDecoder.Decode(&val.count); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueSum != 0 { // Sum is changed.
 		if val.optionalFieldsPresent&fieldPresentExpHistogramValueSum != 0 { // Sum is present.
-			err = d.sumDecoder.Decode(&val.sum)
-			if err != nil {
+			if err := d.sumDecoder.Decode(&val.sum); err != nil {
 				return err
 			}
 		}
@@ -1396,8 +1392,7 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMin != 0 { // Min is changed.
 		if val.optionalFieldsPresent&fieldPresentExpHistogramValueMin != 0 { // Min is present.
-			err = d.minDecoder.Decode(&val.min)
-			if err != nil {
+			if err := d.minDecoder.Decode(&val.min); err != nil {
 				return err
 			}
 		}
@@ -1405,8 +1400,7 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueMax != 0 { // Max is changed.
 		if val.optionalFieldsPresent&fieldPresentExpHistogramValueMax != 0 { // Max is present.
-			err = d.maxDecoder.Decode(&val.max)
-			if err != nil {
+			if err := d.maxDecoder.Decode(&val.max); err != nil {
 				return err
 			}
 		}
@@ -1414,40 +1408,35 @@ func (d *ExpHistogramValueDecoder) Decode(dstPtr *ExpHistogramValue) error {
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueScale != 0 { // Scale is changed.
 
-		err = d.scaleDecoder.Decode(&val.scale)
-		if err != nil {
+		if err := d.scaleDecoder.Decode(&val.scale); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroCount != 0 { // ZeroCount is changed.
 
-		err = d.zeroCountDecoder.Decode(&val.zeroCount)
-		if err != nil {
+		if err := d.zeroCountDecoder.Decode(&val.zeroCount); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValuePositiveBuckets != 0 { // PositiveBuckets is changed.
 
-		err = d.positiveBucketsDecoder.Decode(&val.positiveBuckets)
-		if err != nil {
+		if err := d.positiveBucketsDecoder.Decode(&val.positiveBuckets); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueNegativeBuckets != 0 { // NegativeBuckets is changed.
 
-		err = d.negativeBucketsDecoder.Decode(&val.negativeBuckets)
-		if err != nil {
+		if err := d.negativeBucketsDecoder.Decode(&val.negativeBuckets); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramValueZeroThreshold != 0 { // ZeroThreshold is changed.
 
-		err = d.zeroThresholdDecoder.Decode(&val.zeroThreshold)
-		if err != nil {
+		if err := d.zeroThresholdDecoder.Decode(&val.zeroThreshold); err != nil {
 			return err
 		}
 	}

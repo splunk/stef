@@ -981,6 +981,9 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
+	if err := d.buf.Error(); err != nil {
+		return err
+	}
 
 	dst := dstPtr
 	if dst.typ != AnyValueType(typ) {
@@ -1015,7 +1018,7 @@ func (d *AnyValueDecoder) Decode(dstPtr *AnyValue) error {
 		// Decode Bytes
 		return d.bytesDecoder.Decode(&dst.bytes)
 	}
-	return d.buf.Error()
+	return nil
 }
 
 // AnyValueAllocator implements a custom allocator for AnyValue.

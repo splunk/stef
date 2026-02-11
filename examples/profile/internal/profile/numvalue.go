@@ -478,24 +478,20 @@ func (d *NumValueDecoder) Reset() {
 func (d *NumValueDecoder) Decode(dstPtr *NumValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedNumValueVal != 0 { // Val is changed.
 
-		err = d.valDecoder.Decode(&val.val)
-		if err != nil {
+		if err := d.valDecoder.Decode(&val.val); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedNumValueUnit != 0 { // Unit is changed.
 
-		err = d.unitDecoder.Decode(&val.unit)
-		if err != nil {
+		if err := d.unitDecoder.Decode(&val.unit); err != nil {
 			return err
 		}
 	}

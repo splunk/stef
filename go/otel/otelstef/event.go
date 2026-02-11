@@ -694,40 +694,34 @@ func (d *EventDecoder) Reset() {
 func (d *EventDecoder) Decode(dstPtr *Event) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedEventName != 0 { // Name is changed.
 
-		err = d.nameDecoder.Decode(&val.name)
-		if err != nil {
+		if err := d.nameDecoder.Decode(&val.name); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventTimeUnixNano != 0 { // TimeUnixNano is changed.
 
-		err = d.timeUnixNanoDecoder.Decode(&val.timeUnixNano)
-		if err != nil {
+		if err := d.timeUnixNanoDecoder.Decode(&val.timeUnixNano); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedEventDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
 
-		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
-		if err != nil {
+		if err := d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount); err != nil {
 			return err
 		}
 	}

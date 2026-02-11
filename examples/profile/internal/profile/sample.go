@@ -778,40 +778,34 @@ func (d *SampleDecoder) Reset() {
 func (d *SampleDecoder) Decode(dstPtr *Sample) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSampleMetadata != 0 { // Metadata is changed.
 
-		err = d.metadataDecoder.Decode(&val.metadata)
-		if err != nil {
+		if err := d.metadataDecoder.Decode(&val.metadata); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleLocations != 0 { // Locations is changed.
 
-		err = d.locationsDecoder.Decode(&val.locations)
-		if err != nil {
+		if err := d.locationsDecoder.Decode(&val.locations); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleValues != 0 { // Values is changed.
 
-		err = d.valuesDecoder.Decode(&val.values)
-		if err != nil {
+		if err := d.valuesDecoder.Decode(&val.values); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSampleLabels != 0 { // Labels is changed.
 
-		err = d.labelsDecoder.Decode(&val.labels)
-		if err != nil {
+		if err := d.labelsDecoder.Decode(&val.labels); err != nil {
 			return err
 		}
 	}

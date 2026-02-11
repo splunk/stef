@@ -819,6 +819,9 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
+	if err := d.buf.Error(); err != nil {
+		return err
+	}
 
 	dst := dstPtr
 	if dst.typ != JsonValueType(typ) {
@@ -847,7 +850,7 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 		// Decode Bool
 		return d.boolDecoder.Decode(&dst.bool)
 	}
-	return d.buf.Error()
+	return nil
 }
 
 // JsonValueAllocator implements a custom allocator for JsonValue.

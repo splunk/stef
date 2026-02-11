@@ -1039,10 +1039,6 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     val := dstPtr
     {{- end}}
 
-    {{ if len .Fields }}
-    var err error
-    {{ end }}
-
     // Read bits that indicate which fields follow.
     {{if le (len .Fields) 56 -}}
     {{/* Fast path, no more than 56 fields */ -}}
@@ -1087,10 +1083,14 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
                 val.{{.name}}.reset()
             }
             {{- end}}
-            err = d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}})
-            if err != nil {
+            if err := d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}val.{{.name}}); err != nil {
                 return err
             }
+            {{- if and (not .Optional) .Type.Flags.StoreByPtr .Type.DictName}}
+            if val.{{.name}} == nil {
+                return pkg.ErrDecodeError // Non-optional fields cannot be nil
+            }
+            {{- end}}
         {{- if .Optional}}
         }
         {{- end}}
