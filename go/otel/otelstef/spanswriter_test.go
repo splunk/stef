@@ -96,7 +96,6 @@ func testSpansWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				for i := 0; i < len(records); i++ {
 					err := reader.Read(pkg.ReadOptions{})
 					require.NoError(t, err, "record %d seed %v", i, seed)
-					require.NotNil(t, reader.Record, "record %d seed %v", i, seed)
 					require.True(t, reader.Record.IsEqual(&records[i]), "record %d seed %v", i, seed)
 				}
 				err = reader.Read(pkg.ReadOptions{})
@@ -141,6 +140,69 @@ func TestSpansWriteRead(t *testing.T) {
 	succeeded = testSpansWriteReadSeed(t, seed)
 }
 
+func TestSpansWriteReadLong(t *testing.T) {
+	// Tests writing and reading a larger number of records
+	// in a single writer/reader session.
+
+	seed := uint64(time.Now().UnixNano())
+	random := rand.New(rand.NewPCG(seed, 0))
+
+	schem, err := idl.Parse([]byte(allSchemaContent), "")
+	require.NoError(t, err, "seed %v", seed)
+
+	schem, err = schem.PrunedForRoot("Spans")
+	require.NoError(t, err, "seed %v", seed)
+
+	mem := &pkg.MemReaderWriter{}
+
+	writer, err := NewSpansWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
+	require.NoError(t, err, "seed %v", seed)
+
+	reader, err := NewSpansReader(mem)
+	require.NoError(t, err, "seed %v", seed)
+
+	iterations := 10
+	if os.Getenv("STEF_ENABLE_SLOW_TESTS") == "1" {
+		iterations = 100
+	}
+
+	var record Spans
+	record.Init()
+
+	records := make([]Spans, 1000)
+	for i := 0; i < iterations; i++ {
+		recCount := 1 + random.IntN(1000)
+		records = records[:recCount]
+
+		// Write some records.
+		for recIdx := range records {
+			limiter := &mutateRandomLimiter{}
+			record.mutateRandom(random, schem, limiter)
+			records[recIdx] = Spans{}
+			records[recIdx].Init()
+			records[recIdx].CopyFrom(&record)
+			writer.Record.CopyFrom(&record)
+			err = writer.Write()
+			require.NoError(t, err, "record %d:%d seed %v", i, recIdx, seed)
+		}
+
+		// Flush to make sure the records are in the MemReaderWriter and can be
+		// read back.
+		err = writer.Flush()
+		require.NoError(t, err, "iteration %d seed %v", i, seed)
+
+		// Read the records back and compare.
+		for recIdx := range records {
+			err = reader.Read(pkg.ReadOptions{})
+			require.NoError(t, err, "record %d:%d seed %v", i, recIdx, seed)
+			require.True(t, reader.Record.IsEqual(&records[recIdx]), "record %d:%d seed %v", i, recIdx, seed)
+		}
+	}
+
+	err = reader.Read(pkg.ReadOptions{})
+	require.ErrorIs(t, err, io.EOF, seed)
+}
+
 func FuzzSpansReader(f *testing.F) {
 	f.Add([]byte(""))
 
@@ -155,9 +217,12 @@ func FuzzSpansReader(f *testing.F) {
 			require.NoError(f, err)
 
 			recCount := (1 << (2 * i)) - 1
+			var record Spans
+			record.Init()
 			for range recCount {
 				limiter := &mutateRandomLimiter{}
-				writer.Record.mutateRandom(random, schem, limiter)
+				record.mutateRandom(random, schem, limiter)
+				writer.Record.CopyFrom(&record)
 				err = writer.Write()
 				require.NoError(f, err)
 			}

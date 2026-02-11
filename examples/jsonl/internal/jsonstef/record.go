@@ -195,6 +195,7 @@ func (s *Record) CopyFrom(src *Record) {
 // mutateRandom mutates fields in a random, deterministic manner using
 // random parameter as a deterministic generator. Only fields that exist
 // in the schem are mutated, allowing to generate data for specified schema.
+// The state of "modified" flags is undefined after this operation.
 func (s *Record) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mutateRandomLimiter) {
 	// Get the field count for this struct from the schema. If the schema specifies
 	// fewer field count than the one we have in this code then we will not mutate

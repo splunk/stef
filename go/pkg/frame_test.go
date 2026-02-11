@@ -10,33 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// memReaderWriter is an in-memory implementation of ChunkWriter and ByteAndBlockReader interfaces
-// that allows to first write to the buffer and then read from it.
-type memReaderWriter struct {
-	buf bytes.Buffer
-}
-
-func (m *memReaderWriter) ReadByte() (byte, error) {
-	return m.buf.ReadByte()
-}
-
-func (m *memReaderWriter) Read(p []byte) (n int, err error) {
-	return m.buf.Read(p)
-}
-
-func (m *memReaderWriter) WriteChunk(header []byte, content []byte) error {
-	_, err := m.buf.Write(header)
-	if err != nil {
-		return err
-	}
-	_, err = m.buf.Write(content)
-	return err
-}
-
-func (m *memReaderWriter) Bytes() []byte {
-	return m.buf.Bytes()
-}
-
 func testLastFrameAndContinue(t *testing.T, compression Compression) {
 	// This test verifies that it is possible to decode until the end of available
 	// data, get a correct indication that it is the end of the frame and end
@@ -46,7 +19,7 @@ func testLastFrameAndContinue(t *testing.T, compression Compression) {
 
 	// Encode one frame with some data.
 	encoder := FrameEncoder{}
-	buf := &memReaderWriter{}
+	buf := &MemReaderWriter{}
 	err := encoder.Init(buf, compression)
 	require.NoError(t, err)
 	writeStr := []byte(strings.Repeat("hello", 10))
@@ -133,7 +106,7 @@ func TestLastFrameAndContinue(t *testing.T) {
 
 func TestLimitedReader(t *testing.T) {
 	data := []byte("abcdef")
-	mem := &memReaderWriter{buf: *bytes.NewBuffer(data)}
+	mem := &MemReaderWriter{buf: *bytes.NewBuffer(data)}
 	var lr limitedReader
 	lr.Init(mem)
 
@@ -150,7 +123,7 @@ func TestLimitedReader(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	// Reset and test reading less than limit
-	mem = &memReaderWriter{buf: *bytes.NewBuffer(data)}
+	mem = &MemReaderWriter{buf: *bytes.NewBuffer(data)}
 	lr.Init(mem)
 	lr.limit = 3
 	buf = make([]byte, 2)
@@ -171,7 +144,7 @@ func TestLimitedReader(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	// Test reading more than limit
-	mem = &memReaderWriter{buf: *bytes.NewBuffer(data)}
+	mem = &MemReaderWriter{buf: *bytes.NewBuffer(data)}
 	lr.Init(mem)
 	lr.limit = 4
 	buf = make([]byte, 10)
