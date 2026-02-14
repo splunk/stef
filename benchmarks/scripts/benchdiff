@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Save the current branch name
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+bench_count=${2:-1}
+base_branch=${3:-main}
+
+echo $base_branch
+
+# Ensure benchstat is installed
+if ! command -v benchstat &> /dev/null; then
+  echo "benchstat is not installed. Please install it first."
+  exit 1
+fi
+
+# Ensure we are not on the main branch
+if [ "$current_branch" == "main" ]; then
+  echo "You are already on the main branch. Switch to a different branch to compare."
+  exit 1
+fi
+
+# Get the benchmark name from the command-line argument, default to all benchmarks
+benchmark_name=${1:-.}
+
+rm bench_current.txt
+rm bench_base.txt
+
+for ((i=1; i<=$bench_count; i++)); do
+	echo "Iteration $i of $bench_count"
+
+	# Run benchmarks on the current branch
+	echo "Running benchmarks on branch: $current_branch"
+	go test -run noname -bench="$benchmark_name" -benchmem -benchtime 1s ./... -count 3 | tee -a bench_current.txt
+	if [ $? -ne 0 ]; then
+	  echo "Failed to run benchmarks on branch: $current_branch"
+	  exit 1
+	fi
+
+	# Checkout the main branch
+	echo "Switching to $base_branch branch..."
+	git checkout $base_branch
+	if [ $? -ne 0 ]; then
+	  echo "Failed to checkout $base_branch branch."
+	  exit 1
+	fi
+
+	# Run benchmarks on the main branch
+	echo "Running benchmarks on branch: $base_branch"
+	go test -run noname -bench="$benchmark_name" -benchmem -benchtime 1s ./... -count 3 | tee -a bench_base.txt
+	if [ $? -ne 0 ]; then
+	  echo "Failed to run benchmarks on branch: $base_branch"
+	  git checkout "$current_branch"
+	  exit 1
+	fi
+
+	# Restore the original branch
+	echo "Restoring branch: $current_branch"
+	git checkout "$current_branch"
+	if [ $? -ne 0 ]; then
+	  echo "Failed to restore branch: $current_branch"
+	  exit 1
+	fi
+
+done
+
+# Compare benchmark results using benchstat
+echo "Comparing benchmark results..."
+benchstat bench_base.txt bench_current.txt
