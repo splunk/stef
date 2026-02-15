@@ -1224,72 +1224,62 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedMetricName != 0 { // Name is changed.
 
-		err = d.nameDecoder.Decode(&val.name)
-		if err != nil {
+		if err := d.nameDecoder.Decode(&val.name); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricDescription != 0 { // Description is changed.
 
-		err = d.descriptionDecoder.Decode(&val.description)
-		if err != nil {
+		if err := d.descriptionDecoder.Decode(&val.description); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricUnit != 0 { // Unit is changed.
 
-		err = d.unitDecoder.Decode(&val.unit)
-		if err != nil {
+		if err := d.unitDecoder.Decode(&val.unit); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricType != 0 { // Type is changed.
 
-		err = d.type_Decoder.Decode(&val.type_)
-		if err != nil {
+		if err := d.type_Decoder.Decode(&val.type_); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricMetadata != 0 { // Metadata is changed.
 
-		err = d.metadataDecoder.Decode(&val.metadata)
-		if err != nil {
+		if err := d.metadataDecoder.Decode(&val.metadata); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricHistogramBounds != 0 { // HistogramBounds is changed.
 
-		err = d.histogramBoundsDecoder.Decode(&val.histogramBounds)
-		if err != nil {
+		if err := d.histogramBoundsDecoder.Decode(&val.histogramBounds); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricAggregationTemporality != 0 { // AggregationTemporality is changed.
 
-		err = d.aggregationTemporalityDecoder.Decode(&val.aggregationTemporality)
-		if err != nil {
+		if err := d.aggregationTemporalityDecoder.Decode(&val.aggregationTemporality); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMetricMonotonic != 0 { // Monotonic is changed.
 
-		err = d.monotonicDecoder.Decode(&val.monotonic)
-		if err != nil {
+		if err := d.monotonicDecoder.Decode(&val.monotonic); err != nil {
 			return err
 		}
 	}

@@ -563,15 +563,18 @@ func (d *{{ .ArrayName }}Decoder) Decode(dst *{{.ArrayName}}) error {
 
 	for i := 0; i < newLen; i++ {
 		{{- if .ElemType.IsPrimitive}}
-		err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}dst.elems[i])
-		if err != nil {
+		if err := d.elemDecoder.Decode({{if .ElemType.Flags.DecodeByPtr}}&{{end}}dst.elems[i]); err != nil {
 			return err
 		}
 		{{- else}}
-		err := d.elemDecoder.Decode({{if or (.ElemType.DictName) (not .IsStructType)}}&{{end}}dst.elems[i])
-		if err != nil {
+		if err := d.elemDecoder.Decode({{if or (.ElemType.DictName) (not .IsStructType)}}&{{end}}dst.elems[i]); err != nil {
 			return err
 		}
+        {{- if and .IsStructType .ElemType.DictName}}
+        if dst.elems[i] == nil {
+            return pkg.ErrDecodeError // This may happen with dict-encoded fields, with invalid input data.
+        }
+        {{- end}}
 		{{- end}}
 	}
 

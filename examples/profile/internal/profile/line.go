@@ -661,8 +661,6 @@ func (d *LineDecoder) Reset() {
 func (d *LineDecoder) Decode(dstPtr *Line) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
@@ -677,24 +675,24 @@ func (d *LineDecoder) Decode(dstPtr *Line) error {
 			val.function.init(&val.modifiedFields, fieldModifiedLineFunction)
 		}
 
-		err = d.functionDecoder.Decode(&val.function)
-		if err != nil {
+		if err := d.functionDecoder.Decode(&val.function); err != nil {
 			return err
+		}
+		if val.function == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLineLine != 0 { // Line is changed.
 
-		err = d.lineDecoder.Decode(&val.line)
-		if err != nil {
+		if err := d.lineDecoder.Decode(&val.line); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLineColumn != 0 { // Column is changed.
 
-		err = d.columnDecoder.Decode(&val.column)
-		if err != nil {
+		if err := d.columnDecoder.Decode(&val.column); err != nil {
 			return err
 		}
 	}

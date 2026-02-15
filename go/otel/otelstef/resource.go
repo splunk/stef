@@ -732,32 +732,27 @@ func (d *ResourceDecoder) Decode(dstPtr **Resource) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedResourceSchemaURL != 0 { // SchemaURL is changed.
 
-		err = d.schemaURLDecoder.Decode(&val.schemaURL)
-		if err != nil {
+		if err := d.schemaURLDecoder.Decode(&val.schemaURL); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedResourceDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
 
-		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
-		if err != nil {
+		if err := d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount); err != nil {
 			return err
 		}
 	}

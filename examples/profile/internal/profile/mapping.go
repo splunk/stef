@@ -1260,80 +1260,69 @@ func (d *MappingDecoder) Decode(dstPtr **Mapping) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedMappingMemoryStart != 0 { // MemoryStart is changed.
 
-		err = d.memoryStartDecoder.Decode(&val.memoryStart)
-		if err != nil {
+		if err := d.memoryStartDecoder.Decode(&val.memoryStart); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingMemoryLimit != 0 { // MemoryLimit is changed.
 
-		err = d.memoryLimitDecoder.Decode(&val.memoryLimit)
-		if err != nil {
+		if err := d.memoryLimitDecoder.Decode(&val.memoryLimit); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFileOffset != 0 { // FileOffset is changed.
 
-		err = d.fileOffsetDecoder.Decode(&val.fileOffset)
-		if err != nil {
+		if err := d.fileOffsetDecoder.Decode(&val.fileOffset); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingFilename != 0 { // Filename is changed.
 
-		err = d.filenameDecoder.Decode(&val.filename)
-		if err != nil {
+		if err := d.filenameDecoder.Decode(&val.filename); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingBuildId != 0 { // BuildId is changed.
 
-		err = d.buildIdDecoder.Decode(&val.buildId)
-		if err != nil {
+		if err := d.buildIdDecoder.Decode(&val.buildId); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFunctions != 0 { // HasFunctions is changed.
 
-		err = d.hasFunctionsDecoder.Decode(&val.hasFunctions)
-		if err != nil {
+		if err := d.hasFunctionsDecoder.Decode(&val.hasFunctions); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasFilenames != 0 { // HasFilenames is changed.
 
-		err = d.hasFilenamesDecoder.Decode(&val.hasFilenames)
-		if err != nil {
+		if err := d.hasFilenamesDecoder.Decode(&val.hasFilenames); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasLineNumbers != 0 { // HasLineNumbers is changed.
 
-		err = d.hasLineNumbersDecoder.Decode(&val.hasLineNumbers)
-		if err != nil {
+		if err := d.hasLineNumbersDecoder.Decode(&val.hasLineNumbers); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedMappingHasInlineFrames != 0 { // HasInlineFrames is changed.
 
-		err = d.hasInlineFramesDecoder.Decode(&val.hasInlineFrames)
-		if err != nil {
+		if err := d.hasInlineFramesDecoder.Decode(&val.hasInlineFrames); err != nil {
 			return err
 		}
 	}

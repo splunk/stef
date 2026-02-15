@@ -545,6 +545,9 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 	if typ >= uint(d.fieldCount+1) {
 		return pkg.ErrInvalidOneOfType
 	}
+	if err := d.buf.Error(); err != nil {
+		return err
+	}
 
 	dst := dstPtr
 	if dst.typ != LabelValueType(typ) {
@@ -564,7 +567,7 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 		// Decode Num
 		return d.numDecoder.Decode(&dst.num)
 	}
-	return d.buf.Error()
+	return nil
 }
 
 // LabelValueAllocator implements a custom allocator for LabelValue.

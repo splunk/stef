@@ -1705,120 +1705,104 @@ func (d *SpanDecoder) Reset() {
 func (d *SpanDecoder) Decode(dstPtr *Span) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSpanTraceID != 0 { // TraceID is changed.
 
-		err = d.traceIDDecoder.Decode(&val.traceID)
-		if err != nil {
+		if err := d.traceIDDecoder.Decode(&val.traceID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanSpanID != 0 { // SpanID is changed.
 
-		err = d.spanIDDecoder.Decode(&val.spanID)
-		if err != nil {
+		if err := d.spanIDDecoder.Decode(&val.spanID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanTraceState != 0 { // TraceState is changed.
 
-		err = d.traceStateDecoder.Decode(&val.traceState)
-		if err != nil {
+		if err := d.traceStateDecoder.Decode(&val.traceState); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanParentSpanID != 0 { // ParentSpanID is changed.
 
-		err = d.parentSpanIDDecoder.Decode(&val.parentSpanID)
-		if err != nil {
+		if err := d.parentSpanIDDecoder.Decode(&val.parentSpanID); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanFlags != 0 { // Flags is changed.
 
-		err = d.flagsDecoder.Decode(&val.flags)
-		if err != nil {
+		if err := d.flagsDecoder.Decode(&val.flags); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanName != 0 { // Name is changed.
 
-		err = d.nameDecoder.Decode(&val.name)
-		if err != nil {
+		if err := d.nameDecoder.Decode(&val.name); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanKind != 0 { // Kind is changed.
 
-		err = d.kindDecoder.Decode(&val.kind)
-		if err != nil {
+		if err := d.kindDecoder.Decode(&val.kind); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStartTimeUnixNano != 0 { // StartTimeUnixNano is changed.
 
-		err = d.startTimeUnixNanoDecoder.Decode(&val.startTimeUnixNano)
-		if err != nil {
+		if err := d.startTimeUnixNanoDecoder.Decode(&val.startTimeUnixNano); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEndTimeUnixNano != 0 { // EndTimeUnixNano is changed.
 
-		err = d.endTimeUnixNanoDecoder.Decode(&val.endTimeUnixNano)
-		if err != nil {
+		if err := d.endTimeUnixNanoDecoder.Decode(&val.endTimeUnixNano); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanAttributes != 0 { // Attributes is changed.
 
-		err = d.attributesDecoder.Decode(&val.attributes)
-		if err != nil {
+		if err := d.attributesDecoder.Decode(&val.attributes); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanDroppedAttributesCount != 0 { // DroppedAttributesCount is changed.
 
-		err = d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount)
-		if err != nil {
+		if err := d.droppedAttributesCountDecoder.Decode(&val.droppedAttributesCount); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanEvents != 0 { // Events is changed.
 
-		err = d.eventsDecoder.Decode(&val.events)
-		if err != nil {
+		if err := d.eventsDecoder.Decode(&val.events); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanLinks != 0 { // Links is changed.
 
-		err = d.linksDecoder.Decode(&val.links)
-		if err != nil {
+		if err := d.linksDecoder.Decode(&val.links); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSpanStatus != 0 { // Status is changed.
 
-		err = d.statusDecoder.Decode(&val.status)
-		if err != nil {
+		if err := d.statusDecoder.Decode(&val.status); err != nil {
 			return err
 		}
 	}

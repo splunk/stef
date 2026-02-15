@@ -22,6 +22,8 @@ var ErrRecordAllocLimitExceeded = NewDecodeError("record allocation limit exceed
 var ErrTooManyFieldsToDecode = NewDecodeError("too many fields to decode")
 var ErrEmptyRootStructDisallowed = NewDecodeError("cannot decode empty root struct")
 
+var ErrDecodeError = NewDecodeError("decoding error")
+
 type DecodeError struct {
 	msg string
 }

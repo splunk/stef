@@ -478,24 +478,20 @@ func (d *QuantileValueDecoder) Reset() {
 func (d *QuantileValueDecoder) Decode(dstPtr *QuantileValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedQuantileValueQuantile != 0 { // Quantile is changed.
 
-		err = d.quantileDecoder.Decode(&val.quantile)
-		if err != nil {
+		if err := d.quantileDecoder.Decode(&val.quantile); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedQuantileValueValue != 0 { // Value is changed.
 
-		err = d.valueDecoder.Decode(&val.value)
-		if err != nil {
+		if err := d.valueDecoder.Decode(&val.value); err != nil {
 			return err
 		}
 	}

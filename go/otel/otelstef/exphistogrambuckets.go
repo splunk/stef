@@ -508,24 +508,20 @@ func (d *ExpHistogramBucketsDecoder) Reset() {
 func (d *ExpHistogramBucketsDecoder) Decode(dstPtr *ExpHistogramBuckets) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsOffset != 0 { // Offset is changed.
 
-		err = d.offsetDecoder.Decode(&val.offset)
-		if err != nil {
+		if err := d.offsetDecoder.Decode(&val.offset); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedExpHistogramBucketsBucketCounts != 0 { // BucketCounts is changed.
 
-		err = d.bucketCountsDecoder.Decode(&val.bucketCounts)
-		if err != nil {
+		if err := d.bucketCountsDecoder.Decode(&val.bucketCounts); err != nil {
 			return err
 		}
 	}

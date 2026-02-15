@@ -1240,40 +1240,34 @@ func (d *ProfileMetadataDecoder) Reset() {
 func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDropFrames != 0 { // DropFrames is changed.
 
-		err = d.dropFramesDecoder.Decode(&val.dropFrames)
-		if err != nil {
+		if err := d.dropFramesDecoder.Decode(&val.dropFrames); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataKeepFrames != 0 { // KeepFrames is changed.
 
-		err = d.keepFramesDecoder.Decode(&val.keepFrames)
-		if err != nil {
+		if err := d.keepFramesDecoder.Decode(&val.keepFrames); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataTimeNanos != 0 { // TimeNanos is changed.
 
-		err = d.timeNanosDecoder.Decode(&val.timeNanos)
-		if err != nil {
+		if err := d.timeNanosDecoder.Decode(&val.timeNanos); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataDurationNanos != 0 { // DurationNanos is changed.
 
-		err = d.durationNanosDecoder.Decode(&val.durationNanos)
-		if err != nil {
+		if err := d.durationNanosDecoder.Decode(&val.durationNanos); err != nil {
 			return err
 		}
 	}
@@ -1288,24 +1282,24 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 			val.periodType.init(&val.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 		}
 
-		err = d.periodTypeDecoder.Decode(&val.periodType)
-		if err != nil {
+		if err := d.periodTypeDecoder.Decode(&val.periodType); err != nil {
 			return err
+		}
+		if val.periodType == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataPeriod != 0 { // Period is changed.
 
-		err = d.periodDecoder.Decode(&val.period)
-		if err != nil {
+		if err := d.periodDecoder.Decode(&val.period); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedProfileMetadataComments != 0 { // Comments is changed.
 
-		err = d.commentsDecoder.Decode(&val.comments)
-		if err != nil {
+		if err := d.commentsDecoder.Decode(&val.comments); err != nil {
 			return err
 		}
 	}
@@ -1320,9 +1314,11 @@ func (d *ProfileMetadataDecoder) Decode(dstPtr *ProfileMetadata) error {
 			val.defaultSampleType.init(&val.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 		}
 
-		err = d.defaultSampleTypeDecoder.Decode(&val.defaultSampleType)
-		if err != nil {
+		if err := d.defaultSampleTypeDecoder.Decode(&val.defaultSampleType); err != nil {
 			return err
+		}
+		if val.defaultSampleType == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 

@@ -912,8 +912,6 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 	}
 	*dstPtr = val
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
@@ -928,32 +926,31 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 			val.mapping.init(&val.modifiedFields, fieldModifiedLocationMapping)
 		}
 
-		err = d.mappingDecoder.Decode(&val.mapping)
-		if err != nil {
+		if err := d.mappingDecoder.Decode(&val.mapping); err != nil {
 			return err
+		}
+		if val.mapping == nil {
+			return pkg.ErrDecodeError // Non-optional fields cannot be nil
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationAddress != 0 { // Address is changed.
 
-		err = d.addressDecoder.Decode(&val.address)
-		if err != nil {
+		if err := d.addressDecoder.Decode(&val.address); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationLines != 0 { // Lines is changed.
 
-		err = d.linesDecoder.Decode(&val.lines)
-		if err != nil {
+		if err := d.linesDecoder.Decode(&val.lines); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedLocationIsFolded != 0 { // IsFolded is changed.
 
-		err = d.isFoldedDecoder.Decode(&val.isFolded)
-		if err != nil {
+		if err := d.isFoldedDecoder.Decode(&val.isFolded); err != nil {
 			return err
 		}
 	}

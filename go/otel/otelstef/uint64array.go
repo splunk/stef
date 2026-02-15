@@ -354,8 +354,7 @@ func (d *Uint64ArrayDecoder) Decode(dst *Uint64Array) error {
 	dst.ensureLen(newLen, d.allocators)
 
 	for i := 0; i < newLen; i++ {
-		err := d.elemDecoder.Decode(&dst.elems[i])
-		if err != nil {
+		if err := d.elemDecoder.Decode(&dst.elems[i]); err != nil {
 			return err
 		}
 	}

@@ -601,32 +601,27 @@ func (d *SummaryValueDecoder) Reset() {
 func (d *SummaryValueDecoder) Decode(dstPtr *SummaryValue) error {
 	val := dstPtr
 
-	var err error
-
 	// Read bits that indicate which fields follow.
 	val.modifiedFields.mask = d.buf.PeekBits(d.fieldCount)
 	d.buf.Consume(d.fieldCount)
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueCount != 0 { // Count is changed.
 
-		err = d.countDecoder.Decode(&val.count)
-		if err != nil {
+		if err := d.countDecoder.Decode(&val.count); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueSum != 0 { // Sum is changed.
 
-		err = d.sumDecoder.Decode(&val.sum)
-		if err != nil {
+		if err := d.sumDecoder.Decode(&val.sum); err != nil {
 			return err
 		}
 	}
 
 	if val.modifiedFields.mask&fieldModifiedSummaryValueQuantileValues != 0 { // QuantileValues is changed.
 
-		err = d.quantileValuesDecoder.Decode(&val.quantileValues)
-		if err != nil {
+		if err := d.quantileValuesDecoder.Decode(&val.quantileValues); err != nil {
 			return err
 		}
 	}
