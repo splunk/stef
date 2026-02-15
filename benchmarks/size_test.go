@@ -76,6 +76,13 @@ var sizeEncodings = []encodings.MetricEncoding{
 	&otelarrow.OtelArrowEncoding{},
 }
 
+func unitSize(totalSize int, unitCount int) float64 {
+	if unitCount == 0 {
+		return 0
+	}
+	return roundFloat(float64(totalSize)/float64(unitCount), 1)
+}
+
 func TestMetricsSize(t *testing.T) {
 
 	fmt.Println("===== Encoded sizes")
@@ -164,15 +171,15 @@ func TestMetricsSize(t *testing.T) {
 			if wantChart {
 				chart.Record(
 					nil, encoding.LongName(),
-					"Compressed size in bytes (zstd)",
-					float64(zstdedSize),
+					"Bytes/point (zstd)",
+					unitSize(zstdedSize, pointCount),
 				)
 			}
 		}
 
 		if wantChart {
 			chart.EndChart(
-				"Bytes",
+				"Bytes/point",
 				charts.WithColorsOpts(opts.Colors{"#92C5F9"}),
 			)
 		}
@@ -221,7 +228,9 @@ func TestMetricsMultipart(t *testing.T) {
 				parts, err := testutils.ReadMultipartOTLPFile("testdata/" + dataset.name + ".zst")
 				require.NoError(t, err)
 
+				pointCount := 0
 				for _, part := range parts {
+					pointCount += part.DataPointCount()
 					err := stream.AppendPart(part)
 					require.NoError(t, err)
 				}
@@ -243,13 +252,13 @@ func TestMetricsMultipart(t *testing.T) {
 				}
 
 				chart.Record(
-					nil, encoding.LongName(), "Size in bytes, compression="+compression,
-					float64(curSize),
+					nil, encoding.LongName(), "Bytes/point, compression="+compression,
+					unitSize(curSize, pointCount),
 				)
 			}
 
 			chart.EndChart(
-				"Bytes",
+				"Bytes/point",
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
 		}
@@ -342,6 +351,7 @@ func TestTracesMultipart(t *testing.T) {
 			chart.BeginChart("Dataset: "+fileName, t)
 
 			otlpSize := 0
+			spanCount := 0
 			for i := 0; i < len(traceData); i++ {
 				if compression == pkg.CompressionNone {
 					otlpSize += len(otlpParts[i])
@@ -349,11 +359,12 @@ func TestTracesMultipart(t *testing.T) {
 					otlpZstd := testutils.CompressZstd(otlpParts[i])
 					otlpSize += len(otlpZstd)
 				}
+				spanCount += traceData[i].(ptrace.Traces).SpanCount()
 			}
 
 			chart.Record(
-				nil, "OTLP", "Size in bytes, compression="+compressionStr,
-				float64(otlpSize),
+				nil, "OTLP", "Bytes/span, compression="+compressionStr,
+				unitSize(otlpSize, spanCount),
 			)
 
 			for _, sorted := range sorteds {
@@ -381,19 +392,27 @@ func TestTracesMultipart(t *testing.T) {
 
 				stefSize := len(outputBuf.Bytes())
 
-				fmt.Printf("Traces OTLP: %8d\n", otlpSize)
-				fmt.Printf("Traces STEF: %8d\n", stefSize)
+				fmt.Printf(
+					"Traces OTLP: %8d (%5.1f bytes/span)\n",
+					otlpSize,
+					float64(otlpSize)/float64(spanCount),
+				)
+				fmt.Printf(
+					"Traces STEF: %8d (%5.1f bytes/span)\n",
+					stefSize,
+					float64(stefSize)/float64(spanCount),
+				)
 				fmt.Printf(
 					"Ratio:       %8.2f\n", float64(otlpSize)/float64(stefSize),
 				)
 
 				chart.Record(
-					nil, "STEF "+sortedStr, "Size in bytes, compression="+compressionStr,
-					float64(stefSize),
+					nil, "STEF "+sortedStr, "Bytes/span, compression="+compressionStr,
+					unitSize(stefSize, spanCount),
 				)
 			}
 			chart.EndChart(
-				"Bytes",
+				"Bytes/span",
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
 		}
