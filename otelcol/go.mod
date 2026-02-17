@@ -7,7 +7,7 @@ require (
 	github.com/splunk/stef/go/grpc v0.1.1
 	github.com/splunk/stef/go/pdata v0.0.0
 	go.opentelemetry.io/collector v0.144.0 // indirect
-	go.opentelemetry.io/collector/confmap v1.50.0
+	go.opentelemetry.io/collector/confmap v1.51.0
 	go.opentelemetry.io/collector/pdata v1.51.0
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1
@@ -29,7 +29,7 @@ require (
 	go.opentelemetry.io/collector/config/configgrpc v0.144.0
 	go.opentelemetry.io/collector/config/confignet v1.50.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.50.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.50.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.51.0
 	go.opentelemetry.io/collector/connector v0.144.0
 	go.opentelemetry.io/collector/consumer v1.51.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.144.0
@@ -132,7 +132,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
-	github.com/knadh/koanf/v2 v2.3.0 // indirect
+	github.com/knadh/koanf/v2 v2.3.2 // indirect
 	github.com/leodido/go-syslog/v4 v4.3.0 // indirect
 	github.com/leodido/ragel-machinery v0.0.0-20190525184631-5f46317e436b // indirect
 	github.com/linode/go-metadata v0.2.3 // indirect
