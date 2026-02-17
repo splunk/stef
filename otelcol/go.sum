@@ -452,8 +452,8 @@ github.com/klauspost/compress v1.18.3 h1:9PJRvfbmTabkOX8moIpXPbMMbYN60bWImDDU7L+
 github.com/klauspost/compress v1.18.3/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
 github.com/knadh/koanf v1.5.0 h1:q2TSd/3Pyc/5yP9ldIrSdIz26MCcyNQzW0pEAugLPNs=
 github.com/knadh/koanf v1.5.0/go.mod h1:Hgyjp4y8v44hpZtPzs7JZfRAW5AhN7KfZcwv1RYggDs=
-github.com/knadh/koanf/v2 v2.3.0 h1:Qg076dDRFHvqnKG97ZEsi9TAg2/nFTa9hCdcSa1lvlM=
-github.com/knadh/koanf/v2 v2.3.0/go.mod h1:gRb40VRAbd4iJMYYD5IxZ6hfuopFcXBpc9bbQpZwo28=
+github.com/knadh/koanf/v2 v2.3.2 h1:Ee6tuzQYFwcZXQpc2MiVeC6qHMandf5SMUJJNoFp/c4=
+github.com/knadh/koanf/v2 v2.3.2/go.mod h1:gRb40VRAbd4iJMYYD5IxZ6hfuopFcXBpc9bbQpZwo28=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515/go.mod h1:+0opPa2QZZtGFBFZlji/RkVcI2GknAs/DXo4wKdlNEc=
@@ -820,12 +820,12 @@ go.opentelemetry.io/collector/config/configtelemetry v0.144.0 h1:Jy7vM9fhaV38JjX
 go.opentelemetry.io/collector/config/configtelemetry v0.144.0/go.mod h1:Xjw2+DpNLjYtx596EHSWBy0dNQRiJ2H+BlWU907lO40=
 go.opentelemetry.io/collector/config/configtls v1.50.0 h1:2Uqc/RQ0Zf7cPu2pjkQrUbZ0/aop/dV8D1efRAPUTTQ=
 go.opentelemetry.io/collector/config/configtls v1.50.0/go.mod h1:YA3AerzQnRg5FGJqqIWeWBV4PeCyjZ4XxU/sAdkgKxc=
-go.opentelemetry.io/collector/confmap v1.50.0 h1:ty8pqwn5lwVX3i7RkP9myDOlG8rNUAAtyTQHHatDfhg=
-go.opentelemetry.io/collector/confmap v1.50.0/go.mod h1:VtbDxsXGkMpQEWUQLmkgT9XBvsbSEPg4FzhaW8HPuVw=
+go.opentelemetry.io/collector/confmap v1.51.0 h1:C9YlMNkIgzuauLpUz2F7DLlWwqAmkQKNcKj1XATVWuE=
+go.opentelemetry.io/collector/confmap v1.51.0/go.mod h1:uWi4b9lHfvEC2poJ2I2vXwGUREVEQTcdUguOpfqdcHM=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.50.0 h1:2byObKr1U37umeSgwSbkjJmXZ48UiUhKY9Gr9FAqfY0=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.50.0/go.mod h1:+u4AvdhjSVcJEhZwj4D3WTLr4b4mBn1C0bklPqjf+Qo=
-go.opentelemetry.io/collector/confmap/provider/fileprovider v1.50.0 h1:r1Dbs0p8M6z5/MMWXW1yMO0fHrZQVC9HlrTXK9CeIR4=
-go.opentelemetry.io/collector/confmap/provider/fileprovider v1.50.0/go.mod h1:RerRpGv/rTHEU/1BQnAQCTM7jEDQDP8Fr3gWcYc1bcc=
+go.opentelemetry.io/collector/confmap/provider/fileprovider v1.51.0 h1:yXEYXIowoLdmDF0CPUhLa0mgbhRuvySbcs7OShNsFaE=
+go.opentelemetry.io/collector/confmap/provider/fileprovider v1.51.0/go.mod h1:ew7Ntt1ehqspNIa51e1PrgIEIW8M0Nml5bHP4C0vIeU=
 go.opentelemetry.io/collector/confmap/xconfmap v0.144.0 h1:jMyiAFt9kyiS1xIOebAV9tuAWd9pwxbcS3CNGsRxaF0=
 go.opentelemetry.io/collector/confmap/xconfmap v0.144.0/go.mod h1:T6emD9jNoWzBR9ESJ0nONvqM4ClJykkvIPT2sYNqgKk=
 go.opentelemetry.io/collector/connector v0.144.0 h1:R8gL2run29q0XLEn4drqyyhHpfkCUUGeAZjwOItO7JI=
