@@ -294,7 +294,7 @@ func TestRandomizedSchema(t *testing.T) {
 	schemaContent := sch.PrettyPrint()
 
 	// Test the schema. Don't fail if generated code tests fail, just report the seed for now.
-	testSchema(t, []byte(schemaContent), "randomized.stef", false)
+	testSchema(t, []byte(schemaContent), "randomized.stef", true)
 
 	succeeded = true
 }
