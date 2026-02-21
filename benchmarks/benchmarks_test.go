@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/splunk/stef/benchmarks/encodings"
+	hyper "github.com/splunk/stef/benchmarks/encodings/hyperpb"
 	"github.com/splunk/stef/benchmarks/encodings/otelarrow"
 	"github.com/splunk/stef/benchmarks/encodings/otlp"
 	parquetenc "github.com/splunk/stef/benchmarks/encodings/parquet"
@@ -26,6 +27,7 @@ import (
 
 var speedEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
+	hyper.NewHyperEncoding(),
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&stef.STEFUEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
