@@ -71,6 +71,7 @@ var metricsDataVariations = []struct {
 var sizeEncodings = []encodings.MetricEncoding{
 	&otlp.OTLPEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
+	&stef.STEFSEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&stef.STEFUEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
 	&otelarrow.OtelArrowEncoding{},
@@ -203,6 +204,7 @@ func TestMetricsMultipart(t *testing.T) {
 	testMultipartEncodings := []encodings.MetricMultipartEncoding{
 		&otlp.OTLPEncoding{},
 		&stef.STEFEncoding{},
+		&stef.STEFSEncoding{},
 		&stef.STEFUEncoding{},
 		&otelarrow.OtelArrowEncoding{},
 	}

@@ -33,6 +33,7 @@ type elem struct {
 
 type Otlp2Stef struct {
 	attrElems []elem
+	SortAttrs bool
 }
 
 func (o *Otlp2Stef) ResourceSorted(dst *otelstef.Resource, src pcommon.Resource, schemaUrl string) {
@@ -88,6 +89,10 @@ func (o *Otlp2Stef) MapSorted(m pcommon.Map, out *otelstef.Attributes) {
 }
 
 func (o *Otlp2Stef) MapUnsorted(m pcommon.Map, out *otelstef.Attributes) {
+	if o.SortAttrs {
+		o.MapSorted(m, out)
+		return
+	}
 	out.EnsureLen(m.Len())
 	i := 0
 	m.Range(

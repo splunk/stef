@@ -20,6 +20,10 @@ type STEFSEncoding struct {
 	sorter otlpconvert.PDataSorter
 }
 
+func (d *STEFSEncoding) LongName() string {
+	return "STEFS"
+}
+
 func (d *STEFSEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
 	d.sorter.SortMetrics(data, false)
 	//otlpconvert2.NormalizeMetrics(data)
@@ -35,7 +39,7 @@ func (d *STEFSEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 		return nil, err
 	}
 
-	converter := otlpconvert.OtlpToStefUnsorted{}
+	converter := otlpconvert.NewOtlpToStefUnsorted(true)
 	err = converter.Convert(metrics, writer)
 	if err != nil {
 		return nil, err

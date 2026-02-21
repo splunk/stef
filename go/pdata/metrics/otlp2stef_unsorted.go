@@ -15,6 +15,14 @@ type OtlpToStefUnsorted struct {
 
 var _ OtlpToStef = (*OtlpToStefUnsorted)(nil)
 
+func NewOtlpToStefUnsorted(sortAttrs bool) OtlpToStefUnsorted {
+	return OtlpToStefUnsorted{
+		base: internal.BaseOtlpToStef{
+			Otlp2tef: otlptools.Otlp2Stef{SortAttrs: sortAttrs},
+		},
+	}
+}
+
 // Convert OTLP metrics to STEF format and writes them to the provided writer.
 // Will not call Flush() on the writer at the end.
 func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *otelstef.MetricsWriter) error {
