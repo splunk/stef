@@ -35,14 +35,9 @@ var speedEncodings = []encodings.MetricEncoding{
 var benchmarkDataVariations = []struct {
 	generator generators.Generator
 }{
-	//{
-	//	generator: &generators.File{
-	//		FilePath: "testdata/host_and_collector.pb",
-	//	},
-	//},
 	{
 		generator: &generators.File{
-			FilePath: "testdata/hipstershop-otelmetrics.zst",
+			FilePath: "testdata/mixed-otelmetrics.zst",
 		},
 	},
 }

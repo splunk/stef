@@ -41,6 +41,11 @@ var metricsDataVariations = []struct {
 }{
 	{
 		generator: &generators.File{
+			FilePath: "testdata/mixed-otelmetrics.zst",
+		},
+	},
+	{
+		generator: &generators.File{
 			FilePath: "testdata/astronomy-otelmetrics.zst",
 		},
 	},
@@ -102,7 +107,8 @@ func TestMetricsSize(t *testing.T) {
 		}
 
 		for _, encoding := range sizeEncodings {
-			if (dataVariation.generator.GetName() == "astronomy-otelmetrics.zst") &&
+			if (dataVariation.generator.GetName() == "astronomy-otelmetrics.zst" ||
+				dataVariation.generator.GetName() == "mixed-otelmetrics.zst") &&
 				encoding.Name() == "Otel ARROW" {
 				// Skip due to bug in Arrow encoding
 				continue
@@ -192,6 +198,9 @@ func TestMetricsMultipart(t *testing.T) {
 	datasets := []struct {
 		name string
 	}{
+		{
+			name: "mixed-otelmetrics",
+		},
 		{
 			name: "hostandcollector-otelmetrics",
 		},
