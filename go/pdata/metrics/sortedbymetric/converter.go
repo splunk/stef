@@ -35,14 +35,21 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 				metric := sms.Metrics().At(k)
 				switch metric.Type() {
 				case pmetric.MetricTypeGauge:
-					c.covertNumberDataPoints(
+					if err := c.covertNumberDataPoints(
 						sm, resource, scope, metric, metric.Gauge().DataPoints(), internal.MetricFlags{},
-					)
+					); err != nil {
+						return nil, err
+					}
 				case pmetric.MetricTypeSum:
-					c.covertNumberDataPoints(
-						sm, resource, scope, metric, metric.Sum().DataPoints(),
-						calcMetricFlags(metric.Sum().IsMonotonic(), metric.Sum().AggregationTemporality()),
-					)
+					flags, err := calcMetricFlags(metric.Sum().IsMonotonic(), metric.Sum().AggregationTemporality())
+					if err != nil {
+						return nil, err
+					}
+					if err := c.covertNumberDataPoints(
+						sm, resource, scope, metric, metric.Sum().DataPoints(), flags,
+					); err != nil {
+						return nil, err
+					}
 				case pmetric.MetricTypeHistogram:
 					err := c.covertHistogramDataPoints(sm, resource, scope, metric, metric.Histogram())
 					if err != nil {
@@ -61,7 +68,7 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 						return nil, err
 					}
 				default:
-					panic(fmt.Sprintf("Unsupported metric type: %v (metric name=%s)", metric.Type(), metric.Name()))
+					return nil, fmt.Errorf("unsupported metric type: %v (metric name=%s)", metric.Type(), metric.Name())
 				}
 			}
 		}
@@ -72,10 +79,25 @@ func OtlpToSortedTree(data pmetric.Metrics) (*SortedTree, error) {
 	return sm, nil
 }
 
-func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality) internal.MetricFlags {
+func calcMetricFlags(monotonic bool, temporality pmetric.AggregationTemporality) (internal.MetricFlags, error) {
+	at, err := internal.AggregationTemporalityToStef(temporality)
+	if err != nil {
+		return internal.MetricFlags{}, err
+	}
 	return internal.MetricFlags{
 		Monotonic:   monotonic,
-		Temporality: internal.AggregationTemporalityToStef(temporality),
+		Temporality: at,
+	}, nil
+}
+
+func calcNumericMetricType(metric pmetric.Metric) (otelstef.MetricType, error) {
+	switch metric.Type() {
+	case pmetric.MetricTypeGauge:
+		return otelstef.MetricTypeGauge, nil
+	case pmetric.MetricTypeSum:
+		return otelstef.MetricTypeSum, nil
+	default:
+		return 0, fmt.Errorf("unsupported numeric metric type: %v", metric.Type())
 	}
 }
 
@@ -86,7 +108,7 @@ func (c *converter) covertNumberDataPoints(
 	metric pmetric.Metric,
 	srcPoints pmetric.NumberDataPointSlice,
 	flags internal.MetricFlags,
-) {
+) error {
 	var metricType otelstef.MetricType
 	var byMetric *ByMetric
 	var byScope *ByScope
@@ -100,7 +122,10 @@ func (c *converter) covertNumberDataPoints(
 			continue
 		}
 
-		mt := calcNumericMetricType(metric)
+		mt, err := calcNumericMetricType(metric)
+		if err != nil {
+			return err
+		}
 		if mt != metricType || byMetric == nil {
 			metricType = mt
 			byMetric = sm.ByMetric(metric, metricType, flags, nil)
@@ -117,22 +142,15 @@ func (c *converter) covertNumberDataPoints(
 		*dstPoints = append(*dstPoints, dstPoint)
 		dstPoint.SetTimestamp(uint64(srcPoint.Timestamp()))
 		dstPoint.SetStartTimestamp(uint64(srcPoint.StartTimestamp()))
-		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
+		if err := c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars()); err != nil {
+			return err
+		}
 
-		c.ConvertNumDatapoint(dstPoint, srcPoint)
+		if err := c.ConvertNumDatapoint(dstPoint, srcPoint); err != nil {
+			return err
+		}
 	}
-}
-
-func calcNumericMetricType(metric pmetric.Metric) otelstef.MetricType {
-	switch metric.Type() {
-	case pmetric.MetricTypeGauge:
-		return otelstef.MetricTypeGauge
-	case pmetric.MetricTypeSum:
-		return otelstef.MetricTypeSum
-	default:
-		panic("Unsupported metric type")
-	}
-	return 0
+	return nil
 }
 
 func (c *converter) covertHistogramDataPoints(
@@ -144,7 +162,10 @@ func (c *converter) covertHistogramDataPoints(
 ) error {
 	var byMetric *ByMetric
 	var byScope *ByScope
-	flags := calcMetricFlags(false, hist.AggregationTemporality())
+	flags, err := calcMetricFlags(false, hist.AggregationTemporality())
+	if err != nil {
+		return err
+	}
 	srcPoints := hist.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {
@@ -160,7 +181,9 @@ func (c *converter) covertHistogramDataPoints(
 		dstPoint := otelstef.NewPoint()
 		*dstPoints = append(*dstPoints, dstPoint)
 
-		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
+		if err := c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars()); err != nil {
+			return err
+		}
 
 		err := c.ConvertHistogram(dstPoint, srcPoint)
 		if err != nil {
@@ -179,7 +202,10 @@ func (c *converter) covertExponentialHistogramDataPoints(
 ) error {
 	var byMetric *ByMetric
 	var byScope *ByScope
-	flags := calcMetricFlags(false, hist.AggregationTemporality())
+	flags, err := calcMetricFlags(false, hist.AggregationTemporality())
+	if err != nil {
+		return err
+	}
 	srcPoints := hist.DataPoints()
 
 	for l := 0; l < srcPoints.Len(); l++ {
@@ -195,7 +221,9 @@ func (c *converter) covertExponentialHistogramDataPoints(
 		dstPoint := otelstef.NewPoint()
 		*dstPoints = append(*dstPoints, dstPoint)
 
-		c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
+		if err := c.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars()); err != nil {
+			return err
+		}
 
 		err := c.ConvertExpHistogram(dstPoint, srcPoint)
 		if err != nil {

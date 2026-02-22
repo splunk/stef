@@ -16,26 +16,26 @@ type BaseOtlpToStef struct {
 	Otlp2tef  otlptools.Otlp2Stef
 }
 
-func AggregationTemporalityToStef(flags pmetric.AggregationTemporality) otelstef.AggregationTemporality {
+func AggregationTemporalityToStef(flags pmetric.AggregationTemporality) (otelstef.AggregationTemporality, error) {
 	switch flags {
 	case pmetric.AggregationTemporalityDelta:
-		return otelstef.AggregationTemporalityDelta
+		return otelstef.AggregationTemporalityDelta, nil
 	case pmetric.AggregationTemporalityCumulative:
-		return otelstef.AggregationTemporalityCumulative
+		return otelstef.AggregationTemporalityCumulative, nil
 	case pmetric.AggregationTemporalityUnspecified:
-		return otelstef.AggregationTemporalityUnspecified
+		return otelstef.AggregationTemporalityUnspecified, nil
 	default:
-		panic("unexpected aggregation temporality")
+		return 0, fmt.Errorf("unexpected aggregation temporality: %v", flags)
 	}
 }
 
-func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *otelstef.Point, src pmetric.NumberDataPoint) {
+func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *otelstef.Point, src pmetric.NumberDataPoint) error {
 	dst.SetTimestamp(uint64(src.Timestamp()))
 	dst.SetStartTimestamp(uint64(src.StartTimestamp()))
 
 	if src.Flags().NoRecordedValue() {
 		dst.Value().SetType(otelstef.PointValueTypeNone)
-		return
+		return nil
 	}
 
 	switch src.ValueType() {
@@ -43,12 +43,15 @@ func (c *BaseOtlpToStef) ConvertNumDatapoint(dst *otelstef.Point, src pmetric.Nu
 		dst.Value().SetInt64(src.IntValue())
 	case pmetric.NumberDataPointValueTypeDouble:
 		dst.Value().SetFloat64(src.DoubleValue())
+	case pmetric.NumberDataPointValueTypeEmpty:
+		dst.Value().SetType(otelstef.PointValueTypeNone)
 	default:
-		panic("Unsupported number datapoint value type")
+		return fmt.Errorf("unsupported number datapoint value type: %v", src.ValueType())
 	}
+	return nil
 }
 
-func (c *BaseOtlpToStef) ConvertExemplars(dst *otelstef.ExemplarArray, src pmetric.ExemplarSlice) {
+func (c *BaseOtlpToStef) ConvertExemplars(dst *otelstef.ExemplarArray, src pmetric.ExemplarSlice) error {
 	dst.EnsureLen(src.Len())
 
 	for i := 0; i < src.Len(); i++ {
@@ -73,9 +76,10 @@ func (c *BaseOtlpToStef) ConvertExemplars(dst *otelstef.ExemplarArray, src pmetr
 		case pmetric.ExemplarValueTypeEmpty:
 			dstExemplar.Value().SetType(otelstef.ExemplarValueTypeNone)
 		default:
-			panic("unknown Exemplar value type")
+			return fmt.Errorf("unknown exemplar value type: %v", srcExemplar.ValueType())
 		}
 	}
+	return nil
 }
 
 func (c *BaseOtlpToStef) ConvertHistogram(dst *otelstef.Point, src pmetric.HistogramDataPoint) error {
