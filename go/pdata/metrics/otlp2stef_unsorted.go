@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/go/otel/otelstef"
@@ -28,25 +30,39 @@ func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *otelstef.Metri
 			otlp2stef.ScopeUnsorted(writer.Record.Scope(), smm.Scope(), smm.SchemaUrl())
 			for k := 0; k < smm.Metrics().Len(); k++ {
 				m := smm.Metrics().At(k)
-				metric2metric(m, writer.Record.Metric(), otlp2stef)
+				if err := metric2metric(m, writer.Record.Metric(), otlp2stef); err != nil {
+					return err
+				}
 				var err error
 				switch m.Type() {
 				case pmetric.MetricTypeGauge:
 					err = d.writeNumeric(writer, m.Gauge().DataPoints())
 				case pmetric.MetricTypeSum:
-					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.Sum().AggregationTemporality()))
+					at, atErr := internal.AggregationTemporalityToStef(m.Sum().AggregationTemporality())
+					if atErr != nil {
+						return atErr
+					}
+					writer.Record.Metric().SetAggregationTemporality(at)
 					writer.Record.Metric().SetMonotonic(m.Sum().IsMonotonic())
 					err = d.writeNumeric(writer, m.Sum().DataPoints())
 				case pmetric.MetricTypeHistogram:
-					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.Histogram().AggregationTemporality()))
+					at, atErr := internal.AggregationTemporalityToStef(m.Histogram().AggregationTemporality())
+					if atErr != nil {
+						return atErr
+					}
+					writer.Record.Metric().SetAggregationTemporality(at)
 					err = d.writeHistogram(writer, m.Histogram().DataPoints())
 				case pmetric.MetricTypeExponentialHistogram:
-					writer.Record.Metric().SetAggregationTemporality(internal.AggregationTemporalityToStef(m.ExponentialHistogram().AggregationTemporality()))
+					at, atErr := internal.AggregationTemporalityToStef(m.ExponentialHistogram().AggregationTemporality())
+					if atErr != nil {
+						return atErr
+					}
+					writer.Record.Metric().SetAggregationTemporality(at)
 					err = d.writeExpHistogram(writer, m.ExponentialHistogram().DataPoints())
 				case pmetric.MetricTypeSummary:
 					err = d.writeSummary(writer, m.Summary().DataPoints())
 				default:
-					panic("Unsupported metric type")
+					return fmt.Errorf("unsupported metric type: %v", m.Type())
 				}
 				if err != nil {
 					return err
@@ -57,34 +73,38 @@ func (d *OtlpToStefUnsorted) Convert(src pmetric.Metrics, writer *otelstef.Metri
 	return nil
 }
 
-func metricType(typ pmetric.MetricType) otelstef.MetricType {
+func metricType(typ pmetric.MetricType) (otelstef.MetricType, error) {
 	switch typ {
 	case pmetric.MetricTypeGauge:
-		return otelstef.MetricTypeGauge
+		return otelstef.MetricTypeGauge, nil
 	case pmetric.MetricTypeSum:
-		return otelstef.MetricTypeSum
+		return otelstef.MetricTypeSum, nil
 	case pmetric.MetricTypeHistogram:
-		return otelstef.MetricTypeHistogram
+		return otelstef.MetricTypeHistogram, nil
 	case pmetric.MetricTypeExponentialHistogram:
-		return otelstef.MetricTypeExpHistogram
+		return otelstef.MetricTypeExpHistogram, nil
 	case pmetric.MetricTypeSummary:
-		return otelstef.MetricTypeSummary
+		return otelstef.MetricTypeSummary, nil
 	default:
-		panic("Unsupported metric value")
+		return 0, fmt.Errorf("unsupported metric type: %v", typ)
 	}
-	return 0
 }
 
 func metric2metric(
 	src pmetric.Metric, // histogramBounds []float64,
 	dst *otelstef.Metric,
 	otlp2stef *otlptools.Otlp2Stef,
-) {
+) error {
 	otlp2stef.MapUnsorted(src.Metadata(), dst.Metadata())
 	dst.SetName(src.Name())
 	dst.SetDescription(src.Description())
 	dst.SetUnit(src.Unit())
-	dst.SetType(metricType(src.Type()))
+	mt, err := metricType(src.Type())
+	if err != nil {
+		return err
+	}
+	dst.SetType(mt)
+	return nil
 }
 
 func (d *OtlpToStefUnsorted) writeNumeric(writer *otelstef.MetricsWriter, src pmetric.NumberDataPointSlice) error {
@@ -92,9 +112,13 @@ func (d *OtlpToStefUnsorted) writeNumeric(writer *otelstef.MetricsWriter, src pm
 		srcPoint := src.At(i)
 		dstPoint := writer.Record.Point()
 
-		d.base.ConvertNumDatapoint(dstPoint, srcPoint)
+		if err := d.base.ConvertNumDatapoint(dstPoint, srcPoint); err != nil {
+			return err
+		}
 		d.base.Otlp2tef.MapUnsorted(srcPoint.Attributes(), writer.Record.Attributes())
-		d.base.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars())
+		if err := d.base.ConvertExemplars(dstPoint.Exemplars(), srcPoint.Exemplars()); err != nil {
+			return err
+		}
 
 		err := writer.Write()
 		if err != nil {
@@ -116,7 +140,9 @@ func (d *OtlpToStefUnsorted) writeHistogram(writer *otelstef.MetricsWriter, src 
 
 		d.base.Otlp2tef.MapUnsorted(src.Attributes(), writer.Record.Attributes())
 		writer.Record.Metric().HistogramBounds().CopyFromSlice(src.ExplicitBounds().AsRaw())
-		d.base.ConvertExemplars(dst.Exemplars(), src.Exemplars())
+		if err := d.base.ConvertExemplars(dst.Exemplars(), src.Exemplars()); err != nil {
+			return err
+		}
 
 		err = writer.Write()
 		if err != nil {
@@ -139,7 +165,9 @@ func (d *OtlpToStefUnsorted) writeExpHistogram(
 		}
 
 		d.base.Otlp2tef.MapUnsorted(src.Attributes(), writer.Record.Attributes())
-		d.base.ConvertExemplars(dst.Exemplars(), src.Exemplars())
+		if err := d.base.ConvertExemplars(dst.Exemplars(), src.Exemplars()); err != nil {
+			return err
+		}
 
 		err = writer.Write()
 		if err != nil {
