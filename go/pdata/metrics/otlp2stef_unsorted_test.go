@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/go/otel/otelstef"
+	"github.com/splunk/stef/go/pdata/internal/pict"
 	"github.com/splunk/stef/go/pkg"
 )
 
@@ -97,4 +98,40 @@ func TestConvertSorted_EmptyNumberDataPointValueType(t *testing.T) {
 
 	err = writer.Flush()
 	require.NoError(t, err)
+}
+
+func FuzzOtlpToStefUnsorted(f *testing.F) {
+	otlpMetrics, err := pict.GenerateMetrics("testdata/generated_pict_pairs_metrics.txt")
+	require.NoError(f, err)
+
+	f.Add([]byte{})
+
+	for _, otlpMetricSrc := range otlpMetrics {
+		marshaler := pmetric.ProtoMarshaler{}
+		otlpPayload, err := marshaler.MarshalMetrics(otlpMetricSrc)
+		require.NoError(f, err)
+		f.Add(otlpPayload)
+	}
+
+	f.Fuzz(
+		func(t *testing.T, data []byte) {
+			unmarshaler := pmetric.ProtoUnmarshaler{}
+			otlp, err := unmarshaler.UnmarshalMetrics(data)
+			if err != nil {
+				return
+			}
+
+			converter := OtlpToStefUnsorted{}
+			writer, err := otelstef.NewMetricsWriter(&pkg.MemChunkWriter{}, pkg.WriterOptions{})
+			require.NoError(t, err)
+
+			err = converter.Convert(otlp, writer)
+			if err != nil {
+				return
+			}
+
+			err = writer.Flush()
+			require.NoError(t, err)
+		},
+	)
 }
