@@ -77,6 +77,7 @@ func testSpansWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewSpansWriter(buf, optCpy)
 				require.NoError(t, err, "seed %v", seed)
+				defer writer.Close()
 
 				// Generate records pseudo-randomly
 				records := genSpansRecords(random, schem)
@@ -157,6 +158,7 @@ func TestSpansWriteReadLong(t *testing.T) {
 
 	writer, err := NewSpansWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
+	defer writer.Close()
 
 	reader, err := NewSpansReader(mem)
 	require.NoError(t, err, "seed %v", seed)
@@ -215,6 +217,7 @@ func FuzzSpansReader(f *testing.F) {
 			buf := &pkg.MemChunkWriter{}
 			writer, err := NewSpansWriter(buf, opt)
 			require.NoError(f, err)
+			defer writer.Close()
 
 			recCount := (1 << (2 * i)) - 1
 			var record Spans

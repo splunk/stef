@@ -7,9 +7,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/klauspost/compress/zstd"
 )
+
+// zstdEncoderPool pools zstd encoders to amortize the cost of encoder creation
+// across multiple writers. Encoders are created with WithEncoderConcurrency(1)
+// to avoid goroutine overhead per encoder.
+var zstdEncoderPool = sync.Pool{
+	New: func() any {
+		enc, err := zstd.NewWriter(
+			nil,
+			zstd.WithEncoderConcurrency(1),
+		)
+		if err != nil {
+			// This should never happen with valid options.
+			panic("failed to create zstd encoder: " + err.Error())
+		}
+		return enc
+	},
+}
 
 type FrameEncoder struct {
 	dest             ChunkWriter
@@ -29,17 +47,25 @@ func (e *FrameEncoder) Init(dest ChunkWriter, compr Compression) error {
 		e.frameContent = &e.compressedBuf
 
 	case CompressionZstd:
-		var err error
-		e.compressor, err = zstd.NewWriter(&e.compressedBuf)
-		if err != nil {
-			return err
-		}
+		e.compressor = zstdEncoderPool.Get().(*zstd.Encoder)
+		e.compressor.Reset(&e.compressedBuf)
 		e.frameContent = e.compressor
 
 	default:
 		return fmt.Errorf("unknown compression: %d", e.compression)
 	}
 	return nil
+}
+
+// Close releases resources held by the FrameEncoder. For zstd compression,
+// the encoder is returned to the pool for reuse. Close must be called when
+// the FrameEncoder is no longer needed.
+func (e *FrameEncoder) Close() {
+	if e.compression == CompressionZstd && e.compressor != nil {
+		e.compressor.Reset(nil)
+		zstdEncoderPool.Put(e.compressor)
+		e.compressor = nil
+	}
 }
 
 func (e *FrameEncoder) OpenFrame(resetFlags FrameFlags) {

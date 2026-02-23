@@ -82,6 +82,13 @@ func (s *stefExporter) Start(ctx context.Context, host component.Host) error {
 
 func (s *stefExporter) Shutdown(ctx context.Context) error {
 	close(s.stopped)
+	s.writeMutex.Lock()
+	if s.remoteWriter != nil {
+		_ = s.remoteWriter.Flush()
+		s.remoteWriter.Close()
+		s.remoteWriter = nil
+	}
+	s.writeMutex.Unlock()
 	if s.grpcConn != nil {
 		return s.grpcConn.Close()
 	}
@@ -131,7 +138,10 @@ func (s *stefExporter) flusher() {
 		select {
 		case <-timer.C:
 			s.writeMutex.Lock()
-			err := s.remoteWriter.Flush()
+			var err error
+			if s.remoteWriter != nil {
+				err = s.remoteWriter.Flush()
+			}
 			s.writeMutex.Unlock()
 			if err != nil {
 				log.Printf("Cannot send STEF data: %v\n", err)

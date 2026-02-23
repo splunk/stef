@@ -77,6 +77,7 @@ func testSampleWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewSampleWriter(buf, optCpy)
 				require.NoError(t, err, "seed %v", seed)
+				defer writer.Close()
 
 				// Generate records pseudo-randomly
 				records := genSampleRecords(random, schem)
@@ -157,6 +158,7 @@ func TestSampleWriteReadLong(t *testing.T) {
 
 	writer, err := NewSampleWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
+	defer writer.Close()
 
 	reader, err := NewSampleReader(mem)
 	require.NoError(t, err, "seed %v", seed)
@@ -215,6 +217,7 @@ func FuzzSampleReader(f *testing.F) {
 			buf := &pkg.MemChunkWriter{}
 			writer, err := NewSampleWriter(buf, opt)
 			require.NoError(f, err)
+			defer writer.Close()
 
 			recCount := (1 << (2 * i)) - 1
 			var record Sample

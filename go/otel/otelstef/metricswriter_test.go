@@ -77,6 +77,7 @@ func testMetricsWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewMetricsWriter(buf, optCpy)
 				require.NoError(t, err, "seed %v", seed)
+				defer writer.Close()
 
 				// Generate records pseudo-randomly
 				records := genMetricsRecords(random, schem)
@@ -157,6 +158,7 @@ func TestMetricsWriteReadLong(t *testing.T) {
 
 	writer, err := NewMetricsWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
+	defer writer.Close()
 
 	reader, err := NewMetricsReader(mem)
 	require.NoError(t, err, "seed %v", seed)
@@ -215,6 +217,7 @@ func FuzzMetricsReader(f *testing.F) {
 			buf := &pkg.MemChunkWriter{}
 			writer, err := NewMetricsWriter(buf, opt)
 			require.NoError(f, err)
+			defer writer.Close()
 
 			recCount := (1 << (2 * i)) - 1
 			var record Metrics

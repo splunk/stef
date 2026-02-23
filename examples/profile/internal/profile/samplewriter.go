@@ -21,6 +21,7 @@ type SampleWriter struct {
 	writeBufs        pkg.WriteBufs
 	frameRecordCount uint64
 	recordCount      uint64
+	uvarintBuf       [binary.MaxVarintLen64]byte
 }
 
 func NewSampleWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*SampleWriter, error) {
@@ -66,10 +67,12 @@ func NewSampleWriter(dst pkg.ChunkWriter, opts pkg.WriterOptions) (*SampleWriter
 	}
 
 	if err := writer.writeFixedHeader(); err != nil {
+		writer.frameEncoder.Close()
 		return nil, err
 	}
 
 	if err := writer.writeVarHeader(); err != nil {
+		writer.frameEncoder.Close()
 		return nil, err
 	}
 
@@ -175,8 +178,9 @@ func (w *SampleWriter) restartFrame(nextFrameFlags pkg.FrameFlags) error {
 		w.encoder.Reset()
 	}
 
-	// Write record count.
-	if _, err := w.frameEncoder.Write(binary.AppendUvarint(nil, w.frameRecordCount)); err != nil {
+	// Write record count using pre-allocated buffer to avoid allocation.
+	n := binary.PutUvarint(w.uvarintBuf[:], w.frameRecordCount)
+	if _, err := w.frameEncoder.Write(w.uvarintBuf[:n]); err != nil {
 		return err
 	}
 	w.frameRecordCount = 0
@@ -207,4 +211,12 @@ func (w *SampleWriter) Flush() error {
 		return nil
 	}
 	return w.restartFrame(w.opts.FrameRestartFlags)
+}
+
+// Close releases resources held by the writer. For zstd compression,
+// the encoder is returned to the pool for reuse. Close must be called
+// when the writer is no longer needed. It is the caller's responsibility
+// to call Flush before Close if there is unflushed data.
+func (w *SampleWriter) Close() {
+	w.frameEncoder.Close()
 }

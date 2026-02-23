@@ -77,6 +77,7 @@ func testRecordWriteReadSeed(t *testing.T, seed uint64) (retVal bool) {
 				buf := &pkg.MemChunkWriter{}
 				writer, err := NewRecordWriter(buf, optCpy)
 				require.NoError(t, err, "seed %v", seed)
+				defer writer.Close()
 
 				// Generate records pseudo-randomly
 				records := genRecordRecords(random, schem)
@@ -157,6 +158,7 @@ func TestRecordWriteReadLong(t *testing.T) {
 
 	writer, err := NewRecordWriter(mem, pkg.WriterOptions{Compression: pkg.CompressionZstd})
 	require.NoError(t, err, "seed %v", seed)
+	defer writer.Close()
 
 	reader, err := NewRecordReader(mem)
 	require.NoError(t, err, "seed %v", seed)
@@ -215,6 +217,7 @@ func FuzzRecordReader(f *testing.F) {
 			buf := &pkg.MemChunkWriter{}
 			writer, err := NewRecordWriter(buf, opt)
 			require.NoError(f, err)
+			defer writer.Close()
 
 			recCount := (1 << (2 * i)) - 1
 			var record Record

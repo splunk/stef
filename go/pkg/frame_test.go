@@ -22,6 +22,7 @@ func testLastFrameAndContinue(t *testing.T, compression Compression) {
 	buf := &MemReaderWriter{}
 	err := encoder.Init(buf, compression)
 	require.NoError(t, err)
+	defer encoder.Close()
 	writeStr := []byte(strings.Repeat("hello", 10))
 	_, err = encoder.Write(writeStr)
 	require.NoError(t, err)
@@ -102,6 +103,31 @@ func TestLastFrameAndContinue(t *testing.T) {
 			},
 		)
 	}
+}
+
+func BenchmarkFrameEncoderZstd(b *testing.B) {
+	data := []byte(strings.Repeat("hello world this is benchmark data ", 100))
+
+	b.Run("pooled", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			buf := &MemReaderWriter{}
+			encoder := FrameEncoder{}
+			err := encoder.Init(buf, CompressionZstd)
+			if err != nil {
+				b.Fatal(err)
+			}
+			_, err = encoder.Write(data)
+			if err != nil {
+				b.Fatal(err)
+			}
+			err = encoder.CloseFrame()
+			if err != nil {
+				b.Fatal(err)
+			}
+			encoder.Close()
+		}
+	})
 }
 
 func TestLimitedReader(t *testing.T) {
