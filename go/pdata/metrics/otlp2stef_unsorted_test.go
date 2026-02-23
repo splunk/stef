@@ -13,7 +13,7 @@ import (
 	"github.com/splunk/stef/go/pkg"
 )
 
-func TestConvertUnsorted_EmptyNumberDataPointValueType(t *testing.T) {
+func createGauge() pmetric.Metrics {
 	// Build metrics with a Gauge that has an empty value type data point.
 	// This previously caused a panic in ConvertNumDatapoint.
 	metrics := pmetric.NewMetrics()
@@ -25,6 +25,11 @@ func TestConvertUnsorted_EmptyNumberDataPointValueType(t *testing.T) {
 	dp := m.Gauge().DataPoints().AppendEmpty()
 	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	// Don't set any value — ValueType will be NumberDataPointValueTypeEmpty
+	return metrics
+}
+
+func TestConvertUnsorted_EmptyNumberDataPointValueType(t *testing.T) {
+	metrics := createGauge()
 
 	buf := &pkg.MemChunkWriter{}
 	writer, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
@@ -38,7 +43,7 @@ func TestConvertUnsorted_EmptyNumberDataPointValueType(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConvertUnsorted_MixedValueTypes(t *testing.T) {
+func createMixedMetric() pmetric.Metrics {
 	// Build metrics with a mix of int, double, and empty value types.
 	metrics := pmetric.NewMetrics()
 	rm := metrics.ResourceMetrics().AppendEmpty()
@@ -61,6 +66,12 @@ func TestConvertUnsorted_MixedValueTypes(t *testing.T) {
 	dp3.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	dp3.SetDoubleValue(3.14)
 
+	return metrics
+}
+
+func TestConvertUnsorted_MixedValueTypes(t *testing.T) {
+	metrics := createMixedMetric()
+
 	buf := &pkg.MemChunkWriter{}
 	writer, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
 	require.NoError(t, err)
@@ -77,16 +88,7 @@ func TestConvertUnsorted_MixedValueTypes(t *testing.T) {
 }
 
 func TestConvertSorted_EmptyNumberDataPointValueType(t *testing.T) {
-	// Same test for the sorted converter path.
-	metrics := pmetric.NewMetrics()
-	rm := metrics.ResourceMetrics().AppendEmpty()
-	sm := rm.ScopeMetrics().AppendEmpty()
-	m := sm.Metrics().AppendEmpty()
-	m.SetName("test_gauge")
-	m.SetEmptyGauge()
-	dp := m.Gauge().DataPoints().AppendEmpty()
-	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-	// Don't set any value — ValueType will be NumberDataPointValueTypeEmpty
+	metrics := createGauge()
 
 	buf := &pkg.MemChunkWriter{}
 	writer, err := otelstef.NewMetricsWriter(buf, pkg.WriterOptions{})
@@ -103,6 +105,9 @@ func TestConvertSorted_EmptyNumberDataPointValueType(t *testing.T) {
 func FuzzOtlpToStefUnsorted(f *testing.F) {
 	otlpMetrics, err := pict.GenerateMetrics("testdata/generated_pict_pairs_metrics.txt")
 	require.NoError(f, err)
+
+	otlpMetrics = append(otlpMetrics, createGauge())
+	otlpMetrics = append(otlpMetrics, createMixedMetric())
 
 	f.Add([]byte{})
 
