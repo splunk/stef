@@ -25,7 +25,7 @@ deserialize supported types (structs, oneofs, enums, arrays, maps).
 Pre-requisites:
 
 - make
-- Go 1.24 or newer
+- Go 1.25 or newer
 
 To build stefc, run `make build`. To run tests, use `make test`.
 
