@@ -48,6 +48,32 @@ endif
 RELEASE_MODULES := go/pkg go/grpc go/otel go/pdata
 ALL_MODULES += $(RELEASE_MODULES) stefc stefc/generator/testdata examples/jsonl examples/profile examples/ints otelcol benchmarks
 
+COVERAGE_OUT ?= go/coverage.out
+COVERPKG := $(shell echo $(addsuffix /...,$(addprefix github.com/splunk/stef/,$(ALL_MODULES))) | tr ' ' ',')
+
+.PHONY: coverage
+coverage:
+	@tmpdir=$$(mktemp -d ./coverage-tmp.XXXXXX); \
+		echo "Collecting coverage into $$tmpdir"; \
+		rm -f $(COVERAGE_OUT); \
+		trap 'rm -rf $$tmpdir' EXIT; \
+		for mod in $(ALL_MODULES); do \
+			echo "→ $$mod"; \
+			outfile=$$(echo $$mod | tr '/' '_').cov; \
+			( cd $$mod && go test ./... -covermode=set -coverpkg=$(COVERPKG) -coverprofile="$$OLDPWD/$$tmpdir/$$outfile" ); \
+		done; \
+		first=1; \
+		for f in $$tmpdir/*.cov; do \
+			if [ $$first -eq 1 ]; then \
+				cat $$f > $(COVERAGE_OUT); \
+				first=0; \
+			else \
+				tail -n +2 $$f >> $(COVERAGE_OUT); \
+			fi; \
+		done;
+		cd go && go tool cover -html=coverage.out -o coverage.html
+		echo "Combined coverage written to go/coverage.html"
+
 .PHONY: gotidy
 gotidy:
 	$(foreach gomod,$(ALL_MODULES),$(call exec-command,cd $(gomod) && go mod tidy))
