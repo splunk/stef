@@ -23,9 +23,9 @@ require (
 	github.com/splunk/stef/go/otel v0.1.1
 	github.com/splunk/stef/go/pkg v0.1.1
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/component v1.52.0
+	go.opentelemetry.io/collector/component v1.53.0
 	go.opentelemetry.io/collector/component/componentstatus v0.144.0
-	go.opentelemetry.io/collector/component/componenttest v0.146.1
+	go.opentelemetry.io/collector/component/componenttest v0.147.0
 	go.opentelemetry.io/collector/config/configgrpc v0.144.0
 	go.opentelemetry.io/collector/config/confignet v1.52.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.52.0
