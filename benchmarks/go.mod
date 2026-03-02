@@ -6,7 +6,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.7.0
 	github.com/klauspost/compress v1.18.4
 	github.com/open-telemetry/otel-arrow/go v0.46.0
-	github.com/parquet-go/parquet-go v0.27.0
+	github.com/parquet-go/parquet-go v0.28.0
 	github.com/splunk/stef/go/otel v0.1.1
 	github.com/splunk/stef/go/pdata v0.0.0
 	github.com/splunk/stef/go/pkg v0.1.1
