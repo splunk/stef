@@ -29,7 +29,7 @@ require (
 	go.opentelemetry.io/collector/config/configgrpc v0.144.0
 	go.opentelemetry.io/collector/config/confignet v1.52.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.52.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.52.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.53.0
 	go.opentelemetry.io/collector/connector v0.147.0
 	go.opentelemetry.io/collector/consumer v1.53.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.147.0
