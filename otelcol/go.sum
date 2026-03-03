@@ -828,8 +828,8 @@ go.opentelemetry.io/collector/confmap/provider/fileprovider v1.52.0 h1:tvVJILL9h
 go.opentelemetry.io/collector/confmap/provider/fileprovider v1.52.0/go.mod h1:zWqBiyZ/u+bbw85glFQIH4I1iKCmq7FGGWkmA6NnNjs=
 go.opentelemetry.io/collector/confmap/xconfmap v0.147.0 h1:4FWhq/szzeYEJLLMXWsLMY5b1qYy83M7rbEBUJCHnUY=
 go.opentelemetry.io/collector/confmap/xconfmap v0.147.0/go.mod h1:EHgZFJzZU88Y9A+NlKCn9EwrVHEzASEtCsHw3kv+jgI=
-go.opentelemetry.io/collector/connector v0.144.0 h1:R8gL2run29q0XLEn4drqyyhHpfkCUUGeAZjwOItO7JI=
-go.opentelemetry.io/collector/connector v0.144.0/go.mod h1:t47rnR/pkChjtQGdutvY/QtnNArJMK/lQ6CJ8JsX9JM=
+go.opentelemetry.io/collector/connector v0.147.0 h1:9aiyF5cLc/Jo1CnEgQO4ThJrmQ0ET85+pgQB3IPabv4=
+go.opentelemetry.io/collector/connector v0.147.0/go.mod h1:WJunT5xczjKcMqQRkLWzGpfIdchR6I95qUO6/f1gyTc=
 go.opentelemetry.io/collector/connector/connectortest v0.144.0 h1:fB8DRVeVlaoa1S4LacjWJom3R+el7XTOuMfHC4J3DpE=
 go.opentelemetry.io/collector/connector/connectortest v0.144.0/go.mod h1:Z2hUnaV6s3mEpG7UQoFkS3yOgMfNkwf7T2yK7uwsRUo=
 go.opentelemetry.io/collector/connector/xconnector v0.144.0 h1:/NKehHGx/poXWm9usc9iKSfmBLOUD8IQqjxne4ztbFo=
@@ -884,8 +884,8 @@ go.opentelemetry.io/collector/filter v0.147.0 h1:/s0gDzerbPJN1QaSvzH6FRm7FOe6Eok
 go.opentelemetry.io/collector/filter v0.147.0/go.mod h1:kbYCfy04aFAw2+vGp3tS0tpo2RVoMxgbAa9f7qtms+U=
 go.opentelemetry.io/collector/internal/componentalias v0.147.0 h1:cC1gEQwzQnDvbELVjE3FXqgBkrsUl5JhzOT+6hISaLI=
 go.opentelemetry.io/collector/internal/componentalias v0.147.0/go.mod h1:RxuMjMy1j+2jZcY1Ej0E+NC6DnoqTMEvIwRiXtk82rc=
-go.opentelemetry.io/collector/internal/fanoutconsumer v0.144.0 h1:M0fyotX5iOvoz7dvi7gCJsjeQdvdDuwNS7H1F3hPC3s=
-go.opentelemetry.io/collector/internal/fanoutconsumer v0.144.0/go.mod h1:5iHSWoZHrE4wyGobLjr7hpsAGiksPpMDSXwAOJuauIY=
+go.opentelemetry.io/collector/internal/fanoutconsumer v0.147.0 h1:OGya/jGpfg0Ild0IFkML2WJQ0M5YSsKrhszAq8E64Ho=
+go.opentelemetry.io/collector/internal/fanoutconsumer v0.147.0/go.mod h1:6KMTdTvpsX2qlAIy8ZLMIIKA86BGmM6pRqY5f/R4GTI=
 go.opentelemetry.io/collector/internal/sharedcomponent v0.144.0 h1:t9s53U2fnSik3RNOY7paPbnrAXvt7x+xXrbCWXK6+Ms=
 go.opentelemetry.io/collector/internal/sharedcomponent v0.144.0/go.mod h1:3wq30jg2xSGjEhogXAr5zN/4QJI8bdj2r64oIh/PqHw=
 go.opentelemetry.io/collector/internal/telemetry v0.144.0 h1:NnUHDHDwywKn7ZkO+mjHr8s7cD2vL0tcrLjjFO+Psfg=
