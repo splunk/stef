@@ -1,0 +1,190 @@
+use rand::Rng;
+use stef_core::schema::WireSchema;
+
+use crate::*;
+use crate::common::{Allocators, MutateRandomLimiter};
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+pub struct {{.StructName}} {
+{{- range .Fields }}
+    pub {{.name}}: {{- if .Optional }}Option<{{end}}{{- if .Type.Flags.StoreByPtr }}Box<{{end}}{{.Type.Storage}}{{- if .Type.Flags.StoreByPtr }}>{{end}}{{- if .Optional }}>{{end}},
+{{- end }}
+    frozen: bool,
+}
+
+impl Default for {{.StructName}} {
+    fn default() -> Self {
+        let mut s = Self {
+{{- range .Fields }}
+            {{.name}}: {{- if .Optional }}None{{else}}{{- if .Type.Flags.StoreByPtr }}Box::new(Default::default()){{else}}Default::default(){{end}}{{end}},
+{{- end }}
+            frozen: false,
+        };
+        s.init();
+        s
+    }
+}
+
+impl {{.StructName}} {
+    pub fn Init(&mut self) {
+        self.init();
+    }
+
+    pub fn init(&mut self) {
+{{- range .Fields }}
+        {{- if .Optional }}
+        self.{{.name}} = None;
+        {{- else if .Type.Flags.StoreByPtr }}
+        self.{{.name}} = Box::new(Default::default());
+        {{- else }}
+        self.{{.name}} = Default::default();
+        {{- end }}
+{{- end }}
+        self.frozen = false;
+    }
+
+    pub fn new_() -> Self {
+        Self::default()
+    }
+
+    pub fn New{{.StructName}}() -> Self {
+        Self::default()
+    }
+
+    pub fn init_alloc(&mut self, _allocators: &mut Allocators) {
+        self.init();
+    }
+
+    pub fn reset(&mut self) {
+        self.init();
+    }
+
+    pub fn freeze(&mut self) {
+        self.frozen = true;
+    }
+
+    pub fn Freeze(&mut self) {
+        self.freeze();
+    }
+
+    pub fn is_frozen(&self) -> bool {
+        self.frozen
+    }
+
+    pub fn fix_parent(&mut self) {}
+
+{{- range .Fields }}
+    pub fn {{.Name}}(&self) -> {{if .Optional}}Option<{{end}}{{.Type.Exported}}{{if .Optional}}>{{end}} {
+        {{- if .Optional }}
+            {{- if .Type.Flags.StoreByPtr }}
+        self.{{.name}}.as_ref().map(|v| (**v).clone())
+            {{- else }}
+        self.{{.name}}.clone()
+            {{- end }}
+        {{- else if .Type.Flags.StoreByPtr }}
+        (*self.{{.name}}).clone()
+        {{- else }}
+        self.{{.name}}.clone()
+        {{- end }}
+    }
+
+    pub fn Set{{.Name}}(&mut self, v: {{if .Optional}}Option<{{end}}{{.Type.Exported}}{{if .Optional}}>{{end}}) {
+        {{- if .Optional }}
+            {{- if .Type.Flags.StoreByPtr }}
+        self.{{.name}} = v.map(Box::new);
+            {{- else }}
+        self.{{.name}} = v;
+            {{- end }}
+        {{- else if .Type.Flags.StoreByPtr }}
+        self.{{.name}} = Box::new(v);
+        {{- else }}
+        self.{{.name}} = v;
+        {{- end }}
+    }
+
+    {{if .Optional}}
+    pub fn Unset{{.Name}}(&mut self) {
+        self.{{.name}} = None;
+    }
+
+    pub fn Has{{.Name}}(&self) -> bool {
+        self.{{.name}}.is_some()
+    }
+
+    pub fn Is{{.Name}}Modified(&self) -> bool {
+        false
+    }
+    {{end}}
+{{- end }}
+
+    pub fn set_modified_recursively(&mut self) {}
+
+    pub fn set_unmodified_recursively(&mut self) {}
+
+    pub fn compute_diff(&self, val: &{{.StructName}}) -> bool {
+        self != val
+    }
+
+    pub fn can_be_shared(&self) -> bool {
+        self.frozen
+    }
+
+    pub fn clone_shared(&self, _allocators: &mut Allocators) -> Self {
+        self.clone()
+    }
+
+    pub fn Clone(&self, _allocators: &mut Allocators) -> Self {
+        self.clone()
+    }
+
+    pub fn byte_size(&self) -> usize {
+        core::mem::size_of::<Self>()
+    }
+
+    pub fn copy_from(&mut self, src: &{{.StructName}}) {
+        *self = src.clone();
+    }
+
+    pub fn CopyFrom(&mut self, src: &{{.StructName}}) {
+        self.copy_from(src);
+    }
+
+    pub fn mutate_random<R: Rng + ?Sized>(&mut self, _random: &mut R, _limiter: &mut MutateRandomLimiter) {
+    }
+
+    pub fn is_equal(&self, right: &{{.StructName}}) -> bool {
+        self == right
+    }
+}
+
+pub fn copy_{{.StructName}}(dst: &mut {{.StructName}}, src: &{{.StructName}}) {
+    dst.copy_from(src);
+}
+
+pub fn copy_to_new_{{.StructName}}(dst: &mut {{.StructName}}, src: &{{.StructName}}, _allocators: &mut Allocators) {
+    dst.copy_from(src);
+}
+
+pub fn eq_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> bool {
+    left == right
+}
+
+pub fn cmp_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> i8 {
+    if left == right {
+        0
+    } else if left < right {
+        -1
+    } else {
+        1
+    }
+}
+
+{{if .IsMainStruct}}
+pub const WIRE_SCHEMA_{{.StructName}}: &[u8] = &[{{.Schema}}];
+
+pub fn {{.StructName}}_wire_schema() -> Result<WireSchema, stef_core::errors::StefError> {
+    let mut w = WireSchema::default();
+    w.deserialize(WIRE_SCHEMA_{{.StructName}})?;
+    Ok(w)
+}
+{{end}}

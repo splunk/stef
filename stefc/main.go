@@ -13,11 +13,11 @@ import (
 )
 
 func main() {
-	lang := flag.String("lang", "", "Target language for code generation. Currently only go is supported.")
+	lang := flag.String("lang", "", "Target language for code generation. Supported languages: go, java, rust.")
 	outDir := flag.String("outdir", "", "Output directory.")
 	testOutDir := flag.String(
 		"testoutdir", "",
-		"Output directory for test files. If unspecified, it defaults to outdir. Can be used with --lang=java only.",
+		"Output directory for test files. If unspecified, it defaults to outdir.",
 	)
 	flag.Parse()
 
@@ -29,8 +29,9 @@ func main() {
 	switch generator.Lang(*lang) {
 	case generator.LangGo:
 	case generator.LangJava:
+	case generator.LangRust:
 	default:
-		fmt.Printf("Error: Unsupported language %s. Currently only go is supported.\n", *lang)
+		fmt.Printf("Error: Unsupported language %s. Supported languages: go, java, rust.\n", *lang)
 		os.Exit(-1)
 	}
 
@@ -60,6 +61,7 @@ func main() {
 		OutputDir:     *outDir,
 		TestOutputDir: *testOutDir,
 		Lang:          generator.Lang(*lang),
+		GenTools:      *testOutDir != "",
 	}
 	err = g.GenFile(wireSchema)
 	if err != nil {

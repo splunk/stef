@@ -22,6 +22,7 @@ type Lang string
 const (
 	LangGo   Lang = "go"
 	LangJava Lang = "java"
+	LangRust Lang = "rust"
 )
 
 type Generator struct {
@@ -47,7 +48,7 @@ type Generator struct {
 	fileName string
 
 	// Set to true to generate additional testing tools contained in "tools*" templates.
-	genTools bool
+	GenTools bool
 }
 
 func (g *Generator) GenFile(schema *schema.Schema) error {
@@ -106,14 +107,25 @@ func (g *Generator) GenFile(schema *schema.Schema) error {
 		return err
 	}
 
+	if err := g.oRustLib(); err != nil {
+		return err
+	}
+
 	return g.lastErr
 }
 
 func (g *Generator) formatAndWriteToFile() error {
 	baseFileName := path.Base(strings.TrimSuffix(g.fileName, path.Ext(g.fileName)))
 	isTest := strings.HasSuffix(baseFileName, "Test")
+	if g.Lang == LangRust && strings.HasSuffix(baseFileName, "_test") {
+		isTest = true
+	}
 
-	destFileName := baseFileName + "." + string(g.Lang)
+	destExt := "." + string(g.Lang)
+	if g.Lang == LangRust {
+		destExt = ".rs"
+	}
+	destFileName := baseFileName + destExt
 
 	destDir := g.OutputDir
 	if isTest && g.TestOutputDir != "" {
@@ -141,19 +153,24 @@ func (g *Generator) formatAndWriteToFile() error {
 		return err
 	}
 
-	// Nicely format the generated Go code.
-	goCode, err := format.Source(g.outBuf.Bytes())
-	if err != nil {
-		// Write unformatted code to have something to look at.
-		_, err := f.Write(g.outBuf.Bytes())
+	// Nicely format generated Go code.
+	if g.Lang == LangGo {
+		goCode, err := format.Source(g.outBuf.Bytes())
 		if err != nil {
+			// Write unformatted code to have something to look at.
+			_, err := f.Write(g.outBuf.Bytes())
+			if err != nil {
+				return err
+			}
+			// But still return an error.
 			return err
 		}
-		// But still return an error.
+
+		_, err = f.Write(goCode)
 		return err
 	}
 
-	_, err = f.Write(goCode)
+	_, err = f.Write(g.outBuf.Bytes())
 	return err
 }
 
@@ -238,6 +255,18 @@ func (g *Generator) stefSymbol2FileName(name string) string {
 		return strings.ToLower(name)
 	case LangJava:
 		return name
+	case LangRust:
+		var b strings.Builder
+		for i, r := range name {
+			if i > 0 && r >= 'A' && r <= 'Z' {
+				b.WriteByte('_')
+			}
+			if r >= 'A' && r <= 'Z' {
+				r = r - 'A' + 'a'
+			}
+			b.WriteRune(r)
+		}
+		return b.String()
 	default:
 		panic("unsupported language")
 	}

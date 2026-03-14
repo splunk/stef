@@ -1,0 +1,157 @@
+use rand::Rng;
+
+use crate::*;
+use crate::common::{Allocators, MutateRandomLimiter};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, serde::Serialize, serde::Deserialize)]
+pub enum {{.StructName}}Type {
+    #[default]
+    None,
+{{- range .Fields }}
+    {{.Name}},
+{{- end }}
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+pub struct {{.StructName}} {
+    pub typ: {{.StructName}}Type,
+{{- range .Fields }}
+    pub {{.name}}: {{- if .Type.Flags.StoreByPtr }}Box<{{end}}{{.Type.Storage}}{{- if .Type.Flags.StoreByPtr }}>{{end}},
+{{- end }}
+    frozen: bool,
+}
+
+impl Default for {{.StructName}} {
+    fn default() -> Self {
+        let mut s = Self {
+            typ: {{.StructName}}Type::None,
+{{- range .Fields }}
+            {{.name}}: {{- if .Type.Flags.StoreByPtr }}Box::new(Default::default()){{else}}Default::default(){{end}},
+{{- end }}
+            frozen: false,
+        };
+        s.init();
+        s
+    }
+}
+
+impl {{.StructName}} {
+    pub fn Init(&mut self) {
+        self.init();
+    }
+
+    pub fn init(&mut self) {
+        self.typ = {{.StructName}}Type::None;
+        self.frozen = false;
+    }
+
+    pub fn init_alloc(&mut self, _allocators: &mut Allocators) {
+        self.init();
+    }
+
+    pub fn reset(&mut self) {
+        self.typ = {{.StructName}}Type::None;
+    }
+
+    pub fn freeze(&mut self) {
+        self.frozen = true;
+    }
+
+    pub fn fix_parent(&mut self) {}
+
+    pub fn type_(&self) -> {{.StructName}}Type {
+        self.typ
+    }
+
+    pub fn Type(&self) -> {{.StructName}}Type {
+        self.type_()
+    }
+
+    pub fn reset_contained(&mut self) {}
+
+    pub fn set_type(&mut self, typ: {{.StructName}}Type) {
+        if self.typ != typ {
+            self.typ = typ;
+            self.reset_contained();
+            self.mark_parent_modified();
+        }
+    }
+
+    pub fn SetType(&mut self, typ: {{.StructName}}Type) {
+        self.set_type(typ);
+    }
+
+{{- range .Fields }}
+    pub fn {{.Name}}(&self) -> {{.Type.Exported}} {
+        {{if .Type.Flags.StoreByPtr}}(*self.{{.name}}).clone(){{else}}self.{{.name}}.clone(){{end}}
+    }
+
+    pub fn Set{{.Name}}(&mut self, v: {{.Type.Exported}}) {
+        self.typ = {{$.StructName}}Type::{{.Name}};
+        {{if .Type.Flags.StoreByPtr}}self.{{.name}} = Box::new(v);{{else}}self.{{.name}} = v;{{end}}
+    }
+{{- end }}
+
+    pub fn can_be_shared(&self) -> bool {
+        self.frozen
+    }
+
+    pub fn clone_shared(&self, _allocators: &mut Allocators) -> Self {
+        self.clone()
+    }
+
+    pub fn Clone(&self, _allocators: &mut Allocators) -> Self {
+        self.clone()
+    }
+
+    pub fn byte_size(&self) -> usize {
+        core::mem::size_of::<Self>()
+    }
+
+    pub fn copy_from(&mut self, src: &{{.StructName}}) {
+        *self = src.clone();
+    }
+
+    pub fn CopyFrom(&mut self, src: &{{.StructName}}) {
+        self.copy_from(src);
+    }
+
+    pub fn mark_parent_modified(&mut self) {}
+
+    pub fn set_modified_recursively(&mut self) {}
+
+    pub fn set_unmodified_recursively(&mut self) {}
+
+    pub fn compute_diff(&self, val: &{{.StructName}}) -> bool {
+        self != val
+    }
+
+    pub fn is_equal(&self, val: &{{.StructName}}) -> bool {
+        self == val
+    }
+
+    pub fn mutate_random<R: Rng + ?Sized>(&mut self, _random: &mut R, _limiter: &mut MutateRandomLimiter) {
+    }
+}
+
+pub fn copy_{{.StructName}}(dst: &mut {{.StructName}}, src: &{{.StructName}}) {
+    dst.copy_from(src);
+}
+
+pub fn copy_to_new_{{.StructName}}(dst: &mut {{.StructName}}, src: &{{.StructName}}, _allocators: &mut Allocators) {
+    dst.copy_from(src);
+}
+
+pub fn eq_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> bool {
+    left == right
+}
+
+pub fn cmp_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> i8 {
+    if left == right {
+        0
+    } else if left < right {
+        -1
+    } else {
+        1
+    }
+}

@@ -1,0 +1,32 @@
+use stef_core::schema::WireSchema;
+
+use crate::*;
+use crate::common::StructFieldCounts;
+
+#[derive(Debug, Default)]
+pub struct ReaderState {
+    pub struct_field_counts: StructFieldCounts,
+
+    // Dictionaries
+    {{range .Dicts -}}
+    pub {{.DictName}}: Vec<{{.Storage}}>,
+    {{end}}
+}
+
+impl ReaderState {
+    pub fn init(&mut self, override_schema: Option<WireSchema>) {
+        self.struct_field_counts.init(override_schema);
+
+        {{range .Dicts -}}
+        self.{{.DictName}}.clear();
+        {{end}}
+    }
+
+    // ResetDicts resets all dictionaries to initial state. Used when a frame is
+    // started with RestartDictionaries flag.
+    pub fn reset_dicts(&mut self) {
+        {{range .Dicts -}}
+        self.{{.DictName}}.clear();
+        {{end}}
+    }
+}

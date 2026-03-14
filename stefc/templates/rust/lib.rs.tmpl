@@ -1,0 +1,6 @@
+{{ range .Modules -}}
+pub mod {{.}};
+{{ end }}
+{{ range .Modules -}}
+pub use {{.}}::*;
+{{ end }}

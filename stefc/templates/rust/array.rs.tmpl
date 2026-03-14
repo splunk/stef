@@ -1,0 +1,136 @@
+use rand::Rng;
+
+use crate::*;
+use crate::common::{Allocators, MutateRandomLimiter};
+
+// {{.ArrayName}} represents a generated array type.
+#[derive(Debug, Clone, Default, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+pub struct {{.ArrayName}} {
+    pub elems: Vec<{{.ElemType.Storage}}>,
+    frozen: bool,
+}
+
+impl {{.ArrayName}} {
+    pub fn init(&mut self) {
+        self.elems.clear();
+        self.frozen = false;
+    }
+
+    pub fn init_alloc(&mut self, _allocators: &mut Allocators) {
+        self.init();
+    }
+
+    pub fn reset(&mut self) {
+        self.elems.clear();
+    }
+
+    pub fn freeze(&mut self) {
+        self.frozen = true;
+    }
+
+    pub fn fix_parent(&mut self) {}
+
+    pub fn can_be_shared(&self) -> bool {
+        self.frozen
+    }
+
+    pub fn byte_size(&self) -> usize {
+        core::mem::size_of::<Self>() + self.elems.len() * core::mem::size_of::<{{.ElemType.Storage}}>()
+    }
+
+    pub fn compute_diff(&self, val: &{{.ArrayName}}) -> bool {
+        self != val
+    }
+
+    pub fn mark_modified(&mut self) {}
+
+    pub fn set_modified_recursively(&mut self) {}
+
+    pub fn set_unmodified_recursively(&mut self) {}
+
+    pub fn copy_from(&mut self, src: &{{.ArrayName}}) {
+        self.elems = src.elems.clone();
+    }
+
+    pub fn len(&self) -> usize {
+        self.elems.len()
+    }
+
+    pub fn Len(&self) -> usize {
+        self.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.elems.is_empty()
+    }
+
+    pub fn at(&self, i: usize) -> &{{.ElemType.Storage}} {
+        &self.elems[i]
+    }
+
+    pub fn At(&self, i: usize) -> &{{.ElemType.Storage}} {
+        self.at(i)
+    }
+
+    pub fn ensure_len(&mut self, new_len: usize) {
+        if self.elems.len() < new_len {
+            self.elems.resize_with(new_len, Default::default);
+        }
+    }
+
+    pub fn EnsureLen(&mut self, new_len: usize) {
+        self.ensure_len(new_len);
+    }
+
+    pub fn ensure_len_with_allocators(&mut self, new_len: usize, _allocators: &mut Allocators) {
+        self.ensure_len(new_len);
+    }
+
+    pub fn clear(&mut self) {
+        self.elems.clear();
+    }
+
+    pub fn append(&mut self, val: {{.ElemType.Storage}}) {
+        self.elems.push(val);
+    }
+
+    pub fn Append(&mut self, val: {{.ElemType.Storage}}) {
+        self.append(val);
+    }
+
+{{if not .ElemType.MustClone}}
+    pub fn CopyFromSlice(&mut self, src: &[{{.ElemType.Exported}}]) {
+        self.elems.clear();
+        self.elems.extend(src.iter().cloned().map(|v| {{.ElemType.ToStorage "v"}}));
+    }
+{{end}}
+
+    pub fn is_equal(&self, val: &{{.ArrayName}}) -> bool {
+        self == val
+    }
+
+    pub fn mutate_random<R: Rng + ?Sized>(
+        &mut self,
+        _random: &mut R,
+        _limiter: &mut MutateRandomLimiter,
+    ) {
+    }
+}
+
+pub fn copy_{{.ArrayName}}(dst: &mut {{.ArrayName}}, src: &{{.ArrayName}}) {
+    dst.copy_from(src);
+}
+
+pub fn copy_to_new_{{.ArrayName}}(dst: &mut {{.ArrayName}}, src: &{{.ArrayName}}, _allocators: &mut Allocators) {
+    dst.copy_from(src);
+}
+
+pub fn cmp_{{.ArrayName}}(left: &{{.ArrayName}}, right: &{{.ArrayName}}) -> i8 {
+    if left.elems == right.elems {
+        0
+    } else if left.elems.len() < right.elems.len() {
+        -1
+    } else {
+        1
+    }
+}

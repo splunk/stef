@@ -22,6 +22,11 @@ func (g *Generator) compileSchema(src *schema.Schema) (*genSchema, error) {
 	case LangJava:
 		// For Java, we use the full package name.
 		dst.PackageNameStr = strings.Join(src.PackageName, ".")
+	case LangRust:
+		// For Rust, generated code is placed under crate src using snake_case module names.
+		dst.PackageNameStr = src.PackageName[len(src.PackageName)-1]
+	default:
+		return nil, fmt.Errorf("unsupported language %v", g.Lang)
 	}
 
 	for name, struc := range src.Structs {

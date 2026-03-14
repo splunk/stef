@@ -12,3 +12,4 @@ generate:
 	cd ../../stefc && make build
 	../../stefc/bin/stefc --lang=go otel.stef
 	../../stefc/bin/stefc --lang=java --outdir=../../java/src/main/java --testoutdir=../../java/src/test/java otel.stef
+	../../stefc/bin/stefc --lang=rust --outdir=../../rust/stef-otel/src --testoutdir=../../rust/stef-otel/src otel.stef

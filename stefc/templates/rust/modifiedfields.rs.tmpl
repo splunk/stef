@@ -1,0 +1,16 @@
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ModifiedFields(pub u64);
+
+impl ModifiedFields {
+    pub fn clear(&mut self) {
+        self.0 = 0;
+    }
+
+    pub fn set(&mut self, mask: u64) {
+        self.0 |= mask;
+    }
+
+    pub fn has(&self, mask: u64) -> bool {
+        self.0 & mask != 0
+    }
+}

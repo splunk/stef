@@ -1,5 +1,5 @@
 [workspace]
-members = ["stef-core", "stef-grpc"]
+members = ["stef-core", "stef-grpc", "stef-otel"]
 resolver = "2"
 
 [workspace.package]
@@ -19,6 +19,7 @@ tonic = { version = "0.13", features = ["transport"] }
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
 async-trait = "0.1"
 parking_lot = "0.12"
+bincode = { version = "2.0.1", features = ["serde"] }
 
 [profile.bench]
 debug = true

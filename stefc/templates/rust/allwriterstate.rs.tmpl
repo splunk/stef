@@ -1,0 +1,33 @@
+use stef_core::{SizeLimiter, WriterOptions};
+
+use crate::*;
+use crate::common::StructFieldCounts;
+
+#[derive(Debug, Default)]
+pub struct WriterState {
+    pub limiter: SizeLimiter,
+    pub struct_field_counts: StructFieldCounts,
+
+    // Dictionaries
+    {{range .Dicts -}}
+    pub {{.DictName}}: Vec<{{.Storage}}>,
+    {{end}}
+}
+
+impl WriterState {
+    pub fn init(&mut self, opts: &WriterOptions) {
+        self.limiter.init(opts);
+        self.struct_field_counts.init(opts.schema.clone());
+
+        {{range .Dicts -}}
+        self.{{.DictName}}.clear();
+        {{end}}
+    }
+
+    pub fn reset_dicts(&mut self) {
+        self.limiter.reset_dict();
+        {{range .Dicts -}}
+        self.{{.DictName}}.clear();
+        {{end}}
+    }
+}

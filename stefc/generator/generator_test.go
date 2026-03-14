@@ -39,7 +39,7 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 		SchemaContent: schemaContent,
 		OutputDir:     goDir,
 		Lang:          LangGo,
-		genTools:      true, // Generate testing tools
+		GenTools:      true, // Generate testing tools
 	}
 
 	err = genGo.GenFile(parsedSchema)
@@ -57,10 +57,32 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 		OutputDir:     javaDir,
 		TestOutputDir: javaDir,
 		Lang:          LangJava,
-		genTools:      true, // Generate testing tools
+		GenTools:      true, // Generate testing tools
 	}
 
 	err = genJava.GenFile(parsedSchema)
+	require.NoError(t, err)
+
+	// Generate Rust code in a dedicated internal crate for testing.
+	rustCrateDir := path.Join(goDir, "rust")
+	err = os.RemoveAll(rustCrateDir)
+	require.NoError(t, err)
+
+	rustSrcDir := path.Join(rustCrateDir, "src")
+	err = os.MkdirAll(rustSrcDir, 0755)
+	require.NoError(t, err)
+
+	err = writeRustCargoToml(rustCrateDir)
+	require.NoError(t, err)
+
+	genRust := Generator{
+		SchemaContent: schemaContent,
+		OutputDir:     rustSrcDir,
+		TestOutputDir: rustSrcDir,
+		Lang:          LangRust,
+		GenTools:      true, // Generate testing tools
+	}
+	err = genRust.GenFile(parsedSchema)
 	require.NoError(t, err)
 
 	// Produce randomly shrunk schema and generate Go code for it
@@ -75,7 +97,7 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 		SchemaContent: []byte(parsedSchema.PrettyPrint()),
 		OutputDir:     goDir + "/" + "shrunk",
 		Lang:          LangGo,
-		genTools:      true, // Generate testing tools
+		GenTools:      true, // Generate testing tools
 	}
 	err = genGo.GenFile(parsedSchema)
 	require.NoError(t, err)
@@ -96,6 +118,44 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 			return
 		}
 	}
+
+	if path.Base(schemaFileName) == "all_features.stef" {
+		// Run tests in generated Rust crate for the broad-coverage schema.
+		fmt.Printf("Testing generated Rust code in %s\n", rustCrateDir)
+		cmd = exec.Command("cargo", "test", "--quiet")
+		cmd.Dir = rustCrateDir
+		stdoutStderr, err = cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("%s\n", stdoutStderr)
+			if failOnTest {
+				t.Fatal(err)
+			} else {
+				t.Skipf("Warning: cargo test failed: %v\n", err)
+				return
+			}
+		}
+	}
+}
+
+func writeRustCargoToml(crateDir string) error {
+	repoRoot, err := filepath.Abs(path.Join(crateDir, "../../../../../.."))
+	if err != nil {
+		return err
+	}
+	stefCorePath := filepath.ToSlash(path.Join(repoRoot, "rust", "stef-core"))
+	content := fmt.Sprintf(`[package]
+name = "stefc-generated-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+stef-core = { path = %q }
+rand = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+bincode = { version = "2.0", features = ["serde"] }
+`, stefCorePath)
+	return os.WriteFile(path.Join(crateDir, "Cargo.toml"), []byte(content), 0644)
 }
 
 func TestGenerate(t *testing.T) {
@@ -106,7 +166,6 @@ func TestGenerate(t *testing.T) {
 	for _, file := range files {
 		t.Run(
 			file, func(t *testing.T) {
-				t.Parallel()
 				// Read the schema file
 				schemaContent, err := os.ReadFile(file)
 				require.NoError(t, err)

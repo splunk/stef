@@ -1,0 +1,86 @@
+use std::collections::HashMap;
+
+use crate::*;
+use crate::writer_state::WriterState;
+
+pub struct {{.StructName}}Writer<'a> {
+    pub record: {{.StructName}},
+
+    opts: stef_core::WriterOptions,
+    state: WriterState,
+    record_count: u64,
+    dst: &'a mut dyn stef_core::ChunkWriter,
+}
+
+impl<'a> {{.StructName}}Writer<'a> {
+    pub fn new(
+        dst: &'a mut dyn stef_core::ChunkWriter,
+        mut opts: stef_core::WriterOptions,
+    ) -> Result<Self, stef_core::errors::StefError> {
+        if opts.max_uncompressed_frame_byte_size == 0 {
+            opts.max_uncompressed_frame_byte_size = stef_core::DEFAULT_MAX_FRAME_SIZE;
+        }
+        if opts.max_total_dict_size == 0 {
+            opts.max_total_dict_size = stef_core::DEFAULT_MAX_TOTAL_DICT_SIZE;
+        }
+
+        if let Some(schema) = &opts.schema {
+            let own_schema = {{.StructName}}_wire_schema()?;
+            let _ = own_schema
+                .compatible(schema)
+                .map_err(|e| stef_core::errors::StefError::message(format!("schema is not compatible with Writer: {e}")))?;
+            opts.include_descriptor = true;
+        }
+
+        let mut state = WriterState::default();
+        state.init(&opts);
+
+        let _hdr_user_data: HashMap<String, String> = opts.user_data.clone();
+
+        Ok(Self {
+            record: {{.StructName}}::default(),
+            opts,
+            state,
+            record_count: 0,
+            dst,
+        })
+    }
+
+    pub fn write_fixed_header(&mut self) -> Result<(), stef_core::errors::StefError> {
+        Ok(())
+    }
+
+    pub fn write_var_header(&mut self) -> Result<(), stef_core::errors::StefError> {
+        Ok(())
+    }
+
+    pub fn write(&mut self) -> Result<(), stef_core::errors::StefError> {
+        let payload = bincode::serde::encode_to_vec(&self.record, bincode::config::standard())
+            .map_err(|e| stef_core::errors::StefError::message(format!("encode failed: {e}")))?;
+
+        let mut header = Vec::with_capacity(8);
+        header.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        self.dst.write_chunk(&header, &payload)?;
+
+        self.record_count += 1;
+        if self.state.limiter.dict_limit_reached()
+            || self.opts.frame_restart_flags.has(stef_core::FrameFlags::RESTART_DICTIONARIES)
+        {
+            self.state.reset_dicts();
+        }
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), stef_core::errors::StefError> {
+        Ok(())
+    }
+
+    pub fn restart_frame(&mut self) -> Result<(), stef_core::errors::StefError> {
+        self.state.reset_dicts();
+        Ok(())
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+}

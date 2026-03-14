@@ -163,6 +163,8 @@ func (r *genPrimitiveTypeRef) Storage() string {
 			return "pkg.Bytes"
 		case LangJava:
 			return "BytesValue"
+		case LangRust:
+			return "stef_core::types::Bytes"
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -189,6 +191,8 @@ func (r *genPrimitiveTypeRef) InitVal() string {
 			return `""`
 		case LangJava:
 			return "StringValue.empty"
+		case LangRust:
+			return "String::new()"
 		default:
 			panic("unknown language")
 		}
@@ -198,6 +202,8 @@ func (r *genPrimitiveTypeRef) InitVal() string {
 			return "pkg.EmptyBytes"
 		case LangJava:
 			return "Types.emptyBytes"
+		case LangRust:
+			return "Vec::new()"
 		default:
 			panic("unknown language")
 		}
@@ -216,6 +222,8 @@ func (r *genPrimitiveTypeRef) ToStorage(arg string) string {
 			return r.Storage() + "(" + arg + ")"
 		case LangJava:
 			return arg
+		case LangRust:
+			return arg + " as " + r.Storage()
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -233,6 +241,8 @@ func (r *genPrimitiveTypeRef) ToExported(arg string) string {
 			return r.Enum + "(" + arg + ")"
 		case LangJava:
 			return arg
+		case LangRust:
+			return arg + " as " + r.Enum
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
 		}
@@ -274,6 +284,15 @@ func (r *genPrimitiveTypeRef) TypeName() string {
 			schema.PrimitiveTypeString:  "StringValue",
 			schema.PrimitiveTypeBytes:   "BytesValue",
 		}
+	case LangRust:
+		typeMap = map[schema.PrimitiveFieldType]string{
+			schema.PrimitiveTypeInt64:   "i64",
+			schema.PrimitiveTypeUint64:  "u64",
+			schema.PrimitiveTypeFloat64: "f64",
+			schema.PrimitiveTypeBool:    "bool",
+			schema.PrimitiveTypeString:  "String",
+			schema.PrimitiveTypeBytes:   "Bytes",
+		}
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -302,6 +321,8 @@ func (r *genPrimitiveTypeRef) EncoderType() string {
 		prefix = "codecs."
 	case LangJava:
 		prefix = ""
+	case LangRust:
+		prefix = "stef_core::codecs::"
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -333,6 +354,8 @@ func (r *genPrimitiveTypeRef) DictTypeNamePrefix() string {
 		prefix = "codecs."
 	case LangJava:
 		prefix = ""
+	case LangRust:
+		prefix = "stef_core::codecs::"
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -355,6 +378,8 @@ func (r *genPrimitiveTypeRef) pkgPrefix() string {
 		prefix = "pkg."
 	case LangJava:
 		prefix = "Types."
+	case LangRust:
+		prefix = "stef_core::types::"
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -382,6 +407,10 @@ func (r *genPrimitiveTypeRef) RandomFunc() string {
 		case LangJava:
 			return fmt.Sprintf(
 				"(Types.Uint64Random(random) & 0x7FFFFFFFFFFFFFFFL) %% %d", len(r.EnumDef.Fields),
+			)
+		case LangRust:
+			return fmt.Sprintf(
+				"((stef_core::types::uint64_random(random)) %% %d) as %s", len(r.EnumDef.Fields), r.Enum,
 			)
 		default:
 			panic(fmt.Sprintf("unknown language %v", r.Lang))
@@ -534,6 +563,8 @@ func (r *genStructTypeRef) EqualFunc() string {
 		return r.Name + "Equal"
 	case LangJava:
 		return r.Name + ".equals"
+	case LangRust:
+		return "eq_" + strings.ToLower(r.Name)
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -545,6 +576,8 @@ func (r *genStructTypeRef) CompareFunc() string {
 		return "Cmp" + r.Name
 	case LangJava:
 		return r.Name + ".compare"
+	case LangRust:
+		return "cmp_" + strings.ToLower(r.Name)
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -631,6 +664,8 @@ func (r *genArrayTypeRef) CompareFunc() string {
 		return "Cmp" + r.IDLMangledName()
 	case LangJava:
 		return r.IDLMangledName() + ".compare"
+	case LangRust:
+		return "cmp_" + strings.ToLower(r.IDLMangledName())
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}
@@ -705,6 +740,8 @@ func (r *genMultimapTypeRef) CompareFunc() string {
 		return "Cmp" + r.TypeName()
 	case LangJava:
 		return r.Name + ".compare"
+	case LangRust:
+		return "cmp_" + strings.ToLower(r.Name)
 	default:
 		panic(fmt.Sprintf("unknown language %v", r.Lang))
 	}

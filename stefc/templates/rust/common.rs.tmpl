@@ -1,0 +1,99 @@
+use stef_core::{schema::WireSchema, AllocSizeChecker, Compression, FrameFlags, WriterOptions};
+
+// The STEF IDL string. Used for testing.
+pub const ALL_SCHEMA_CONTENT: &str = {{printf "%q" .Schema}};
+
+// StructFieldCounts is used to keep track of the number of fields in each struct
+// of an associated schema and to iterate over the fields.
+// Field counts will be fetched from the iterator if the struct is encountered
+// for the first time and then remembered for subsequent calls (for the case when
+// the same struct is used multiple times in the schema).
+#[derive(Debug, Clone, Default)]
+pub struct StructFieldCounts {
+    {{range $name, $val := .Structs -}}
+    pub count_{{$name}}: Option<u32>, // Number of fields in {{$name}} struct.
+    {{end}}
+
+    // OverrideSchema is set if codec should perform a translation from specified schema.
+    pub override_schema: Option<WireSchema>,
+}
+
+impl StructFieldCounts {
+    pub fn init(&mut self, override_schema: Option<WireSchema>) {
+        self.override_schema = override_schema;
+        {{range $name, $val := .Structs -}}
+        self.count_{{$name}} = None;
+        {{end}}
+    }
+
+    {{range $name, $val := .Structs -}}
+    pub fn {{$name}}_field_count(&mut self) -> u32 {
+        if let Some(v) = self.count_{{$name}} {
+            return v;
+        }
+        let c = {{len $val.Fields}}u32;
+        self.count_{{$name}} = Some(c);
+        c
+    }
+
+    {{end}}
+
+    pub fn all_fetched(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Allocators {
+    // allocated_size tracks the total allocated size in bytes since last reset_alloc_size call.
+    // This tracking is independent from the individual allocators above, i.e. calls
+    // to alloc() DO NOT result in allocated_size being updated automatically.
+    pub alloc_size_checker: AllocSizeChecker,
+}
+
+// Maximum number of objects to create per mutate_random call.
+pub const MUTATE_RANDOM_MAX_OBJECTS: usize = 100;
+
+// Maximum number of array or multimap elements to create per mutate_random call.
+pub const MUTATE_RANDOM_MAX_ELEMS: usize = 100;
+
+// mutate_random_limiter is used to track and limit the total number of objects and elements
+// created during a mutate_random call.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MutateRandomLimiter {
+    pub object_count: usize,
+    pub elem_count: usize,
+}
+
+pub fn test_writer_opts() -> Vec<WriterOptions> {
+    vec![
+        WriterOptions::default(),
+        WriterOptions { compression: Compression::Zstd, ..WriterOptions::default() },
+        WriterOptions { max_uncompressed_frame_byte_size: 500, ..WriterOptions::default() },
+        WriterOptions { max_total_dict_size: 500, ..WriterOptions::default() },
+        WriterOptions {
+            compression: Compression::Zstd,
+            max_uncompressed_frame_byte_size: 500,
+            max_total_dict_size: 500,
+            ..WriterOptions::default()
+        },
+        WriterOptions { frame_restart_flags: FrameFlags(FrameFlags::RESTART_DICTIONARIES), ..WriterOptions::default() },
+        WriterOptions { frame_restart_flags: FrameFlags(FrameFlags::RESTART_CODECS), ..WriterOptions::default() },
+        WriterOptions {
+            frame_restart_flags: FrameFlags(FrameFlags::RESTART_DICTIONARIES | FrameFlags::RESTART_CODECS),
+            ..WriterOptions::default()
+        },
+        WriterOptions {
+            frame_restart_flags: FrameFlags(FrameFlags::RESTART_COMPRESSION),
+            compression: Compression::Zstd,
+            ..WriterOptions::default()
+        },
+        WriterOptions {
+            frame_restart_flags: FrameFlags(
+                FrameFlags::RESTART_DICTIONARIES | FrameFlags::RESTART_CODECS | FrameFlags::RESTART_COMPRESSION,
+            ),
+            compression: Compression::Zstd,
+            ..WriterOptions::default()
+        },
+    ]
+}

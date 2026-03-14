@@ -1,0 +1,13 @@
+#[repr(u64)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum {{ .EnumName }} {
+{{range .Fields -}}
+    {{ .Name }} = {{ .Value }},
+{{end}}
+}
+
+impl Default for {{ .EnumName }} {
+    fn default() -> Self {
+        {{ .EnumName }}::{{ (index .Fields 0).Name }}
+    }
+}
