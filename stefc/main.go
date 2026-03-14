@@ -61,7 +61,6 @@ func main() {
 		OutputDir:     *outDir,
 		TestOutputDir: *testOutDir,
 		Lang:          generator.Lang(*lang),
-		GenTools:      *testOutDir != "",
 	}
 	err = g.GenFile(wireSchema)
 	if err != nil {

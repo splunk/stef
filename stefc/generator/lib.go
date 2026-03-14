@@ -54,7 +54,7 @@ func (g *Generator) oRustLib() error {
 		add(g.stefSymbol2FileName(enum.Name))
 	}
 
-	if g.GenTools {
+	if g.genTools {
 		add(g.stefSymbol2FileName("Tools") + "_test")
 	}
 

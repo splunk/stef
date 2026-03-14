@@ -40,7 +40,6 @@ pub mod spans_reader;
 pub mod spans_writer;
 pub mod spans_writer_test;
 pub mod summary_value;
-pub mod tools_test;
 pub mod uint64_array;
 pub mod writer_state;
 
@@ -85,7 +84,6 @@ pub use spans_reader::*;
 pub use spans_writer::*;
 pub use spans_writer_test::*;
 pub use summary_value::*;
-pub use tools_test::*;
 pub use uint64_array::*;
 pub use writer_state::*;
 

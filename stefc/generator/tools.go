@@ -1,7 +1,7 @@
 package generator
 
 func (g *Generator) oTools() error {
-	if !g.GenTools {
+	if !g.genTools {
 		return nil
 	}
 

@@ -206,12 +206,9 @@ mod tools_tests {
 
 {{ range $i, $StructName := .RootStructs }}
     #[test]
-    #[ignore]
     // Test interoperability between Rust and Go implementations for {{$StructName}}.
     fn test_format_interop_{{$StructName}}() {
-        let Some(go_dir) = go_pkg_dir() else {
-            return;
-        };
+        let go_dir = go_pkg_dir().expect("cannot locate Go package directory");
 
         let temp = go_dir.join("tempdata");
         let _ = fs::create_dir_all(&temp);
@@ -247,13 +244,10 @@ mod tools_tests {
     }
 
     #[test]
-    #[ignore]
     // Test interoperability between this Rust implementation and Go implementations
     // of shrunk (older) version of schema for {{$StructName}}.
     fn test_format_interop_{{$StructName}}_compat() {
-        let Some(go_dir) = go_pkg_shrunk_dir() else {
-            return;
-        };
+        let go_dir = go_pkg_shrunk_dir().expect("cannot locate shrunk Go package directory");
 
         let temp = go_dir.join("tempdata");
         let _ = fs::create_dir_all(&temp);

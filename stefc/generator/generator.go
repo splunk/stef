@@ -48,7 +48,7 @@ type Generator struct {
 	fileName string
 
 	// Set to true to generate additional testing tools contained in "tools*" templates.
-	GenTools bool
+	genTools bool
 }
 
 func (g *Generator) GenFile(schema *schema.Schema) error {
