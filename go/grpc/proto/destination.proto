@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package stef;
+
 option go_package = "/stef_proto";
 option java_package = "net.stef.grpc.service.destination";
 option java_multiple_files = true;
