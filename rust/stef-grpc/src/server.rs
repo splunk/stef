@@ -77,9 +77,7 @@ struct ChunkAssembler {
 impl GrpcReader for ChunkAssembler {
     fn read(&mut self, p: &mut [u8]) -> Result<usize, Status> {
         if self.read_index >= self.buf.len() {
-            self.buf = tokio::runtime::Handle::current().block_on(async {
-                self.rx.recv().await.ok_or_else(|| Status::internal("stream closed"))
-            })?;
+            self.buf = self.rx.blocking_recv().ok_or_else(|| Status::internal("stream closed"))?;
             self.read_index = 0;
             let mut stats = self.stats.write();
             stats.messages_received += 1;
@@ -174,7 +172,13 @@ impl StefDestination for StreamServer {
 
         let stream: Arc<dyn STEFStream> = Arc::new(GrpcStreamResponder { tx: server_tx.clone() });
         if let Some(on_stream) = &self.callbacks.on_stream {
-            on_stream(reader, stream)?;
+            let on_stream = on_stream.clone();
+            let callback_tx = server_tx.clone();
+            tokio::task::spawn_blocking(move || {
+                if let Err(status) = on_stream(reader, stream) {
+                    let _ = callback_tx.blocking_send(Err(status));
+                }
+            });
         }
 
         Ok(Response::new(ReceiverStream::new(server_rx)))

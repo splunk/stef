@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use stef_core::{ChunkWriter, WriterOptions, schema::{Compatibility, WireSchema}};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::oneshot;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::{
     proto::{self, stef_server_message::Message, stef_destination_client::StefDestinationClient},
@@ -91,16 +92,16 @@ impl Client {
         let mut opts = WriterOptions::default();
 
         let client = self.grpc_client.as_mut().ok_or_else(|| "grpc client not initialized".to_string())?;
-        let (tx, rx) = tokio::sync::mpsc::channel::<proto::StefClientMessage>(16);
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<proto::StefClientMessage>();
 
         let first_message = proto::StefClientMessage {
             first_message: Some(proto::StefClientFirstMessage { root_struct_name: self.client_schema.root_struct_name.clone() }),
             stef_bytes: vec![],
             is_end_of_chunk: false,
         };
-        tx.send(first_message).await.map_err(|e| format!("failed to send to server: {e}"))?;
+        tx.send(first_message).map_err(|e| format!("failed to send to server: {e}"))?;
 
-        let outbound = tokio_stream::wrappers::ReceiverStream::new(rx);
+        let outbound = UnboundedReceiverStream::new(rx);
         let response = client.stream(outbound).await.map_err(|e| format!("failed to gRPC stream: {e}"))?;
         let mut inbound = response.into_inner();
 
@@ -136,7 +137,7 @@ impl Client {
             }
         }
 
-        let sender = Arc::new(Mutex::new(tx));
+        let sender = Arc::new(std::sync::Mutex::new(tx));
         let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
         let (wait_tx, wait_rx) = oneshot::channel::<()>();
         self.cancel_tx = Some(cancel_tx);
@@ -202,7 +203,7 @@ impl Client {
 
 /// Chunk writer backed by gRPC client stream.
 pub struct GrpcWriter {
-    sender: Arc<Mutex<tokio::sync::mpsc::Sender<proto::StefClientMessage>>>,
+    sender: Arc<std::sync::Mutex<tokio::sync::mpsc::UnboundedSender<proto::StefClientMessage>>>,
 }
 
 impl ChunkWriter for GrpcWriter {
@@ -212,9 +213,7 @@ impl ChunkWriter for GrpcWriter {
         bytes.extend_from_slice(content);
 
         let msg = proto::StefClientMessage { first_message: None, stef_bytes: bytes, is_end_of_chunk: true };
-        let sender = self.sender.clone();
-        tokio::runtime::Handle::current().block_on(async move {
-            sender.lock().await.send(msg).await.map_err(|e| stef_core::errors::StefError::message(SendError(e.to_string()).to_string()))
-        })
+        let sender = self.sender.lock().map_err(|_| stef_core::errors::StefError::message(SendError("sender lock poisoned".into()).to_string()))?;
+        sender.send(msg).map_err(|e| stef_core::errors::StefError::message(SendError(e.to_string()).to_string()))
     }
 }
