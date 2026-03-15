@@ -63,22 +63,30 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 	err = genJava.GenFile(parsedSchema)
 	require.NoError(t, err)
 
-	// Generate Rust code in a dedicated internal crate for testing.
-	rustCrateDir := path.Join(goDir, "rust")
-	err = os.RemoveAll(rustCrateDir)
+	// Generate Rust code in a shared internal crate for testing.
+	rustCrateDir := path.Join("..", "..", "rust", "stefc-generated-tests")
+	rustTestsDir := path.Join(rustCrateDir, "tests")
+	err = os.MkdirAll(rustTestsDir, 0755)
 	require.NoError(t, err)
-
-	rustSrcDir := path.Join(rustCrateDir, "src")
-	err = os.MkdirAll(rustSrcDir, 0755)
+	schemaBaseName := path.Base(schemaFileName)
+	schemaModuleName := strings.TrimSuffix(schemaBaseName, path.Ext(schemaBaseName))
+	rustSchemaDir := path.Join(rustTestsDir, schemaModuleName)
+	err = os.RemoveAll(rustSchemaDir)
 	require.NoError(t, err)
-
-	err = writeRustCargoToml(rustCrateDir)
+	err = os.MkdirAll(rustSchemaDir, 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(
+		path.Join(rustTestsDir, schemaModuleName+".rs"),
+		[]byte(fmt.Sprintf(`include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/%s/lib.rs"));
+`, schemaModuleName)),
+		0644,
+	)
 	require.NoError(t, err)
 
 	genRust := Generator{
 		SchemaContent: schemaContent,
-		OutputDir:     rustSrcDir,
-		TestOutputDir: rustSrcDir,
+		OutputDir:     rustSchemaDir,
+		TestOutputDir: rustSchemaDir,
 		Lang:          LangRust,
 		genTools:      true, // Generate testing tools
 	}
@@ -119,9 +127,9 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 		}
 	}
 
-	// Run tests in generated Rust crate.
+	// Run tests in generated Rust schema crate.
 	fmt.Printf("Testing generated Rust code in %s\n", rustCrateDir)
-	cmd = exec.Command("cargo", "test", "--quiet")
+	cmd = exec.Command("cargo", "test", "--quiet", "--test", schemaModuleName)
 	cmd.Dir = rustCrateDir
 	stdoutStderr, err = cmd.CombinedOutput()
 	if err != nil {
@@ -133,29 +141,6 @@ func testSchema(t *testing.T, schemaContent []byte, schemaFileName string, failO
 			return
 		}
 	}
-}
-
-func writeRustCargoToml(crateDir string) error {
-	repoRoot, err := filepath.Abs(path.Join(crateDir, "../../../../../.."))
-	if err != nil {
-		return err
-	}
-	stefCorePath := filepath.ToSlash(path.Join(repoRoot, "rust", "stef-core"))
-	content := fmt.Sprintf(
-		`[package]
-name = "stefc-generated-tests"
-version = "0.1.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-stef-core = { path = %q }
-rand = "0.9"
-serde = { version = "1.0", features = ["derive"] }
-bincode = { version = "2.0", features = ["serde"] }
-`, stefCorePath,
-	)
-	return os.WriteFile(path.Join(crateDir, "Cargo.toml"), []byte(content), 0644)
 }
 
 func TestGenerate(t *testing.T) {
