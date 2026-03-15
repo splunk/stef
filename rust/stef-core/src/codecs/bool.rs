@@ -31,22 +31,29 @@ impl BoolEncoder {
 #[derive(Default)]
 pub struct BoolDecoder {
     buf: BitsReader,
-    column: Option<Vec<u8>>,
+    column: Option<*mut ReadableColumn>,
 }
 
 impl BoolDecoder {
     pub fn init(&mut self, columns: &mut ReadColumnSet) {
-        self.column = Some(columns.column().data().to_vec());
+        self.column = Some(columns.column() as *mut ReadableColumn);
     }
 
     pub fn continue_(&mut self) {
-        if let Some(col) = &self.column {
-            self.buf.reset(col);
+        if let Some(ptr) = self.column {
+            // Safe because generated code keeps read column tree alive for decoder lifetime.
+            let data = unsafe { (&*ptr).data().to_vec() };
+            self.buf.reset(&data);
         }
     }
 
     pub fn decode(&mut self, dst: &mut bool) {
         *dst = self.buf.read_bit() != 0;
+    }
+
+    pub fn decode_result(&mut self, dst: &mut bool) -> crate::errors::Result<()> {
+        self.decode(dst);
+        Ok(())
     }
 
     pub fn reset(&mut self) {}

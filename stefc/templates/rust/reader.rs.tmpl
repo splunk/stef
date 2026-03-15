@@ -1,86 +1,127 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self, Read};
+use std::rc::Rc;
 
 use crate::*;
 use crate::reader_state::ReaderState;
 
+struct SharedRead<R: Read> {
+    inner: Rc<RefCell<R>>,
+}
+
+impl<R: Read> SharedRead<R> {
+    fn new(source: R) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(source)),
+        }
+    }
+}
+
+impl<R: Read> Clone for SharedRead<R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Rc::clone(&self.inner),
+        }
+    }
+}
+
+impl<R: Read> stef_core::ByteAndBlockReader for SharedRead<R> {
+    fn read_byte(&mut self) -> io::Result<u8> {
+        let mut buf = [0u8; 1];
+        self.inner.borrow_mut().read_exact(&mut buf)?;
+        Ok(buf[0])
+    }
+
+    fn read_block(&mut self, dst: &mut [u8]) -> io::Result<usize> {
+        self.inner.borrow_mut().read(dst)
+    }
+}
+
 pub struct {{.StructName}}Reader<R: Read> {
-    source: R,
+    base: stef_core::basereader::BaseReader<SharedRead<R>>,
+    decoder: {{.StructName}}Decoder,
     state: ReaderState,
-    header: stef_core::FixedHeader,
-    user_data: HashMap<String, String>,
-    schema: Option<stef_core::schema::WireSchema>,
+    decoder_inited: bool,
 
     pub record: {{.StructName}},
-    record_count: u64,
 }
 
 impl<R: Read> {{.StructName}}Reader<R> {
-    const MAX_RECORD_SIZE: usize = 64 * 1024 * 1024;
-
     pub fn new(source: R) -> Result<Self, stef_core::errors::StefError> {
-        let mut state = ReaderState::default();
-        state.init(None);
+        let mut base = stef_core::basereader::BaseReader::default();
+        base.init(SharedRead::new(source))?;
 
-        Ok(Self {
-            source,
-            state,
-            header: stef_core::FixedHeader::default(),
-            user_data: HashMap::new(),
-            schema: None,
+        let mut reader = Self {
+            base,
+            decoder: {{.StructName}}Decoder::default(),
+            state: ReaderState::default(),
+            decoder_inited: false,
             record: {{.StructName}}::default(),
-            record_count: 0,
-        })
+        };
+        reader.init_schema()?;
+        Ok(reader)
     }
 
-    pub fn init_schema(&mut self) -> Result<(), stef_core::errors::StefError> {
+    fn init_schema(&mut self) -> Result<(), stef_core::errors::StefError> {
+        let own_schema = {{.StructName}}_wire_schema()?;
+        self.base.read_var_header(&own_schema)?;
+
+        self.state.init(self.base.schema.clone());
+        Ok(())
+    }
+
+    fn ensure_decoder_init(&mut self) -> Result<(), stef_core::errors::StefError> {
+        if !self.decoder_inited {
+            self.decoder.init(&mut self.state, &mut self.base.read_bufs.columns)?;
+            self.decoder_inited = true;
+        }
         Ok(())
     }
 
     pub fn header(&self) -> &stef_core::FixedHeader {
-        &self.header
+        &self.base.fixed_header
     }
 
     pub fn user_data(&self) -> &HashMap<String, String> {
-        &self.user_data
+        &self.base.var_header.user_data
     }
 
     pub fn record_count(&self) -> u64 {
-        self.record_count
+        self.base.record_count
     }
 
-    pub fn read(&mut self, _opts: stef_core::ReadOptions) -> Result<(), stef_core::errors::StefError> {
-        let _ = &self.state;
-
-        let mut len_buf = [0u8; 8];
-        match self.source.read_exact(&mut len_buf) {
-            Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into()),
-            Err(e) => return Err(e.into()),
+    pub fn read(&mut self, opts: stef_core::ReadOptions) -> Result<(), stef_core::errors::StefError> {
+        self.ensure_decoder_init()?;
+        while self.base.frame_record_count == 0 {
+            if opts.till_end_of_frame {
+                return Err(stef_core::errors::StefError::decode("end of frame"));
+            }
+            self.next_frame()?;
         }
+        self.base.frame_record_count -= 1;
+        self.base.record_count += 1;
 
-        let rec_len = u64::from_le_bytes(len_buf) as usize;
-        if rec_len > Self::MAX_RECORD_SIZE {
-            return Err(stef_core::errors::StefError::message(format!(
-                "record too large: {rec_len}"
-            )));
-        }
-        let mut payload = vec![0u8; rec_len];
-        self.source.read_exact(&mut payload)?;
-
-        let (rec, _): ({{.StructName}}, usize) = bincode::serde::decode_from_slice(&payload, bincode::config::standard())
-            .map_err(|e| stef_core::errors::StefError::message(format!("decode failed: {e}")))?;
-
-        self.record = rec;
-        self.record_count += 1;
-        Ok(())
+        self.decoder.decode(&mut self.record)
     }
 
-    pub fn next_frame(&mut self) -> Result<(), stef_core::errors::StefError> {
+    fn next_frame(&mut self) -> Result<(), stef_core::errors::StefError> {
+        let frame_flags = self.base.next_frame()?;
+        if frame_flags.has(stef_core::FrameFlags::RESTART_DICTIONARIES) {
+            // The frame that has just started indicates that the dictionaries
+            // must be restarted. Reset all dictionaries.
+            self.state.reset_dicts();
+        }
+        if frame_flags.has(stef_core::FrameFlags::RESTART_CODECS) {
+            // The frame that has just started indicates that the decoders
+            // must be restarted.
+            self.decoder.reset();
+        }
+        self.decoder.continue_();
         Ok(())
     }
 
     pub fn schema(&self) -> Option<&stef_core::schema::WireSchema> {
-        self.schema.as_ref()
+        self.base.schema.as_ref()
     }
 }

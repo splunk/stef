@@ -16,3 +16,12 @@ pub mod string;
 pub mod stringdict;
 #[path = "codecs/uint64.rs"]
 pub mod uint64;
+
+pub use bool::{BoolDecoder, BoolEncoder};
+pub use bytes::{BytesDecoder, BytesEncoder};
+pub use bytesdict::{BytesDictDecoder, BytesDictDecoderDict, BytesDictEncoder, BytesDictEncoderDict};
+pub use float64::{Float64Decoder, Float64Encoder};
+pub use int64::{Int64Decoder, Int64Encoder};
+pub use string::{StringDecoder, StringEncoder};
+pub use stringdict::{StringDictDecoder, StringDictDecoderDict, StringDictEncoder, StringDictEncoderDict};
+pub use uint64::{Uint64Decoder, Uint64Encoder};

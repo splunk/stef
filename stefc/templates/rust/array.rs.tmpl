@@ -75,6 +75,8 @@ impl {{.ArrayName}} {
     pub fn ensure_len(&mut self, new_len: usize) {
         if self.elems.len() < new_len {
             self.elems.resize_with(new_len, Default::default);
+        } else if self.elems.len() > new_len {
+            self.elems.truncate(new_len);
         }
     }
 
@@ -132,5 +134,167 @@ pub fn cmp_{{.ArrayName}}(left: &{{.ArrayName}}, right: &{{.ArrayName}}) -> i8 {
         -1
     } else {
         1
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .ArrayName }}Encoder {
+    buf: stef_core::BitsWriter,
+    limiter: Option<*mut stef_core::SizeLimiter>,
+    {{- if .ElemType.IsPrimitive}}
+    elem_encoder: {{.ElemType.EncoderType}}Encoder,
+    {{- else}}
+    elem_encoder: Box<{{.ElemType.EncoderType}}Encoder>,
+    {{- end}}
+}
+
+impl {{ .ArrayName }}Encoder {
+    pub fn init(
+        &mut self,
+        state: &mut WriterState,
+        columns: &mut stef_core::WriteColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.limiter = Some(&mut state.limiter);
+        {{ if .ElemType.IsPrimitive -}}
+            {{- if .ElemType.DictName}}
+        self.elem_encoder.init(&mut state.{{.ElemType.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- else}}
+        self.elem_encoder.init(&mut state.limiter, columns.add_sub_column());
+            {{- end}}
+        {{- else -}}
+        self.elem_encoder = Box::new(Default::default());
+        self.elem_encoder.init(state, columns.add_sub_column())?;
+        {{- end }}
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.elem_encoder.reset();
+    }
+
+    pub fn encode(&mut self, arr: &{{ .ArrayName }}) {
+        let old_bit_len = self.buf.bit_count();
+
+        // Write the length of the array.
+        let new_len = arr.elems.len();
+        self.buf.write_uvarint_compact(new_len as u64);
+
+        // Encode the elements of the array.
+        for i in 0..new_len {
+            {{- if .ElemType.IsPrimitive}}
+                {{- if eq .ElemType.TypeName "String"}}
+            self.elem_encoder.encode(arr.elems[i].as_str());
+                {{- else if eq .ElemType.TypeName "Bytes"}}
+            self.elem_encoder.encode(arr.elems[i].as_slice());
+                {{- else}}
+            self.elem_encoder.encode(arr.elems[i]);
+                {{- end}}
+            {{- else}}
+                {{- if .ElemType.Flags.StoreByPtr}}
+            self.elem_encoder.encode(arr.elems[i].as_ref());
+                {{- else}}
+            self.elem_encoder.encode(&arr.elems[i]);
+                {{- end}}
+            {{- end}}
+        }
+
+        // Account written bits in the limiter.
+        let new_bit_len = self.buf.bit_count();
+        if let Some(ptr) = self.limiter {
+            unsafe {
+                (*ptr).add_frame_bits((new_bit_len - old_bit_len) as usize);
+            }
+        }
+    }
+
+    pub fn collect_columns(&mut self, column_set: &mut stef_core::WriteColumnSet) {
+        column_set.set_bits(&mut self.buf);
+        self.elem_encoder.collect_columns(column_set.at(0));
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .ArrayName }}Decoder {
+    buf: stef_core::BitsReader,
+    column: Option<*mut stef_core::ReadableColumn>,
+    {{- if .ElemType.IsPrimitive}}
+    elem_decoder: {{.ElemType.EncoderType}}Decoder,
+    {{- else}}
+    elem_decoder: Box<{{.ElemType.EncoderType}}Decoder>,
+    {{- end}}
+}
+
+impl {{ .ArrayName }}Decoder {
+    // Init is called once in the lifetime of the stream.
+    pub fn init(
+        &mut self,
+        state: &mut ReaderState,
+        columns: &mut stef_core::ReadColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+        {{- if .ElemType.IsPrimitive}}
+            {{- if .ElemType.DictName}}
+        self.elem_decoder.init(&mut state.{{.ElemType.DictName}}, columns.add_sub_column());
+            {{- else}}
+        self.elem_decoder.init(columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.elem_decoder = Box::new(Default::default());
+        self.elem_decoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+        Ok(())
+    }
+
+    // Continue is called at the start of the frame to continue decoding column data.
+    // This should set the decoder's source buffer, so the new decoding continues from
+    // the supplied column data. This should NOT reset the internal state of the decoder,
+    // since columns can cross frame boundaries and the new column data is considered
+    // continuation of that same column in the previous frame.
+    pub fn continue_(&mut self) {
+        let column_ptr = self.column.expect("decoder not initialized");
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(&data);
+        self.elem_decoder.continue_();
+    }
+
+    pub fn reset(&mut self) {
+        self.elem_decoder.reset();
+    }
+
+    pub fn decode(&mut self, dst: &mut {{.ArrayName}}) -> Result<(), stef_core::errors::StefError> {
+        let new_len = self.buf.read_uvarint_compact() as usize;
+        let old_len = dst.elems.len();
+        if new_len > old_len {
+            let len_delta = new_len - old_len;
+            let elem_size = core::mem::size_of::<{{.ElemType.Storage}}>();
+            let elem_size = if elem_size == 0 { 1 } else { elem_size };
+            let extra_size = len_delta.saturating_mul(elem_size);
+            if extra_size > stef_core::limits::RECORD_ALLOC_LIMIT {
+                return Err(stef_core::errors::ERR_RECORD_ALLOC_LIMIT_EXCEEDED);
+            }
+        }
+        dst.ensure_len(new_len);
+        for i in 0..new_len {
+            {{- if .ElemType.IsPrimitive}}
+                {{- if eq .ElemType.TypeName "bool"}}
+            self.elem_decoder.decode(&mut dst.elems[i]);
+                {{- else if eq .ElemType.TypeName "f64"}}
+            self.elem_decoder.decode(&mut dst.elems[i]);
+                {{- else}}
+            self.elem_decoder.decode(&mut dst.elems[i])?;
+                {{- end}}
+            {{- else}}
+                {{- if .ElemType.Flags.StoreByPtr}}
+            self.elem_decoder.decode(dst.elems[i].as_mut())?;
+                {{- else}}
+            self.elem_decoder.decode(&mut dst.elems[i])?;
+                {{- end}}
+            {{- end}}
+        }
+
+        if let Some(err) = self.buf.error() {
+            return Err(std::io::Error::from(err).into());
+        }
+        Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use crate::{errors::ERR_INVALID_REF_NUM, membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, WriteColumnSet}, SizeLimiter};
+use crate::{errors::ERR_INVALID_REF_NUM, membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, ReadableColumn, WriteColumnSet}, SizeLimiter};
 
 /// Plain string encoder using length+bytes records.
 #[derive(Default)]
@@ -33,16 +33,19 @@ impl StringEncoder {
 #[derive(Default)]
 pub struct StringDecoder {
     buf: BytesReader,
-    column: Vec<u8>,
+    column: Option<*mut ReadableColumn>,
 }
 
 impl StringDecoder {
     pub fn init(&mut self, columns: &mut ReadColumnSet) {
-        self.column = columns.column().borrow_data();
+        self.column = Some(columns.column() as *mut ReadableColumn);
     }
 
     pub fn continue_(&mut self) {
-        self.buf.reset(self.column.clone());
+        let column_ptr = self.column.expect("decoder not initialized");
+        // Safe because generated code keeps read column tree alive for decoder lifetime.
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(data);
     }
 
     pub fn reset(&mut self) {}

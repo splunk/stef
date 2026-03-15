@@ -188,3 +188,310 @@ pub fn {{.StructName}}_wire_schema() -> Result<WireSchema, stef_core::errors::St
     Ok(w)
 }
 {{end}}
+
+#[derive(Default)]
+pub struct {{ .StructName }}Encoder {
+    buf: stef_core::BitsWriter,
+    limiter: Option<*mut stef_core::SizeLimiter>,
+
+{{- range .Fields }}
+    {{- if .IsPrimitive}}
+    {{.name}}_encoder: {{ .Type.EncoderType }}Encoder,
+    {{- else}}
+    {{.name}}_encoder: Box<{{ .Type.EncoderType }}Encoder>,
+    {{- end}}
+{{- end }}
+    keep_field_mask: u64,
+    field_count: u32,
+{{if .OptionalFieldCount}}
+    optional_field_count: u32,
+{{end}}
+}
+
+impl {{ .StructName }}Encoder {
+    pub fn init(
+        &mut self,
+        state: &mut WriterState,
+        columns: &mut stef_core::WriteColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.limiter = Some(&mut state.limiter);
+        self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+        self.keep_field_mask = if self.field_count == 64 {
+            u64::MAX
+        } else {
+            !(!0u64 << self.field_count)
+        };
+{{- if .OptionalFieldCount}}
+        self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
+{{- end}}
+
+{{- range $i, $e := .Fields }}
+        // Init encoder for {{.Name}} field.
+        if self.field_count <= {{$i}} {
+            return Ok(()); // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+        self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- else}}
+        self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.{{.name}}_encoder = Box::new(Default::default());
+        self.{{.name}}_encoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+{{- end }}
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+{{- range $i, $e := .Fields }}
+        if self.field_count <= {{$i}} {
+            return; // {{.Name}} and all subsequent fields are skipped.
+        }
+        self.{{.name}}_encoder.reset();
+{{- end}}
+    }
+
+    pub fn encode(&mut self, val: &{{ .StructName }}) {
+        let old_len = self.buf.bit_count();
+
+        // Write bits to indicate which fields follow.
+        let field_mask = self.keep_field_mask;
+        self.buf.write_bits(field_mask, self.field_count);
+
+{{ if .OptionalFieldCount}}
+        // Write bits to indicate which optional fields are set.
+        let mut optional_fields_present = 0u64;
+        {{- range .Fields }}
+        {{- if .Optional}}
+        if val.{{.name}}.is_some() {
+            optional_fields_present |= 1u64 << {{.OptionalIndex}};
+        }
+        {{- end }}
+        {{- end }}
+        self.buf.write_bits(optional_fields_present, self.optional_field_count);
+{{- end}}
+        // Encode modified, present fields.
+{{- range .Fields }}
+        {{- if .Optional}}
+        if let Some(v) = &val.{{.name}} {
+            // Encode {{.Name}}
+            {{- if .IsPrimitive}}
+                {{- if eq .Type.TypeName "String"}}
+            self.{{.name}}_encoder.encode(v.as_str());
+                {{- else if eq .Type.TypeName "Bytes"}}
+            self.{{.name}}_encoder.encode(v.as_slice());
+                {{- else}}
+            self.{{.name}}_encoder.encode(*v);
+                {{- end}}
+            {{- else}}
+                {{- if .Type.Flags.StoreByPtr}}
+            self.{{.name}}_encoder.encode(v.as_ref());
+                {{- else}}
+            self.{{.name}}_encoder.encode(v);
+                {{- end}}
+            {{- end}}
+        }
+        {{- else}}
+            {{- if .IsPrimitive}}
+                {{- if eq .Type.TypeName "String"}}
+        self.{{.name}}_encoder.encode(val.{{.name}}.as_str());
+                {{- else if eq .Type.TypeName "Bytes"}}
+        self.{{.name}}_encoder.encode(val.{{.name}}.as_slice());
+                {{- else}}
+        self.{{.name}}_encoder.encode(val.{{.name}});
+                {{- end}}
+            {{- else}}
+                {{- if .Type.Flags.StoreByPtr}}
+        self.{{.name}}_encoder.encode(val.{{.name}}.as_ref());
+                {{- else}}
+        self.{{.name}}_encoder.encode(&val.{{.name}});
+                {{- end}}
+            {{- end}}
+        {{- end}}
+{{- end }}
+
+        // Account written bits in the limiter.
+        let new_len = self.buf.bit_count();
+        if let Some(ptr) = self.limiter {
+            unsafe {
+                (*ptr).add_frame_bits((new_len - old_len) as usize);
+            }
+        }
+    }
+
+    pub fn collect_columns(&mut self, column_set: &mut stef_core::WriteColumnSet) {
+        column_set.set_bits(&mut self.buf);
+{{- if len .Fields }}
+        let mut col_idx = 0usize;
+{{- end}}
+{{- range $i,$e := .Fields }}
+        // Collect {{.Name}} field.
+        if self.field_count <= {{$i}} {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        self.{{.name}}_encoder.collect_columns(column_set.at(col_idx));
+        col_idx += 1;
+{{- end }}
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .StructName }}Decoder {
+    buf: stef_core::BitsReader,
+    column: Option<*mut stef_core::ReadableColumn>,
+    field_count: u32,
+{{if .OptionalFieldCount}}
+    optional_field_count: u32,
+{{end}}
+{{ range .Fields }}
+    {{- if .IsPrimitive}}
+    {{.name}}_decoder: {{ .Type.EncoderType }}Decoder,
+    {{- else}}
+    {{.name}}_decoder: Box<{{ .Type.EncoderType }}Decoder>,
+    {{- end}}
+{{- end }}
+}
+
+impl {{ .StructName }}Decoder {
+    pub fn init(
+        &mut self,
+        state: &mut ReaderState,
+        columns: &mut stef_core::ReadColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+{{- if .OptionalFieldCount}}
+        self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
+{{- end}}
+        if self.field_count > {{len .Fields}} {
+            return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
+        }
+        if self.field_count == 0 {
+            return Err(stef_core::errors::ERR_EMPTY_ROOT_STRUCT_DISALLOWED);
+        }
+
+        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+{{ range $i,$e := .Fields }}
+        if self.field_count <= {{$i}} {
+            return Ok(()); // {{.Name}} and subsequent fields are skipped.
+        }
+        {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+        self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+            {{- else}}
+        self.{{.name}}_decoder.init(columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.{{.name}}_decoder = Box::new(Default::default());
+        self.{{.name}}_decoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+{{- end }}
+        Ok(())
+    }
+
+    pub fn continue_(&mut self) {
+        let column_ptr = self.column.expect("decoder not initialized");
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(&data);
+{{ range $i,$e := .Fields }}
+        if self.field_count <= {{$i}} {
+            return; // {{.Name}} and subsequent fields are skipped.
+        }
+        self.{{.name}}_decoder.continue_();
+{{- end }}
+    }
+
+    pub fn reset(&mut self) {
+{{ range $i, $e := .Fields }}
+        if self.field_count <= {{$i}} {
+            // {{.Name}} and all subsequent fields are skipped.
+            return;
+        }
+        self.{{.name}}_decoder.reset();
+{{- end}}
+    }
+
+    pub fn decode(&mut self, dst: &mut {{.StructName}}) -> Result<(), stef_core::errors::StefError> {
+        // Read bits that indicate which fields follow.
+        let field_mask = self.buf.read_bits(self.field_count);
+{{ if .OptionalFieldCount}}
+        // Write bits to indicate which optional fields are set.
+        let optional_fields_present = self.buf.read_bits(self.optional_field_count);
+{{- end}}
+{{ range .Fields }}
+        if (field_mask & (1u64 << {{.FieldIndex}})) != 0 {
+            // Field is changed.
+            {{- if .Optional}}
+            if (optional_fields_present & (1u64 << {{.OptionalIndex}})) != 0 {
+                // Field is present.
+            {{- end}}
+                {{- if .Optional}}
+                if dst.{{.name}}.is_none() {
+                    {{- if .Type.Flags.StoreByPtr}}
+                    dst.{{.name}} = Some(Box::new(Default::default()));
+                    {{- else}}
+                    dst.{{.name}} = Some(Default::default());
+                    {{- end}}
+                }
+                {{- end}}
+                {{- if .IsPrimitive}}
+                    {{- if .Optional}}
+                        {{- if eq .Type.TypeName "bool"}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap());
+                        {{- else if eq .Type.TypeName "f64"}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap());
+                        {{- else}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap())?;
+                        {{- end}}
+                    {{- else}}
+                        {{- if eq .Type.TypeName "bool"}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
+                        {{- else if eq .Type.TypeName "f64"}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
+                        {{- else}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                        {{- end}}
+                    {{- end}}
+                {{- else}}
+                    {{- if .Optional}}
+                        {{- if .Type.Flags.StoreByPtr}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap().as_mut())?;
+                        {{- else}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap())?;
+                        {{- end}}
+                    {{- else}}
+                        {{- if .Type.Flags.StoreByPtr}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut())?;
+                        {{- else}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                        {{- end}}
+                    {{- end}}
+                {{- end}}
+            {{- if .Optional}}
+            } else {
+                dst.{{.name}} = None;
+            }
+            {{- end}}
+        }
+{{ end }}
+        if let Some(err) = self.buf.error() {
+            return Err(std::io::Error::from(err).into());
+        }
+        Ok(())
+    }
+}
+
+{{if .OptionalFieldCount}}
+fn optional_field_count(optional_mask: u64, field_count: u32) -> u32 {
+    if field_count == 0 {
+        return 0;
+    }
+    let keep_mask = if field_count == 64 {
+        u64::MAX
+    } else {
+        !(!0u64 << field_count)
+    };
+    (optional_mask & keep_mask).count_ones()
+}
+{{end}}

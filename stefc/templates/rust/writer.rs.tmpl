@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::*;
 use crate::writer_state::WriterState;
 
@@ -7,9 +5,12 @@ pub struct {{.StructName}}Writer<'a> {
     pub record: {{.StructName}},
 
     opts: stef_core::WriterOptions,
+    frame_encoder: stef_core::FrameEncoder<'a>,
+    encoder: {{.StructName}}Encoder,
     state: WriterState,
+    write_bufs: stef_core::WriteBufs,
+    frame_record_count: u64,
     record_count: u64,
-    dst: &'a mut dyn stef_core::ChunkWriter,
 }
 
 impl<'a> {{.StructName}}Writer<'a> {
@@ -25,62 +26,175 @@ impl<'a> {{.StructName}}Writer<'a> {
         }
 
         if let Some(schema) = &opts.schema {
+            // If the schema is overridden must include the descriptor so that the readers
+            // can decode the data correctly.
+            opts.include_descriptor = true;
+
             let own_schema = {{.StructName}}_wire_schema()?;
             let _ = own_schema
                 .compatible(schema)
                 .map_err(|e| stef_core::errors::StefError::message(format!("schema is not compatible with Writer: {e}")))?;
-            opts.include_descriptor = true;
         }
 
         let mut state = WriterState::default();
         state.init(&opts);
 
-        let _hdr_user_data: HashMap<String, String> = opts.user_data.clone();
+        let mut encoder = {{.StructName}}Encoder::default();
+        let mut write_bufs = stef_core::WriteBufs::default();
+        encoder.init(&mut state, &mut write_bufs.columns)?;
 
-        Ok(Self {
+        Self::write_fixed_header_to(dst, &opts)?;
+
+        let mut frame_encoder = stef_core::FrameEncoder::default();
+        frame_encoder.init(dst, opts.compression)?;
+
+        let mut w = Self {
             record: {{.StructName}}::default(),
             opts,
+            frame_encoder,
+            encoder,
             state,
+            write_bufs,
+            frame_record_count: 0,
             record_count: 0,
-            dst,
-        })
+        };
+
+        w.write_var_header()?;
+        Ok(w)
     }
 
-    pub fn write_fixed_header(&mut self) -> Result<(), stef_core::errors::StefError> {
-        Ok(())
+    fn write_fixed_header_to(
+        dst: &mut dyn stef_core::ChunkWriter,
+        opts: &stef_core::WriterOptions,
+    ) -> Result<(), stef_core::errors::StefError> {
+        let mut hdr_tail = Vec::new();
+
+        let version_and_type = stef_core::consts::HDR_FORMAT_VERSION;
+        hdr_tail.push(version_and_type);
+
+        let flags = (opts.compression as u8) & stef_core::consts::HDR_FLAGS_COMPRESSION_METHOD;
+        hdr_tail.push(flags);
+        let hdr_tail_size = hdr_tail.len() as u64;
+
+        let mut hdr_full = Vec::new();
+        hdr_full.extend_from_slice(stef_core::HDR_SIGNATURE.as_bytes());
+        append_uvarint(&mut hdr_full, hdr_tail_size);
+        hdr_full.extend_from_slice(&hdr_tail);
+
+        dst.write_chunk(&hdr_full, &[])
     }
 
-    pub fn write_var_header(&mut self) -> Result<(), stef_core::errors::StefError> {
+    fn write_var_header(&mut self) -> Result<(), stef_core::errors::StefError> {
+        // Serialize varheader
+        let mut hdr = stef_core::VarHeader::default();
+        if self.opts.include_descriptor {
+            if let Some(schema) = &self.opts.schema {
+                let mut buf = Vec::new();
+                schema.serialize(&mut buf);
+                hdr.schema_wire_bytes = buf;
+            } else {
+                let schema = {{.StructName}}_wire_schema()?;
+                let mut buf = Vec::new();
+                schema.serialize(&mut buf);
+                hdr.schema_wire_bytes = buf;
+            }
+        }
+
+        if !self.opts.user_data.is_empty() {
+            hdr.user_data = self.opts.user_data.clone();
+        }
+
+        let mut buf = Vec::new();
+        hdr.serialize(&mut buf)?;
+
+        // Write to the frame
+        self.frame_encoder.write(&buf)?;
+
+        // Close the the frame.
+        self.frame_encoder.close_frame()?;
+
+        // Open a new frame.
+        self.frame_encoder.open_frame(stef_core::FrameFlags(0));
+
         Ok(())
     }
 
     pub fn write(&mut self) -> Result<(), stef_core::errors::StefError> {
-        let payload = bincode::serde::encode_to_vec(&self.record, bincode::config::standard())
-            .map_err(|e| stef_core::errors::StefError::message(format!("encode failed: {e}")))?;
+        self.encoder.encode(&self.record);
+        self.frame_record_count += 1;
 
-        let mut header = Vec::with_capacity(8);
-        header.extend_from_slice(&(payload.len() as u64).to_le_bytes());
-        self.dst.write_chunk(&header, &payload)?;
+        let mut next_frame_flags = self.opts.frame_restart_flags;
+        let mut restart_frame = false;
+        if self.state.limiter.dict_limit_reached() || next_frame_flags.has(stef_core::FrameFlags::RESTART_DICTIONARIES) {
+            self.state.reset_dicts();
+            next_frame_flags = stef_core::FrameFlags(
+                self.opts.frame_restart_flags.0 | stef_core::FrameFlags::RESTART_DICTIONARIES,
+            );
+            restart_frame = true;
+        }
+
+        if self.state.limiter.frame_limit_reached() {
+            restart_frame = true;
+        }
+
+        if restart_frame {
+            self.restart_frame(next_frame_flags)?;
+        }
 
         self.record_count += 1;
-        if self.state.limiter.dict_limit_reached()
-            || self.opts.frame_restart_flags.has(stef_core::FrameFlags::RESTART_DICTIONARIES)
-        {
-            self.state.reset_dicts();
-        }
-        Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<(), stef_core::errors::StefError> {
-        Ok(())
-    }
-
-    pub fn restart_frame(&mut self) -> Result<(), stef_core::errors::StefError> {
-        self.state.reset_dicts();
         Ok(())
     }
 
     pub fn record_count(&self) -> u64 {
         self.record_count
+    }
+
+    fn restart_frame(&mut self, next_frame_flags: stef_core::FrameFlags) -> Result<(), stef_core::errors::StefError> {
+        if next_frame_flags.has(stef_core::FrameFlags::RESTART_CODECS) {
+            self.encoder.reset();
+        }
+
+        // Write record count.
+        let mut frame_record_count_buf = Vec::new();
+        append_uvarint(&mut frame_record_count_buf, self.frame_record_count);
+        self.frame_encoder.write(&frame_record_count_buf)?;
+        self.frame_record_count = 0;
+
+        // Write from column buffers to the frame buffer.
+        self.encoder.collect_columns(&mut self.write_bufs.columns);
+        self.write_bufs.write_to(&mut self.frame_encoder)?;
+
+        // Close the current frame.
+        self.frame_encoder.close_frame()?;
+
+        // Open a new frame.
+        self.frame_encoder.open_frame(next_frame_flags);
+
+        // Reset the frame size limiter, this is a new frame.
+        self.state.limiter.reset_frame_size();
+
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), stef_core::errors::StefError> {
+        if self.frame_record_count == 0 {
+            // Nothing to flush.
+            return Ok(());
+        }
+        self.restart_frame(self.opts.frame_restart_flags)
+    }
+}
+
+fn append_uvarint(dst: &mut Vec<u8>, mut v: u64) {
+    loop {
+        let mut b = (v & 0x7f) as u8;
+        v >>= 7;
+        if v != 0 {
+            b |= 0x80;
+        }
+        dst.push(b);
+        if v == 0 {
+            break;
+        }
     }
 }

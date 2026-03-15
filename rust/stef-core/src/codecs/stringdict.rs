@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{errors::ERR_INVALID_REF_NUM, membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, WriteColumnSet}, SizeLimiter};
+use crate::{errors::ERR_INVALID_REF_NUM, membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, ReadableColumn, WriteColumnSet}, SizeLimiter};
 
 /// Dictionary state for string encoder.
 #[derive(Default)]
@@ -89,18 +89,21 @@ impl StringDictDecoderDict {
 #[derive(Default)]
 pub struct StringDictDecoder {
     buf: BytesReader,
-    column: Vec<u8>,
+    column: Option<*mut ReadableColumn>,
     dict: Option<*mut StringDictDecoderDict>,
 }
 
 impl StringDictDecoder {
     pub fn init(&mut self, dict: &mut StringDictDecoderDict, columns: &mut ReadColumnSet) {
         self.dict = Some(dict);
-        self.column = columns.column().borrow_data();
+        self.column = Some(columns.column() as *mut ReadableColumn);
     }
 
     pub fn continue_(&mut self) {
-        self.buf.reset(self.column.clone());
+        let column_ptr = self.column.expect("decoder not initialized");
+        // Safe because generated code keeps read column tree alive for decoder lifetime.
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(data);
     }
 
     pub fn reset(&mut self) {}

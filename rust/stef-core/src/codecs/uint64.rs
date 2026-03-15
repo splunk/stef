@@ -1,4 +1,4 @@
-use crate::{membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, WriteColumnSet}, SizeLimiter};
+use crate::{membuffer::{BytesReader, BytesWriter}, recordbuf::{ReadColumnSet, ReadableColumn, WriteColumnSet}, SizeLimiter};
 
 /// Delta-of-delta encoder for unsigned integers.
 #[derive(Default)]
@@ -46,18 +46,21 @@ impl Uint64Encoder {
 #[derive(Default)]
 pub struct Uint64Decoder {
     buf: BytesReader,
-    column: Vec<u8>,
+    column: Option<*mut ReadableColumn>,
     last_val: u64,
     last_delta: u64,
 }
 
 impl Uint64Decoder {
     pub fn init(&mut self, columns: &mut ReadColumnSet) {
-        self.column = columns.column().data().to_vec();
+        self.column = Some(columns.column() as *mut ReadableColumn);
     }
 
     pub fn continue_(&mut self) {
-        self.buf.reset(self.column.clone());
+        let column_ptr = self.column.expect("decoder not initialized");
+        // Safe because generated code keeps read column tree alive for decoder lifetime.
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(data);
     }
 
     pub fn decode(&mut self, dst: &mut u64) -> crate::errors::Result<()> {

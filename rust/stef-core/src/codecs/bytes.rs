@@ -19,6 +19,10 @@ impl BytesEncoder {
     pub fn collect_columns(&mut self, column_set: &mut WriteColumnSet) {
         self.inner.collect_columns(column_set);
     }
+
+    pub fn reset(&mut self) {
+        self.inner.reset();
+    }
 }
 
 /// Bytes decoder.
@@ -41,5 +45,9 @@ impl BytesDecoder {
         self.inner.decode(&mut s)?;
         *dst = s.into_bytes();
         Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.inner.reset();
     }
 }

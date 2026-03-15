@@ -99,8 +99,7 @@ mod tools_tests {
             .map_err(|e| format!("cannot create destination file {dest_fname}: {e}"))?;
         let mut dst = stef_core::WrapChunkWriter::new(&mut dest_file);
 
-        let mut try_structured_copy = || -> Result<(), String> {
-            match root_struct {
+        match root_struct {
 {{ range $i, $StructName := .RootStructs }}
             "{{$StructName}}" => {
                 let mut reader = {{$StructName}}Reader::new(&mut source_file)
@@ -124,26 +123,11 @@ mod tools_tests {
                         Err(e) => return Err(format!("read failed: {e}")),
                     }
                 }
-
                 writer.flush().map_err(|e| format!("flush failed: {e}"))?;
                 Ok(())
             }
 {{end}}
             _ => Err(format!("unsupported root struct: {root_struct}")),
-            }
-        };
-
-        match try_structured_copy() {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                let mut source_file = std::fs::File::open(source_fname)
-                    .map_err(|e| format!("cannot reopen source file {source_fname}: {e}"))?;
-                let mut dest_file = std::fs::File::create(dest_fname)
-                    .map_err(|e| format!("cannot recreate destination file {dest_fname}: {e}"))?;
-                std::io::copy(&mut source_file, &mut dest_file)
-                    .map_err(|e| format!("raw copy failed: {e}"))?;
-                Ok(())
-            }
         }
     }
 

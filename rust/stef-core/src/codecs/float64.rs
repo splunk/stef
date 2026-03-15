@@ -1,4 +1,4 @@
-use crate::{bitstream::{BitsReader, BitsWriter}, recordbuf::{ReadColumnSet, WriteColumnSet}, SizeLimiter};
+use crate::{bitstream::{BitsReader, BitsWriter}, recordbuf::{ReadColumnSet, ReadableColumn, WriteColumnSet}, SizeLimiter};
 
 /// Gorila-style float64 encoder.
 #[derive(Default)]
@@ -79,7 +79,7 @@ impl Float64Encoder {
 #[derive(Default)]
 pub struct Float64Decoder {
     buf: BitsReader,
-    column: Vec<u8>,
+    column: Option<*mut ReadableColumn>,
     last_val: f64,
     leading_bits: u64,
     trailing_bits: u64,
@@ -87,11 +87,14 @@ pub struct Float64Decoder {
 
 impl Float64Decoder {
     pub fn init(&mut self, columns: &mut ReadColumnSet) {
-        self.column = columns.column().data().to_vec();
+        self.column = Some(columns.column() as *mut ReadableColumn);
     }
 
     pub fn continue_(&mut self) {
-        self.buf.reset(&self.column);
+        let column_ptr = self.column.expect("decoder not initialized");
+        // Safe because generated code keeps read column tree alive for decoder lifetime.
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(&data);
     }
 
     pub fn decode(&mut self, dst: &mut f64) {
@@ -128,6 +131,11 @@ impl Float64Decoder {
         xor_val <<= trailing;
         self.last_val = f64::from_bits(xor_val ^ self.last_val.to_bits());
         *dst = self.last_val;
+    }
+
+    pub fn decode_result(&mut self, dst: &mut f64) -> crate::errors::Result<()> {
+        self.decode(dst);
+        Ok(())
     }
 
     pub fn reset(&mut self) {

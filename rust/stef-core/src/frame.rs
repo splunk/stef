@@ -1,4 +1,9 @@
-use std::io::{ErrorKind, Read};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    io::{ErrorKind, Read},
+    rc::Rc,
+};
 
 use crate::{
     chunkwriter::ChunkWriter,
@@ -106,6 +111,8 @@ pub struct FrameDecoder<R: ByteAndBlockReader> {
     frame_content: Vec<u8>,
     frame_ofs: usize,
     pub flags: FrameFlags,
+    zstd_stream: Option<ZstdDecodeStream>,
+    not_first_frame: bool,
 }
 
 impl<R: ByteAndBlockReader> Default for FrameDecoder<R> {
@@ -117,6 +124,8 @@ impl<R: ByteAndBlockReader> Default for FrameDecoder<R> {
             frame_content: Vec::new(),
             frame_ofs: 0,
             flags: FrameFlags(0),
+            zstd_stream: None,
+            not_first_frame: false,
         }
     }
 }
@@ -126,6 +135,8 @@ impl<R: ByteAndBlockReader> FrameDecoder<R> {
     pub fn init(&mut self, src: R, compression: Compression) -> Result<()> {
         self.src = Some(src);
         self.compression = compression;
+        self.zstd_stream = None;
+        self.not_first_frame = false;
         Ok(())
     }
 
@@ -153,7 +164,19 @@ impl<R: ByteAndBlockReader> FrameDecoder<R> {
                 return Err(ERR_FRAME_SIZE_LIMIT);
             }
             let compressed = read_exact_from(src, compressed_size as usize)?;
-            zstd::decode_all(std::io::Cursor::new(compressed))?
+            let restart = !self.not_first_frame || self.flags.has(FrameFlags::RESTART_COMPRESSION);
+            if restart {
+                self.not_first_frame = true;
+                self.zstd_stream = Some(ZstdDecodeStream::new()?);
+            }
+            let stream = self
+                .zstd_stream
+                .as_mut()
+                .ok_or_else(|| StefError::message("zstd stream not initialized"))?;
+            stream.push(&compressed);
+            let mut out = vec![0u8; uncompressed_size as usize];
+            stream.decoder.read_exact(&mut out)?;
+            out
         };
 
         self.frame_content = payload;
@@ -195,6 +218,49 @@ impl<R: ByteAndBlockReader> FrameDecoder<R> {
     }
 }
 
+struct QueueReader {
+    queue: Rc<RefCell<VecDeque<u8>>>,
+}
+
+impl Read for QueueReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        let mut q = self.queue.borrow_mut();
+        if q.is_empty() {
+            return Ok(0);
+        }
+        let mut n = 0usize;
+        while n < buf.len() {
+            let Some(b) = q.pop_front() else { break };
+            buf[n] = b;
+            n += 1;
+        }
+        Ok(n)
+    }
+}
+
+struct ZstdDecodeStream {
+    queue: Rc<RefCell<VecDeque<u8>>>,
+    decoder: zstd::stream::read::Decoder<'static, std::io::BufReader<QueueReader>>,
+}
+
+impl ZstdDecodeStream {
+    fn new() -> Result<Self> {
+        let queue = Rc::new(RefCell::new(VecDeque::new()));
+        let reader = QueueReader {
+            queue: Rc::clone(&queue),
+        };
+        let decoder = zstd::stream::read::Decoder::new(reader)?;
+        Ok(Self { queue, decoder })
+    }
+
+    fn push(&mut self, bytes: &[u8]) {
+        self.queue.borrow_mut().extend(bytes.iter().copied());
+    }
+}
+
 impl<R: ByteAndBlockReader> ByteAndBlockReader for FrameDecoder<R> {
     fn read_byte(&mut self) -> std::io::Result<u8> {
         FrameDecoder::read_byte(self).map_err(|e| std::io::Error::new(ErrorKind::Other, e.to_string()))
@@ -202,6 +268,16 @@ impl<R: ByteAndBlockReader> ByteAndBlockReader for FrameDecoder<R> {
 
     fn read_block(&mut self, dst: &mut [u8]) -> std::io::Result<usize> {
         FrameDecoder::read(self, dst).map_err(|e| std::io::Error::new(ErrorKind::Other, e.to_string()))
+    }
+}
+
+impl std::io::Write for FrameEncoder<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        FrameEncoder::write(self, buf).map_err(|e| std::io::Error::other(e.to_string()))
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
