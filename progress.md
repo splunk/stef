@@ -98,3 +98,26 @@
 - 2026-03-15 06:45 UTC: Ran full regression sweep for all currently wired Rust schema targets (generate + cargo tests).
   - All passing targets remained passing, including `multimap_key_recurse.stef`.
   - Note: `json_like.stef` generation succeeds, but there is no `cargo test --test json_like` target in `rust/stefc-generated-tests` yet.
+- 2026-03-15 06:58 UTC: Began `all_features.stef` run.
+  - Generator/test command now reaches Rust test execution but does not complete reliably within expected time.
+  - Observed failure modes while iterating:
+    - `go test` timeout at 10m (`TestGenerate/testdata/all_features.stef`).
+    - Rust test binary `all_features` exits with SIGSEGV in some runs.
+- 2026-03-15 07:04 UTC: Tightened Rust fuzz-like reader test loop guard in `stefc/templates/rust/writer_test.rs.tmpl`.
+  - Added max-reads cap per malformed corpus sample to prevent unbounded/hyper-long fuzz-like loops.
+  - Iterated cap from `10_000` -> `1_000` -> `100` to reduce runtime cost for heavy schemas like `all_features`.
+- 2026-03-15 07:09 UTC: Current status.
+  - `multimap_key_recurse.stef` fixed and passing; regression suite for all currently passing/wired schemas still passes.
+  - `all_features.stef` remains unresolved (long-running tests / occasional SIGSEGV).
+  - Next step: isolate the exact crashing `all_features` test path (run individual tests one-by-one) before making further template/runtime changes.
+- 2026-03-15 18:47 UTC: Diagnosed `all_features.stef` first-write hang/segfault path.
+  - Reproduced stall at first `MainRootWriter::write()` call and traced to `AllTypesDicts` encode path.
+  - Identified root cause as raw pointer invalidation: encoders/decoders stored pointers into `WriterState`/`ReaderState` that were moved after init.
+- 2026-03-15 18:47 UTC: Applied Rust template fixes and validated.
+  - `stefc/templates/rust/writer.rs.tmpl`: store writer state as `Box<WriterState>` and init encoders with `state.as_mut()` to keep stable addresses.
+  - `stefc/templates/rust/reader.rs.tmpl`: store reader state as `Box<ReaderState>` and init decoders with `state.as_mut()`.
+  - `stefc/templates/rust/struct.rs.tmpl`: added dictionary wire handling for `dict(...)` structs (reference/new-value flag, ref decoding, dict updates) to match Go behavior.
+  - Regenerated and passed `TestGenerate/testdata/all_features.stef`.
+- 2026-03-15 18:47 UTC: Ran targeted regression sweep after `all_features` fix.
+  - Regenerated + tested: `array_int64.stef`, `enum_array.stef`, `struct_reuse.stef`, `multimap_string_string.stef`, `multimap_struct.stef`, `multimap_key_recurse.stef`, `all_features.stef`.
+  - Result: all selected schemas pass.

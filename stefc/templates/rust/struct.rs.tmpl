@@ -193,6 +193,9 @@ pub fn {{.StructName}}_wire_schema() -> Result<WireSchema, stef_core::errors::St
 pub struct {{ .StructName }}Encoder {
     buf: stef_core::BitsWriter,
     limiter: Option<*mut stef_core::SizeLimiter>,
+{{- if .DictName}}
+    dict: Option<*mut Vec<{{.StructName}}>>,
+{{- end}}
 
 {{- range .Fields }}
     {{- if .IsPrimitive}}
@@ -222,6 +225,9 @@ impl {{ .StructName }}Encoder {
         state.{{.StructName}}Encoder = Some(self as *mut _);
         let init_result = (|| {
             self.limiter = Some(&mut state.limiter);
+{{- if .DictName}}
+            self.dict = Some(&mut state.{{.DictName}});
+{{- end}}
             self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
             self.keep_field_mask = if self.field_count == 64 {
                 u64::MAX
@@ -282,6 +288,30 @@ impl {{ .StructName }}Encoder {
 
     pub fn encode(&mut self, val: &{{ .StructName }}) {
         let mut bit_count = 0u32;
+{{- if .DictName}}
+        if let Some(dict_ptr) = self.dict {
+            unsafe {
+                let dict = &mut *dict_ptr;
+                if let Some(idx) = dict.iter().position(|v| v == val) {
+                    // Dictionary reference.
+                    self.buf.write_bit(0);
+                    let ref_bits = self.buf.write_uvarint_compact((idx as u64) + 1);
+                    if let Some(ptr) = self.limiter {
+                        (*ptr).add_frame_bits(1 + ref_bits as usize);
+                    }
+                    return;
+                }
+
+                // New dictionary value follows.
+                self.buf.write_bit(1);
+                bit_count += 1;
+                dict.push(val.clone());
+                if let Some(ptr) = self.limiter {
+                    (*ptr).add_dict_elem_size(val.byte_size());
+                }
+            }
+        }
+{{- end}}
 
         // Write bits to indicate which fields follow.
         let field_mask = self.keep_field_mask;
@@ -402,6 +432,9 @@ impl {{ .StructName }}Encoder {
 pub struct {{ .StructName }}Decoder {
     buf: stef_core::BitsReader,
     column: Option<*mut stef_core::ReadableColumn>,
+{{- if .DictName}}
+    dict: Option<*mut Vec<{{.StructName}}>>,
+{{- end}}
     field_count: u32,
 {{if .OptionalFieldCount}}
     optional_field_count: u32,
@@ -428,6 +461,9 @@ impl {{ .StructName }}Decoder {
         }
         state.{{.StructName}}Decoder = Some(self as *mut _);
         let init_result = (|| {
+{{- if .DictName}}
+            self.dict = Some(&mut state.{{.DictName}});
+{{- end}}
             self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
 {{- if .OptionalFieldCount}}
             self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
@@ -512,6 +548,28 @@ impl {{ .StructName }}Decoder {
     }
 
     pub fn decode(&mut self, dst: &mut {{.StructName}}) -> Result<(), stef_core::errors::StefError> {
+{{- if .DictName}}
+        if let Some(dict_ptr) = self.dict {
+            // Check if this is dictionary reference (0) or full value (1).
+            let dict_flag = self.buf.read_bits(1);
+            if dict_flag == 0 {
+                let ref_num = self.buf.read_uvarint_compact();
+                if ref_num == 0 {
+                    return Err(stef_core::errors::ERR_INVALID_REF_NUM);
+                }
+                let idx = (ref_num - 1) as usize;
+                let dict = unsafe { &*dict_ptr };
+                if idx >= dict.len() {
+                    return Err(stef_core::errors::ERR_INVALID_REF_NUM);
+                }
+                dst.copy_from(&dict[idx]);
+                if let Some(err) = self.buf.error() {
+                    return Err(std::io::Error::from(err).into());
+                }
+                return Ok(());
+            }
+        }
+{{- end}}
         // Read bits that indicate which fields follow.
         let field_mask = self.buf.read_bits(self.field_count);
 {{ if .OptionalFieldCount}}
@@ -593,6 +651,13 @@ impl {{ .StructName }}Decoder {
         if let Some(err) = self.buf.error() {
             return Err(std::io::Error::from(err).into());
         }
+{{- if .DictName}}
+        if let Some(dict_ptr) = self.dict {
+            unsafe {
+                (*dict_ptr).push(dst.clone());
+            }
+        }
+{{- end}}
         Ok(())
     }
 }

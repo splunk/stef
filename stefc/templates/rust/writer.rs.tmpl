@@ -7,7 +7,7 @@ pub struct {{.StructName}}Writer<'a> {
     opts: stef_core::WriterOptions,
     frame_encoder: stef_core::FrameEncoder<'a>,
     encoder: Box<{{.StructName}}Encoder>,
-    state: WriterState,
+    state: Box<WriterState>,
     write_bufs: stef_core::WriteBufs,
     frame_record_count: u64,
     record_count: u64,
@@ -36,12 +36,12 @@ impl<'a> {{.StructName}}Writer<'a> {
                 .map_err(|e| stef_core::errors::StefError::message(format!("schema is not compatible with Writer: {e}")))?;
         }
 
-        let mut state = WriterState::default();
+        let mut state = Box::new(WriterState::default());
         state.init(&opts);
 
         let mut encoder = Box::<{{.StructName}}Encoder>::default();
         let mut write_bufs = stef_core::WriteBufs::default();
-        encoder.init(&mut state, &mut write_bufs.columns)?;
+        encoder.init(state.as_mut(), &mut write_bufs.columns)?;
         if !state.struct_field_counts.all_fetched() {
             return Err(stef_core::errors::StefError::message(
                 "override schema iterator is not done, likely supplied schema override does not match the generated code",

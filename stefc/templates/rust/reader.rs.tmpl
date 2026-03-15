@@ -41,7 +41,7 @@ impl<R: Read> stef_core::ByteAndBlockReader for SharedRead<R> {
 pub struct {{.StructName}}Reader<R: Read> {
     base: stef_core::basereader::BaseReader<SharedRead<R>>,
     decoder: Box<{{.StructName}}Decoder>,
-    state: ReaderState,
+    state: Box<ReaderState>,
     decoder_inited: bool,
 
     pub record: {{.StructName}},
@@ -55,7 +55,7 @@ impl<R: Read> {{.StructName}}Reader<R> {
         let mut reader = Self {
             base,
             decoder: Box::<{{.StructName}}Decoder>::default(),
-            state: ReaderState::default(),
+            state: Box::new(ReaderState::default()),
             decoder_inited: false,
             record: {{.StructName}}::default(),
         };
@@ -73,7 +73,7 @@ impl<R: Read> {{.StructName}}Reader<R> {
 
     fn ensure_decoder_init(&mut self) -> Result<(), stef_core::errors::StefError> {
         if !self.decoder_inited {
-            self.decoder.init(&mut self.state, &mut self.base.read_bufs.columns)?;
+            self.decoder.init(self.state.as_mut(), &mut self.base.read_bufs.columns)?;
             if !self.state.struct_field_counts.all_fetched() {
                 return Err(stef_core::errors::StefError::message(
                     "override schema iterator is not done, decoded data schema is likely incompatible",
