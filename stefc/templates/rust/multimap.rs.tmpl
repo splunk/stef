@@ -199,7 +199,8 @@ impl {{ .MultimapName }}Encoder {
 
     pub fn encode(&mut self, val: &{{ .MultimapName }}) {
         let old_len = self.buf.bytes().len();
-        self.buf.write_uvarint(val.elems.len() as u64);
+        // Encode full multimap payload. LSB=1 indicates full encoding.
+        self.buf.write_uvarint(((val.elems.len() as u64) << 1) | 0b1);
         for i in 0..val.elems.len() {
             {{- if .Key.Type.IsPrimitive}}
                 {{- if eq .Key.Type.TypeName "String"}}
@@ -301,8 +302,37 @@ impl {{ .MultimapName }}Decoder {
     }
 
     pub fn decode(&mut self, dst: &mut {{.MultimapName}}) -> Result<(), stef_core::errors::StefError> {
-        let new_len = self.buf.read_uvarint()? as usize;
-        if new_len as u64 > stef_core::limits::MULTIMAP_ELEM_COUNT_LIMIT {
+        let count_or_changed_values = self.buf.read_uvarint()?;
+        if count_or_changed_values == 0 {
+            // No changes.
+            return Ok(());
+        }
+
+        if count_or_changed_values & 0b1 == 0 {
+            // Values-only encoding, decode changed values in place.
+            let changed_values_bits = count_or_changed_values >> 1;
+            let mut bit_to_read = 1u64;
+            for i in 0..dst.elems.len() {
+                if bit_to_read & changed_values_bits != 0 {
+                    {{- if .Value.Type.IsPrimitive}}
+                        {{- if eq .Value.Type.TypeName "bool"}}
+                    self.value_decoder.decode(&mut dst.elems[i].1);
+                        {{- else if eq .Value.Type.TypeName "f64"}}
+                    self.value_decoder.decode(&mut dst.elems[i].1);
+                        {{- else}}
+                    self.value_decoder.decode(&mut dst.elems[i].1)?;
+                        {{- end}}
+                    {{- else}}
+                    self.value_decoder.decode(&mut dst.elems[i].1)?;
+                    {{- end}}
+                }
+                bit_to_read <<= 1;
+            }
+            return Ok(());
+        }
+
+        let new_len = (count_or_changed_values >> 1) as usize;
+        if new_len as u64 >= stef_core::limits::MULTIMAP_ELEM_COUNT_LIMIT {
             return Err(stef_core::errors::ERR_MULTIMAP_COUNT_LIMIT);
         }
         dst.ensure_len(new_len);
