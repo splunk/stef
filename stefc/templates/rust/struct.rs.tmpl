@@ -442,6 +442,7 @@ impl {{ .StructName }}Decoder {
 {{end}}
 
             self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+            columns.reserve_sub_columns(self.field_count as usize);
 {{ range $i,$e := .Fields }}
             if self.field_count <= {{$i}} {
                 return Ok(()); // {{.Name}} and subsequent fields are skipped.

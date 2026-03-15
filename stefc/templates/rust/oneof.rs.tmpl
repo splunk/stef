@@ -370,6 +370,7 @@ impl {{ .StructName }}Decoder {
                 return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
             }
             self.type_bit_count = 64 - ((self.field_count as u64) + 1).leading_zeros();
+            columns.reserve_sub_columns(self.field_count as usize);
 {{- range .Fields }}
             if self.field_count <= {{.FieldIndex}} {
                 return Ok(());

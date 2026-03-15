@@ -348,6 +348,7 @@ impl {{ .MultimapName }}Decoder {
         state.{{.MultimapName}}Decoder = Some(self as *mut _);
         let init_result = (|| {
             self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+            columns.reserve_sub_columns(2);
             {{- if .Key.Type.IsPrimitive}}
                 {{- if .Key.Type.DictName}}
             self.key_decoder.init(&mut state.{{.Key.Type.DictName}}, columns.add_sub_column());

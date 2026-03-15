@@ -138,6 +138,11 @@ impl ReadColumnSet {
         self.sub_columns.last_mut().expect("pushed")
     }
 
+    /// Reserves capacity for at least `additional` more direct sub-columns.
+    pub fn reserve_sub_columns(&mut self, additional: usize) {
+        self.sub_columns.reserve(additional);
+    }
+
     /// Number of sub-columns.
     pub fn sub_column_len(&self) -> usize {
         self.sub_columns.len()

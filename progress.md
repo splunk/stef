@@ -83,3 +83,18 @@
   - Verified now passing:
     - `oneof_recurse_self.stef`
     - `oneof_recurse_mutual.stef`
+- 2026-03-15 06:38 UTC: Reproduced `multimap_key_recurse.stef` failure with backtrace.
+  - `test_Struct1_write_read_long` panicked with `capacity overflow` in `BoolDecoder::continue_()`.
+  - Confirmed failure source was decoder column pointer invalidation during recursive/subcolumn initialization.
+- 2026-03-15 06:41 UTC: Implemented decoder column-stability fix.
+  - Added `ReadColumnSet::reserve_sub_columns(additional)` in `rust/stef-core/src/recordbuf.rs`.
+  - Updated Rust decoder templates to reserve subcolumn capacity before child decoder init:
+    - `stefc/templates/rust/struct.rs.tmpl`
+    - `stefc/templates/rust/oneof.rs.tmpl`
+    - `stefc/templates/rust/multimap.rs.tmpl`
+- 2026-03-15 06:42 UTC: Regenerated `multimap_key_recurse.stef` and re-ran tests.
+  - `test_Struct1_write_read_long` became stable (repeated passes).
+  - Interop tests pass under serialized execution; default parallel execution remains occasionally flaky due generated test/tool tempdir race behavior.
+- 2026-03-15 06:45 UTC: Ran full regression sweep for all currently wired Rust schema targets (generate + cargo tests).
+  - All passing targets remained passing, including `multimap_key_recurse.stef`.
+  - Note: `json_like.stef` generation succeeds, but there is no `cargo test --test json_like` target in `rust/stefc-generated-tests` yet.
