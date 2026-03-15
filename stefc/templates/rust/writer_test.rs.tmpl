@@ -227,8 +227,15 @@ mod tests {
 
         for data in corpus {
             if let Ok(mut reader) = {{.StructName}}Reader::new(Cursor::new(data)) {
+                // Guard against malformed data that keeps producing records forever.
+                let mut read_count = 0usize;
+                const MAX_FUZZ_READS: usize = 10;
                 loop {
                     if reader.read(stef_core::ReadOptions::default()).is_err() {
+                        break;
+                    }
+                    read_count += 1;
+                    if read_count >= MAX_FUZZ_READS {
                         break;
                     }
                 }

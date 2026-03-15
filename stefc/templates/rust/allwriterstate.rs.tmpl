@@ -3,7 +3,7 @@ use stef_core::{SizeLimiter, WriterOptions};
 use crate::*;
 use crate::common::StructFieldCounts;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct WriterState {
     pub limiter: SizeLimiter,
     pub struct_field_counts: StructFieldCounts,
