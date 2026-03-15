@@ -9,7 +9,18 @@ pub struct ReaderState {
 
     // Dictionaries
     {{range .Dicts -}}
-    pub {{.DictName}}: Vec<{{.Storage}}>,
+    pub {{.DictName}}:
+    {{- if .IsPrimitive -}}
+        {{- if eq .TypeName "String" -}}
+            stef_core::codecs::StringDictDecoderDict
+        {{- else if eq .TypeName "Bytes" -}}
+            stef_core::codecs::BytesDictDecoderDict
+        {{- else -}}
+            Vec<{{.Storage}}>
+        {{- end -}}
+    {{- else -}}
+        Vec<{{.Storage}}>
+    {{- end -}},
     {{end}}
 }
 
@@ -18,7 +29,15 @@ impl ReaderState {
         self.struct_field_counts.init(override_schema);
 
         {{range .Dicts -}}
+        {{- if .IsPrimitive}}
+            {{- if or (eq .TypeName "String") (eq .TypeName "Bytes")}}
+        self.{{.DictName}}.init();
+            {{- else}}
         self.{{.DictName}}.clear();
+            {{- end}}
+        {{- else}}
+        self.{{.DictName}}.clear();
+        {{- end}}
         {{end}}
     }
 
@@ -26,7 +45,15 @@ impl ReaderState {
     // started with RestartDictionaries flag.
     pub fn reset_dicts(&mut self) {
         {{range .Dicts -}}
+        {{- if .IsPrimitive}}
+            {{- if or (eq .TypeName "String") (eq .TypeName "Bytes")}}
+        self.{{.DictName}}.reset();
+            {{- else}}
         self.{{.DictName}}.clear();
+            {{- end}}
+        {{- else}}
+        self.{{.DictName}}.clear();
+        {{- end}}
         {{end}}
     }
 }

@@ -45,6 +45,8 @@ impl {{.MultimapName}} {
     pub fn ensure_len(&mut self, new_len: usize) {
         if self.elems.len() < new_len {
             self.elems.resize_with(new_len, Default::default);
+        } else if self.elems.len() > new_len {
+            self.elems.truncate(new_len);
         }
     }
 
@@ -140,5 +142,195 @@ pub fn cmp_{{.MultimapName}}(left: &{{.MultimapName}}, right: &{{.MultimapName}}
         -1
     } else {
         1
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .MultimapName }}Encoder {
+    buf: stef_core::BytesWriter,
+    limiter: Option<*mut stef_core::SizeLimiter>,
+    {{- if .Key.Type.IsPrimitive}}
+    key_encoder: {{.Key.Type.EncoderType}}Encoder,
+    {{- else}}
+    key_encoder: Box<{{.Key.Type.EncoderType}}Encoder>,
+    {{- end}}
+    {{- if .Value.Type.IsPrimitive}}
+    value_encoder: {{.Value.Type.EncoderType}}Encoder,
+    {{- else}}
+    value_encoder: Box<{{.Value.Type.EncoderType}}Encoder>,
+    {{- end}}
+}
+
+impl {{ .MultimapName }}Encoder {
+    pub fn init(
+        &mut self,
+        state: &mut WriterState,
+        columns: &mut stef_core::WriteColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.limiter = Some(&mut state.limiter);
+        {{- if .Key.Type.IsPrimitive}}
+            {{- if .Key.Type.DictName}}
+        self.key_encoder.init(&mut state.{{.Key.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- else}}
+        self.key_encoder.init(&mut state.limiter, columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.key_encoder = Box::new(Default::default());
+        self.key_encoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+
+        {{- if .Value.Type.IsPrimitive}}
+            {{- if .Value.Type.DictName}}
+        self.value_encoder.init(&mut state.{{.Value.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- else}}
+        self.value_encoder.init(&mut state.limiter, columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.value_encoder = Box::new(Default::default());
+        self.value_encoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.key_encoder.reset();
+        self.value_encoder.reset();
+    }
+
+    pub fn encode(&mut self, val: &{{ .MultimapName }}) {
+        let old_len = self.buf.bytes().len();
+        self.buf.write_uvarint(val.elems.len() as u64);
+        for i in 0..val.elems.len() {
+            {{- if .Key.Type.IsPrimitive}}
+                {{- if eq .Key.Type.TypeName "String"}}
+            self.key_encoder.encode(val.elems[i].0.as_str());
+                {{- else if eq .Key.Type.TypeName "Bytes"}}
+            self.key_encoder.encode(val.elems[i].0.as_slice());
+                {{- else}}
+            self.key_encoder.encode(val.elems[i].0);
+                {{- end}}
+            {{- else}}
+            self.key_encoder.encode(&val.elems[i].0);
+            {{- end}}
+
+            {{- if .Value.Type.IsPrimitive}}
+                {{- if eq .Value.Type.TypeName "String"}}
+            self.value_encoder.encode(val.elems[i].1.as_str());
+                {{- else if eq .Value.Type.TypeName "Bytes"}}
+            self.value_encoder.encode(val.elems[i].1.as_slice());
+                {{- else}}
+            self.value_encoder.encode(val.elems[i].1);
+                {{- end}}
+            {{- else}}
+            self.value_encoder.encode(&val.elems[i].1);
+            {{- end}}
+        }
+        let new_len = self.buf.bytes().len();
+        if let Some(ptr) = self.limiter {
+            unsafe {
+                (*ptr).add_frame_bytes(new_len - old_len);
+            }
+        }
+    }
+
+    pub fn collect_columns(&mut self, column_set: &mut stef_core::WriteColumnSet) {
+        column_set.set_bytes(&mut self.buf);
+        self.key_encoder.collect_columns(column_set.at(0));
+        self.value_encoder.collect_columns(column_set.at(1));
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .MultimapName }}Decoder {
+    buf: stef_core::BytesReader,
+    column: Option<*mut stef_core::ReadableColumn>,
+    {{- if .Key.Type.IsPrimitive}}
+    key_decoder: {{.Key.Type.EncoderType}}Decoder,
+    {{- else}}
+    key_decoder: Box<{{.Key.Type.EncoderType}}Decoder>,
+    {{- end}}
+    {{- if .Value.Type.IsPrimitive}}
+    value_decoder: {{.Value.Type.EncoderType}}Decoder,
+    {{- else}}
+    value_decoder: Box<{{.Value.Type.EncoderType}}Decoder>,
+    {{- end}}
+}
+
+impl {{ .MultimapName }}Decoder {
+    pub fn init(
+        &mut self,
+        state: &mut ReaderState,
+        columns: &mut stef_core::ReadColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+        {{- if .Key.Type.IsPrimitive}}
+            {{- if .Key.Type.DictName}}
+        self.key_decoder.init(&mut state.{{.Key.Type.DictName}}, columns.add_sub_column());
+            {{- else}}
+        self.key_decoder.init(columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.key_decoder = Box::new(Default::default());
+        self.key_decoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+
+        {{- if .Value.Type.IsPrimitive}}
+            {{- if .Value.Type.DictName}}
+        self.value_decoder.init(&mut state.{{.Value.Type.DictName}}, columns.add_sub_column());
+            {{- else}}
+        self.value_decoder.init(columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.value_decoder = Box::new(Default::default());
+        self.value_decoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+        Ok(())
+    }
+
+    pub fn continue_(&mut self) {
+        let column_ptr = self.column.expect("decoder not initialized");
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(data);
+        self.key_decoder.continue_();
+        self.value_decoder.continue_();
+    }
+
+    pub fn reset(&mut self) {
+        self.key_decoder.reset();
+        self.value_decoder.reset();
+    }
+
+    pub fn decode(&mut self, dst: &mut {{.MultimapName}}) -> Result<(), stef_core::errors::StefError> {
+        let new_len = self.buf.read_uvarint()? as usize;
+        if new_len as u64 > stef_core::limits::MULTIMAP_ELEM_COUNT_LIMIT {
+            return Err(stef_core::errors::ERR_MULTIMAP_COUNT_LIMIT);
+        }
+        dst.ensure_len(new_len);
+        for i in 0..new_len {
+            {{- if .Key.Type.IsPrimitive}}
+                {{- if eq .Key.Type.TypeName "bool"}}
+            self.key_decoder.decode(&mut dst.elems[i].0);
+                {{- else if eq .Key.Type.TypeName "f64"}}
+            self.key_decoder.decode(&mut dst.elems[i].0);
+                {{- else}}
+            self.key_decoder.decode(&mut dst.elems[i].0)?;
+                {{- end}}
+            {{- else}}
+            self.key_decoder.decode(&mut dst.elems[i].0)?;
+            {{- end}}
+
+            {{- if .Value.Type.IsPrimitive}}
+                {{- if eq .Value.Type.TypeName "bool"}}
+            self.value_decoder.decode(&mut dst.elems[i].1);
+                {{- else if eq .Value.Type.TypeName "f64"}}
+            self.value_decoder.decode(&mut dst.elems[i].1);
+                {{- else}}
+            self.value_decoder.decode(&mut dst.elems[i].1)?;
+                {{- end}}
+            {{- else}}
+            self.value_decoder.decode(&mut dst.elems[i].1)?;
+            {{- end}}
+        }
+        Ok(())
     }
 }

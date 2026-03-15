@@ -1,6 +1,6 @@
 {{ range .Modules -}}
-pub mod {{.}};
+pub mod {{if eq . "struct"}}r#{{end}}{{.}};
 {{ end }}
 {{ range .Modules -}}
-pub use {{.}}::*;
+pub use {{if eq . "struct"}}r#{{end}}{{.}}::*;
 {{ end }}

@@ -155,3 +155,171 @@ pub fn cmp_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> i
         1
     }
 }
+
+#[derive(Default)]
+pub struct {{ .StructName }}Encoder {
+    buf: stef_core::BitsWriter,
+    limiter: Option<*mut stef_core::SizeLimiter>,
+{{- range .Fields }}
+    {{- if .IsPrimitive}}
+    {{.name}}_encoder: {{ .Type.EncoderType }}Encoder,
+    {{- else}}
+    {{.name}}_encoder: Box<{{ .Type.EncoderType }}Encoder>,
+    {{- end}}
+{{- end }}
+}
+
+impl {{ .StructName }}Encoder {
+    pub fn init(
+        &mut self,
+        state: &mut WriterState,
+        columns: &mut stef_core::WriteColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.limiter = Some(&mut state.limiter);
+{{- range .Fields }}
+        {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+        self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- else}}
+        self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.{{.name}}_encoder = Box::new(Default::default());
+        self.{{.name}}_encoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+{{- end }}
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+{{- range .Fields }}
+        self.{{.name}}_encoder.reset();
+{{- end}}
+    }
+
+    pub fn encode(&mut self, val: &{{ .StructName }}) {
+        let old_len = self.buf.bit_count();
+        self.buf.write_uvarint_compact(val.typ as u64);
+        match val.typ {
+{{- range .Fields }}
+            {{$.StructName}}Type::{{.Name}} => {
+                {{- if .IsPrimitive}}
+                    {{- if eq .Type.TypeName "String"}}
+                self.{{.name}}_encoder.encode(val.{{.name}}.as_str());
+                    {{- else if eq .Type.TypeName "Bytes"}}
+                self.{{.name}}_encoder.encode(val.{{.name}}.as_slice());
+                    {{- else}}
+                self.{{.name}}_encoder.encode({{if .Type.Flags.StoreByPtr}}*val.{{.name}}.as_ref(){{else}}val.{{.name}}{{end}});
+                    {{- end}}
+                {{- else}}
+                    {{- if .Type.Flags.StoreByPtr}}
+                self.{{.name}}_encoder.encode(val.{{.name}}.as_ref());
+                    {{- else}}
+                self.{{.name}}_encoder.encode(&val.{{.name}});
+                    {{- end}}
+                {{- end}}
+            }
+{{- end }}
+            {{$.StructName}}Type::None => {}
+        }
+        let new_len = self.buf.bit_count();
+        if let Some(ptr) = self.limiter {
+            unsafe {
+                (*ptr).add_frame_bits((new_len - old_len) as usize);
+            }
+        }
+    }
+
+    pub fn collect_columns(&mut self, column_set: &mut stef_core::WriteColumnSet) {
+        column_set.set_bits(&mut self.buf);
+{{- if len .Fields }}
+        let mut col_idx = 0usize;
+{{- end}}
+{{- range .Fields }}
+        self.{{.name}}_encoder.collect_columns(column_set.at(col_idx));
+        col_idx += 1;
+{{- end }}
+    }
+}
+
+#[derive(Default)]
+pub struct {{ .StructName }}Decoder {
+    buf: stef_core::BitsReader,
+    column: Option<*mut stef_core::ReadableColumn>,
+{{- range .Fields }}
+    {{- if .IsPrimitive}}
+    {{.name}}_decoder: {{ .Type.EncoderType }}Decoder,
+    {{- else}}
+    {{.name}}_decoder: Box<{{ .Type.EncoderType }}Decoder>,
+    {{- end}}
+{{- end }}
+}
+
+impl {{ .StructName }}Decoder {
+    pub fn init(
+        &mut self,
+        state: &mut ReaderState,
+        columns: &mut stef_core::ReadColumnSet,
+    ) -> Result<(), stef_core::errors::StefError> {
+        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+{{- range .Fields }}
+        {{- if .IsPrimitive}}
+            {{- if .Type.DictName}}
+        self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+            {{- else}}
+        self.{{.name}}_decoder.init(columns.add_sub_column());
+            {{- end}}
+        {{- else}}
+        self.{{.name}}_decoder = Box::new(Default::default());
+        self.{{.name}}_decoder.init(state, columns.add_sub_column())?;
+        {{- end}}
+{{- end }}
+        Ok(())
+    }
+
+    pub fn continue_(&mut self) {
+        let column_ptr = self.column.expect("decoder not initialized");
+        let data = unsafe { (&*column_ptr).data().to_vec() };
+        self.buf.reset(&data);
+{{- range .Fields }}
+        self.{{.name}}_decoder.continue_();
+{{- end }}
+    }
+
+    pub fn reset(&mut self) {
+{{- range .Fields }}
+        self.{{.name}}_decoder.reset();
+{{- end }}
+    }
+
+    pub fn decode(&mut self, dst: &mut {{.StructName}}) -> Result<(), stef_core::errors::StefError> {
+        let typ = self.buf.read_uvarint_compact() as u32;
+        match typ {
+            0 => {
+                dst.typ = {{.StructName}}Type::None;
+            }
+{{- range .Fields }}
+            x if x == ({{.FieldIndex}}u32 + 1) => {
+                dst.typ = {{$.StructName}}Type::{{.Name}};
+                {{- if .IsPrimitive}}
+                    {{- if eq .Type.TypeName "bool"}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
+                    {{- else if eq .Type.TypeName "f64"}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
+                    {{- else}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                    {{- end}}
+                {{- else}}
+                    {{- if .Type.Flags.StoreByPtr}}
+                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut())?;
+                    {{- else}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                    {{- end}}
+                {{- end}}
+            }
+{{- end }}
+            _ => return Err(stef_core::errors::ERR_INVALID_ONEOF_TYPE),
+        }
+        Ok(())
+    }
+}

@@ -74,6 +74,11 @@ impl<R: Read> {{.StructName}}Reader<R> {
     fn ensure_decoder_init(&mut self) -> Result<(), stef_core::errors::StefError> {
         if !self.decoder_inited {
             self.decoder.init(&mut self.state, &mut self.base.read_bufs.columns)?;
+            if !self.state.struct_field_counts.all_fetched() {
+                return Err(stef_core::errors::StefError::message(
+                    "override schema iterator is not done, decoded data schema is likely incompatible",
+                ));
+            }
             self.decoder_inited = true;
         }
         Ok(())

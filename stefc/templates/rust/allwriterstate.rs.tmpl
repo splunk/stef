@@ -10,7 +10,18 @@ pub struct WriterState {
 
     // Dictionaries
     {{range .Dicts -}}
-    pub {{.DictName}}: Vec<{{.Storage}}>,
+    pub {{.DictName}}:
+    {{- if .IsPrimitive -}}
+        {{- if eq .TypeName "String" -}}
+            stef_core::codecs::StringDictEncoderDict
+        {{- else if eq .TypeName "Bytes" -}}
+            stef_core::codecs::BytesDictEncoderDict
+        {{- else -}}
+            Vec<{{.Storage}}>
+        {{- end -}}
+    {{- else -}}
+        Vec<{{.Storage}}>
+    {{- end -}},
     {{end}}
 }
 
@@ -20,14 +31,30 @@ impl WriterState {
         self.struct_field_counts.init(opts.schema.clone());
 
         {{range .Dicts -}}
+        {{- if .IsPrimitive}}
+            {{- if or (eq .TypeName "String") (eq .TypeName "Bytes")}}
+        self.{{.DictName}}.init(&mut self.limiter);
+            {{- else}}
         self.{{.DictName}}.clear();
+            {{- end}}
+        {{- else}}
+        self.{{.DictName}}.clear();
+        {{- end}}
         {{end}}
     }
 
     pub fn reset_dicts(&mut self) {
         self.limiter.reset_dict();
         {{range .Dicts -}}
+        {{- if .IsPrimitive}}
+            {{- if or (eq .TypeName "String") (eq .TypeName "Bytes")}}
+        self.{{.DictName}}.reset();
+            {{- else}}
         self.{{.DictName}}.clear();
+            {{- end}}
+        {{- else}}
+        self.{{.DictName}}.clear();
+        {{- end}}
         {{end}}
     }
 }

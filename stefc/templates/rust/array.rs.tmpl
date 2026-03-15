@@ -190,11 +190,7 @@ impl {{ .ArrayName }}Encoder {
             self.elem_encoder.encode(arr.elems[i]);
                 {{- end}}
             {{- else}}
-                {{- if .ElemType.Flags.StoreByPtr}}
-            self.elem_encoder.encode(arr.elems[i].as_ref());
-                {{- else}}
             self.elem_encoder.encode(&arr.elems[i]);
-                {{- end}}
             {{- end}}
         }
 
@@ -284,11 +280,7 @@ impl {{ .ArrayName }}Decoder {
             self.elem_decoder.decode(&mut dst.elems[i])?;
                 {{- end}}
             {{- else}}
-                {{- if .ElemType.Flags.StoreByPtr}}
-            self.elem_decoder.decode(dst.elems[i].as_mut())?;
-                {{- else}}
             self.elem_decoder.decode(&mut dst.elems[i])?;
-                {{- end}}
             {{- end}}
         }
 

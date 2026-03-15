@@ -16,11 +16,15 @@ pub struct StructFieldCounts {
 
     // OverrideSchema is set if codec should perform a translation from specified schema.
     pub override_schema: Option<WireSchema>,
+    override_counts: Option<Vec<u32>>,
+    override_index: usize,
 }
 
 impl StructFieldCounts {
     pub fn init(&mut self, override_schema: Option<WireSchema>) {
-        self.override_schema = override_schema;
+        self.override_schema = override_schema.clone();
+        self.override_counts = override_schema.map(|s| s.struct_counts().to_vec());
+        self.override_index = 0;
         {{range $name, $val := .Structs -}}
         self.count_{{$name}} = None;
         {{end}}
@@ -31,7 +35,17 @@ impl StructFieldCounts {
         if let Some(v) = self.count_{{$name}} {
             return v;
         }
-        let c = {{len $val.Fields}}u32;
+        let c = if let Some(override_counts) = &self.override_counts {
+            if self.override_index < override_counts.len() {
+                let v = override_counts[self.override_index];
+                self.override_index += 1;
+                v
+            } else {
+                {{len $val.Fields}}u32
+            }
+        } else {
+            {{len $val.Fields}}u32
+        };
         self.count_{{$name}} = Some(c);
         c
     }
@@ -39,6 +53,9 @@ impl StructFieldCounts {
     {{end}}
 
     pub fn all_fetched(&self) -> bool {
+        if let Some(override_counts) = &self.override_counts {
+            return self.override_index >= override_counts.len();
+        }
         true
     }
 }

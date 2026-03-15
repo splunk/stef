@@ -42,6 +42,11 @@ impl<'a> {{.StructName}}Writer<'a> {
         let mut encoder = {{.StructName}}Encoder::default();
         let mut write_bufs = stef_core::WriteBufs::default();
         encoder.init(&mut state, &mut write_bufs.columns)?;
+        if !state.struct_field_counts.all_fetched() {
+            return Err(stef_core::errors::StefError::message(
+                "override schema iterator is not done, likely supplied schema override does not match the generated code",
+            ));
+        }
 
         Self::write_fixed_header_to(dst, &opts)?;
 

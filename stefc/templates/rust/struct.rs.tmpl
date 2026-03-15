@@ -367,9 +367,11 @@ impl {{ .StructName }}Decoder {
         if self.field_count > {{len .Fields}} {
             return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
         }
+{{if .IsMainStruct}}
         if self.field_count == 0 {
             return Err(stef_core::errors::ERR_EMPTY_ROOT_STRUCT_DISALLOWED);
         }
+{{end}}
 
         self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
 {{ range $i,$e := .Fields }}
