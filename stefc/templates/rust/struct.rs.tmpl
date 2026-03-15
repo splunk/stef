@@ -198,7 +198,9 @@ pub struct {{ .StructName }}Encoder {
     {{- if .IsPrimitive}}
     {{.name}}_encoder: {{ .Type.EncoderType }}Encoder,
     {{- else}}
-    {{.name}}_encoder: Box<{{ .Type.EncoderType }}Encoder>,
+    {{.name}}_encoder: Option<Box<{{ .Type.EncoderType }}Encoder>>,
+    {{.name}}_encoder_ptr: Option<*mut {{ .Type.EncoderType }}Encoder>,
+    is_{{.name}}_recursive: bool,
     {{- end}}
 {{- end }}
     keep_field_mask: u64,
@@ -214,34 +216,51 @@ impl {{ .StructName }}Encoder {
         state: &mut WriterState,
         columns: &mut stef_core::WriteColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.limiter = Some(&mut state.limiter);
-        self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
-        self.keep_field_mask = if self.field_count == 64 {
-            u64::MAX
-        } else {
-            !(!0u64 << self.field_count)
-        };
+        if state.{{.StructName}}Encoder.is_some() {
+            panic!("cannot initialize {{ .StructName }}Encoder: already initialized");
+        }
+        state.{{.StructName}}Encoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.limiter = Some(&mut state.limiter);
+            self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+            self.keep_field_mask = if self.field_count == 64 {
+                u64::MAX
+            } else {
+                !(!0u64 << self.field_count)
+            };
 {{- if .OptionalFieldCount}}
-        self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
+            self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
 {{- end}}
 
 {{- range $i, $e := .Fields }}
-        // Init encoder for {{.Name}} field.
-        if self.field_count <= {{$i}} {
-            return Ok(()); // {{.Name}} and subsequent fields are skipped.
-        }
-        {{- if .IsPrimitive}}
-            {{- if .Type.DictName}}
-        self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            // Init encoder for {{.Name}} field.
+            if self.field_count <= {{$i}} {
+                return Ok(()); // {{.Name}} and subsequent fields are skipped.
+            }
+            {{- if .IsPrimitive}}
+                {{- if .Type.DictName}}
+            self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+                {{- else}}
+            self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+            if let Some(ptr) = state.{{.Type.EncoderType}}Encoder {
+                self.{{.name}}_encoder = None;
+                self.{{.name}}_encoder_ptr = Some(ptr);
+                self.is_{{.name}}_recursive = true;
+            } else {
+                let mut enc: Box<{{ .Type.EncoderType }}Encoder> = Box::default();
+                enc.init(state, columns.add_sub_column())?;
+                self.{{.name}}_encoder_ptr = Some(enc.as_mut() as *mut _);
+                self.{{.name}}_encoder = Some(enc);
+                self.is_{{.name}}_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.{{.name}}_encoder = Box::new(Default::default());
-        self.{{.name}}_encoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 {{- end }}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.StructName}}Encoder = None;
+        init_result
     }
 
     pub fn reset(&mut self) {
@@ -249,16 +268,25 @@ impl {{ .StructName }}Encoder {
         if self.field_count <= {{$i}} {
             return; // {{.Name}} and all subsequent fields are skipped.
         }
+        {{- if .IsPrimitive}}
         self.{{.name}}_encoder.reset();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.reset();
+            }
+        }
+        {{- end}}
 {{- end}}
     }
 
     pub fn encode(&mut self, val: &{{ .StructName }}) {
-        let old_len = self.buf.bit_count();
+        let mut bit_count = 0u32;
 
         // Write bits to indicate which fields follow.
         let field_mask = self.keep_field_mask;
         self.buf.write_bits(field_mask, self.field_count);
+        bit_count += self.field_count;
 
 {{ if .OptionalFieldCount}}
         // Write bits to indicate which optional fields are set.
@@ -271,9 +299,14 @@ impl {{ .StructName }}Encoder {
         {{- end }}
         {{- end }}
         self.buf.write_bits(optional_fields_present, self.optional_field_count);
+        bit_count += self.optional_field_count;
 {{- end}}
         // Encode modified, present fields.
 {{- range .Fields }}
+        if self.field_count <= {{.FieldIndex}} {
+            // {{.Name}} and subsequent fields are skipped.
+            return;
+        }
         {{- if .Optional}}
         if let Some(v) = &val.{{.name}} {
             // Encode {{.Name}}
@@ -287,9 +320,11 @@ impl {{ .StructName }}Encoder {
                 {{- end}}
             {{- else}}
                 {{- if .Type.Flags.StoreByPtr}}
-            self.{{.name}}_encoder.encode(v.as_ref());
+            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+            unsafe { (*ptr).encode(v.as_ref()); }
                 {{- else}}
-            self.{{.name}}_encoder.encode(v);
+            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+            unsafe { (*ptr).encode(v); }
                 {{- end}}
             {{- end}}
         }
@@ -304,19 +339,20 @@ impl {{ .StructName }}Encoder {
                 {{- end}}
             {{- else}}
                 {{- if .Type.Flags.StoreByPtr}}
-        self.{{.name}}_encoder.encode(val.{{.name}}.as_ref());
+        let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+        unsafe { (*ptr).encode(val.{{.name}}.as_ref()); }
                 {{- else}}
-        self.{{.name}}_encoder.encode(&val.{{.name}});
+        let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+        unsafe { (*ptr).encode(&val.{{.name}}); }
                 {{- end}}
             {{- end}}
         {{- end}}
 {{- end }}
 
         // Account written bits in the limiter.
-        let new_len = self.buf.bit_count();
         if let Some(ptr) = self.limiter {
             unsafe {
-                (*ptr).add_frame_bits((new_len - old_len) as usize);
+                (*ptr).add_frame_bits(bit_count as usize);
             }
         }
     }
@@ -331,8 +367,17 @@ impl {{ .StructName }}Encoder {
         if self.field_count <= {{$i}} {
             return; // {{.Name}} and subsequent fields are skipped.
         }
+        {{- if .IsPrimitive}}
         self.{{.name}}_encoder.collect_columns(column_set.at(col_idx));
         col_idx += 1;
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.collect_columns(column_set.at(col_idx));
+                col_idx += 1;
+            }
+        }
+        {{- end}}
 {{- end }}
     }
 }
@@ -349,7 +394,9 @@ pub struct {{ .StructName }}Decoder {
     {{- if .IsPrimitive}}
     {{.name}}_decoder: {{ .Type.EncoderType }}Decoder,
     {{- else}}
-    {{.name}}_decoder: Box<{{ .Type.EncoderType }}Decoder>,
+    {{.name}}_decoder: Option<Box<{{ .Type.EncoderType }}Decoder>>,
+    {{.name}}_decoder_ptr: Option<*mut {{ .Type.EncoderType }}Decoder>,
+    is_{{.name}}_recursive: bool,
     {{- end}}
 {{- end }}
 }
@@ -360,36 +407,53 @@ impl {{ .StructName }}Decoder {
         state: &mut ReaderState,
         columns: &mut stef_core::ReadColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+        if state.{{.StructName}}Decoder.is_some() {
+            panic!("cannot initialize {{ .StructName }}Decoder: already initialized");
+        }
+        state.{{.StructName}}Decoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
 {{- if .OptionalFieldCount}}
-        self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
+            self.optional_field_count = optional_field_count({{printf "0b%b" .OptionalsMask}}, self.field_count);
 {{- end}}
-        if self.field_count > {{len .Fields}} {
-            return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
-        }
+            if self.field_count > {{len .Fields}} {
+                return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
+            }
 {{if .IsMainStruct}}
-        if self.field_count == 0 {
-            return Err(stef_core::errors::ERR_EMPTY_ROOT_STRUCT_DISALLOWED);
-        }
+            if self.field_count == 0 {
+                return Err(stef_core::errors::ERR_EMPTY_ROOT_STRUCT_DISALLOWED);
+            }
 {{end}}
 
-        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+            self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
 {{ range $i,$e := .Fields }}
-        if self.field_count <= {{$i}} {
-            return Ok(()); // {{.Name}} and subsequent fields are skipped.
-        }
-        {{- if .IsPrimitive}}
-            {{- if .Type.DictName}}
-        self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+            if self.field_count <= {{$i}} {
+                return Ok(()); // {{.Name}} and subsequent fields are skipped.
+            }
+            {{- if .IsPrimitive}}
+                {{- if .Type.DictName}}
+            self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+                {{- else}}
+            self.{{.name}}_decoder.init(columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.{{.name}}_decoder.init(columns.add_sub_column());
+            if let Some(ptr) = state.{{.Type.EncoderType}}Decoder {
+                self.{{.name}}_decoder = None;
+                self.{{.name}}_decoder_ptr = Some(ptr);
+                self.is_{{.name}}_recursive = true;
+            } else {
+                let mut dec: Box<{{ .Type.EncoderType }}Decoder> = Box::default();
+                dec.init(state, columns.add_sub_column())?;
+                self.{{.name}}_decoder_ptr = Some(dec.as_mut() as *mut _);
+                self.{{.name}}_decoder = Some(dec);
+                self.is_{{.name}}_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.{{.name}}_decoder = Box::new(Default::default());
-        self.{{.name}}_decoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 {{- end }}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.StructName}}Decoder = None;
+        init_result
     }
 
     pub fn continue_(&mut self) {
@@ -400,7 +464,15 @@ impl {{ .StructName }}Decoder {
         if self.field_count <= {{$i}} {
             return; // {{.Name}} and subsequent fields are skipped.
         }
+        {{- if .IsPrimitive}}
         self.{{.name}}_decoder.continue_();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                dec.continue_();
+            }
+        }
+        {{- end}}
 {{- end }}
     }
 
@@ -410,7 +482,15 @@ impl {{ .StructName }}Decoder {
             // {{.Name}} and all subsequent fields are skipped.
             return;
         }
+        {{- if .IsPrimitive}}
         self.{{.name}}_decoder.reset();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                dec.reset();
+            }
+        }
+        {{- end}}
 {{- end}}
     }
 
@@ -458,15 +538,19 @@ impl {{ .StructName }}Decoder {
                 {{- else}}
                     {{- if .Optional}}
                         {{- if .Type.Flags.StoreByPtr}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap().as_mut())?;
+                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap().as_mut())?; }
                         {{- else}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap())?;
+                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap())?; }
                         {{- end}}
                     {{- else}}
                         {{- if .Type.Flags.StoreByPtr}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut())?;
+                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                unsafe { (*ptr).decode(dst.{{.name}}.as_mut())?; }
                         {{- else}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                unsafe { (*ptr).decode(&mut dst.{{.name}})?; }
                         {{- end}}
                     {{- end}}
                 {{- end}}

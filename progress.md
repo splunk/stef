@@ -15,4 +15,17 @@
 - 2026-03-15: Attempted `multimap_struct.stef`:
   - Initial failure: stack overflow due recursive encoder/decoder init cycle.
   - Tried recursion-pointer approach in templates; reverted due unsafe recursive aliasing/instability.
-  - Current status: `multimap_struct.stef` remains failing and needs a safer recursion strategy.
+  - This failure was resolved later on 2026-03-15 (see entries below).
+- 2026-03-15: Debugged and fixed `multimap_struct.stef` recursion path:
+  - Found root cause: dangling recursive raw pointers caused by moving root encoder/decoder after `init`.
+  - Fixed by making root writer/reader codecs heap-stable before `init`:
+    - `stefc/templates/rust/writer.rs.tmpl`: `encoder: Box<...Encoder>`
+    - `stefc/templates/rust/reader.rs.tmpl`: `decoder: Box<...Decoder>`
+  - Also switched struct encoder frame-bit accounting to explicit per-record bit count (Go-style) in `stefc/templates/rust/struct.rs.tmpl`, removing dependence on `BitsWriter::bit_count()` deltas.
+- 2026-03-15: Verified passing generation/tests for:
+  - `multimap_struct.stef` (newly passing)
+  - Regression checks re-run and passing:
+    - `multimap_string_string.stef`
+    - `array_int64.stef`
+    - `enum_array.stef`
+    - `struct_reuse.stef`

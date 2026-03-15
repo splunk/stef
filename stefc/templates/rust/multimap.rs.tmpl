@@ -152,12 +152,16 @@ pub struct {{ .MultimapName }}Encoder {
     {{- if .Key.Type.IsPrimitive}}
     key_encoder: {{.Key.Type.EncoderType}}Encoder,
     {{- else}}
-    key_encoder: Box<{{.Key.Type.EncoderType}}Encoder>,
+    key_encoder: Option<Box<{{.Key.Type.EncoderType}}Encoder>>,
+    key_encoder_ptr: Option<*mut {{.Key.Type.EncoderType}}Encoder>,
+    is_key_recursive: bool,
     {{- end}}
     {{- if .Value.Type.IsPrimitive}}
     value_encoder: {{.Value.Type.EncoderType}}Encoder,
     {{- else}}
-    value_encoder: Box<{{.Value.Type.EncoderType}}Encoder>,
+    value_encoder: Option<Box<{{.Value.Type.EncoderType}}Encoder>>,
+    value_encoder_ptr: Option<*mut {{.Value.Type.EncoderType}}Encoder>,
+    is_value_recursive: bool,
     {{- end}}
 }
 
@@ -167,34 +171,76 @@ impl {{ .MultimapName }}Encoder {
         state: &mut WriterState,
         columns: &mut stef_core::WriteColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.limiter = Some(&mut state.limiter);
-        {{- if .Key.Type.IsPrimitive}}
-            {{- if .Key.Type.DictName}}
-        self.key_encoder.init(&mut state.{{.Key.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+        if state.{{.MultimapName}}Encoder.is_some() {
+            panic!("cannot initialize {{ .MultimapName }}Encoder: already initialized");
+        }
+        state.{{.MultimapName}}Encoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.limiter = Some(&mut state.limiter);
+            {{- if .Key.Type.IsPrimitive}}
+                {{- if .Key.Type.DictName}}
+            self.key_encoder.init(&mut state.{{.Key.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+                {{- else}}
+            self.key_encoder.init(&mut state.limiter, columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.key_encoder.init(&mut state.limiter, columns.add_sub_column());
+            if let Some(ptr) = state.{{.Key.Type.EncoderType}}Encoder {
+                self.key_encoder = None;
+                self.key_encoder_ptr = Some(ptr);
+                self.is_key_recursive = true;
+            } else {
+                let mut enc: Box<{{.Key.Type.EncoderType}}Encoder> = Box::default();
+                enc.init(state, columns.add_sub_column())?;
+                self.key_encoder_ptr = Some(enc.as_mut() as *mut _);
+                self.key_encoder = Some(enc);
+                self.is_key_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.key_encoder = Box::new(Default::default());
-        self.key_encoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 
-        {{- if .Value.Type.IsPrimitive}}
-            {{- if .Value.Type.DictName}}
-        self.value_encoder.init(&mut state.{{.Value.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            {{- if .Value.Type.IsPrimitive}}
+                {{- if .Value.Type.DictName}}
+            self.value_encoder.init(&mut state.{{.Value.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+                {{- else}}
+            self.value_encoder.init(&mut state.limiter, columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.value_encoder.init(&mut state.limiter, columns.add_sub_column());
+            if let Some(ptr) = state.{{.Value.Type.EncoderType}}Encoder {
+                self.value_encoder = None;
+                self.value_encoder_ptr = Some(ptr);
+                self.is_value_recursive = true;
+            } else {
+                let mut enc: Box<{{.Value.Type.EncoderType}}Encoder> = Box::default();
+                enc.init(state, columns.add_sub_column())?;
+                self.value_encoder_ptr = Some(enc.as_mut() as *mut _);
+                self.value_encoder = Some(enc);
+                self.is_value_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.value_encoder = Box::new(Default::default());
-        self.value_encoder.init(state, columns.add_sub_column())?;
-        {{- end}}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.MultimapName}}Encoder = None;
+        init_result
     }
 
     pub fn reset(&mut self) {
+        {{- if .Key.Type.IsPrimitive}}
         self.key_encoder.reset();
+        {{- else}}
+        if !self.is_key_recursive {
+            if let Some(enc) = self.key_encoder.as_mut() {
+                enc.reset();
+            }
+        }
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive}}
         self.value_encoder.reset();
+        {{- else}}
+        if !self.is_value_recursive {
+            if let Some(enc) = self.value_encoder.as_mut() {
+                enc.reset();
+            }
+        }
+        {{- end}}
     }
 
     pub fn encode(&mut self, val: &{{ .MultimapName }}) {
@@ -211,7 +257,8 @@ impl {{ .MultimapName }}Encoder {
             self.key_encoder.encode(val.elems[i].0);
                 {{- end}}
             {{- else}}
-            self.key_encoder.encode(&val.elems[i].0);
+            let ptr = self.key_encoder_ptr.expect("multimap key encoder not initialized");
+            unsafe { (*ptr).encode(&val.elems[i].0); }
             {{- end}}
 
             {{- if .Value.Type.IsPrimitive}}
@@ -223,7 +270,8 @@ impl {{ .MultimapName }}Encoder {
             self.value_encoder.encode(val.elems[i].1);
                 {{- end}}
             {{- else}}
-            self.value_encoder.encode(&val.elems[i].1);
+            let ptr = self.value_encoder_ptr.expect("multimap value encoder not initialized");
+            unsafe { (*ptr).encode(&val.elems[i].1); }
             {{- end}}
         }
         let new_len = self.buf.bytes().len();
@@ -236,8 +284,27 @@ impl {{ .MultimapName }}Encoder {
 
     pub fn collect_columns(&mut self, column_set: &mut stef_core::WriteColumnSet) {
         column_set.set_bytes(&mut self.buf);
-        self.key_encoder.collect_columns(column_set.at(0));
-        self.value_encoder.collect_columns(column_set.at(1));
+        let mut col_idx = 0usize;
+        {{- if .Key.Type.IsPrimitive}}
+        self.key_encoder.collect_columns(column_set.at(col_idx));
+        col_idx += 1;
+        {{- else}}
+        if !self.is_key_recursive {
+            if let Some(enc) = self.key_encoder.as_mut() {
+                enc.collect_columns(column_set.at(col_idx));
+                col_idx += 1;
+            }
+        }
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive}}
+        self.value_encoder.collect_columns(column_set.at(col_idx));
+        {{- else}}
+        if !self.is_value_recursive {
+            if let Some(enc) = self.value_encoder.as_mut() {
+                enc.collect_columns(column_set.at(col_idx));
+            }
+        }
+        {{- end}}
     }
 }
 
@@ -248,12 +315,16 @@ pub struct {{ .MultimapName }}Decoder {
     {{- if .Key.Type.IsPrimitive}}
     key_decoder: {{.Key.Type.EncoderType}}Decoder,
     {{- else}}
-    key_decoder: Box<{{.Key.Type.EncoderType}}Decoder>,
+    key_decoder: Option<Box<{{.Key.Type.EncoderType}}Decoder>>,
+    key_decoder_ptr: Option<*mut {{.Key.Type.EncoderType}}Decoder>,
+    is_key_recursive: bool,
     {{- end}}
     {{- if .Value.Type.IsPrimitive}}
     value_decoder: {{.Value.Type.EncoderType}}Decoder,
     {{- else}}
-    value_decoder: Box<{{.Value.Type.EncoderType}}Decoder>,
+    value_decoder: Option<Box<{{.Value.Type.EncoderType}}Decoder>>,
+    value_decoder_ptr: Option<*mut {{.Value.Type.EncoderType}}Decoder>,
+    is_value_recursive: bool,
     {{- end}}
 }
 
@@ -263,42 +334,100 @@ impl {{ .MultimapName }}Decoder {
         state: &mut ReaderState,
         columns: &mut stef_core::ReadColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
-        {{- if .Key.Type.IsPrimitive}}
-            {{- if .Key.Type.DictName}}
-        self.key_decoder.init(&mut state.{{.Key.Type.DictName}}, columns.add_sub_column());
+        if state.{{.MultimapName}}Decoder.is_some() {
+            panic!("cannot initialize {{ .MultimapName }}Decoder: already initialized");
+        }
+        state.{{.MultimapName}}Decoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+            {{- if .Key.Type.IsPrimitive}}
+                {{- if .Key.Type.DictName}}
+            self.key_decoder.init(&mut state.{{.Key.Type.DictName}}, columns.add_sub_column());
+                {{- else}}
+            self.key_decoder.init(columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.key_decoder.init(columns.add_sub_column());
+            if let Some(ptr) = state.{{.Key.Type.EncoderType}}Decoder {
+                self.key_decoder = None;
+                self.key_decoder_ptr = Some(ptr);
+                self.is_key_recursive = true;
+            } else {
+                let mut dec: Box<{{.Key.Type.EncoderType}}Decoder> = Box::default();
+                dec.init(state, columns.add_sub_column())?;
+                self.key_decoder_ptr = Some(dec.as_mut() as *mut _);
+                self.key_decoder = Some(dec);
+                self.is_key_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.key_decoder = Box::new(Default::default());
-        self.key_decoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 
-        {{- if .Value.Type.IsPrimitive}}
-            {{- if .Value.Type.DictName}}
-        self.value_decoder.init(&mut state.{{.Value.Type.DictName}}, columns.add_sub_column());
+            {{- if .Value.Type.IsPrimitive}}
+                {{- if .Value.Type.DictName}}
+            self.value_decoder.init(&mut state.{{.Value.Type.DictName}}, columns.add_sub_column());
+                {{- else}}
+            self.value_decoder.init(columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.value_decoder.init(columns.add_sub_column());
+            if let Some(ptr) = state.{{.Value.Type.EncoderType}}Decoder {
+                self.value_decoder = None;
+                self.value_decoder_ptr = Some(ptr);
+                self.is_value_recursive = true;
+            } else {
+                let mut dec: Box<{{.Value.Type.EncoderType}}Decoder> = Box::default();
+                dec.init(state, columns.add_sub_column())?;
+                self.value_decoder_ptr = Some(dec.as_mut() as *mut _);
+                self.value_decoder = Some(dec);
+                self.is_value_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.value_decoder = Box::new(Default::default());
-        self.value_decoder.init(state, columns.add_sub_column())?;
-        {{- end}}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.MultimapName}}Decoder = None;
+        init_result
     }
 
     pub fn continue_(&mut self) {
         let column_ptr = self.column.expect("decoder not initialized");
         let data = unsafe { (&*column_ptr).data().to_vec() };
         self.buf.reset(data);
+        {{- if .Key.Type.IsPrimitive}}
         self.key_decoder.continue_();
+        {{- else}}
+        if !self.is_key_recursive {
+            if let Some(dec) = self.key_decoder.as_mut() {
+                dec.continue_();
+            }
+        }
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive}}
         self.value_decoder.continue_();
+        {{- else}}
+        if !self.is_value_recursive {
+            if let Some(dec) = self.value_decoder.as_mut() {
+                dec.continue_();
+            }
+        }
+        {{- end}}
     }
 
     pub fn reset(&mut self) {
+        {{- if .Key.Type.IsPrimitive}}
         self.key_decoder.reset();
+        {{- else}}
+        if !self.is_key_recursive {
+            if let Some(dec) = self.key_decoder.as_mut() {
+                dec.reset();
+            }
+        }
+        {{- end}}
+        {{- if .Value.Type.IsPrimitive}}
         self.value_decoder.reset();
+        {{- else}}
+        if !self.is_value_recursive {
+            if let Some(dec) = self.value_decoder.as_mut() {
+                dec.reset();
+            }
+        }
+        {{- end}}
     }
 
     pub fn decode(&mut self, dst: &mut {{.MultimapName}}) -> Result<(), stef_core::errors::StefError> {
@@ -323,7 +452,8 @@ impl {{ .MultimapName }}Decoder {
                     self.value_decoder.decode(&mut dst.elems[i].1)?;
                         {{- end}}
                     {{- else}}
-                    self.value_decoder.decode(&mut dst.elems[i].1)?;
+                    let ptr = self.value_decoder_ptr.expect("multimap value decoder not initialized");
+                    unsafe { (*ptr).decode(&mut dst.elems[i].1)?; }
                     {{- end}}
                 }
                 bit_to_read <<= 1;
@@ -346,7 +476,8 @@ impl {{ .MultimapName }}Decoder {
             self.key_decoder.decode(&mut dst.elems[i].0)?;
                 {{- end}}
             {{- else}}
-            self.key_decoder.decode(&mut dst.elems[i].0)?;
+            let ptr = self.key_decoder_ptr.expect("multimap key decoder not initialized");
+            unsafe { (*ptr).decode(&mut dst.elems[i].0)?; }
             {{- end}}
 
             {{- if .Value.Type.IsPrimitive}}
@@ -358,7 +489,8 @@ impl {{ .MultimapName }}Decoder {
             self.value_decoder.decode(&mut dst.elems[i].1)?;
                 {{- end}}
             {{- else}}
-            self.value_decoder.decode(&mut dst.elems[i].1)?;
+            let ptr = self.value_decoder_ptr.expect("multimap value decoder not initialized");
+            unsafe { (*ptr).decode(&mut dst.elems[i].1)?; }
             {{- end}}
         }
         Ok(())

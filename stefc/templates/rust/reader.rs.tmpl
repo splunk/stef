@@ -40,7 +40,7 @@ impl<R: Read> stef_core::ByteAndBlockReader for SharedRead<R> {
 
 pub struct {{.StructName}}Reader<R: Read> {
     base: stef_core::basereader::BaseReader<SharedRead<R>>,
-    decoder: {{.StructName}}Decoder,
+    decoder: Box<{{.StructName}}Decoder>,
     state: ReaderState,
     decoder_inited: bool,
 
@@ -54,7 +54,7 @@ impl<R: Read> {{.StructName}}Reader<R> {
 
         let mut reader = Self {
             base,
-            decoder: {{.StructName}}Decoder::default(),
+            decoder: Box::<{{.StructName}}Decoder>::default(),
             state: ReaderState::default(),
             decoder_inited: false,
             record: {{.StructName}}::default(),

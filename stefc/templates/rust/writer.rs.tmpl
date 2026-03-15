@@ -6,7 +6,7 @@ pub struct {{.StructName}}Writer<'a> {
 
     opts: stef_core::WriterOptions,
     frame_encoder: stef_core::FrameEncoder<'a>,
-    encoder: {{.StructName}}Encoder,
+    encoder: Box<{{.StructName}}Encoder>,
     state: WriterState,
     write_bufs: stef_core::WriteBufs,
     frame_record_count: u64,
@@ -39,7 +39,7 @@ impl<'a> {{.StructName}}Writer<'a> {
         let mut state = WriterState::default();
         state.init(&opts);
 
-        let mut encoder = {{.StructName}}Encoder::default();
+        let mut encoder = Box::<{{.StructName}}Encoder>::default();
         let mut write_bufs = stef_core::WriteBufs::default();
         encoder.init(&mut state, &mut write_bufs.columns)?;
         if !state.struct_field_counts.all_fetched() {

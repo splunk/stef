@@ -22,6 +22,11 @@ pub struct ReaderState {
         Vec<{{.Storage}}>
     {{- end -}},
     {{end}}
+
+    // Decoders that are currently being init-ed, used for recursion detection.
+    {{range $name, $val := .Encoders -}}
+    pub {{$name}}Decoder: Option<*mut {{$name}}Decoder>,
+    {{end}}
 }
 
 impl ReaderState {

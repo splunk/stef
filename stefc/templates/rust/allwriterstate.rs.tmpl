@@ -23,6 +23,11 @@ pub struct WriterState {
         Vec<{{.Storage}}>
     {{- end -}},
     {{end}}
+
+    // Encoders that are currently being init-ed, used for recursion detection.
+    {{range $name, $val := .Encoders -}}
+    pub {{$name}}Encoder: Option<*mut {{$name}}Encoder>,
+    {{end}}
 }
 
 impl WriterState {
