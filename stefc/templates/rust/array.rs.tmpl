@@ -176,7 +176,7 @@ impl {{ .ArrayName }}Encoder {
             } else {
                 let mut enc: Box<{{.ElemType.EncoderType}}Encoder> = Box::default();
                 enc.init(state, columns.add_sub_column())?;
-                self.elem_encoder_ptr = Some(enc.as_mut() as *mut _);
+                self.elem_encoder_ptr = None;
                 self.elem_encoder = Some(enc);
                 self.is_elem_recursive = false;
             }
@@ -217,8 +217,12 @@ impl {{ .ArrayName }}Encoder {
             self.elem_encoder.encode(arr.elems[i]);
                 {{- end}}
             {{- else}}
-            let ptr = self.elem_encoder_ptr.expect("array elem encoder not initialized");
-            unsafe { (*ptr).encode(&arr.elems[i]); }
+            if self.is_elem_recursive {
+                let ptr = self.elem_encoder_ptr.expect("array elem encoder not initialized");
+                unsafe { (*ptr).encode(&arr.elems[i]); }
+            } else if let Some(enc) = self.elem_encoder.as_mut() {
+                enc.encode(&arr.elems[i]);
+            }
             {{- end}}
         }
 
@@ -285,7 +289,7 @@ impl {{ .ArrayName }}Decoder {
             } else {
                 let mut dec: Box<{{.ElemType.EncoderType}}Decoder> = Box::default();
                 dec.init(state, columns.add_sub_column())?;
-                self.elem_decoder_ptr = Some(dec.as_mut() as *mut _);
+                self.elem_decoder_ptr = None;
                 self.elem_decoder = Some(dec);
                 self.is_elem_recursive = false;
             }
@@ -343,16 +347,18 @@ impl {{ .ArrayName }}Decoder {
         dst.ensure_len(new_len);
         for i in 0..new_len {
             {{- if .ElemType.IsPrimitive}}
-                {{- if eq .ElemType.TypeName "bool"}}
-            self.elem_decoder.decode(&mut dst.elems[i]);
-                {{- else if eq .ElemType.TypeName "f64"}}
-            self.elem_decoder.decode(&mut dst.elems[i]);
+                {{- if or (eq .ElemType.TypeName "bool") (eq .ElemType.TypeName "f64")}}
+            self.elem_decoder.decode_result(&mut dst.elems[i])?;
                 {{- else}}
             self.elem_decoder.decode(&mut dst.elems[i])?;
                 {{- end}}
             {{- else}}
-            let ptr = self.elem_decoder_ptr.expect("array elem decoder not initialized");
-            unsafe { (*ptr).decode(&mut dst.elems[i])?; }
+            if self.is_elem_recursive {
+                let ptr = self.elem_decoder_ptr.expect("array elem decoder not initialized");
+                unsafe { (*ptr).decode(&mut dst.elems[i])?; }
+            } else if let Some(dec) = self.elem_decoder.as_mut() {
+                dec.decode(&mut dst.elems[i])?;
+            }
             {{- end}}
         }
 

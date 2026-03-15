@@ -251,7 +251,7 @@ impl {{ .StructName }}Encoder {
             } else {
                 let mut enc: Box<{{ .Type.EncoderType }}Encoder> = Box::default();
                 enc.init(state, columns.add_sub_column())?;
-                self.{{.name}}_encoder_ptr = Some(enc.as_mut() as *mut _);
+                self.{{.name}}_encoder_ptr = None;
                 self.{{.name}}_encoder = Some(enc);
                 self.is_{{.name}}_recursive = false;
             }
@@ -320,11 +320,19 @@ impl {{ .StructName }}Encoder {
                 {{- end}}
             {{- else}}
                 {{- if .Type.Flags.StoreByPtr}}
-            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
-            unsafe { (*ptr).encode(v.as_ref()); }
+            if self.is_{{.name}}_recursive {
+                let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+                unsafe { (*ptr).encode(v.as_ref()); }
+            } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.encode(v.as_ref());
+            }
                 {{- else}}
-            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
-            unsafe { (*ptr).encode(v); }
+            if self.is_{{.name}}_recursive {
+                let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+                unsafe { (*ptr).encode(v); }
+            } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.encode(v);
+            }
                 {{- end}}
             {{- end}}
         }
@@ -339,11 +347,19 @@ impl {{ .StructName }}Encoder {
                 {{- end}}
             {{- else}}
                 {{- if .Type.Flags.StoreByPtr}}
-        let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
-        unsafe { (*ptr).encode(val.{{.name}}.as_ref()); }
+        if self.is_{{.name}}_recursive {
+            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+            unsafe { (*ptr).encode(val.{{.name}}.as_ref()); }
+        } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+            enc.encode(val.{{.name}}.as_ref());
+        }
                 {{- else}}
-        let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
-        unsafe { (*ptr).encode(&val.{{.name}}); }
+        if self.is_{{.name}}_recursive {
+            let ptr = self.{{.name}}_encoder_ptr.expect("struct field encoder not initialized");
+            unsafe { (*ptr).encode(&val.{{.name}}); }
+        } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+            enc.encode(&val.{{.name}});
+        }
                 {{- end}}
             {{- end}}
         {{- end}}
@@ -444,7 +460,7 @@ impl {{ .StructName }}Decoder {
             } else {
                 let mut dec: Box<{{ .Type.EncoderType }}Decoder> = Box::default();
                 dec.init(state, columns.add_sub_column())?;
-                self.{{.name}}_decoder_ptr = Some(dec.as_mut() as *mut _);
+                self.{{.name}}_decoder_ptr = None;
                 self.{{.name}}_decoder = Some(dec);
                 self.is_{{.name}}_recursive = false;
             }
@@ -519,18 +535,14 @@ impl {{ .StructName }}Decoder {
                 {{- end}}
                 {{- if .IsPrimitive}}
                     {{- if .Optional}}
-                        {{- if eq .Type.TypeName "bool"}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap());
-                        {{- else if eq .Type.TypeName "f64"}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap());
+                        {{- if or (eq .Type.TypeName "bool") (eq .Type.TypeName "f64")}}
+                self.{{.name}}_decoder.decode_result(dst.{{.name}}.as_mut().unwrap())?;
                         {{- else}}
                 self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut().unwrap())?;
                         {{- end}}
                     {{- else}}
-                        {{- if eq .Type.TypeName "bool"}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
-                        {{- else if eq .Type.TypeName "f64"}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
+                        {{- if or (eq .Type.TypeName "bool") (eq .Type.TypeName "f64")}}
+                self.{{.name}}_decoder.decode_result(&mut dst.{{.name}})?;
                         {{- else}}
                 self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
                         {{- end}}
@@ -538,19 +550,35 @@ impl {{ .StructName }}Decoder {
                 {{- else}}
                     {{- if .Optional}}
                         {{- if .Type.Flags.StoreByPtr}}
-                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
-                unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap().as_mut())?; }
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                    unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap().as_mut())?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(dst.{{.name}}.as_mut().unwrap().as_mut())?;
+                }
                         {{- else}}
-                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
-                unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap())?; }
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                    unsafe { (*ptr).decode(dst.{{.name}}.as_mut().unwrap())?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(dst.{{.name}}.as_mut().unwrap())?;
+                }
                         {{- end}}
                     {{- else}}
                         {{- if .Type.Flags.StoreByPtr}}
-                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
-                unsafe { (*ptr).decode(dst.{{.name}}.as_mut())?; }
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                    unsafe { (*ptr).decode(dst.{{.name}}.as_mut())?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(dst.{{.name}}.as_mut())?;
+                }
                         {{- else}}
-                let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
-                unsafe { (*ptr).decode(&mut dst.{{.name}})?; }
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("struct field decoder not initialized");
+                    unsafe { (*ptr).decode(&mut dst.{{.name}})?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(&mut dst.{{.name}})?;
+                }
                         {{- end}}
                     {{- end}}
                 {{- end}}

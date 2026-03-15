@@ -1,31 +1,85 @@
 # Rust Generator Progress
 
-- 2026-03-15: Started continuation for Step 4.
+- 2026-03-15 (time not captured): Started continuation for Step 4.
 - Existing known passing schemas before this session: `array_int64.stef`, `enum_array.stef`, `struct_reuse.stef`.
 - Next targets per request: `multimap_string_string.stef`, then `multimap_struct.stef`.
-- 2026-03-15: Fixed Rust multimap wire compatibility in `stefc/templates/rust/multimap.rs.tmpl`:
+- 2026-03-15 (time not captured): Fixed Rust multimap wire compatibility in `stefc/templates/rust/multimap.rs.tmpl`:
   - Full encoding now writes tagged header `((len << 1) | 1)` to match Go format.
   - Decoder now supports Go multimap modes: `0` (no change), values-only (`lsb=0`), full (`lsb=1`).
   - Count limit check aligned to Go behavior (`>= MULTIMAP_ELEM_COUNT_LIMIT`).
-- 2026-03-15: Verified passing generation/tests for:
+- 2026-03-15 (time not captured): Verified passing generation/tests for:
   - `array_int64.stef`
   - `enum_array.stef`
   - `struct_reuse.stef`
   - `multimap_string_string.stef` (newly passing)
-- 2026-03-15: Attempted `multimap_struct.stef`:
+- 2026-03-15 (time not captured): Attempted `multimap_struct.stef`:
   - Initial failure: stack overflow due recursive encoder/decoder init cycle.
   - Tried recursion-pointer approach in templates; reverted due unsafe recursive aliasing/instability.
   - This failure was resolved later on 2026-03-15 (see entries below).
-- 2026-03-15: Debugged and fixed `multimap_struct.stef` recursion path:
+- 2026-03-15 (time not captured): Debugged and fixed `multimap_struct.stef` recursion path:
   - Found root cause: dangling recursive raw pointers caused by moving root encoder/decoder after `init`.
   - Fixed by making root writer/reader codecs heap-stable before `init`:
     - `stefc/templates/rust/writer.rs.tmpl`: `encoder: Box<...Encoder>`
     - `stefc/templates/rust/reader.rs.tmpl`: `decoder: Box<...Decoder>`
   - Also switched struct encoder frame-bit accounting to explicit per-record bit count (Go-style) in `stefc/templates/rust/struct.rs.tmpl`, removing dependence on `BitsWriter::bit_count()` deltas.
-- 2026-03-15: Verified passing generation/tests for:
+- 2026-03-15 (time not captured): Verified passing generation/tests for:
   - `multimap_struct.stef` (newly passing)
   - Regression checks re-run and passing:
     - `multimap_string_string.stef`
     - `array_int64.stef`
     - `enum_array.stef`
     - `struct_reuse.stef`
+- 2026-03-15 04:27 UTC: Continuing with remaining schemas, simple-to-complex order.
+- 2026-03-15 05:28 UTC: Investigated `json_like.stef` interop failure in depth.
+  - Reproduced stable failure in `test_format_interop_Record` with varying manifestations:
+    - early EOF (`go_gen has more records`)
+    - record mismatch at varying indices (`Record #N differs`)
+  - Confirmed failures are seed-dependent/flaky when Go generator enables frame restarts and compression (many frames observed with `FrameFlags(7)`).
+  - Added temporary generated-code instrumentation during debugging to identify failure path:
+    - `RecordDecoder -> JsonValueDecoder` child decode path was the dominant failure source.
+- 2026-03-15 05:28 UTC: Applied Rust template/core fixes while debugging `json_like.stef`:
+  - `stefc/templates/rust/oneof.rs.tmpl`
+    - Implemented non-empty `reset_contained()` for non-primitive fields.
+    - Decoder now maps decoded type first, then resets contained value on type change (Go-aligned behavior), then decodes selected field.
+  - `rust/stef-core/src/codecs/bool.rs` and `rust/stef-core/src/codecs/float64.rs`
+    - `decode_result()` now propagates bitstream EOF/error.
+  - `stefc/templates/rust/array.rs.tmpl`, `struct.rs.tmpl`, `oneof.rs.tmpl`, `multimap.rs.tmpl`
+    - Bool/f64 decode paths now use `decode_result(...)?` to propagate decode errors consistently.
+- 2026-03-15 05:28 UTC: Status after fixes:
+  - `json_like.stef` still not stable: some runs pass; repeated runs still fail intermittently.
+  - `json_like.stef` remains unresolved blocker.
+- 2026-03-15 05:56 UTC: Continued schema sweep (targeted generation + targeted Rust tests) after template/core updates.
+  - Passing in this sweep:
+    - `multimap_string_string.stef`
+    - `multimap_struct.stef`
+    - `optional_in_struct_in_multimap.stef`
+    - `optional_reset_fail.stef`
+    - `array_multimap.stef`
+    - `array_multimap_struct.stef`
+    - `multimap_enum.stef`
+    - `recursive_optionals.stef`
+    - `array_recurse_root.stef`
+    - `array_recurse_self.stef`
+    - `array_recurse_struct.stef`
+    - `multimap_recurse_self.stef`
+    - `multimap_recurse_mutual.stef`
+    - `oneof_recurse_array.stef`
+    - `oneof_recurse_multimap.stef`
+    - `struct_recurse_self.stef`
+    - `struct_recurse_mutual.stef`
+    - `struct_recurse_oneof.stef`
+    - `struct_recurse_reuse.stef`
+  - Failing in this sweep:
+    - `multimap_key_recurse.stef` (`test_format_interop_Struct1`: Rust copy ends early)
+    - `all_features.stef` (SIGSEGV in Rust tests)
+    - `otelstef.stef` (SIGSEGV in Rust tests)
+    - `profile.stef` (SIGSEGV in Rust tests)
+    - `json_like.stef` (still flaky/intermittent interop failure)
+- 2026-03-15 05:56 UTC: Fixed stack-overflow regressions in recursive oneofs.
+  - Updated `stefc/templates/rust/oneof.rs.tmpl` to use lazy pointer storage for oneof `StoreByPtr` fields:
+    - Switched field representation from `Box<T>` to `Option<Box<T>>`.
+    - Added lazy allocation in `set_type()` and decode path when selected field is pointer-backed.
+    - Avoided eager recursive default construction that caused stack overflow.
+  - Verified now passing:
+    - `oneof_recurse_self.stef`
+    - `oneof_recurse_mutual.stef`

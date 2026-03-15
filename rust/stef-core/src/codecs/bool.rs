@@ -53,6 +53,9 @@ impl BoolDecoder {
 
     pub fn decode_result(&mut self, dst: &mut bool) -> crate::errors::Result<()> {
         self.decode(dst);
+        if let Some(err) = self.buf.error() {
+            return Err(std::io::Error::from(err).into());
+        }
         Ok(())
     }
 

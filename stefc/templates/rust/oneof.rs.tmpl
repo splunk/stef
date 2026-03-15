@@ -16,7 +16,7 @@ pub enum {{.StructName}}Type {
 pub struct {{.StructName}} {
     pub typ: {{.StructName}}Type,
 {{- range .Fields }}
-    pub {{.name}}: {{- if .Type.Flags.StoreByPtr }}Box<{{end}}{{.Type.Storage}}{{- if .Type.Flags.StoreByPtr }}>{{end}},
+    pub {{.name}}: {{- if .Type.Flags.StoreByPtr }}Option<Box<{{.Type.Storage}}>>{{else}}{{.Type.Storage}}{{end}},
 {{- end }}
     frozen: bool,
 }
@@ -26,7 +26,7 @@ impl Default for {{.StructName}} {
         let mut s = Self {
             typ: {{.StructName}}Type::None,
 {{- range .Fields }}
-            {{.name}}: {{- if .Type.Flags.StoreByPtr }}Box::new(Default::default()){{else}}Default::default(){{end}},
+            {{.name}}: {{- if .Type.Flags.StoreByPtr }}None{{else}}Default::default(){{end}},
 {{- end }}
             frozen: false,
         };
@@ -67,12 +67,41 @@ impl {{.StructName}} {
         self.type_()
     }
 
-    pub fn reset_contained(&mut self) {}
+    pub fn reset_contained(&mut self) {
+        match self.typ {
+{{- range .Fields }}
+    {{- if not .IsPrimitive }}
+            {{$.StructName}}Type::{{.Name}} => {
+        {{- if .Type.Flags.StoreByPtr}}
+                if let Some(v) = self.{{.name}}.as_mut() {
+                    v.reset();
+                }
+        {{- else}}
+                self.{{.name}}.reset();
+        {{- end}}
+            }
+    {{- end }}
+{{- end }}
+            _ => {}
+        }
+    }
 
     pub fn set_type(&mut self, typ: {{.StructName}}Type) {
         if self.typ != typ {
             self.typ = typ;
             self.reset_contained();
+            match typ {
+{{- range .Fields }}
+    {{- if .Type.Flags.StoreByPtr}}
+                {{$.StructName}}Type::{{.Name}} => {
+                    if self.{{.name}}.is_none() {
+                        self.{{.name}} = Some(Box::new(Default::default()));
+                    }
+                }
+    {{- end }}
+{{- end }}
+                _ => {}
+            }
             self.mark_parent_modified();
         }
     }
@@ -83,12 +112,12 @@ impl {{.StructName}} {
 
 {{- range .Fields }}
     pub fn {{.Name}}(&self) -> {{.Type.Exported}} {
-        {{if .Type.Flags.StoreByPtr}}(*self.{{.name}}).clone(){{else}}self.{{.name}}.clone(){{end}}
+        {{if .Type.Flags.StoreByPtr}}self.{{.name}}.as_deref().cloned().unwrap_or_default(){{else}}self.{{.name}}.clone(){{end}}
     }
 
     pub fn Set{{.Name}}(&mut self, v: {{.Type.Exported}}) {
         self.typ = {{$.StructName}}Type::{{.Name}};
-        {{if .Type.Flags.StoreByPtr}}self.{{.name}} = Box::new(v);{{else}}self.{{.name}} = v;{{end}}
+        {{if .Type.Flags.StoreByPtr}}self.{{.name}} = Some(Box::new(v));{{else}}self.{{.name}} = v;{{end}}
     }
 {{- end }}
 
@@ -160,11 +189,15 @@ pub fn cmp_{{.StructName}}(left: &{{.StructName}}, right: &{{.StructName}}) -> i
 pub struct {{ .StructName }}Encoder {
     buf: stef_core::BitsWriter,
     limiter: Option<*mut stef_core::SizeLimiter>,
+    field_count: u32,
+    type_bit_count: u32,
 {{- range .Fields }}
     {{- if .IsPrimitive}}
     {{.name}}_encoder: {{ .Type.EncoderType }}Encoder,
     {{- else}}
-    {{.name}}_encoder: Box<{{ .Type.EncoderType }}Encoder>,
+    {{.name}}_encoder: Option<Box<{{ .Type.EncoderType }}Encoder>>,
+    {{.name}}_encoder_ptr: Option<*mut {{ .Type.EncoderType }}Encoder>,
+    is_{{.name}}_recursive: bool,
     {{- end}}
 {{- end }}
 }
@@ -175,34 +208,73 @@ impl {{ .StructName }}Encoder {
         state: &mut WriterState,
         columns: &mut stef_core::WriteColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.limiter = Some(&mut state.limiter);
+        if state.{{.StructName}}Encoder.is_some() {
+            panic!("cannot initialize {{ .StructName }}Encoder: already initialized");
+        }
+        state.{{.StructName}}Encoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.limiter = Some(&mut state.limiter);
+            self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+            if self.field_count > {{len .Fields}} {
+                return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
+            }
+            self.type_bit_count = 64 - ((self.field_count as u64) + 1).leading_zeros();
 {{- range .Fields }}
-        {{- if .IsPrimitive}}
-            {{- if .Type.DictName}}
-        self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+            if self.field_count <= {{.FieldIndex}} {
+                return Ok(());
+            }
+            {{- if .IsPrimitive}}
+                {{- if .Type.DictName}}
+            self.{{.name}}_encoder.init(&mut state.{{.Type.DictName}}, &mut state.limiter, columns.add_sub_column());
+                {{- else}}
+            self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.{{.name}}_encoder.init(&mut state.limiter, columns.add_sub_column());
+            if let Some(ptr) = state.{{.Type.EncoderType}}Encoder {
+                self.{{.name}}_encoder = None;
+                self.{{.name}}_encoder_ptr = Some(ptr);
+                self.is_{{.name}}_recursive = true;
+            } else {
+                let mut enc: Box<{{ .Type.EncoderType }}Encoder> = Box::default();
+                enc.init(state, columns.add_sub_column())?;
+                self.{{.name}}_encoder_ptr = None;
+                self.{{.name}}_encoder = Some(enc);
+                self.is_{{.name}}_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.{{.name}}_encoder = Box::new(Default::default());
-        self.{{.name}}_encoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 {{- end }}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.StructName}}Encoder = None;
+        init_result
     }
 
     pub fn reset(&mut self) {
 {{- range .Fields }}
+        if self.field_count <= {{.FieldIndex}} {
+            return;
+        }
+        {{- if .IsPrimitive}}
         self.{{.name}}_encoder.reset();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.reset();
+            }
+        }
+        {{- end}}
 {{- end}}
     }
 
     pub fn encode(&mut self, val: &{{ .StructName }}) {
-        let old_len = self.buf.bit_count();
-        self.buf.write_uvarint_compact(val.typ as u64);
-        match val.typ {
+        let mut typ = val.typ as u32;
+        if typ > self.field_count {
+            typ = 0; // Type not in target schema, encode as None.
+        }
+        self.buf.write_bits(typ as u64, self.type_bit_count);
+        match typ {
 {{- range .Fields }}
-            {{$.StructName}}Type::{{.Name}} => {
+            x if x == ({{.FieldIndex}}u32 + 1) => {
                 {{- if .IsPrimitive}}
                     {{- if eq .Type.TypeName "String"}}
                 self.{{.name}}_encoder.encode(val.{{.name}}.as_str());
@@ -213,19 +285,29 @@ impl {{ .StructName }}Encoder {
                     {{- end}}
                 {{- else}}
                     {{- if .Type.Flags.StoreByPtr}}
-                self.{{.name}}_encoder.encode(val.{{.name}}.as_ref());
+                let v = val.{{.name}}.as_ref().expect("oneof selected field not initialized");
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_encoder_ptr.expect("oneof field encoder not initialized");
+                    unsafe { (*ptr).encode(v.as_ref()); }
+                } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                    enc.encode(v.as_ref());
+                }
                     {{- else}}
-                self.{{.name}}_encoder.encode(&val.{{.name}});
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_encoder_ptr.expect("oneof field encoder not initialized");
+                    unsafe { (*ptr).encode(&val.{{.name}}); }
+                } else if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                    enc.encode(&val.{{.name}});
+                }
                     {{- end}}
                 {{- end}}
             }
 {{- end }}
-            {{$.StructName}}Type::None => {}
+            _ => {}
         }
-        let new_len = self.buf.bit_count();
         if let Some(ptr) = self.limiter {
             unsafe {
-                (*ptr).add_frame_bits((new_len - old_len) as usize);
+                (*ptr).add_frame_bits(self.type_bit_count as usize);
             }
         }
     }
@@ -236,8 +318,20 @@ impl {{ .StructName }}Encoder {
         let mut col_idx = 0usize;
 {{- end}}
 {{- range .Fields }}
+        if self.field_count <= {{.FieldIndex}} {
+            return;
+        }
+        {{- if .IsPrimitive}}
         self.{{.name}}_encoder.collect_columns(column_set.at(col_idx));
         col_idx += 1;
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(enc) = self.{{.name}}_encoder.as_mut() {
+                enc.collect_columns(column_set.at(col_idx));
+                col_idx += 1;
+            }
+        }
+        {{- end}}
 {{- end }}
     }
 }
@@ -246,11 +340,15 @@ impl {{ .StructName }}Encoder {
 pub struct {{ .StructName }}Decoder {
     buf: stef_core::BitsReader,
     column: Option<*mut stef_core::ReadableColumn>,
+    field_count: u32,
+    type_bit_count: u32,
 {{- range .Fields }}
     {{- if .IsPrimitive}}
     {{.name}}_decoder: {{ .Type.EncoderType }}Decoder,
     {{- else}}
-    {{.name}}_decoder: Box<{{ .Type.EncoderType }}Decoder>,
+    {{.name}}_decoder: Option<Box<{{ .Type.EncoderType }}Decoder>>,
+    {{.name}}_decoder_ptr: Option<*mut {{ .Type.EncoderType }}Decoder>,
+    is_{{.name}}_recursive: bool,
     {{- end}}
 {{- end }}
 }
@@ -261,20 +359,45 @@ impl {{ .StructName }}Decoder {
         state: &mut ReaderState,
         columns: &mut stef_core::ReadColumnSet,
     ) -> Result<(), stef_core::errors::StefError> {
-        self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+        if state.{{.StructName}}Decoder.is_some() {
+            panic!("cannot initialize {{ .StructName }}Decoder: already initialized");
+        }
+        state.{{.StructName}}Decoder = Some(self as *mut _);
+        let init_result = (|| {
+            self.column = Some(columns.column() as *mut stef_core::ReadableColumn);
+            self.field_count = state.struct_field_counts.{{.StructName}}_field_count();
+            if self.field_count > {{len .Fields}} {
+                return Err(stef_core::errors::ERR_TOO_MANY_FIELDS_TO_DECODE);
+            }
+            self.type_bit_count = 64 - ((self.field_count as u64) + 1).leading_zeros();
 {{- range .Fields }}
-        {{- if .IsPrimitive}}
-            {{- if .Type.DictName}}
-        self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+            if self.field_count <= {{.FieldIndex}} {
+                return Ok(());
+            }
+            {{- if .IsPrimitive}}
+                {{- if .Type.DictName}}
+            self.{{.name}}_decoder.init(&mut state.{{.Type.DictName}}, columns.add_sub_column());
+                {{- else}}
+            self.{{.name}}_decoder.init(columns.add_sub_column());
+                {{- end}}
             {{- else}}
-        self.{{.name}}_decoder.init(columns.add_sub_column());
+            if let Some(ptr) = state.{{.Type.EncoderType}}Decoder {
+                self.{{.name}}_decoder = None;
+                self.{{.name}}_decoder_ptr = Some(ptr);
+                self.is_{{.name}}_recursive = true;
+            } else {
+                let mut dec: Box<{{ .Type.EncoderType }}Decoder> = Box::default();
+                dec.init(state, columns.add_sub_column())?;
+                self.{{.name}}_decoder_ptr = None;
+                self.{{.name}}_decoder = Some(dec);
+                self.is_{{.name}}_recursive = false;
+            }
             {{- end}}
-        {{- else}}
-        self.{{.name}}_decoder = Box::new(Default::default());
-        self.{{.name}}_decoder.init(state, columns.add_sub_column())?;
-        {{- end}}
 {{- end }}
-        Ok(())
+            Ok(())
+        })();
+        state.{{.StructName}}Decoder = None;
+        init_result
     }
 
     pub fn continue_(&mut self) {
@@ -282,43 +405,93 @@ impl {{ .StructName }}Decoder {
         let data = unsafe { (&*column_ptr).data().to_vec() };
         self.buf.reset(&data);
 {{- range .Fields }}
+        if self.field_count <= {{.FieldIndex}} {
+            return;
+        }
+        {{- if .IsPrimitive}}
         self.{{.name}}_decoder.continue_();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                dec.continue_();
+            }
+        }
+        {{- end}}
 {{- end }}
     }
 
     pub fn reset(&mut self) {
 {{- range .Fields }}
+        if self.field_count <= {{.FieldIndex}} {
+            return;
+        }
+        {{- if .IsPrimitive}}
         self.{{.name}}_decoder.reset();
+        {{- else}}
+        if !self.is_{{.name}}_recursive {
+            if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                dec.reset();
+            }
+        }
+        {{- end}}
 {{- end }}
     }
 
     pub fn decode(&mut self, dst: &mut {{.StructName}}) -> Result<(), stef_core::errors::StefError> {
-        let typ = self.buf.read_uvarint_compact() as u32;
-        match typ {
-            0 => {
-                dst.typ = {{.StructName}}Type::None;
-            }
+        let typ = self.buf.read_bits(self.type_bit_count) as u32;
+        if typ > self.field_count {
+            return Err(stef_core::errors::ERR_INVALID_ONEOF_TYPE);
+        }
+        let decoded_type = match typ {
+            0 => {{.StructName}}Type::None,
 {{- range .Fields }}
-            x if x == ({{.FieldIndex}}u32 + 1) => {
-                dst.typ = {{$.StructName}}Type::{{.Name}};
-                {{- if .IsPrimitive}}
-                    {{- if eq .Type.TypeName "bool"}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
-                    {{- else if eq .Type.TypeName "f64"}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}});
-                    {{- else}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
-                    {{- end}}
-                {{- else}}
-                    {{- if .Type.Flags.StoreByPtr}}
-                self.{{.name}}_decoder.decode(dst.{{.name}}.as_mut())?;
-                    {{- else}}
-                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
-                    {{- end}}
-                {{- end}}
-            }
+            x if x == ({{.FieldIndex}}u32 + 1) => {{$.StructName}}Type::{{.Name}},
 {{- end }}
             _ => return Err(stef_core::errors::ERR_INVALID_ONEOF_TYPE),
+        };
+
+        if dst.typ != decoded_type {
+            dst.typ = decoded_type;
+            // Reset the newly selected field to avoid carrying state from older records.
+            dst.reset_contained();
+        }
+
+        match dst.typ {
+            {{.StructName}}Type::None => {}
+{{- range .Fields }}
+            {{$.StructName}}Type::{{.Name}} => {
+            {{- if .IsPrimitive}}
+                {{- if or (eq .Type.TypeName "bool") (eq .Type.TypeName "f64")}}
+                self.{{.name}}_decoder.decode_result(&mut dst.{{.name}})?;
+                {{- else}}
+                self.{{.name}}_decoder.decode(&mut dst.{{.name}})?;
+                {{- end}}
+            {{- else}}
+                {{- if .Type.Flags.StoreByPtr}}
+                if dst.{{.name}}.is_none() {
+                    dst.{{.name}} = Some(Box::new(Default::default()));
+                }
+                let v = dst.{{.name}}.as_mut().unwrap();
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("oneof field decoder not initialized");
+                    unsafe { (*ptr).decode(v.as_mut())?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(v.as_mut())?;
+                }
+                {{- else}}
+                if self.is_{{.name}}_recursive {
+                    let ptr = self.{{.name}}_decoder_ptr.expect("oneof field decoder not initialized");
+                    unsafe { (*ptr).decode(&mut dst.{{.name}})?; }
+                } else if let Some(dec) = self.{{.name}}_decoder.as_mut() {
+                    dec.decode(&mut dst.{{.name}})?;
+                }
+                {{- end}}
+            {{- end}}
+            }
+{{- end }}
+        }
+        if let Some(err) = self.buf.error() {
+            return Err(std::io::Error::from(err).into());
         }
         Ok(())
     }
