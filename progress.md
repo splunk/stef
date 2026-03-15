@@ -121,3 +121,11 @@
 - 2026-03-15 18:47 UTC: Ran targeted regression sweep after `all_features` fix.
   - Regenerated + tested: `array_int64.stef`, `enum_array.stef`, `struct_reuse.stef`, `multimap_string_string.stef`, `multimap_struct.stef`, `multimap_key_recurse.stef`, `all_features.stef`.
   - Result: all selected schemas pass.
+- 2026-03-15 19:01 UTC: Fixed `otelstef.stef` Rust interop test harness package selection.
+  - Root cause: Rust `tools_test` selected `go/otel/otelstef` first, which has no `tools_test.go` and therefore rejects `-root`/tool flags in `go test`.
+  - Fix: updated `stefc/templates/rust/tools_test.rs.tmpl` to select Go package dirs only when `tools_test.go` exists, preferring `stefc/generator/testdata/out/<schema>.stef/<package>` and validating `shrunk` path similarly.
+  - Re-generated and validated:
+    - `go test -run TestGenerate/testdata/otelstef.stef` passes.
+    - `cargo test --test otelstef` passes.
+- 2026-03-15 19:01 UTC: Full schema sweep completed (generate + targeted Rust test for each schema in `stefc/generator/testdata/*.stef`).
+  - Result: all schemas currently in testdata pass (`generate:PASS`, `cargo:PASS` for each generated Rust target).

@@ -32,10 +32,6 @@ mod tools_tests {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).canonicalize().ok()?;
 
         for dir in manifest_dir.ancestors() {
-            let candidate = dir.join("go").join("otel").join(package_name);
-            if candidate.exists() {
-                return Some(candidate);
-            }
             let candidate = dir
                 .join("stefc")
                 .join("generator")
@@ -43,7 +39,11 @@ mod tools_tests {
                 .join("out")
                 .join(format!("{}.stef", package_name))
                 .join(package_name);
-            if candidate.exists() {
+            if candidate.join("tools_test.go").exists() {
+                return Some(candidate);
+            }
+            let candidate = dir.join("go").join("otel").join(package_name);
+            if candidate.join("tools_test.go").exists() {
                 return Some(candidate);
             }
         }
@@ -181,7 +181,7 @@ mod tools_tests {
                 .join(format!("{}.stef", package_name))
                 .join("shrunk")
                 .join(package_name);
-            if candidate.exists() {
+            if candidate.join("tools_test.go").exists() {
                 return Some(candidate);
             }
         }
