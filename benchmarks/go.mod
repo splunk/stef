@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.53.0
 	golang.org/x/text v0.34.0
 	google.golang.org/protobuf v1.36.11
-	modernc.org/b/v2 v2.1.10
+	modernc.org/b/v2 v2.1.11
 )
 
 require (
