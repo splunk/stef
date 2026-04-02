@@ -8,7 +8,7 @@ require (
 	github.com/splunk/stef/go/pdata v0.0.0
 	go.opentelemetry.io/collector v0.144.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.53.0
-	go.opentelemetry.io/collector/pdata v1.53.0
+	go.opentelemetry.io/collector/pdata v1.55.0
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1
 	golang.org/x/sys v0.41.0
@@ -48,7 +48,7 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.144.0
 	go.opentelemetry.io/collector/receiver/receivertest v0.147.0
 	go.opentelemetry.io/collector/service v0.144.0
-	google.golang.org/grpc v1.79.1
+	google.golang.org/grpc v1.79.3
 )
 
 require (
@@ -211,7 +211,7 @@ require (
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.146.1 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.147.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.147.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.53.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.55.0 // indirect
 	go.opentelemetry.io/collector/filter v0.147.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.147.0 // indirect
 	go.opentelemetry.io/collector/internal/fanoutconsumer v0.147.0 // indirect
