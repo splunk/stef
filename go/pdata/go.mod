@@ -8,7 +8,7 @@ require (
 	github.com/splunk/stef/go/pkg v0.1.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.53.0
-	modernc.org/b/v2 v2.1.10
+	modernc.org/b/v2 v2.1.11
 )
 
 require (

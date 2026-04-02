@@ -1434,8 +1434,8 @@ k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b h1:MloQ9/bdJyIu9lb1PzujOP
 k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b/go.mod h1:UZ2yyWbFTpuhSbFhv24aGNOdoRdJZgsIObGBUaYVsts=
 k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 h1:hwvWFiBzdWw1FhfY1FooPn3kzWuJ8tmbZBHi4zVsl1Y=
 k8s.io/utils v0.0.0-20250604170112-4c0f3b243397/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
-modernc.org/b/v2 v2.1.10 h1:BVECRdM+Qa6aUuO03aP+/55wXdLcJid9dvlI7mN6glY=
-modernc.org/b/v2 v2.1.10/go.mod h1:Xyvaj/0l3N2tUButg4o32FUWXhhQ9tCePmQwQYVJLXQ=
+modernc.org/b/v2 v2.1.11 h1:eLUChaDprVvWRIDtwdFEzQQows4RE6ymJoWBeGhCJS0=
+modernc.org/b/v2 v2.1.11/go.mod h1:Xyvaj/0l3N2tUButg4o32FUWXhhQ9tCePmQwQYVJLXQ=
 modernc.org/mathutil v1.6.0 h1:fRe9+AmYlaej+64JsEEhoWuAYBkOtQiMEU7n/XgfYi4=
 modernc.org/mathutil v1.6.0/go.mod h1:Ui5Q9q1TR2gFm0AQRqQUaBWFLAhQpCwNcuhBOSedWPo=
 modernc.org/strutil v1.2.0 h1:agBi9dp1I+eOnxXeiZawM8F4LawKv4NzGWSaLfyeNZA=
