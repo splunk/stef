@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 )
 
 func WriteString(str string, dst *bytes.Buffer) error {
@@ -29,7 +30,7 @@ func ReadString(src *bytes.Buffer) (string, error) {
 	}
 
 	b := make([]byte, l)
-	if _, err = src.Read(b); err != nil {
+	if _, err = io.ReadFull(src, b); err != nil {
 		return "", err
 	}
 	return string(b), nil

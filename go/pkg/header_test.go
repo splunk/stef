@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,4 +62,47 @@ func FuzzVarHeaderDeserialize(f *testing.F) {
 			_ = hdr.Deserialize(bytes.NewBuffer(data))
 		},
 	)
+}
+
+// TestVarHeaderDeserializeExploitTruncatedStringAccepted demonstrates a vulnerability:
+// Deserialize accepts a string whose declared length exceeds available bytes, and
+// returns a zero-padded value instead of an error.
+func TestVarHeaderDeserializeExploitTruncatedStringAccepted(t *testing.T) {
+	orig := VarHeader{
+		UserData: map[string]string{"k": "v"},
+	}
+	var serialized bytes.Buffer
+	err := orig.Serialize(&serialized)
+	require.NoError(t, err)
+
+	payload := append([]byte(nil), serialized.Bytes()...)
+	mutateVarHeaderUserDataValueLen(t, payload, 5)
+
+	var decoded VarHeader
+	err = decoded.Deserialize(bytes.NewBuffer(payload))
+	require.Error(t, err, "this was passing before the vulnerability was fixed")
+}
+
+func mutateVarHeaderUserDataValueLen(t *testing.T, payload []byte, newLen byte) {
+	t.Helper()
+
+	p := 0
+
+	schemaLen, n := binary.Uvarint(payload[p:])
+	require.Greater(t, n, 0)
+	p += n + int(schemaLen)
+
+	count, n := binary.Uvarint(payload[p:])
+	require.Greater(t, n, 0)
+	require.Equal(t, uint64(1), count)
+	p += n
+
+	kLen, n := binary.Uvarint(payload[p:])
+	require.Greater(t, n, 0)
+	p += n + int(kLen)
+
+	vLen, n := binary.Uvarint(payload[p:])
+	require.Greater(t, n, 0)
+	require.Equal(t, uint64(1), vLen)
+	payload[p] = newLen
 }
