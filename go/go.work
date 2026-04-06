@@ -1,0 +1,15 @@
+go 1.24.9
+
+use (
+	../benchmarks
+	../examples/ints
+	../examples/jsonl
+	../examples/profile
+	./grpc
+	./otel
+	./pdata
+	./pkg
+	../otelcol
+	../stefc
+	../stefc/generator/testdata
+)
