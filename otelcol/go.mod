@@ -8,7 +8,7 @@ require (
 	github.com/splunk/stef/go/pdata v0.0.0
 	go.opentelemetry.io/collector v0.149.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.55.0
-	go.opentelemetry.io/collector/pdata v1.55.0
+	go.opentelemetry.io/collector/pdata v1.57.0
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1
 	golang.org/x/sys v0.42.0
@@ -48,7 +48,7 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.149.0
 	go.opentelemetry.io/collector/receiver/receivertest v0.149.0
 	go.opentelemetry.io/collector/service v0.149.0
-	google.golang.org/grpc v1.79.3
+	google.golang.org/grpc v1.80.0
 )
 
 require (
@@ -127,7 +127,7 @@ require (
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/hashicorp/go-version v1.8.0 // indirect
+	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
@@ -217,7 +217,7 @@ require (
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.149.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.149.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.149.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.55.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.57.0 // indirect
 	go.opentelemetry.io/collector/filter v0.149.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.149.0 // indirect
 	go.opentelemetry.io/collector/internal/fanoutconsumer v0.149.0 // indirect
