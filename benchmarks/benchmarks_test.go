@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
@@ -469,4 +470,188 @@ func BenchmarkSTEFDeserializeMultipart(b *testing.B) {
 			},
 		)
 	}
+}
+
+type DataPointProcessor interface {
+	ProcessDataPoint(p *otelstef.Metrics) error
+}
+
+type NopDataPointProcessor struct {
+}
+
+func (n *NopDataPointProcessor) ProcessDataPoint(p *otelstef.Metrics) error {
+	return nil
+}
+
+func BenchmarkDataPointProcessor(b *testing.B) {
+	processors := []DataPointProcessor{}
+	for range 100 {
+		processors = append(processors, &NopDataPointProcessor{})
+	}
+
+	bodyBytes := astronomyToStef()
+
+	// Measure reading duration first.
+	now := time.Now()
+	var pointCount uint64
+	for i := 0; i < b.N; i++ {
+		buf := bytes.NewBuffer(bodyBytes)
+		reader, err := otelstef.NewMetricsReader(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for {
+			err := reader.Read(pkg.ReadOptions{})
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		pointCount = reader.RecordCount()
+	}
+	readTime := time.Since(now)
+
+	// Now measure processor call
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf := bytes.NewBuffer(bodyBytes)
+		reader, err := otelstef.NewMetricsReader(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for {
+			err := reader.Read(pkg.ReadOptions{})
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, processor := range processors {
+				if err := processor.ProcessDataPoint(&reader.Record); err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}
+	// Make sure to subtract reading time. The remaining time is processor time.
+	dur := b.Elapsed() - readTime
+
+	b.ReportMetric(
+		float64(dur.Nanoseconds())/float64(b.N*int(pointCount)*len(processors)),
+		"ns/point",
+	)
+}
+
+func astronomyToStef() []byte {
+	parts, err := testutils.ReadMultipartOTLPFile("testdata/astronomy-otelmetrics.zst")
+	if err != nil {
+		log.Fatal(err)
+	}
+	outputBuf := &pkg.MemChunkWriter{}
+	writer, err := otelstef.NewMetricsWriter(
+		outputBuf, pkg.WriterOptions{Compression: pkg.CompressionNone},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Encode each part one after another and write to the same STEF stream.
+	// This models more closely the operation of STEF exporter in Collector.
+	for _, part := range parts {
+		converter := metrics.OtlpToStefUnsorted{}
+		err = converter.Convert(part, writer)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = writer.Flush()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	bodyBytes := outputBuf.Bytes()
+	return bodyBytes
+}
+
+func BenchmarkStefStreamCopy(b *testing.B) {
+	bodyBytes := astronomyToStef()
+
+	b.ResetTimer()
+	pointCount := uint64(0)
+	for i := 0; i < b.N; i++ {
+		pointCount = 0
+		buf := bytes.NewBuffer(bodyBytes)
+		reader, err := otelstef.NewMetricsReader(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		outputBuf := &pkg.MemChunkWriter{}
+		writer, err := otelstef.NewMetricsWriter(
+			outputBuf, pkg.WriterOptions{Compression: pkg.CompressionNone},
+		)
+		require.NoError(b, err)
+
+		for {
+			err := reader.Read(pkg.ReadOptions{})
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			copyModified(&writer.Record, &reader.Record)
+			err = writer.Write()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		pointCount = writer.RecordCount()
+	}
+
+	b.ReportMetric(
+		float64(b.Elapsed().Nanoseconds())/float64(b.N*int(pointCount)),
+		"ns/point",
+	)
+}
+
+func BenchmarkOtlpStreamCopy(b *testing.B) {
+	parts, err := testutils.ReadMultipartOTLPFile("testdata/astronomy-otelmetrics.zst")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	partsBytes := [][]byte{}
+	encoding := otlp.OTLPEncoding{}
+	pointCount := 0
+	for _, part := range parts {
+		pointCount += part.DataPointCount()
+		partBytes, err := encoding.Encode(part)
+		if err != nil {
+			log.Fatal(err)
+		}
+		partsBytes = append(partsBytes, partBytes)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, partBytes := range partsBytes {
+			decoded, err := encoding.Decode(partBytes)
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = encoding.Encode(decoded)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+	b.ReportMetric(
+		float64(b.Elapsed().Nanoseconds())/float64(b.N*int(pointCount)),
+		"ns/point",
+	)
 }
