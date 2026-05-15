@@ -36,11 +36,6 @@ var speedEncodings = []encodings.MetricEncoding{
 var benchmarkDataVariations = []struct {
 	generator generators.Generator
 }{
-	//{
-	//	generator: &generators.File{
-	//		FilePath: "testdata/host_and_collector.pb",
-	//	},
-	//},
 	{
 		generator: &generators.File{
 			FilePath: "testdata/hipstershop-otelmetrics.zst",
@@ -554,7 +549,9 @@ func astronomyToStef() []byte {
 	}
 	outputBuf := &pkg.MemChunkWriter{}
 	writer, err := otelstef.NewMetricsWriter(
-		outputBuf, pkg.WriterOptions{Compression: pkg.CompressionNone},
+		outputBuf, pkg.WriterOptions{
+			Compression: pkg.CompressionNone,
+		},
 	)
 	if err != nil {
 		log.Fatal(err)
