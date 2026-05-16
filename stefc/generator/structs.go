@@ -45,6 +45,17 @@ func (g *Generator) oStruct(str *genStructDef) error {
 
 		_, isStructType := field.Type.(*genStructTypeRef)
 		_, isPrimitiveType := field.Type.(*genPrimitiveTypeRef)
+		oneOfStorageKind := ""
+		if str.OneOf {
+			switch {
+			case !field.Type.IsPrimitive():
+				oneOfStorageKind = "ptr"
+			case field.Type.Storage() == "string" || field.Type.Storage() == "pkg.Bytes":
+				oneOfStorageKind = "string"
+			default:
+				oneOfStorageKind = "bits"
+			}
+		}
 
 		unexportedName := strings.ToLower(field.Name[:1]) + field.Name[1:]
 		if token.IsKeyword(unexportedName) {
@@ -62,6 +73,9 @@ func (g *Generator) oStruct(str *genStructDef) error {
 			"PassByPtr":     passByPointer,
 			"IsPrimitive":   isPrimitiveType,
 			"IsStructType":  isStructType,
+			"OneOfBits":     oneOfStorageKind == "bits",
+			"OneOfString":   oneOfStorageKind == "string",
+			"OneOfPtr":      oneOfStorageKind == "ptr",
 		}
 
 		if field.Optional {
@@ -138,4 +152,7 @@ type StructFieldTemplateModel struct {
 	PassByPtr     bool
 	IsPrimitive   bool
 	IsStructType  bool
+	OneOfBits     bool
+	OneOfString   bool
+	OneOfPtr      bool
 }

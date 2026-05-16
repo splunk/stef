@@ -19,13 +19,10 @@ var _ = codecs.StringEncoder{}
 // JsonValue is a oneof struct.
 type JsonValue struct {
 	// The current type of the oneof.
-	typ JsonValueType
-
-	object JsonObject
-	array  JsonValueArray
-	string string
-	number float64
-	bool   bool
+	typ  JsonValueType
+	ptr  unsafe.Pointer
+	len  int
+	bits uint64
 
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
@@ -42,22 +39,91 @@ func (s *JsonValue) init(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
 
-	s.object.init(parentModifiedFields, parentModifiedBit)
-	s.array.init(parentModifiedFields, parentModifiedBit)
+	switch s.typ {
+	case JsonValueTypeObject:
+		if s.objectPtr() != nil {
+			s.objectPtr().init(parentModifiedFields, parentModifiedBit)
+		}
+	case JsonValueTypeArray:
+		if s.arrayPtr() != nil {
+			s.arrayPtr().init(parentModifiedFields, parentModifiedBit)
+		}
+	}
 }
 
 func (s *JsonValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
 
-	s.object.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
-	s.array.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	switch s.typ {
+	case JsonValueTypeObject:
+		if s.objectPtr() != nil {
+			s.objectPtr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+		}
+	case JsonValueTypeArray:
+		if s.arrayPtr() != nil {
+			s.arrayPtr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+		}
+	}
+}
+
+func (s *JsonValue) clearValue() {
+	s.ptr = nil
+	s.len = 0
+	s.bits = 0
+}
+
+func (s *JsonValue) setType(typ JsonValueType) {
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case JsonValueTypeObject:
+		s.allocObject()
+	case JsonValueTypeArray:
+		s.allocArray()
+	}
+}
+
+func (s *JsonValue) setTypeAlloc(typ JsonValueType, allocators *Allocators) {
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case JsonValueTypeObject:
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonObject{})))
+		s.allocObjectAlloc(allocators)
+	case JsonValueTypeArray:
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonValueArray{})))
+		s.allocArrayAlloc(allocators)
+	}
+}
+
+func (s *JsonValue) decodeSetType(typ JsonValueType, allocators *Allocators) error {
+	switch typ {
+	case JsonValueTypeObject:
+		if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(JsonObject{}))); err != nil {
+			return err
+		}
+	case JsonValueTypeArray:
+		if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(JsonValueArray{}))); err != nil {
+			return err
+		}
+	}
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case JsonValueTypeObject:
+		s.allocObjectAlloc(allocators)
+	case JsonValueTypeArray:
+		s.allocArrayAlloc(allocators)
+	}
+	return nil
 }
 
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *JsonValue) reset() {
 	s.typ = JsonValueTypeNone
+	s.clearValue()
 	// We don't need to reset the state of the field since that will be done
 	// when the type is changed, see SetType().
 }
@@ -65,9 +131,13 @@ func (s *JsonValue) reset() {
 func (s *JsonValue) freeze() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.freeze()
+		if s.objectPtr() != nil {
+			s.objectPtr().freeze()
+		}
 	case JsonValueTypeArray:
-		s.array.freeze()
+		if s.arrayPtr() != nil {
+			s.arrayPtr().freeze()
+		}
 	}
 }
 
@@ -77,8 +147,16 @@ func (s *JsonValue) freeze() {
 func (s *JsonValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.parentModifiedFields = parentModifiedFields
 
-	s.object.fixParent(parentModifiedFields)
-	s.array.fixParent(parentModifiedFields)
+	switch s.typ {
+	case JsonValueTypeObject:
+		if s.objectPtr() != nil {
+			s.objectPtr().fixParent(parentModifiedFields)
+		}
+	case JsonValueTypeArray:
+		if s.arrayPtr() != nil {
+			s.arrayPtr().fixParent(parentModifiedFields)
+		}
+	}
 }
 
 type JsonValueType byte
@@ -104,76 +182,151 @@ func (s *JsonValue) Type() JsonValueType {
 func (s *JsonValue) resetContained() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.reset()
+		if s.objectPtr() != nil {
+			s.objectPtr().reset()
+		}
 	case JsonValueTypeArray:
-		s.array.reset()
+		if s.arrayPtr() != nil {
+			s.arrayPtr().reset()
+		}
 	}
 }
 
 // SetType sets the type of the value currently contained in JsonValue.
 func (s *JsonValue) SetType(typ JsonValueType) {
 	if s.typ != typ {
-		s.typ = typ
-		s.resetContained()
-		switch typ {
-		}
+		s.setType(typ)
 		s.markParentModified()
 	}
+}
+
+func (s *JsonValue) objectPtr() *JsonObject {
+	return (*JsonObject)(s.ptr)
+}
+
+func (s *JsonValue) allocObject() *JsonObject {
+	v := &JsonObject{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *JsonValue) allocObjectAlloc(allocators *Allocators) *JsonObject {
+	v := &JsonObject{}
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // Object returns the value if the contained type is currently JsonValueTypeObject.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *JsonValue) Object() *JsonObject {
-	return &s.object
+	return s.objectPtr()
+}
+
+func (s *JsonValue) arrayPtr() *JsonValueArray {
+	return (*JsonValueArray)(s.ptr)
+}
+
+func (s *JsonValue) allocArray() *JsonValueArray {
+	v := &JsonValueArray{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *JsonValue) allocArrayAlloc(allocators *Allocators) *JsonValueArray {
+	v := &JsonValueArray{}
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // Array returns the value if the contained type is currently JsonValueTypeArray.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *JsonValue) Array() *JsonValueArray {
-	return &s.array
+	return s.arrayPtr()
+}
+
+func (s *JsonValue) stringValue() string {
+	if s.len == 0 {
+		return string("")
+	}
+	return string(unsafe.String((*byte)(s.ptr), s.len))
+}
+
+func (s *JsonValue) setStringValue(v string) {
+	if len(v) == 0 {
+		s.ptr = nil
+		s.len = 0
+		return
+	}
+	vString := string(v)
+	s.ptr = unsafe.Pointer(unsafe.StringData(vString))
+	s.len = len(vString)
 }
 
 // String returns the value if the contained type is currently JsonValueTypeString.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *JsonValue) String() string {
-	return s.string
+	return s.stringValue()
 }
 
 // SetString sets the value to the specified value and sets the type to JsonValueTypeString.
 func (s *JsonValue) SetString(v string) {
-	if s.typ != JsonValueTypeString || s.string != v {
-		s.string = v
-		s.typ = JsonValueTypeString
+	stored := v
+	if s.typ != JsonValueTypeString || s.stringValue() != stored {
+		if s.typ != JsonValueTypeString {
+			s.clearValue()
+			s.typ = JsonValueTypeString
+		}
+		s.setStringValue(stored)
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
+}
+
+func (s *JsonValue) numberPtr() *float64 {
+	return (*float64)(unsafe.Pointer(&s.bits))
 }
 
 // Number returns the value if the contained type is currently JsonValueTypeNumber.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *JsonValue) Number() float64 {
-	return s.number
+	return (*s.numberPtr())
 }
 
 // SetNumber sets the value to the specified value and sets the type to JsonValueTypeNumber.
 func (s *JsonValue) SetNumber(v float64) {
-	if s.typ != JsonValueTypeNumber || s.number != v {
-		s.number = v
-		s.typ = JsonValueTypeNumber
+	stored := v
+	if s.typ != JsonValueTypeNumber || *s.numberPtr() != stored {
+		if s.typ != JsonValueTypeNumber {
+			s.clearValue()
+			s.typ = JsonValueTypeNumber
+		}
+		*s.numberPtr() = stored
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
+}
+
+func (s *JsonValue) boolPtr() *bool {
+	return (*bool)(unsafe.Pointer(&s.bits))
 }
 
 // Bool returns the value if the contained type is currently JsonValueTypeBool.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *JsonValue) Bool() bool {
-	return s.bool
+	return (*s.boolPtr())
 }
 
 // SetBool sets the value to the specified value and sets the type to JsonValueTypeBool.
 func (s *JsonValue) SetBool(v bool) {
-	if s.typ != JsonValueTypeBool || s.bool != v {
-		s.bool = v
-		s.typ = JsonValueTypeBool
+	stored := v
+	if s.typ != JsonValueTypeBool || *s.boolPtr() != stored {
+		if s.typ != JsonValueTypeBool {
+			s.clearValue()
+			s.typ = JsonValueTypeBool
+		}
+		*s.boolPtr() = stored
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
 }
@@ -191,18 +344,21 @@ func (s *JsonValue) cloneShared(allocators *Allocators) *JsonValue {
 func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
 	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonValue{})))
 	c := allocators.JsonValue.Alloc()
+	c.clearValue()
 	c.typ = s.typ
 	switch s.typ {
 	case JsonValueTypeObject:
-		copyToNewJsonObject(&c.object, &s.object, allocators)
+		c.setTypeAlloc(s.typ, allocators)
+		copyToNewJsonObject(c.objectPtr(), s.objectPtr(), allocators)
 	case JsonValueTypeArray:
-		copyToNewJsonValueArray(&c.array, &s.array, allocators)
+		c.setTypeAlloc(s.typ, allocators)
+		copyToNewJsonValueArray(c.arrayPtr(), s.arrayPtr(), allocators)
 	case JsonValueTypeString:
-		c.string = s.string
+		c.setStringValue(s.stringValue())
 	case JsonValueTypeNumber:
-		c.number = s.number
+		*c.numberPtr() = *s.numberPtr()
 	case JsonValueTypeBool:
-		c.bool = s.bool
+		*c.boolPtr() = *s.boolPtr()
 	}
 	return c
 }
@@ -210,8 +366,18 @@ func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *JsonValue) byteSize() uint {
-	return uint(unsafe.Sizeof(*s)) +
-		s.object.byteSize() + s.array.byteSize() + 0
+	size := uint(unsafe.Sizeof(*s))
+	switch s.typ {
+	case JsonValueTypeObject:
+		if s.objectPtr() != nil {
+			size += s.objectPtr().byteSize()
+		}
+	case JsonValueTypeArray:
+		if s.arrayPtr() != nil {
+			size += s.arrayPtr().byteSize()
+		}
+	}
+	return size
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -219,18 +385,23 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 	switch src.typ {
 	case JsonValueTypeObject:
 		dst.SetType(src.typ)
-		copyJsonObject(&dst.object, &src.object)
+		copyJsonObject(
+			dst.objectPtr(),
+			src.objectPtr())
 	case JsonValueTypeArray:
 		dst.SetType(src.typ)
-		copyJsonValueArray(&dst.array, &src.array)
+		copyJsonValueArray(
+			dst.arrayPtr(),
+			src.arrayPtr())
 	case JsonValueTypeString:
-		dst.SetString(src.string)
+		dst.SetString(src.stringValue())
 	case JsonValueTypeNumber:
-		dst.SetNumber(src.number)
+		dst.SetNumber((*src.numberPtr()))
 	case JsonValueTypeBool:
-		dst.SetBool(src.bool)
+		dst.SetBool((*src.boolPtr()))
 	case JsonValueTypeNone:
 		if dst.typ != JsonValueTypeNone {
+			dst.clearValue()
 			dst.typ = JsonValueTypeNone
 			dst.markParentModified()
 		}
@@ -241,25 +412,29 @@ func copyJsonValue(dst *JsonValue, src *JsonValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewJsonValue(dst *JsonValue, src *JsonValue, allocators *Allocators) {
-	dst.typ = src.typ
+	dst.setTypeAlloc(src.typ, allocators)
 	switch src.typ {
 	case JsonValueTypeObject:
-		copyToNewJsonObject(&dst.object, &src.object, allocators)
+		copyToNewJsonObject(
+			dst.objectPtr(),
+			src.objectPtr(), allocators)
 	case JsonValueTypeArray:
-		copyToNewJsonValueArray(&dst.array, &src.array, allocators)
+		copyToNewJsonValueArray(
+			dst.arrayPtr(),
+			src.arrayPtr(), allocators)
 	case JsonValueTypeString:
-		if dst.string != src.string {
-			dst.string = src.string
+		if dst.stringValue() != src.stringValue() {
+			dst.setStringValue(src.stringValue())
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case JsonValueTypeNumber:
-		if dst.number != src.number {
-			dst.number = src.number
+		if *dst.numberPtr() != *src.numberPtr() {
+			*dst.numberPtr() = *src.numberPtr()
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case JsonValueTypeBool:
-		if dst.bool != src.bool {
-			dst.bool = src.bool
+		if *dst.boolPtr() != *src.boolPtr() {
+			*dst.boolPtr() = *src.boolPtr()
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case JsonValueTypeNone:
@@ -280,18 +455,26 @@ func (s *JsonValue) markParentModified() {
 func (s *JsonValue) setModifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.setModifiedRecursively()
+		if s.objectPtr() != nil {
+			s.objectPtr().setModifiedRecursively()
+		}
 	case JsonValueTypeArray:
-		s.array.setModifiedRecursively()
+		if s.arrayPtr() != nil {
+			s.arrayPtr().setModifiedRecursively()
+		}
 	}
 }
 
 func (s *JsonValue) setUnmodifiedRecursively() {
 	switch s.typ {
 	case JsonValueTypeObject:
-		s.object.setUnmodifiedRecursively()
+		if s.objectPtr() != nil {
+			s.objectPtr().setUnmodifiedRecursively()
+		}
 	case JsonValueTypeArray:
-		s.array.setUnmodifiedRecursively()
+		if s.arrayPtr() != nil {
+			s.arrayPtr().setUnmodifiedRecursively()
+		}
 	}
 }
 
@@ -301,25 +484,29 @@ func (s *JsonValue) computeDiff(val *JsonValue) (ret bool) {
 	if s.typ == val.typ {
 		switch s.typ {
 		case JsonValueTypeObject:
-			ret = s.object.computeDiff(&val.object)
+			ret = s.objectPtr().computeDiff(val.objectPtr())
 		case JsonValueTypeArray:
-			ret = s.array.computeDiff(&val.array)
+			ret = s.arrayPtr().computeDiff(val.arrayPtr())
 		case JsonValueTypeString:
-			ret = s.string != val.string
+			ret = s.stringValue() != val.stringValue()
 		case JsonValueTypeNumber:
-			ret = s.number != val.number
+			ret = *s.numberPtr() != *val.numberPtr()
 		case JsonValueTypeBool:
-			ret = s.bool != val.bool
+			ret = *s.boolPtr() != *val.boolPtr()
 		}
 	} else {
 		ret = true
 		switch s.typ {
 		case JsonValueTypeObject:
 			// val.object doesn't exist at all so mark the whole s.object subtree as modified.
-			s.object.setModifiedRecursively()
+			if s.objectPtr() != nil {
+				s.objectPtr().setModifiedRecursively()
+			}
 		case JsonValueTypeArray:
 			// val.array doesn't exist at all so mark the whole s.array subtree as modified.
-			s.array.setModifiedRecursively()
+			if s.arrayPtr() != nil {
+				s.arrayPtr().setModifiedRecursively()
+			}
 		}
 	}
 	return ret
@@ -332,15 +519,15 @@ func (e *JsonValue) IsEqual(val *JsonValue) bool {
 	}
 	switch e.typ {
 	case JsonValueTypeObject:
-		return e.object.IsEqual(&val.object)
+		return e.objectPtr().IsEqual(val.objectPtr())
 	case JsonValueTypeArray:
-		return e.array.IsEqual(&val.array)
+		return e.arrayPtr().IsEqual(val.arrayPtr())
 	case JsonValueTypeString:
-		return pkg.StringEqual(e.string, val.string)
+		return pkg.StringEqual(e.stringValue(), val.stringValue())
 	case JsonValueTypeNumber:
-		return pkg.Float64Equal(e.number, val.number)
+		return pkg.Float64Equal(*e.numberPtr(), *val.numberPtr())
 	case JsonValueTypeBool:
-		return pkg.BoolEqual(e.bool, val.bool)
+		return pkg.BoolEqual(*e.boolPtr(), *val.boolPtr())
 	}
 
 	return true
@@ -355,15 +542,17 @@ func CmpJsonValue(left, right *JsonValue) int {
 	}
 	switch left.typ {
 	case JsonValueTypeObject:
-		return CmpJsonObject(&left.object, &right.object)
+		return CmpJsonObject(
+			left.objectPtr(), right.objectPtr())
 	case JsonValueTypeArray:
-		return CmpJsonValueArray(&left.array, &right.array)
+		return CmpJsonValueArray(
+			left.arrayPtr(), right.arrayPtr())
 	case JsonValueTypeString:
-		return strings.Compare(left.string, right.string)
+		return strings.Compare(left.stringValue(), right.stringValue())
 	case JsonValueTypeNumber:
-		return pkg.Float64Compare(left.number, right.number)
+		return pkg.Float64Compare(*left.numberPtr(), *right.numberPtr())
 	case JsonValueTypeBool:
-		return pkg.BoolCompare(left.bool, right.bool)
+		return pkg.BoolCompare(*left.boolPtr(), *right.boolPtr())
 	}
 
 	return 0
@@ -390,11 +579,11 @@ func (s *JsonValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limite
 	switch s.typ {
 	case JsonValueTypeObject:
 		if typeChanged || random.IntN(2) == 0 {
-			s.object.mutateRandom(random, schem, limiter)
+			s.objectPtr().mutateRandom(random, schem, limiter)
 		}
 	case JsonValueTypeArray:
 		if typeChanged || random.IntN(2) == 0 {
-			s.array.mutateRandom(random, schem, limiter)
+			s.arrayPtr().mutateRandom(random, schem, limiter)
 		}
 	case JsonValueTypeString:
 		if typeChanged || random.IntN(2) == 0 {
@@ -568,19 +757,19 @@ func (e *JsonValueEncoder) Encode(val *JsonValue) {
 	switch typ {
 	case JsonValueTypeObject:
 		// Encode Object
-		e.objectEncoder.Encode(&val.object)
+		e.objectEncoder.Encode(val.objectPtr())
 	case JsonValueTypeArray:
 		// Encode Array
-		e.arrayEncoder.Encode(&val.array)
+		e.arrayEncoder.Encode(val.arrayPtr())
 	case JsonValueTypeString:
 		// Encode String
-		e.stringEncoder.Encode(val.string)
+		e.stringEncoder.Encode(val.stringValue())
 	case JsonValueTypeNumber:
 		// Encode Number
-		e.numberEncoder.Encode(val.number)
+		e.numberEncoder.Encode(*val.numberPtr())
 	case JsonValueTypeBool:
 		// Encode Bool
-		e.boolEncoder.Encode(val.bool)
+		e.boolEncoder.Encode(*val.boolPtr())
 	}
 }
 
@@ -825,30 +1014,48 @@ func (d *JsonValueDecoder) Decode(dstPtr *JsonValue) error {
 
 	dst := dstPtr
 	if dst.typ != JsonValueType(typ) {
-		dst.typ = JsonValueType(typ)
-		// The type changed, we need to reset the contained value so that
-		// it does not contain carry-over data from a previous record that
-		// was of this same type.
-		dst.resetContained()
+		// The type changed, so drop the previous payload and create a blank
+		// value for the newly selected type.
+		if err := dst.decodeSetType(JsonValueType(typ), d.allocators); err != nil {
+			return err
+		}
 	}
 
 	// Decode selected field
 	switch dst.typ {
 	case JsonValueTypeObject:
 		// Decode Object
-		return d.objectDecoder.Decode(&dst.object)
+		if dst.objectPtr() == nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(JsonObject{}))); err != nil {
+				return err
+			}
+			dst.allocObjectAlloc(d.allocators)
+		}
+
+		return d.objectDecoder.Decode(dst.objectPtr())
 	case JsonValueTypeArray:
 		// Decode Array
-		return d.arrayDecoder.Decode(&dst.array)
+		if dst.arrayPtr() == nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(JsonValueArray{}))); err != nil {
+				return err
+			}
+			dst.allocArrayAlloc(d.allocators)
+		}
+
+		return d.arrayDecoder.Decode(dst.arrayPtr())
 	case JsonValueTypeString:
 		// Decode String
-		return d.stringDecoder.Decode(&dst.string)
+		var v string
+		if err := d.stringDecoder.Decode(&v); err != nil {
+			return err
+		}
+		dst.setStringValue(v)
 	case JsonValueTypeNumber:
 		// Decode Number
-		return d.numberDecoder.Decode(&dst.number)
+		return d.numberDecoder.Decode(dst.numberPtr())
 	case JsonValueTypeBool:
 		// Decode Bool
-		return d.boolDecoder.Decode(&dst.bool)
+		return d.boolDecoder.Decode(dst.boolPtr())
 	}
 	return nil
 }

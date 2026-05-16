@@ -19,13 +19,22 @@ import (
 var _ = strings.Compare
 var _ = codecs.StringEncoder{}
 
+{{- $needsPtr := false -}}
+{{- $needsLen := false -}}
+{{- $needsBits := false -}}
+{{- range .Fields -}}
+{{- if or .OneOfPtr .OneOfString -}}{{- $needsPtr = true -}}{{- end -}}
+{{- if .OneOfString -}}{{- $needsLen = true -}}{{- end -}}
+{{- if .OneOfBits -}}{{- $needsBits = true -}}{{- end -}}
+{{- end }}
+
 // {{ .StructName }} is a oneof struct.
 type {{ .StructName }} struct {
     // The current type of the oneof.
 	typ {{$.StructName }}Type
-    {{ range .Fields }}
-    {{.name}} {{if .Type.Flags.StoreByPtr}}*{{end}}{{ .Type.Storage }}
-    {{- end }}
+    {{if $needsPtr}}ptr unsafe.Pointer{{end}}
+    {{if $needsLen}}len int{{end}}
+    {{if $needsBits}}bits uint64{{end}}
 
     // Pointer to parent's modifiedFields
     parentModifiedFields *modifiedFields
@@ -42,28 +51,102 @@ func (s *{{ $.StructName }}) init(parentModifiedFields *modifiedFields, parentMo
     s.parentModifiedFields = parentModifiedFields
     s.parentModifiedBit = parentModifiedBit
 
-    {{ range .Fields }}
-	{{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr) }}
-    s.{{.name}}.init(parentModifiedFields, parentModifiedBit)
-    {{- end -}}
-    {{- end -}}
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if s.{{.name}}Ptr() != nil {
+            s.{{.name}}Ptr().init(parentModifiedFields, parentModifiedBit)
+        }
+    {{- end }}
+    {{- end }}
+    }
 }
 
 func (s *{{ $.StructName }}) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
     s.parentModifiedFields = parentModifiedFields
     s.parentModifiedBit = parentModifiedBit
 
-    {{ range .Fields }}
-	{{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr) }}
-    s.{{.name}}.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
-    {{- end -}}
-    {{- end -}}
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if s.{{.name}}Ptr() != nil {
+            s.{{.name}}Ptr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+        }
+    {{- end }}
+    {{- end }}
+    }
+}
+
+func (s *{{ $.StructName }}) clearValue() {
+    {{- if $needsPtr }}
+    s.ptr = nil
+    {{- end }}
+    {{- if $needsLen }}
+    s.len = 0
+    {{- end }}
+    {{- if $needsBits }}
+    s.bits = 0
+    {{- end }}
+}
+
+func (s *{{ $.StructName }}) setType(typ {{$.StructName }}Type) {
+    s.clearValue()
+    s.typ = typ
+    switch typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        s.alloc{{.Name}}()
+    {{- end }}
+    {{- end }}
+    }
+}
+
+func (s *{{ $.StructName }}) setTypeAlloc(typ {{$.StructName }}Type, allocators *Allocators) {
+    s.clearValue()
+    s.typ = typ
+    switch typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
+        s.alloc{{.Name}}Alloc(allocators)
+    {{- end }}
+    {{- end }}
+    }
+}
+
+func (s *{{ $.StructName }}) decodeSetType(typ {{$.StructName }}Type, allocators *Allocators) error {
+    switch typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{}))); err != nil {
+            return err
+        }
+    {{- end }}
+    {{- end }}
+    }
+    s.clearValue()
+    s.typ = typ
+    switch typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        s.alloc{{.Name}}Alloc(allocators)
+    {{- end }}
+    {{- end }}
+    }
+    return nil
 }
 
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *{{ $.StructName }}) reset() {
     s.typ = {{$.StructName }}TypeNone
+    s.clearValue()
     // We don't need to reset the state of the field since that will be done
     // when the type is changed, see SetType().
 }
@@ -71,15 +154,11 @@ func (s *{{ $.StructName }}) reset() {
 func (s *{{ $.StructName }}) freeze() {
     switch s.typ {
     {{- range .Fields }}
-    {{- if not .Type.IsPrimitive}}
+    {{- if .OneOfPtr}}
     case {{ $.StructName }}Type{{.Name}}:
-        {{- if .Type.Flags.StoreByPtr}}
-        if s.{{.name}} != nil {
-            s.{{.name}}.freeze()
+        if s.{{.name}}Ptr() != nil {
+            s.{{.name}}Ptr().freeze()
         }
-        {{- else}}
-        s.{{.name}}.freeze()
-        {{- end -}}
     {{- end -}}
     {{- end }}
     }
@@ -91,11 +170,16 @@ func (s *{{ $.StructName }}) freeze() {
 func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
     s.parentModifiedFields = parentModifiedFields
 
-    {{ range .Fields }}
-	{{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr) }}
-    s.{{.name}}.fixParent(parentModifiedFields)
-    {{- end -}}
-    {{- end -}}
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if .OneOfPtr }}
+    case {{ $.StructName }}Type{{.Name}}:
+        if s.{{.name}}Ptr() != nil {
+            s.{{.name}}Ptr().fixParent(parentModifiedFields)
+        }
+    {{- end }}
+    {{- end }}
+    }
 }
 
 type {{$.StructName }}Type byte
@@ -118,15 +202,11 @@ func (s *{{ $.StructName }}) Type() {{$.StructName }}Type {
 func (s *{{ $.StructName }}) resetContained() {
     switch s.typ {
     {{- range .Fields }}
-    {{- if not .Type.IsPrimitive}}
+    {{- if .OneOfPtr}}
     case {{ $.StructName }}Type{{.Name}}:
-        {{- if .Type.Flags.StoreByPtr}}
-        if s.{{.name}} != nil {
-            s.{{.name}}.reset()
+        if s.{{.name}}Ptr() != nil {
+            s.{{.name}}Ptr().reset()
         }
-        {{- else}}
-        s.{{.name}}.reset()
-        {{- end -}}
     {{- end -}}
     {{- end }}
     }
@@ -135,42 +215,95 @@ func (s *{{ $.StructName }}) resetContained() {
 // SetType sets the type of the value currently contained in {{ $.StructName }}.
 func (s *{{ $.StructName }}) SetType(typ {{$.StructName }}Type) {
 	if s.typ != typ {
-        s.typ = typ
-        s.resetContained()
-        switch typ {
-        {{- range .Fields }}
-        {{- if .Type.Flags.StoreByPtr}}
-        case {{ $.StructName }}Type{{.Name}}:
-            if s.{{.name}} == nil {
-                s.{{.name}} = &{{ .Type.Storage }}{}
-                s.{{.name}}.init(s.parentModifiedFields, s.parentModifiedBit)
-            }
-        {{- end -}}
-        {{- end }}
-        }
+        s.setType(typ)
         s.markParentModified()
     }
 }
 
 {{ range .Fields }}
+{{if .OneOfBits}}
+func (s *{{ $.StructName }}) {{.name}}Ptr() *{{.Type.Storage}} {
+    return (*{{.Type.Storage}})(unsafe.Pointer(&s.bits))
+}
+{{else if .OneOfString}}
+func (s *{{ $.StructName }}) {{.name}}Value() {{.Type.Storage}} {
+    if s.len == 0 {
+        return {{.Type.Storage}}("")
+    }
+    return {{.Type.Storage}}(unsafe.String((*byte)(s.ptr), s.len))
+}
+
+func (s *{{ $.StructName }}) set{{.Name}}Value(v {{.Type.Storage}}) {
+    if len(v) == 0 {
+        s.ptr = nil
+        s.len = 0
+        return
+    }
+    vString := string(v)
+    s.ptr = unsafe.Pointer(unsafe.StringData(vString))
+    s.len = len(vString)
+}
+{{else}}
+func (s *{{ $.StructName }}) {{.name}}Ptr() *{{.Type.Storage}} {
+    return (*{{.Type.Storage}})(s.ptr)
+}
+
+func (s *{{ $.StructName }}) alloc{{.Name}}() *{{.Type.Storage}} {
+    v := &{{.Type.Storage}}{}
+    v.init(s.parentModifiedFields, s.parentModifiedBit)
+    s.ptr = unsafe.Pointer(v)
+    return v
+}
+
+func (s *{{ $.StructName }}) alloc{{.Name}}Alloc(allocators *Allocators) *{{.Type.Storage}} {
+    {{- if .IsStructType }}
+    v := allocators.{{.Type.Storage}}.Alloc()
+    {{- else }}
+    v := &{{.Type.Storage}}{}
+    {{- end }}
+    v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+    s.ptr = unsafe.Pointer(v)
+    return v
+}
+{{end}}
+
 // {{.Name}} returns the value if the contained type is currently {{$.StructName }}Type{{.Name}}.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *{{ $.StructName }}) {{.Name}}() {{if .Type.Flags.PassByPtr}}*{{end}}{{.Type.Exported}} {
 {{- if .Type.IsPrimitive}}
-    return {{.Type.ToExported (print "s." .name)}}
+    {{- if .OneOfString}}
+    return {{.Type.ToExported (print "s." .name "Value()")}}
+    {{- else}}
+    return {{.Type.ToExported (print "(*s." .name "Ptr())")}}
+    {{- end}}
 {{- else}}
-	return {{if and .Type.Flags.PassByPtr (not .Type.Flags.StoreByPtr)}}&{{end}}s.{{.name}}
+	return s.{{.name}}Ptr()
 {{- end}}
 }
 
 {{if .Type.IsPrimitive}}
 // Set{{.Name}} sets the value to the specified value and sets the type to {{$.StructName }}Type{{.Name}}.
 func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .PassByPointer}}*{{end}}{{.Type.Exported}}) {
-    if s.typ!={{$.StructName }}Type{{.Name}} || s.{{.name}} != {{.Type.ToStorage "v"}} {
-		s.{{.name}} = {{.Type.ToStorage "v"}}
-		s.typ = {{$.StructName }}Type{{.Name}}
+    stored := {{.Type.ToStorage "v"}}
+    {{- if .OneOfString}}
+    if s.typ!={{$.StructName }}Type{{.Name}} || s.{{.name}}Value() != stored {
+        if s.typ != {{$.StructName }}Type{{.Name}} {
+            s.clearValue()
+            s.typ = {{$.StructName }}Type{{.Name}}
+        }
+		s.set{{.Name}}Value(stored)
         s.parentModifiedFields.markModified(s.parentModifiedBit)
     }
+    {{- else}}
+    if s.typ!={{$.StructName }}Type{{.Name}} || *s.{{.name}}Ptr() != stored {
+        if s.typ != {{$.StructName }}Type{{.Name}} {
+            s.clearValue()
+            s.typ = {{$.StructName }}Type{{.Name}}
+        }
+		*s.{{.name}}Ptr() = stored
+        s.parentModifiedFields.markModified(s.parentModifiedBit)
+    }
+    {{- end}}
 }
 {{end}}
 {{ end }}
@@ -192,16 +325,22 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
 {{- else}}
     c := {{.StructName}}{}
 {{- end}}
+    c.clearValue()
     c.typ = s.typ
     switch s.typ {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.IsPrimitive}}
-        c.{{.name}} = s.{{.name}}
-        {{- else if .Type.Flags.StoreByPtr}}
-        c.{{.name}} = s.{{.name}}.cloneShared(allocators)
+        {{- if .OneOfString}}
+        c.set{{.Name}}Value(s.{{.name}}Value())
         {{- else}}
-        copyToNew{{.Type.Storage}}({{if .Type.Flags.TakePtr}}&{{end}}c.{{.name}}, {{if .Type.Flags.TakePtr}}&{{end}}s.{{.name}}, allocators)
+        *c.{{.name}}Ptr() = *s.{{.name}}Ptr()
+        {{- end}}
+        {{- else if .Type.Flags.StoreByPtr}}
+        c.ptr = unsafe.Pointer(s.{{.name}}Ptr().cloneShared(allocators))
+        {{- else}}
+        c.setTypeAlloc(s.typ, allocators)
+        copyToNew{{.Type.Storage}}(c.{{.name}}Ptr(), s.{{.name}}Ptr(), allocators)
         {{- end}}
     {{- end }}
 	}
@@ -211,10 +350,18 @@ func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.Store
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *{{ .StructName }}) byteSize() uint {
-    return uint(unsafe.Sizeof(*s))+
-       {{range .Fields -}}
-       {{- if .Type.MustClone}}s.{{.name}}.byteSize()+{{end}}
-       {{- end }}0
+    size := uint(unsafe.Sizeof(*s))
+    switch s.typ {
+    {{- range .Fields }}
+    {{- if .Type.MustClone}}
+    case {{ $.StructName }}Type{{.Name}}:
+        if s.{{.name}}Ptr() != nil {
+            size += s.{{.name}}Ptr().byteSize()
+        }
+    {{- end}}
+    {{- end }}
+    }
+    return size
 }
 
 // Copy from src to dst, overwriting existing data in dst.
@@ -225,14 +372,19 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
         {{- if .Type.MustClone}}
         dst.SetType(src.typ)
         copy{{.Type.TypeName}}(
-            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}})
+            dst.{{.name}}Ptr(),
+            src.{{.name}}Ptr())
         {{- else}}
-        dst.Set{{.Name}}({{.Type.ToExported (print "src." .name)}})
+        {{- if .OneOfString}}
+        dst.Set{{.Name}}({{.Type.ToExported (print "src." .name "Value()")}})
+        {{- else}}
+        dst.Set{{.Name}}({{.Type.ToExported (print "(*src." .name "Ptr())")}})
+        {{- end}}
         {{- end}}
     {{- end}}
     case {{ $.StructName }}TypeNone:
         if dst.typ != {{ $.StructName }}TypeNone {
+            dst.clearValue()
             dst.typ = {{ $.StructName }}TypeNone
             dst.markParentModified()
         }
@@ -242,24 +394,26 @@ func copy{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNew{{.StructName}}(dst *{{.StructName}}, src *{{.StructName}}, allocators *Allocators) {
-    dst.typ = src.typ
+    dst.setTypeAlloc(src.typ, allocators)
 	switch src.typ {
     {{- range .Fields}}
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.MustClone}}
-        {{- if .Type.Flags.StoreByPtr}}
-        allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
-        dst.{{.name}} = allocators.{{ .Type.Storage }}.Alloc()
-        dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
-        {{- end}}
         copyToNew{{.Type.TypeName}}(
-            {{- if .Type.Flags.TakePtr}}&{{end}}dst.{{.name }},
-            {{- if .Type.Flags.TakePtr}}&{{end}}src.{{.name}}, allocators)
+            dst.{{.name}}Ptr(),
+            src.{{.name}}Ptr(), allocators)
         {{- else}}
-        if dst.{{.name}} != src.{{.name}} {
-            dst.{{.name}} = src.{{.name}}
+        {{- if .OneOfString}}
+        if dst.{{.name}}Value() != src.{{.name}}Value() {
+            dst.set{{.Name}}Value(src.{{.name}}Value())
             dst.parentModifiedFields.markModified(dst.parentModifiedBit)
         }
+        {{- else}}
+        if *dst.{{.name}}Ptr() != *src.{{.name}}Ptr() {
+            *dst.{{.name}}Ptr() = *src.{{.name}}Ptr()
+            dst.parentModifiedFields.markModified(dst.parentModifiedBit)
+        }
+        {{- end}}
         {{- end}}
     {{- end}}
     case {{ $.StructName }}TypeNone:
@@ -279,9 +433,11 @@ func (s* {{.StructName}}) markParentModified() {
 func (s *{{ $.StructName }}) setModifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}
-        {{- if not .Type.IsPrimitive}}
+        {{- if .OneOfPtr}}
         case {{ $.StructName }}Type{{.Name}}:
-            s.{{.name}}.setModifiedRecursively()
+            if s.{{.name}}Ptr() != nil {
+                s.{{.name}}Ptr().setModifiedRecursively()
+            }
         {{- end}}
     {{- end}}
     }
@@ -290,9 +446,11 @@ func (s *{{ $.StructName }}) setModifiedRecursively() {
 func (s *{{ $.StructName }}) setUnmodifiedRecursively() {
     switch s.typ {
     {{- range .Fields}}
-        {{- if not .Type.IsPrimitive}}
+        {{- if .OneOfPtr}}
         case {{ $.StructName }}Type{{.Name}}:
-            s.{{.name}}.setUnmodifiedRecursively()
+            if s.{{.name}}Ptr() != nil {
+                s.{{.name}}Ptr().setUnmodifiedRecursively()
+            }
         {{- end}}
     {{- end}}
     }
@@ -306,9 +464,13 @@ func (s *{{ $.StructName }}) computeDiff(val *{{ $.StructName }}) (ret bool) {
         {{- range .Fields}}
         case {{ $.StructName }}Type{{.Name}}:
             {{- if .Type.IsPrimitive}}
-            ret = s.{{.name}} != val.{{.name}}
+            {{- if .OneOfString}}
+            ret = s.{{.name}}Value() != val.{{.name}}Value()
             {{- else}}
-            ret = s.{{.name}}.computeDiff({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+            ret = *s.{{.name}}Ptr() != *val.{{.name}}Ptr()
+            {{- end}}
+            {{- else}}
+            ret = s.{{.name}}Ptr().computeDiff(val.{{.name}}Ptr())
             {{- end}}
         {{- end }}
         }
@@ -316,10 +478,12 @@ func (s *{{ $.StructName }}) computeDiff(val *{{ $.StructName }}) (ret bool) {
         ret = true
         switch s.typ {
         {{- range .Fields}}
-        {{- if not .Type.IsPrimitive}}
+        {{- if .OneOfPtr}}
         case {{ $.StructName }}Type{{.Name}}:
             // val.{{.name}} doesn't exist at all so mark the whole s.{{.name}} subtree as modified.
-            s.{{.name}}.setModifiedRecursively()
+            if s.{{.name}}Ptr() != nil {
+                s.{{.name}}Ptr().setModifiedRecursively()
+            }
         {{- end}}
         {{- end }}
         }
@@ -336,9 +500,13 @@ func (e *{{ .StructName }}) IsEqual(val *{{ .StructName }}) bool {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.IsPrimitive }}
-        return {{ .Type.EqualFunc }}(e.{{.name}}, val.{{.name}})
+        {{- if .OneOfString}}
+        return {{ .Type.EqualFunc }}(e.{{.name}}Value(), val.{{.name}}Value())
+        {{- else}}
+        return {{ .Type.EqualFunc }}(*e.{{.name}}Ptr(), *val.{{.name}}Ptr())
+        {{- end}}
         {{- else }}
-        return e.{{.name}}.IsEqual({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+        return e.{{.name}}Ptr().IsEqual(val.{{.name}}Ptr())
         {{- end }}
         {{- end }}
     }
@@ -357,8 +525,13 @@ func Cmp{{.StructName}}(left, right *{{.StructName}}) int {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         return {{ .Type.CompareFunc }}(
-            {{- if .Type.Flags.TakePtr}}&{{end}}left.{{.name}},
-            {{- if .Type.Flags.TakePtr}}&{{end}}right.{{.name}})
+            {{- if .Type.IsPrimitive}}
+                {{- if .OneOfString}}left.{{.name}}Value(), right.{{.name}}Value()
+                {{- else}}*left.{{.name}}Ptr(), *right.{{.name}}Ptr()
+                {{- end}}
+            {{- else}}
+                left.{{.name}}Ptr(), right.{{.name}}Ptr()
+            {{- end}})
     {{- end }}
     }
 
@@ -389,7 +562,7 @@ typeChanged := false
     case {{ $.StructName }}Type{{.Name}}:
         if typeChanged || random.IntN(2)==0 {
         {{- if not .Type.IsPrimitive }}
-            s.{{.name}}.mutateRandom(random, schem, limiter)
+            s.{{.name}}Ptr().mutateRandom(random, schem, limiter)
         {{- else }}
             s.Set{{.Name}}({{.Type.ToExported (print .Type.RandomFunc)}})
         {{- end}}
@@ -523,7 +696,15 @@ func (e *{{ .StructName }}Encoder) Encode(val *{{ .StructName }}) {
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         // Encode {{.Name}}
-        e.{{.name}}Encoder.Encode({{- if .Type.Flags.TakePtr}}&{{end}}val.{{.name}})
+        {{- if .Type.IsPrimitive}}
+            {{- if .OneOfString}}
+        e.{{.name}}Encoder.Encode(val.{{.name}}Value())
+            {{- else}}
+        e.{{.name}}Encoder.Encode(*val.{{.name}}Ptr())
+            {{- end}}
+        {{- else}}
+        e.{{.name}}Encoder.Encode(val.{{.name}}Ptr())
+        {{- end}}
     {{- end }}
     }
 }
@@ -683,11 +864,11 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 
 	dst := dstPtr
 	if dst.typ != {{.StructName}}Type(typ) {
-	    dst.typ = {{.StructName}}Type(typ)
-	    // The type changed, we need to reset the contained value so that
-	    // it does not contain carry-over data from a previous record that
-	    // was of this same type.
-	    dst.resetContained()
+	    // The type changed, so drop the previous payload and create a blank
+	    // value for the newly selected type.
+        if err := dst.decodeSetType({{.StructName}}Type(typ), d.allocators); err != nil {
+            return err
+        }
 	}
 
 	// Decode selected field
@@ -695,24 +876,36 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
     {{- range .Fields }}
     case {{ $.StructName }}Type{{.Name}}:
         // Decode {{.Name}}
-        {{- if .Type.Flags.StoreByPtr}}
-        if dst.{{.name}} == nil {
-            if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(*dst.{{.name}}))); err != nil {
+        {{- if .OneOfPtr}}
+        if dst.{{.name}}Ptr() == nil {
+            if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{}))); err != nil {
                 return err
             }
-            dst.{{.name}} = d.allocators.{{ .Type.Storage }}.Alloc()
-            dst.{{.name}}.init(dst.parentModifiedFields, dst.parentModifiedBit)
+            dst.alloc{{.Name}}Alloc(d.allocators)
         }
         {{end}}
-        {{ $isDictPtr := and .Type.Flags.StoreByPtr .Type.DictName -}}
-        {{if $isDictPtr}}err := {{else}}return {{end}}d.{{.name}}Decoder.Decode({{if .Type.Flags.DecodeByPtr}}&{{end}}dst.{{.name}})
-        {{- if $isDictPtr}}
+        {{- if .OneOfString}}
+        var v {{.Type.Storage}}
+        if err := d.{{.name}}Decoder.Decode(&v); err != nil {
+            return err
+        }
+        dst.set{{.Name}}Value(v)
+        {{- else if .OneOfBits}}
+        return d.{{.name}}Decoder.Decode(dst.{{.name}}Ptr())
+        {{- else}}
+        {{- if .Type.DictName}}
+        v := dst.{{.name}}Ptr()
+        err := d.{{.name}}Decoder.Decode(&v)
         if err != nil {
             return err
         }
-        if dst.{{.name}} == nil {
+        if v == nil {
             return pkg.ErrDecodeError // This may happen with dict-encoded fields, with invalid input data.
         }
+        dst.ptr = unsafe.Pointer(v)
+        {{- else}}
+        return d.{{.name}}Decoder.Decode(dst.{{.name}}Ptr())
+        {{- end}}
         {{- end}}
     {{- end }}
     }

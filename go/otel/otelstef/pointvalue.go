@@ -20,12 +20,9 @@ var _ = codecs.StringEncoder{}
 type PointValue struct {
 	// The current type of the oneof.
 	typ PointValueType
+	ptr unsafe.Pointer
 
-	int64        int64
-	float64      float64
-	histogram    HistogramValue
-	expHistogram ExpHistogramValue
-	summary      SummaryValue
+	bits uint64
 
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
@@ -42,24 +39,109 @@ func (s *PointValue) init(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
 
-	s.histogram.init(parentModifiedFields, parentModifiedBit)
-	s.expHistogram.init(parentModifiedFields, parentModifiedBit)
-	s.summary.init(parentModifiedFields, parentModifiedBit)
+	switch s.typ {
+	case PointValueTypeHistogram:
+		if s.histogramPtr() != nil {
+			s.histogramPtr().init(parentModifiedFields, parentModifiedBit)
+		}
+	case PointValueTypeExpHistogram:
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().init(parentModifiedFields, parentModifiedBit)
+		}
+	case PointValueTypeSummary:
+		if s.summaryPtr() != nil {
+			s.summaryPtr().init(parentModifiedFields, parentModifiedBit)
+		}
+	}
 }
 
 func (s *PointValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
 
-	s.histogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
-	s.expHistogram.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
-	s.summary.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+	switch s.typ {
+	case PointValueTypeHistogram:
+		if s.histogramPtr() != nil {
+			s.histogramPtr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+		}
+	case PointValueTypeExpHistogram:
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+		}
+	case PointValueTypeSummary:
+		if s.summaryPtr() != nil {
+			s.summaryPtr().initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+		}
+	}
+}
+
+func (s *PointValue) clearValue() {
+	s.ptr = nil
+	s.bits = 0
+}
+
+func (s *PointValue) setType(typ PointValueType) {
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case PointValueTypeHistogram:
+		s.allocHistogram()
+	case PointValueTypeExpHistogram:
+		s.allocExpHistogram()
+	case PointValueTypeSummary:
+		s.allocSummary()
+	}
+}
+
+func (s *PointValue) setTypeAlloc(typ PointValueType, allocators *Allocators) {
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case PointValueTypeHistogram:
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(HistogramValue{})))
+		s.allocHistogramAlloc(allocators)
+	case PointValueTypeExpHistogram:
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(ExpHistogramValue{})))
+		s.allocExpHistogramAlloc(allocators)
+	case PointValueTypeSummary:
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SummaryValue{})))
+		s.allocSummaryAlloc(allocators)
+	}
+}
+
+func (s *PointValue) decodeSetType(typ PointValueType, allocators *Allocators) error {
+	switch typ {
+	case PointValueTypeHistogram:
+		if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(HistogramValue{}))); err != nil {
+			return err
+		}
+	case PointValueTypeExpHistogram:
+		if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(ExpHistogramValue{}))); err != nil {
+			return err
+		}
+	case PointValueTypeSummary:
+		if err := allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(SummaryValue{}))); err != nil {
+			return err
+		}
+	}
+	s.clearValue()
+	s.typ = typ
+	switch typ {
+	case PointValueTypeHistogram:
+		s.allocHistogramAlloc(allocators)
+	case PointValueTypeExpHistogram:
+		s.allocExpHistogramAlloc(allocators)
+	case PointValueTypeSummary:
+		s.allocSummaryAlloc(allocators)
+	}
+	return nil
 }
 
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *PointValue) reset() {
 	s.typ = PointValueTypeNone
+	s.clearValue()
 	// We don't need to reset the state of the field since that will be done
 	// when the type is changed, see SetType().
 }
@@ -67,11 +149,17 @@ func (s *PointValue) reset() {
 func (s *PointValue) freeze() {
 	switch s.typ {
 	case PointValueTypeHistogram:
-		s.histogram.freeze()
+		if s.histogramPtr() != nil {
+			s.histogramPtr().freeze()
+		}
 	case PointValueTypeExpHistogram:
-		s.expHistogram.freeze()
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().freeze()
+		}
 	case PointValueTypeSummary:
-		s.summary.freeze()
+		if s.summaryPtr() != nil {
+			s.summaryPtr().freeze()
+		}
 	}
 }
 
@@ -81,9 +169,20 @@ func (s *PointValue) freeze() {
 func (s *PointValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.parentModifiedFields = parentModifiedFields
 
-	s.histogram.fixParent(parentModifiedFields)
-	s.expHistogram.fixParent(parentModifiedFields)
-	s.summary.fixParent(parentModifiedFields)
+	switch s.typ {
+	case PointValueTypeHistogram:
+		if s.histogramPtr() != nil {
+			s.histogramPtr().fixParent(parentModifiedFields)
+		}
+	case PointValueTypeExpHistogram:
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().fixParent(parentModifiedFields)
+		}
+	case PointValueTypeSummary:
+		if s.summaryPtr() != nil {
+			s.summaryPtr().fixParent(parentModifiedFields)
+		}
+	}
 }
 
 type PointValueType byte
@@ -109,71 +208,144 @@ func (s *PointValue) Type() PointValueType {
 func (s *PointValue) resetContained() {
 	switch s.typ {
 	case PointValueTypeHistogram:
-		s.histogram.reset()
+		if s.histogramPtr() != nil {
+			s.histogramPtr().reset()
+		}
 	case PointValueTypeExpHistogram:
-		s.expHistogram.reset()
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().reset()
+		}
 	case PointValueTypeSummary:
-		s.summary.reset()
+		if s.summaryPtr() != nil {
+			s.summaryPtr().reset()
+		}
 	}
 }
 
 // SetType sets the type of the value currently contained in PointValue.
 func (s *PointValue) SetType(typ PointValueType) {
 	if s.typ != typ {
-		s.typ = typ
-		s.resetContained()
-		switch typ {
-		}
+		s.setType(typ)
 		s.markParentModified()
 	}
+}
+
+func (s *PointValue) int64Ptr() *int64 {
+	return (*int64)(unsafe.Pointer(&s.bits))
 }
 
 // Int64 returns the value if the contained type is currently PointValueTypeInt64.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *PointValue) Int64() int64 {
-	return s.int64
+	return (*s.int64Ptr())
 }
 
 // SetInt64 sets the value to the specified value and sets the type to PointValueTypeInt64.
 func (s *PointValue) SetInt64(v int64) {
-	if s.typ != PointValueTypeInt64 || s.int64 != v {
-		s.int64 = v
-		s.typ = PointValueTypeInt64
+	stored := v
+	if s.typ != PointValueTypeInt64 || *s.int64Ptr() != stored {
+		if s.typ != PointValueTypeInt64 {
+			s.clearValue()
+			s.typ = PointValueTypeInt64
+		}
+		*s.int64Ptr() = stored
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
+}
+
+func (s *PointValue) float64Ptr() *float64 {
+	return (*float64)(unsafe.Pointer(&s.bits))
 }
 
 // Float64 returns the value if the contained type is currently PointValueTypeFloat64.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *PointValue) Float64() float64 {
-	return s.float64
+	return (*s.float64Ptr())
 }
 
 // SetFloat64 sets the value to the specified value and sets the type to PointValueTypeFloat64.
 func (s *PointValue) SetFloat64(v float64) {
-	if s.typ != PointValueTypeFloat64 || s.float64 != v {
-		s.float64 = v
-		s.typ = PointValueTypeFloat64
+	stored := v
+	if s.typ != PointValueTypeFloat64 || *s.float64Ptr() != stored {
+		if s.typ != PointValueTypeFloat64 {
+			s.clearValue()
+			s.typ = PointValueTypeFloat64
+		}
+		*s.float64Ptr() = stored
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
+}
+
+func (s *PointValue) histogramPtr() *HistogramValue {
+	return (*HistogramValue)(s.ptr)
+}
+
+func (s *PointValue) allocHistogram() *HistogramValue {
+	v := &HistogramValue{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *PointValue) allocHistogramAlloc(allocators *Allocators) *HistogramValue {
+	v := allocators.HistogramValue.Alloc()
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // Histogram returns the value if the contained type is currently PointValueTypeHistogram.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *PointValue) Histogram() *HistogramValue {
-	return &s.histogram
+	return s.histogramPtr()
+}
+
+func (s *PointValue) expHistogramPtr() *ExpHistogramValue {
+	return (*ExpHistogramValue)(s.ptr)
+}
+
+func (s *PointValue) allocExpHistogram() *ExpHistogramValue {
+	v := &ExpHistogramValue{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *PointValue) allocExpHistogramAlloc(allocators *Allocators) *ExpHistogramValue {
+	v := allocators.ExpHistogramValue.Alloc()
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // ExpHistogram returns the value if the contained type is currently PointValueTypeExpHistogram.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *PointValue) ExpHistogram() *ExpHistogramValue {
-	return &s.expHistogram
+	return s.expHistogramPtr()
+}
+
+func (s *PointValue) summaryPtr() *SummaryValue {
+	return (*SummaryValue)(s.ptr)
+}
+
+func (s *PointValue) allocSummary() *SummaryValue {
+	v := &SummaryValue{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *PointValue) allocSummaryAlloc(allocators *Allocators) *SummaryValue {
+	v := allocators.SummaryValue.Alloc()
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // Summary returns the value if the contained type is currently PointValueTypeSummary.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *PointValue) Summary() *SummaryValue {
-	return &s.summary
+	return s.summaryPtr()
 }
 
 func (s *PointValue) canBeShared() bool {
@@ -188,18 +360,22 @@ func (s *PointValue) cloneShared(allocators *Allocators) PointValue {
 
 func (s *PointValue) Clone(allocators *Allocators) PointValue {
 	c := PointValue{}
+	c.clearValue()
 	c.typ = s.typ
 	switch s.typ {
 	case PointValueTypeInt64:
-		c.int64 = s.int64
+		*c.int64Ptr() = *s.int64Ptr()
 	case PointValueTypeFloat64:
-		c.float64 = s.float64
+		*c.float64Ptr() = *s.float64Ptr()
 	case PointValueTypeHistogram:
-		copyToNewHistogramValue(&c.histogram, &s.histogram, allocators)
+		c.setTypeAlloc(s.typ, allocators)
+		copyToNewHistogramValue(c.histogramPtr(), s.histogramPtr(), allocators)
 	case PointValueTypeExpHistogram:
-		copyToNewExpHistogramValue(&c.expHistogram, &s.expHistogram, allocators)
+		c.setTypeAlloc(s.typ, allocators)
+		copyToNewExpHistogramValue(c.expHistogramPtr(), s.expHistogramPtr(), allocators)
 	case PointValueTypeSummary:
-		copyToNewSummaryValue(&c.summary, &s.summary, allocators)
+		c.setTypeAlloc(s.typ, allocators)
+		copyToNewSummaryValue(c.summaryPtr(), s.summaryPtr(), allocators)
 	}
 	return c
 }
@@ -207,28 +383,49 @@ func (s *PointValue) Clone(allocators *Allocators) PointValue {
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *PointValue) byteSize() uint {
-	return uint(unsafe.Sizeof(*s)) +
-		s.histogram.byteSize() + s.expHistogram.byteSize() + s.summary.byteSize() + 0
+	size := uint(unsafe.Sizeof(*s))
+	switch s.typ {
+	case PointValueTypeHistogram:
+		if s.histogramPtr() != nil {
+			size += s.histogramPtr().byteSize()
+		}
+	case PointValueTypeExpHistogram:
+		if s.expHistogramPtr() != nil {
+			size += s.expHistogramPtr().byteSize()
+		}
+	case PointValueTypeSummary:
+		if s.summaryPtr() != nil {
+			size += s.summaryPtr().byteSize()
+		}
+	}
+	return size
 }
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyPointValue(dst *PointValue, src *PointValue) {
 	switch src.typ {
 	case PointValueTypeInt64:
-		dst.SetInt64(src.int64)
+		dst.SetInt64((*src.int64Ptr()))
 	case PointValueTypeFloat64:
-		dst.SetFloat64(src.float64)
+		dst.SetFloat64((*src.float64Ptr()))
 	case PointValueTypeHistogram:
 		dst.SetType(src.typ)
-		copyHistogramValue(&dst.histogram, &src.histogram)
+		copyHistogramValue(
+			dst.histogramPtr(),
+			src.histogramPtr())
 	case PointValueTypeExpHistogram:
 		dst.SetType(src.typ)
-		copyExpHistogramValue(&dst.expHistogram, &src.expHistogram)
+		copyExpHistogramValue(
+			dst.expHistogramPtr(),
+			src.expHistogramPtr())
 	case PointValueTypeSummary:
 		dst.SetType(src.typ)
-		copySummaryValue(&dst.summary, &src.summary)
+		copySummaryValue(
+			dst.summaryPtr(),
+			src.summaryPtr())
 	case PointValueTypeNone:
 		if dst.typ != PointValueTypeNone {
+			dst.clearValue()
 			dst.typ = PointValueTypeNone
 			dst.markParentModified()
 		}
@@ -239,24 +436,30 @@ func copyPointValue(dst *PointValue, src *PointValue) {
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewPointValue(dst *PointValue, src *PointValue, allocators *Allocators) {
-	dst.typ = src.typ
+	dst.setTypeAlloc(src.typ, allocators)
 	switch src.typ {
 	case PointValueTypeInt64:
-		if dst.int64 != src.int64 {
-			dst.int64 = src.int64
+		if *dst.int64Ptr() != *src.int64Ptr() {
+			*dst.int64Ptr() = *src.int64Ptr()
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case PointValueTypeFloat64:
-		if dst.float64 != src.float64 {
-			dst.float64 = src.float64
+		if *dst.float64Ptr() != *src.float64Ptr() {
+			*dst.float64Ptr() = *src.float64Ptr()
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case PointValueTypeHistogram:
-		copyToNewHistogramValue(&dst.histogram, &src.histogram, allocators)
+		copyToNewHistogramValue(
+			dst.histogramPtr(),
+			src.histogramPtr(), allocators)
 	case PointValueTypeExpHistogram:
-		copyToNewExpHistogramValue(&dst.expHistogram, &src.expHistogram, allocators)
+		copyToNewExpHistogramValue(
+			dst.expHistogramPtr(),
+			src.expHistogramPtr(), allocators)
 	case PointValueTypeSummary:
-		copyToNewSummaryValue(&dst.summary, &src.summary, allocators)
+		copyToNewSummaryValue(
+			dst.summaryPtr(),
+			src.summaryPtr(), allocators)
 	case PointValueTypeNone:
 	default:
 		panic("copyPointValue: unexpected type: " + fmt.Sprint(src.typ))
@@ -275,22 +478,34 @@ func (s *PointValue) markParentModified() {
 func (s *PointValue) setModifiedRecursively() {
 	switch s.typ {
 	case PointValueTypeHistogram:
-		s.histogram.setModifiedRecursively()
+		if s.histogramPtr() != nil {
+			s.histogramPtr().setModifiedRecursively()
+		}
 	case PointValueTypeExpHistogram:
-		s.expHistogram.setModifiedRecursively()
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().setModifiedRecursively()
+		}
 	case PointValueTypeSummary:
-		s.summary.setModifiedRecursively()
+		if s.summaryPtr() != nil {
+			s.summaryPtr().setModifiedRecursively()
+		}
 	}
 }
 
 func (s *PointValue) setUnmodifiedRecursively() {
 	switch s.typ {
 	case PointValueTypeHistogram:
-		s.histogram.setUnmodifiedRecursively()
+		if s.histogramPtr() != nil {
+			s.histogramPtr().setUnmodifiedRecursively()
+		}
 	case PointValueTypeExpHistogram:
-		s.expHistogram.setUnmodifiedRecursively()
+		if s.expHistogramPtr() != nil {
+			s.expHistogramPtr().setUnmodifiedRecursively()
+		}
 	case PointValueTypeSummary:
-		s.summary.setUnmodifiedRecursively()
+		if s.summaryPtr() != nil {
+			s.summaryPtr().setUnmodifiedRecursively()
+		}
 	}
 }
 
@@ -300,28 +515,34 @@ func (s *PointValue) computeDiff(val *PointValue) (ret bool) {
 	if s.typ == val.typ {
 		switch s.typ {
 		case PointValueTypeInt64:
-			ret = s.int64 != val.int64
+			ret = *s.int64Ptr() != *val.int64Ptr()
 		case PointValueTypeFloat64:
-			ret = s.float64 != val.float64
+			ret = *s.float64Ptr() != *val.float64Ptr()
 		case PointValueTypeHistogram:
-			ret = s.histogram.computeDiff(&val.histogram)
+			ret = s.histogramPtr().computeDiff(val.histogramPtr())
 		case PointValueTypeExpHistogram:
-			ret = s.expHistogram.computeDiff(&val.expHistogram)
+			ret = s.expHistogramPtr().computeDiff(val.expHistogramPtr())
 		case PointValueTypeSummary:
-			ret = s.summary.computeDiff(&val.summary)
+			ret = s.summaryPtr().computeDiff(val.summaryPtr())
 		}
 	} else {
 		ret = true
 		switch s.typ {
 		case PointValueTypeHistogram:
 			// val.histogram doesn't exist at all so mark the whole s.histogram subtree as modified.
-			s.histogram.setModifiedRecursively()
+			if s.histogramPtr() != nil {
+				s.histogramPtr().setModifiedRecursively()
+			}
 		case PointValueTypeExpHistogram:
 			// val.expHistogram doesn't exist at all so mark the whole s.expHistogram subtree as modified.
-			s.expHistogram.setModifiedRecursively()
+			if s.expHistogramPtr() != nil {
+				s.expHistogramPtr().setModifiedRecursively()
+			}
 		case PointValueTypeSummary:
 			// val.summary doesn't exist at all so mark the whole s.summary subtree as modified.
-			s.summary.setModifiedRecursively()
+			if s.summaryPtr() != nil {
+				s.summaryPtr().setModifiedRecursively()
+			}
 		}
 	}
 	return ret
@@ -334,15 +555,15 @@ func (e *PointValue) IsEqual(val *PointValue) bool {
 	}
 	switch e.typ {
 	case PointValueTypeInt64:
-		return pkg.Int64Equal(e.int64, val.int64)
+		return pkg.Int64Equal(*e.int64Ptr(), *val.int64Ptr())
 	case PointValueTypeFloat64:
-		return pkg.Float64Equal(e.float64, val.float64)
+		return pkg.Float64Equal(*e.float64Ptr(), *val.float64Ptr())
 	case PointValueTypeHistogram:
-		return e.histogram.IsEqual(&val.histogram)
+		return e.histogramPtr().IsEqual(val.histogramPtr())
 	case PointValueTypeExpHistogram:
-		return e.expHistogram.IsEqual(&val.expHistogram)
+		return e.expHistogramPtr().IsEqual(val.expHistogramPtr())
 	case PointValueTypeSummary:
-		return e.summary.IsEqual(&val.summary)
+		return e.summaryPtr().IsEqual(val.summaryPtr())
 	}
 
 	return true
@@ -357,15 +578,18 @@ func CmpPointValue(left, right *PointValue) int {
 	}
 	switch left.typ {
 	case PointValueTypeInt64:
-		return pkg.Int64Compare(left.int64, right.int64)
+		return pkg.Int64Compare(*left.int64Ptr(), *right.int64Ptr())
 	case PointValueTypeFloat64:
-		return pkg.Float64Compare(left.float64, right.float64)
+		return pkg.Float64Compare(*left.float64Ptr(), *right.float64Ptr())
 	case PointValueTypeHistogram:
-		return CmpHistogramValue(&left.histogram, &right.histogram)
+		return CmpHistogramValue(
+			left.histogramPtr(), right.histogramPtr())
 	case PointValueTypeExpHistogram:
-		return CmpExpHistogramValue(&left.expHistogram, &right.expHistogram)
+		return CmpExpHistogramValue(
+			left.expHistogramPtr(), right.expHistogramPtr())
 	case PointValueTypeSummary:
-		return CmpSummaryValue(&left.summary, &right.summary)
+		return CmpSummaryValue(
+			left.summaryPtr(), right.summaryPtr())
 	}
 
 	return 0
@@ -400,15 +624,15 @@ func (s *PointValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limit
 		}
 	case PointValueTypeHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.histogram.mutateRandom(random, schem, limiter)
+			s.histogramPtr().mutateRandom(random, schem, limiter)
 		}
 	case PointValueTypeExpHistogram:
 		if typeChanged || random.IntN(2) == 0 {
-			s.expHistogram.mutateRandom(random, schem, limiter)
+			s.expHistogramPtr().mutateRandom(random, schem, limiter)
 		}
 	case PointValueTypeSummary:
 		if typeChanged || random.IntN(2) == 0 {
-			s.summary.mutateRandom(random, schem, limiter)
+			s.summaryPtr().mutateRandom(random, schem, limiter)
 		}
 	}
 }
@@ -583,19 +807,19 @@ func (e *PointValueEncoder) Encode(val *PointValue) {
 	switch typ {
 	case PointValueTypeInt64:
 		// Encode Int64
-		e.int64Encoder.Encode(val.int64)
+		e.int64Encoder.Encode(*val.int64Ptr())
 	case PointValueTypeFloat64:
 		// Encode Float64
-		e.float64Encoder.Encode(val.float64)
+		e.float64Encoder.Encode(*val.float64Ptr())
 	case PointValueTypeHistogram:
 		// Encode Histogram
-		e.histogramEncoder.Encode(&val.histogram)
+		e.histogramEncoder.Encode(val.histogramPtr())
 	case PointValueTypeExpHistogram:
 		// Encode ExpHistogram
-		e.expHistogramEncoder.Encode(&val.expHistogram)
+		e.expHistogramEncoder.Encode(val.expHistogramPtr())
 	case PointValueTypeSummary:
 		// Encode Summary
-		e.summaryEncoder.Encode(&val.summary)
+		e.summaryEncoder.Encode(val.summaryPtr())
 	}
 }
 
@@ -856,30 +1080,51 @@ func (d *PointValueDecoder) Decode(dstPtr *PointValue) error {
 
 	dst := dstPtr
 	if dst.typ != PointValueType(typ) {
-		dst.typ = PointValueType(typ)
-		// The type changed, we need to reset the contained value so that
-		// it does not contain carry-over data from a previous record that
-		// was of this same type.
-		dst.resetContained()
+		// The type changed, so drop the previous payload and create a blank
+		// value for the newly selected type.
+		if err := dst.decodeSetType(PointValueType(typ), d.allocators); err != nil {
+			return err
+		}
 	}
 
 	// Decode selected field
 	switch dst.typ {
 	case PointValueTypeInt64:
 		// Decode Int64
-		return d.int64Decoder.Decode(&dst.int64)
+		return d.int64Decoder.Decode(dst.int64Ptr())
 	case PointValueTypeFloat64:
 		// Decode Float64
-		return d.float64Decoder.Decode(&dst.float64)
+		return d.float64Decoder.Decode(dst.float64Ptr())
 	case PointValueTypeHistogram:
 		// Decode Histogram
-		return d.histogramDecoder.Decode(&dst.histogram)
+		if dst.histogramPtr() == nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(HistogramValue{}))); err != nil {
+				return err
+			}
+			dst.allocHistogramAlloc(d.allocators)
+		}
+
+		return d.histogramDecoder.Decode(dst.histogramPtr())
 	case PointValueTypeExpHistogram:
 		// Decode ExpHistogram
-		return d.expHistogramDecoder.Decode(&dst.expHistogram)
+		if dst.expHistogramPtr() == nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(ExpHistogramValue{}))); err != nil {
+				return err
+			}
+			dst.allocExpHistogramAlloc(d.allocators)
+		}
+
+		return d.expHistogramDecoder.Decode(dst.expHistogramPtr())
 	case PointValueTypeSummary:
 		// Decode Summary
-		return d.summaryDecoder.Decode(&dst.summary)
+		if dst.summaryPtr() == nil {
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(SummaryValue{}))); err != nil {
+				return err
+			}
+			dst.allocSummaryAlloc(d.allocators)
+		}
+
+		return d.summaryDecoder.Decode(dst.summaryPtr())
 	}
 	return nil
 }
