@@ -60,6 +60,12 @@ func (s *Record) initAlloc(parentModifiedFields *modifiedFields, parentModifiedB
 	s.value.initAlloc(&s.modifiedFields, fieldModifiedRecordValue, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *Record) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Record) reset() {

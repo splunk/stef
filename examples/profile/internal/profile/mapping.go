@@ -82,6 +82,12 @@ func (s *Mapping) initAlloc(parentModifiedFields *modifiedFields, parentModified
 
 }
 
+// Reset the struct to its initial state.
+func (s *Mapping) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Mapping) reset() {

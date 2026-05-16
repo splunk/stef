@@ -75,6 +75,12 @@ func (s *Spans) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBi
 	s.span.initAlloc(&s.modifiedFields, fieldModifiedSpansSpan, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *Spans) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Spans) reset() {

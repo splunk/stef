@@ -81,6 +81,12 @@ func (s *ProfileMetadata) initAlloc(parentModifiedFields *modifiedFields, parent
 	s.defaultSampleType.initAlloc(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *ProfileMetadata) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ProfileMetadata) reset() {

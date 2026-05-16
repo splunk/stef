@@ -64,6 +64,12 @@ func (s *Line) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.function.initAlloc(&s.modifiedFields, fieldModifiedLineFunction, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *Line) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Line) reset() {
