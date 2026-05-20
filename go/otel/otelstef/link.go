@@ -67,6 +67,12 @@ func (s *Link) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit
 	s.attributes.initAlloc(&s.modifiedFields, fieldModifiedLinkAttributes, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *Link) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *Link) reset() {

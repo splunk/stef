@@ -18,11 +18,10 @@ var _ = codecs.StringEncoder{}
 
 // LabelValue is a oneof struct.
 type LabelValue struct {
-	// The current type of the oneof.
-	typ LabelValueType
-
-	str string
-	num NumValue
+	// The low 8 bits hold the current type. The remaining 56 bits hold
+	// string/bytes length when a choice needs it.
+	typLen uint64
+	ptr    unsafe.Pointer
 
 	// Pointer to parent's modifiedFields
 	parentModifiedFields *modifiedFields
@@ -38,29 +37,30 @@ func (s *LabelValue) Init() {
 func (s *LabelValue) init(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
-
-	s.num.init(parentModifiedFields, parentModifiedBit)
 }
 
 func (s *LabelValue) initAlloc(parentModifiedFields *modifiedFields, parentModifiedBit uint64, allocators *Allocators) {
 	s.parentModifiedFields = parentModifiedFields
 	s.parentModifiedBit = parentModifiedBit
+}
 
-	s.num.initAlloc(parentModifiedFields, parentModifiedBit, allocators)
+// clear the value and set the type. Must be followed by a "set" call which
+// sets the value (except if the type is None).
+func (s *LabelValue) clearValSetType(typ LabelValueType) {
+	s.ptr = nil
+	s.typLen = uint64(typ)
 }
 
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *LabelValue) reset() {
-	s.typ = LabelValueTypeNone
-	// We don't need to reset the state of the field since that will be done
-	// when the type is changed, see SetType().
+	s.clearValSetType(LabelValueTypeNone)
 }
 
 func (s *LabelValue) freeze() {
-	switch s.typ {
+	switch s.Type() {
 	case LabelValueTypeNum:
-		s.num.freeze()
+		s.numPtr().freeze()
 	}
 }
 
@@ -70,7 +70,10 @@ func (s *LabelValue) freeze() {
 func (s *LabelValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.parentModifiedFields = parentModifiedFields
 
-	s.num.fixParent(parentModifiedFields)
+	switch s.Type() {
+	case LabelValueTypeNum:
+		s.numPtr().fixParent(parentModifiedFields)
+	}
 }
 
 type LabelValueType byte
@@ -82,51 +85,83 @@ const (
 	LabelValueTypeCount
 )
 
-// Type returns the type of the value currently contained in LabelValue.
-func (s *LabelValue) Type() LabelValueType {
-	return s.typ
+const (
+	LabelValueTypLenTypeBits = 8
+	LabelValueTypLenTypeMask = 1<<LabelValueTypLenTypeBits - 1
+	LabelValueTypLenLenMask  = 1<<(64-LabelValueTypLenTypeBits) - 1
+)
+
+func (s *LabelValue) len() int {
+	return int(s.typLen >> LabelValueTypLenTypeBits)
 }
 
-// resetContained resets the currently contained value, if any.
-// Normally used after switching to a different type to make sure
-// the value contained is in blank state.
-func (s *LabelValue) resetContained() {
-	switch s.typ {
-	case LabelValueTypeNum:
-		s.num.reset()
+func (s *LabelValue) setLen(n int) {
+	if uint64(n) > LabelValueTypLenLenMask {
+		panic("LabelValue length exceeds 56 bits")
 	}
+	s.typLen = (uint64(n) << LabelValueTypLenTypeBits) | (s.typLen & LabelValueTypLenTypeMask)
+}
+
+// Type returns the type of the value currently contained in LabelValue.
+func (s *LabelValue) Type() LabelValueType {
+	return LabelValueType(s.typLen & LabelValueTypLenTypeMask)
 }
 
 // SetType sets the type of the value currently contained in LabelValue.
 func (s *LabelValue) SetType(typ LabelValueType) {
-	if s.typ != typ {
-		s.typ = typ
-		s.resetContained()
+	if s.Type() != typ {
+		s.clearValSetType(typ)
 		switch typ {
+		case LabelValueTypeNum:
+			s.allocNum()
 		}
 		s.markParentModified()
 	}
 }
 
+func (s *LabelValue) setStr(v string) {
+	s.ptr = unsafe.Pointer(unsafe.StringData(string(v)))
+	s.setLen(len(v))
+}
+
 // Str returns the value if the contained type is currently LabelValueTypeStr.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *LabelValue) Str() string {
-	return s.str
+	return string(unsafe.String((*byte)(s.ptr), s.len()))
 }
 
 // SetStr sets the value to the specified value and sets the type to LabelValueTypeStr.
 func (s *LabelValue) SetStr(v string) {
-	if s.typ != LabelValueTypeStr || s.str != v {
-		s.str = v
-		s.typ = LabelValueTypeStr
+	stored := v
+	if s.Type() != LabelValueTypeStr || s.Str() != stored {
+		s.clearValSetType(LabelValueTypeStr)
+		s.setStr(stored)
 		s.parentModifiedFields.markModified(s.parentModifiedBit)
 	}
+}
+
+func (s *LabelValue) numPtr() *NumValue {
+	return (*NumValue)(s.ptr)
+}
+
+func (s *LabelValue) allocNum() *NumValue {
+	v := &NumValue{}
+	v.init(s.parentModifiedFields, s.parentModifiedBit)
+	s.ptr = unsafe.Pointer(v)
+	return v
+}
+
+func (s *LabelValue) allocNumAlloc(allocators *Allocators) *NumValue {
+	v := allocators.NumValue.Alloc()
+	v.initAlloc(s.parentModifiedFields, s.parentModifiedBit, allocators)
+	s.ptr = unsafe.Pointer(v)
+	return v
 }
 
 // Num returns the value if the contained type is currently LabelValueTypeNum.
 // The caller must check the type via Type() before attempting to call this function.
 func (s *LabelValue) Num() *NumValue {
-	return &s.num
+	return s.numPtr()
 }
 
 func (s *LabelValue) canBeShared() bool {
@@ -141,12 +176,14 @@ func (s *LabelValue) cloneShared(allocators *Allocators) LabelValue {
 
 func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 	c := LabelValue{}
-	c.typ = s.typ
-	switch s.typ {
+	c.clearValSetType(s.Type())
+	switch s.Type() {
 	case LabelValueTypeStr:
-		c.str = s.str
+		c.setStr(s.Str())
 	case LabelValueTypeNum:
-		copyToNewNumValue(&c.num, &s.num, allocators)
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(NumValue{})))
+		c.allocNumAlloc(allocators)
+		copyToNewNumValue(c.numPtr(), s.numPtr(), allocators)
 	}
 	return c
 }
@@ -154,42 +191,49 @@ func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
 // ByteSize returns approximate memory usage in bytes. Used to calculate
 // memory used by dictionaries.
 func (s *LabelValue) byteSize() uint {
-	return uint(unsafe.Sizeof(*s)) +
-		s.num.byteSize() + 0
+	size := uint(unsafe.Sizeof(*s))
+	switch s.Type() {
+	case LabelValueTypeNum:
+		size += s.numPtr().byteSize()
+	}
+	return size
 }
 
 // Copy from src to dst, overwriting existing data in dst.
 func copyLabelValue(dst *LabelValue, src *LabelValue) {
-	switch src.typ {
+	switch src.Type() {
 	case LabelValueTypeStr:
-		dst.SetStr(src.str)
+		dst.SetStr(src.Str())
 	case LabelValueTypeNum:
-		dst.SetType(src.typ)
-		copyNumValue(&dst.num, &src.num)
+		dst.SetType(src.Type())
+		copyNumValue(dst.numPtr(), src.numPtr())
 	case LabelValueTypeNone:
-		if dst.typ != LabelValueTypeNone {
-			dst.typ = LabelValueTypeNone
+		if dst.Type() != LabelValueTypeNone {
+			dst.clearValSetType(LabelValueTypeNone)
 			dst.markParentModified()
 		}
 	default:
-		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
+		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.Type()))
 	}
 }
 
 // Copy from src to dst. dst is assumed to be just inited.
 func copyToNewLabelValue(dst *LabelValue, src *LabelValue, allocators *Allocators) {
-	dst.typ = src.typ
-	switch src.typ {
+	dst.typLen = uint64(src.Type())
+	switch src.Type() {
 	case LabelValueTypeStr:
-		if dst.str != src.str {
-			dst.str = src.str
+		srcVal := src.Str()
+		if string(srcVal) != "" {
+			dst.setStr(srcVal)
 			dst.parentModifiedFields.markModified(dst.parentModifiedBit)
 		}
 	case LabelValueTypeNum:
-		copyToNewNumValue(&dst.num, &src.num, allocators)
+		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(NumValue{})))
+		dst.allocNumAlloc(allocators)
+		copyToNewNumValue(dst.numPtr(), src.numPtr(), allocators)
 	case LabelValueTypeNone:
 	default:
-		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.typ))
+		panic("copyLabelValue: unexpected type: " + fmt.Sprint(src.Type()))
 	}
 }
 
@@ -203,35 +247,35 @@ func (s *LabelValue) markParentModified() {
 }
 
 func (s *LabelValue) setModifiedRecursively() {
-	switch s.typ {
+	switch s.Type() {
 	case LabelValueTypeNum:
-		s.num.setModifiedRecursively()
+		s.numPtr().setModifiedRecursively()
 	}
 }
 
 func (s *LabelValue) setUnmodifiedRecursively() {
-	switch s.typ {
+	switch s.Type() {
 	case LabelValueTypeNum:
-		s.num.setUnmodifiedRecursively()
+		s.numPtr().setUnmodifiedRecursively()
 	}
 }
 
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *LabelValue) computeDiff(val *LabelValue) (ret bool) {
-	if s.typ == val.typ {
-		switch s.typ {
+	if s.Type() == val.Type() {
+		switch s.Type() {
 		case LabelValueTypeStr:
-			ret = s.str != val.str
+			ret = s.Str() != val.Str()
 		case LabelValueTypeNum:
-			ret = s.num.computeDiff(&val.num)
+			ret = s.numPtr().computeDiff(val.numPtr())
 		}
 	} else {
 		ret = true
-		switch s.typ {
+		switch s.Type() {
 		case LabelValueTypeNum:
 			// val.num doesn't exist at all so mark the whole s.num subtree as modified.
-			s.num.setModifiedRecursively()
+			s.numPtr().setModifiedRecursively()
 		}
 	}
 	return ret
@@ -239,14 +283,14 @@ func (s *LabelValue) computeDiff(val *LabelValue) (ret bool) {
 
 // IsEqual performs deep comparison and returns true if struct is equal to val.
 func (e *LabelValue) IsEqual(val *LabelValue) bool {
-	if e.typ != val.typ {
+	if e.Type() != val.Type() {
 		return false
 	}
-	switch e.typ {
+	switch e.Type() {
 	case LabelValueTypeStr:
-		return pkg.StringEqual(e.str, val.str)
+		return pkg.StringEqual(e.Str(), val.Str())
 	case LabelValueTypeNum:
-		return e.num.IsEqual(&val.num)
+		return e.numPtr().IsEqual(val.numPtr())
 	}
 
 	return true
@@ -255,15 +299,16 @@ func (e *LabelValue) IsEqual(val *LabelValue) bool {
 // CmpLabelValue performs deep comparison and returns an integer that
 // will be 0 if left == right, negative if left < right, positive if left > right.
 func CmpLabelValue(left, right *LabelValue) int {
-	c := pkg.Uint64Compare(uint64(left.typ), uint64(right.typ))
+	c := pkg.Uint64Compare(uint64(left.Type()), uint64(right.Type()))
 	if c != 0 {
 		return c
 	}
-	switch left.typ {
+	switch left.Type() {
 	case LabelValueTypeStr:
-		return strings.Compare(left.str, right.str)
+		return strings.Compare(left.Str(), right.Str())
 	case LabelValueTypeNum:
-		return CmpNumValue(&left.num, &right.num)
+		return CmpNumValue(
+			left.numPtr(), right.numPtr())
 	}
 
 	return 0
@@ -287,14 +332,14 @@ func (s *LabelValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limit
 		typeChanged = true
 	}
 
-	switch s.typ {
+	switch s.Type() {
 	case LabelValueTypeStr:
 		if typeChanged || random.IntN(2) == 0 {
 			s.SetStr(pkg.StringRandom(random))
 		}
 	case LabelValueTypeNum:
 		if typeChanged || random.IntN(2) == 0 {
-			s.num.mutateRandom(random, schem, limiter)
+			s.numPtr().mutateRandom(random, schem, limiter)
 		}
 	}
 }
@@ -382,7 +427,7 @@ func (e *LabelValueEncoder) Reset() {
 
 // Encode encodes val into buf
 func (e *LabelValueEncoder) Encode(val *LabelValue) {
-	typ := val.typ
+	typ := val.Type()
 	if uint(typ) > e.fieldCount {
 		// The current field type is not supported in target schema. Encode the type as None.
 		typ = LabelValueTypeNone
@@ -397,10 +442,10 @@ func (e *LabelValueEncoder) Encode(val *LabelValue) {
 	switch typ {
 	case LabelValueTypeStr:
 		// Encode Str
-		e.strEncoder.Encode(val.str)
+		e.strEncoder.Encode(val.Str())
 	case LabelValueTypeNum:
 		// Encode Num
-		e.numEncoder.Encode(&val.num)
+		e.numEncoder.Encode(val.numPtr())
 	}
 }
 
@@ -550,22 +595,34 @@ func (d *LabelValueDecoder) Decode(dstPtr *LabelValue) error {
 	}
 
 	dst := dstPtr
-	if dst.typ != LabelValueType(typ) {
-		dst.typ = LabelValueType(typ)
+	if dst.Type() != LabelValueType(typ) {
 		// The type changed, we need to reset the contained value so that
 		// it does not contain carry-over data from a previous record that
 		// was of this same type.
-		dst.resetContained()
+		dst.clearValSetType(LabelValueType(typ))
+
+		switch LabelValueType(typ) {
+		case LabelValueTypeNum:
+			// Allocate Num
+			if err := d.allocators.allocSizeChecker.PrepAllocSize(uint(unsafe.Sizeof(NumValue{}))); err != nil {
+				return err
+			}
+			dst.allocNumAlloc(d.allocators)
+		}
 	}
 
 	// Decode selected field
-	switch dst.typ {
+	switch dst.Type() {
 	case LabelValueTypeStr:
 		// Decode Str
-		return d.strDecoder.Decode(&dst.str)
+		var v string
+		if err := d.strDecoder.Decode(&v); err != nil {
+			return err
+		}
+		dst.setStr(v)
 	case LabelValueTypeNum:
 		// Decode Num
-		return d.numDecoder.Decode(&dst.num)
+		return d.numDecoder.Decode(dst.numPtr())
 	}
 	return nil
 }

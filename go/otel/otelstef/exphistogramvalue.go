@@ -86,6 +86,12 @@ func (s *ExpHistogramValue) initAlloc(parentModifiedFields *modifiedFields, pare
 	s.negativeBuckets.initAlloc(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets, allocators)
 }
 
+// Reset the struct to its initial state.
+func (s *ExpHistogramValue) Reset() {
+	s.reset()
+	s.setUnmodifiedRecursively()
+}
+
 // reset the struct to its initial state, as if init() was just called.
 // Will not reset internal fields such as parentModifiedFields.
 func (s *ExpHistogramValue) reset() {
