@@ -219,14 +219,8 @@ public class AnyValue {
     // Clone returns a deep copy of this oneof.
     public AnyValue clone() {
         AnyValue cpy = new AnyValue();
-        cpy.typ = this.typ;
-        cpy.string = this.string;
-        cpy.bool = this.bool;
-        cpy.int64 = this.int64;
-        cpy.float64 = this.float64;
-        cpy.array = this.array.clone();
-        cpy.kVList = this.kVList.clone();
-        cpy.bytes = this.bytes;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 
@@ -493,15 +487,23 @@ public class AnyValue {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            string,
-            bool,
-            int64,
-            float64,
-            array,
-            kVList,
-            bytes,
-            typ
-        );
+        switch (this.typ) {
+        case TypeString:
+            return Objects.hash(typ, string);
+        case TypeBool:
+            return Objects.hash(typ, bool);
+        case TypeInt64:
+            return Objects.hash(typ, int64);
+        case TypeFloat64:
+            return Objects.hash(typ, float64);
+        case TypeArray:
+            return Objects.hash(typ, array);
+        case TypeKVList:
+            return Objects.hash(typ, kVList);
+        case TypeBytes:
+            return Objects.hash(typ, bytes);
+        default:
+            return Objects.hash(typ);
+        }
     }
 }

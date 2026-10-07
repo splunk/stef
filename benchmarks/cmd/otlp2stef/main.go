@@ -35,7 +35,7 @@ func main() {
 }
 
 func convertOTLPtoSTEF(inputFilePath, outputFilePathNoExt, compressionMethod string) {
-	all, err := testutils.ReadOTLPFile(inputFilePath)
+	all, err := testutils.ReadOTLPMetricsFile(inputFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}

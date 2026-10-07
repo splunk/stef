@@ -261,15 +261,22 @@ class SpanEncoder {
 
     // encode encodes val into buf
     public void encode(Span val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Span val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Span.fieldModifiedTraceID | 
                 Span.fieldModifiedSpanID | 
@@ -285,6 +292,7 @@ class SpanEncoder {
                 Span.fieldModifiedEvents | 
                 Span.fieldModifiedLinks | 
                 Span.fieldModifiedStatus | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -342,7 +350,7 @@ class SpanEncoder {
         
         if ((fieldMask & Span.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.attributes);
+            this.attributesEncoder.encode(val.attributes, forceFields);
         }
         
         if ((fieldMask & Span.fieldModifiedDroppedAttributesCount) != 0) {
@@ -352,17 +360,17 @@ class SpanEncoder {
         
         if ((fieldMask & Span.fieldModifiedEvents) != 0) {
             // Encode Events
-            this.eventsEncoder.encode(val.events);
+            this.eventsEncoder.encode(val.events, forceFields);
         }
         
         if ((fieldMask & Span.fieldModifiedLinks) != 0) {
             // Encode Links
-            this.linksEncoder.encode(val.links);
+            this.linksEncoder.encode(val.links, forceFields);
         }
         
         if ((fieldMask & Span.fieldModifiedStatus) != 0) {
             // Encode Status
-            this.statusEncoder.encode(val.status);
+            this.statusEncoder.encode(val.status, forceFields);
         }
         
         // Account written bits in the limiter.
@@ -497,4 +505,3 @@ class SpanEncoder {
         
     }
 }
-

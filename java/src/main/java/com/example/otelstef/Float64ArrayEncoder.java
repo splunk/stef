@@ -33,12 +33,15 @@ class Float64ArrayEncoder {
     }
 
     public void encode(Float64Array arr) throws IOException {
+        encode(arr, false);
+    }
+
+    public void encode(Float64Array arr, boolean forceAllElements) throws IOException {
         int oldBitLen = buf.bitCount();
 
         // Write the length of the array.
         int newLen = arr.elemsLen;
         buf.writeUvarintCompact(newLen);
-
         for (int i = 0; i < newLen; i++) {
             elemEncoder.encode(arr.elems[i]);
         }
@@ -55,4 +58,3 @@ class Float64ArrayEncoder {
         }
     }
 }
-

@@ -16,6 +16,7 @@ import (
 type BarOutput struct {
 	t       testing.TB
 	title   string
+	unit    string
 	file    *os.File
 	results map[string]map[string]float64
 	enabled bool
@@ -25,13 +26,14 @@ func chartsEnabled() bool {
 	return os.Getenv("UPDATE_BENCH_HTML") != ""
 }
 
-func (c *BarOutput) BeginChart(title string, t testing.TB) {
+func (c *BarOutput) BeginChart(title, unit string, t testing.TB) {
 	c.t = t
 	c.title = title
+	c.unit = unit
 	c.results = map[string]map[string]float64{}
 }
 
-func (c *BarOutput) EndChart(unit string, globalopts ...charts.GlobalOpts) {
+func (c *BarOutput) EndChart(globalopts ...charts.GlobalOpts) {
 	if !c.enabled {
 		return
 	}
@@ -64,7 +66,7 @@ func (c *BarOutput) EndChart(unit string, globalopts ...charts.GlobalOpts) {
 		charts.WithAnimation(false),
 		charts.WithYAxisOpts(
 			opts.YAxis{
-				Name: unit,
+				Name: c.unit,
 			},
 		),
 	)
@@ -117,14 +119,14 @@ func roundFloat(val float64, decimals int) float64 {
 
 func (c *BarOutput) Record(b *testing.B, encoding string, series string, val float64) {
 	if b != nil {
-		b.ReportMetric(val, "ns/point")
+		b.ReportMetric(val, c.unit)
 	}
 	c.results[encoding] = map[string]float64{series: val}
 }
 
 func (c *BarOutput) RecordStacked(b *testing.B, encoding string, series string, val float64) {
 	if b != nil {
-		b.ReportMetric(val, "ns/point")
+		b.ReportMetric(val, c.unit)
 	}
 	if c.results[encoding] == nil {
 		c.results[encoding] = map[string]float64{}

@@ -69,6 +69,12 @@ class ExemplarValueEncoder {
 
     // Encode encodes val into buf
     public void encode(ExemplarValue val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf and propagates forced full encoding through
+    // the selected non-primitive value.
+    public void encode(ExemplarValue val, boolean forceAllFields) throws IOException {
         ExemplarValue.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.

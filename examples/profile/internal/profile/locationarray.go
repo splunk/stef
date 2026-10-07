@@ -52,6 +52,17 @@ func (e *LocationArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied array.
+func (e *LocationArray) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	e.parentModifiedFields = parentModifiedFields
+	e.parentModifiedBit = parentModifiedBit
+	for i := range e.elems {
+		if !e.elems[i].canBeShared() {
+			e.elems[i].attachParent(parentModifiedFields, parentModifiedBit)
+		}
+	}
+}
+
 func (e *LocationArray) canBeShared() bool {
 	// An array can never be shared.
 	return false
@@ -92,6 +103,16 @@ func (e *LocationArray) setModifiedRecursively() {
 func (e *LocationArray) setUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].setUnmodifiedRecursively()
+	}
+
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (e *LocationArray) clearModifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		if !e.elems[i].canBeShared() {
+			e.elems[i].clearModifiedRecursively()
+		}
 	}
 
 }
@@ -287,7 +308,7 @@ func (a *LocationArray) mutateRandom(random *rand.Rand, schem *schema.Schema, li
 		if random.IntN(2*len(a.elems)) == 0 {
 			if a.elems[i].canBeShared() {
 				// Elem may be shared by pointer. Clone it to have exclusive ownership.
-				a.elems[i] = a.elems[i].Clone(&Allocators{})
+				a.elems[i] = a.elems[i].clone(&Allocators{})
 			}
 			a.elems[i].mutateRandom(random, schem, limiter)
 		}

@@ -7,40 +7,40 @@ import (
 	"github.com/splunk/stef/benchmarks/testutils"
 )
 
-type OTLPEncoding struct {
+type MetricsEncoding struct {
 }
 
-func (d *OTLPEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
+func (d *MetricsEncoding) FromOTLP(data pmetric.Metrics) (encodings.InMemoryData, error) {
 	return data, nil
 }
 
-func (d *OTLPEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
+func (d *MetricsEncoding) Encode(data encodings.InMemoryData) ([]byte, error) {
 	marshaler := pmetric.ProtoMarshaler{}
 	return marshaler.MarshalMetrics(data.(pmetric.Metrics))
 }
 
-func (d *OTLPEncoding) Decode(b []byte) (any, error) {
+func (d *MetricsEncoding) Decode(b []byte) (any, error) {
 	return d.ToOTLP(b)
 }
 
-func (*OTLPEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
+func (*MetricsEncoding) ToOTLP(data []byte) (pmetric.Metrics, error) {
 	marshaler := pmetric.ProtoUnmarshaler{}
 	return marshaler.UnmarshalMetrics(data)
 }
 
-func (*OTLPEncoding) Name() string {
+func (*MetricsEncoding) Name() string {
 	return "OTLP"
 }
-func (*OTLPEncoding) LongName() string {
+func (*MetricsEncoding) LongName() string {
 	return "Protobuf OTLP"
 }
 
-type otlpMultipart struct {
+type metricsMultipart struct {
 	compression string
 	bytes       []byte
 }
 
-func (o *otlpMultipart) AppendPart(part pmetric.Metrics) error {
+func (o *metricsMultipart) AppendPart(part pmetric.Metrics) error {
 	marshaler := pmetric.ProtoMarshaler{}
 	b, err := marshaler.MarshalMetrics(part)
 	if err != nil {
@@ -55,10 +55,10 @@ func (o *otlpMultipart) AppendPart(part pmetric.Metrics) error {
 	return nil
 }
 
-func (o *otlpMultipart) FinishStream() ([]byte, error) {
+func (o *metricsMultipart) FinishStream() ([]byte, error) {
 	return o.bytes, nil
 }
 
-func (d *OTLPEncoding) StartMultipart(compression string) (encodings.MetricMultipartStream, error) {
-	return &otlpMultipart{compression: compression}, nil
+func (d *MetricsEncoding) StartMultipart(compression string) (encodings.MetricMultipartStream, error) {
+	return &metricsMultipart{compression: compression}, nil
 }

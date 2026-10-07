@@ -91,7 +91,9 @@ func (s *SortedTree) ByResource(resource *otelstef.Resource) *ByResource {
 	elem, exists := s.byResource.Get(resource)
 	if !exists {
 		elem = &ByResource{byScope: b.TreeNew[*otelstef.Scope, *ByScope](otelstef.CmpScope), allocators: &s.allocators}
-		s.byResource.Set(resource.Clone(&s.allocators), elem)
+		clone := s.allocators.Resource.Alloc()
+		resource.CloneTo(clone, &s.allocators)
+		s.byResource.Set(clone, elem)
 	}
 	return elem
 }
@@ -100,7 +102,9 @@ func (m *ByResource) ByScope(scope *otelstef.Scope) *ByScope {
 	elem, exists := m.byScope.Get(scope)
 	if !exists {
 		elem = &ByScope{byMetrics: b.TreeNew[*otelstef.Metric, *ByMetric](otelstef.CmpMetric), allocators: m.allocators}
-		m.byScope.Set(scope.Clone(m.allocators), elem)
+		clone := m.allocators.Scope.Alloc()
+		scope.CloneTo(clone, m.allocators)
+		m.byScope.Set(clone, elem)
 	}
 	return elem
 }
@@ -114,7 +118,9 @@ func (m *ByScope) ByMetric(
 			byAttrs:    b.TreeNew[*otelstef.Attributes, *Points](otelstef.CmpAttributes),
 			allocators: m.allocators,
 		}
-		m.byMetrics.Set(metric.Clone(m.allocators), elem)
+		clone := m.allocators.Metric.Alloc()
+		metric.CloneTo(clone, m.allocators)
+		m.byMetrics.Set(clone, elem)
 	}
 	return elem
 }

@@ -107,6 +107,16 @@ func (s *Location) fixParent(parentModifiedFields *modifiedFields) {
 	s.lines.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Location) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	if !s.mapping.canBeShared() {
+		s.mapping.attachParent(&s.modifiedFields, fieldModifiedLocationMapping)
+	}
+	s.lines.attachParent(&s.modifiedFields, fieldModifiedLocationLines)
+}
+
 // Freeze the struct. Any attempt to modify it after this will panic.
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
@@ -143,7 +153,7 @@ func (s *Location) SetMapping(v *Mapping) {
 		}
 	} else {
 		if s.mapping.canBeShared() {
-			s.mapping = s.mapping.Clone(&Allocators{})
+			s.mapping = s.mapping.clone(&Allocators{})
 		}
 		s.mapping.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedLocationMapping)
@@ -246,6 +256,16 @@ func (s *Location) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Location) clearModifiedRecursively() {
+	if !s.mapping.canBeShared() {
+		s.mapping.clearModifiedRecursively()
+	}
+	s.lines.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Location) computeDiff(val *Location) (ret bool) {
@@ -277,6 +297,14 @@ func (s *Location) canBeShared() bool {
 	return s.isFrozen()
 }
 
+// clone returns a clone of s allocated using allocators.
+func (s *Location) clone(allocators *Allocators) *Location {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Location{})))
+	c := allocators.Location.Alloc()
+	s.CloneTo(c, allocators)
+	return c
+}
+
 // cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Location) cloneShared(allocators *Allocators) *Location {
@@ -284,19 +312,20 @@ func (s *Location) cloneShared(allocators *Allocators) *Location {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
-	return s.Clone(allocators)
+	return s.clone(allocators)
 }
 
-func (s *Location) Clone(allocators *Allocators) *Location {
-	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Location{})))
-	c := allocators.Location.Alloc()
-	*c = Location{
-		mapping:  s.mapping.cloneShared(allocators),
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Location) CloneTo(dst *Location, allocators *Allocators) {
+	*dst = Location{
 		address:  s.address,
 		isFolded: s.isFolded,
 	}
-	copyToNewLineArray(&c.lines, &s.lines, allocators)
-	return c
+	dst.mapping = s.mapping.cloneShared(allocators)
+	copyToNewLineArray(&dst.lines, &s.lines, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -377,12 +406,12 @@ func (s *Location) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter
 				s.mapping = new(Mapping)
 				s.mapping.init(&s.modifiedFields, fieldModifiedLocationMapping)
 			} else {
-				s.mapping = s.mapping.Clone(&Allocators{})
+				s.mapping = s.mapping.clone(&Allocators{})
 			}
 		}
 		if s.mapping.canBeShared() {
 			// mapping may be shared by pointer. Clone it to have exclusive ownership.
-			s.mapping = s.mapping.Clone(&Allocators{})
+			s.mapping = s.mapping.clone(&Allocators{})
 		}
 
 		s.mapping.mutateRandom(random, schem, limiter)
@@ -526,7 +555,7 @@ func (d *LocationEncoderDict) Add(val *Location) {
 		d.dict.Set(val, refNum)
 		return
 	}
-	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone := val.clone(d.allocators) // Clone before adding to dictionary.
 	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
 	d.dict.Set(clone, refNum)
 }
@@ -912,7 +941,7 @@ func (d *LocationDecoder) Decode(dstPtr **Location) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).clone(d.allocators)
 	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}

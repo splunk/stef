@@ -135,15 +135,22 @@ class LinkEncoder {
 
     // encode encodes val into buf
     public void encode(Link val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Link val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Link.fieldModifiedTraceID | 
                 Link.fieldModifiedSpanID | 
@@ -151,6 +158,7 @@ class LinkEncoder {
                 Link.fieldModifiedFlags | 
                 Link.fieldModifiedAttributes | 
                 Link.fieldModifiedDroppedAttributesCount | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -183,7 +191,7 @@ class LinkEncoder {
         
         if ((fieldMask & Link.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.attributes);
+            this.attributesEncoder.encode(val.attributes, forceFields);
         }
         
         if ((fieldMask & Link.fieldModifiedDroppedAttributesCount) != 0) {
@@ -256,4 +264,3 @@ class LinkEncoder {
         
     }
 }
-

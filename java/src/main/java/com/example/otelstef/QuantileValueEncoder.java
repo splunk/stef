@@ -77,18 +77,26 @@ class QuantileValueEncoder {
 
     // encode encodes val into buf
     public void encode(QuantileValue val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(QuantileValue val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 QuantileValue.fieldModifiedQuantile | 
                 QuantileValue.fieldModifiedValue | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -141,4 +149,3 @@ class QuantileValueEncoder {
         
     }
 }
-

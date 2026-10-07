@@ -76,6 +76,17 @@ func (s *LabelValue) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *LabelValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	switch s.Type() {
+	case LabelValueTypeNum:
+		s.numPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	}
+}
+
 type LabelValueType byte
 
 const (
@@ -169,23 +180,21 @@ func (s *LabelValue) canBeShared() bool {
 	return false
 }
 
-func (s *LabelValue) cloneShared(allocators *Allocators) LabelValue {
-	// Oneof is not shareable, so cloneShared is just a Clone.
-	return s.Clone(allocators)
-}
-
-func (s *LabelValue) Clone(allocators *Allocators) LabelValue {
-	c := LabelValue{}
-	c.clearValSetType(s.Type())
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *LabelValue) CloneTo(dst *LabelValue, allocators *Allocators) {
+	*dst = LabelValue{}
+	dst.clearValSetType(s.Type())
 	switch s.Type() {
 	case LabelValueTypeStr:
-		c.setStr(s.Str())
+		dst.setStr(s.Str())
 	case LabelValueTypeNum:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(NumValue{})))
-		c.allocNumAlloc(allocators)
-		copyToNewNumValue(c.numPtr(), s.numPtr(), allocators)
+		dst.allocNumAlloc(allocators)
+		copyToNewNumValue(dst.numPtr(), s.numPtr(), allocators)
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -257,6 +266,14 @@ func (s *LabelValue) setUnmodifiedRecursively() {
 	switch s.Type() {
 	case LabelValueTypeNum:
 		s.numPtr().setUnmodifiedRecursively()
+	}
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *LabelValue) clearModifiedRecursively() {
+	switch s.Type() {
+	case LabelValueTypeNum:
+		s.numPtr().clearModifiedRecursively()
 	}
 }
 

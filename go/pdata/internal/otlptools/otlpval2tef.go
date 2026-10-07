@@ -35,6 +35,11 @@ type Otlp2Stef struct {
 	attrElems []elem
 }
 
+// Value converts an OTLP AnyValue to its STEF representation.
+func (o *Otlp2Stef) Value(src pcommon.Value, dst *otelstef.AnyValue) {
+	otlpValueToTefAnyValue(src, dst)
+}
+
 func (o *Otlp2Stef) ResourceSorted(dst *otelstef.Resource, src pcommon.Resource, schemaUrl string) {
 	dst.SetSchemaURL(schemaUrl)
 	o.MapSorted(src.Attributes(), dst.Attributes())
@@ -139,6 +144,7 @@ func otlpValueToTefAnyValue(val pcommon.Value, into *otelstef.AnyValue) {
 			func(k string, v pcommon.Value) bool {
 				kvList.SetKey(i, k)
 				otlpValueToTefAnyValue(v, kvList.Value(i))
+				i++
 				return true
 			},
 		)

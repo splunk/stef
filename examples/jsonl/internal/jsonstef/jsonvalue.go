@@ -82,6 +82,19 @@ func (s *JsonValue) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *JsonValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	switch s.Type() {
+	case JsonValueTypeObject:
+		s.objectPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	case JsonValueTypeArray:
+		s.arrayPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	}
+}
+
 type JsonValueType byte
 
 const (
@@ -244,32 +257,41 @@ func (s *JsonValue) canBeShared() bool {
 	return false
 }
 
-func (s *JsonValue) cloneShared(allocators *Allocators) *JsonValue {
-	// Oneof is not shareable, so cloneShared is just a Clone.
-	return s.Clone(allocators)
-}
-
-func (s *JsonValue) Clone(allocators *Allocators) *JsonValue {
+func (s *JsonValue) clone(allocators *Allocators) *JsonValue {
 	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonValue{})))
 	c := allocators.JsonValue.Alloc()
-	c.clearValSetType(s.Type())
+	s.CloneTo(c, allocators)
+	return c
+}
+
+func (s *JsonValue) cloneShared(allocators *Allocators) *JsonValue {
+	// Oneof is not shareable, so cloneShared is just a clone.
+	return s.clone(allocators)
+}
+
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *JsonValue) CloneTo(dst *JsonValue, allocators *Allocators) {
+	*dst = JsonValue{}
+	dst.clearValSetType(s.Type())
 	switch s.Type() {
 	case JsonValueTypeObject:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonObject{})))
-		c.allocObjectAlloc(allocators)
-		copyToNewJsonObject(c.objectPtr(), s.objectPtr(), allocators)
+		dst.allocObjectAlloc(allocators)
+		copyToNewJsonObject(dst.objectPtr(), s.objectPtr(), allocators)
 	case JsonValueTypeArray:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(JsonValueArray{})))
-		c.allocArrayAlloc(allocators)
-		copyToNewJsonValueArray(c.arrayPtr(), s.arrayPtr(), allocators)
+		dst.allocArrayAlloc(allocators)
+		copyToNewJsonValueArray(dst.arrayPtr(), s.arrayPtr(), allocators)
 	case JsonValueTypeString:
-		c.setString(s.String())
+		dst.setString(s.String())
 	case JsonValueTypeNumber:
-		*c.numberPtr() = *s.numberPtr()
+		*dst.numberPtr() = *s.numberPtr()
 	case JsonValueTypeBool:
-		*c.boolPtr() = *s.boolPtr()
+		*dst.boolPtr() = *s.boolPtr()
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -368,6 +390,16 @@ func (s *JsonValue) setUnmodifiedRecursively() {
 		s.objectPtr().setUnmodifiedRecursively()
 	case JsonValueTypeArray:
 		s.arrayPtr().setUnmodifiedRecursively()
+	}
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *JsonValue) clearModifiedRecursively() {
+	switch s.Type() {
+	case JsonValueTypeObject:
+		s.objectPtr().clearModifiedRecursively()
+	case JsonValueTypeArray:
+		s.arrayPtr().clearModifiedRecursively()
 	}
 }
 

@@ -79,6 +79,12 @@ class {{ .StructName }}Encoder {
 
     // Encode encodes val into buf
     public void encode({{ .StructName }} val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf and propagates forced full encoding through
+    // the selected non-primitive value.
+    public void encode({{ .StructName }} val, boolean forceAllFields) throws IOException {
         {{ $.StructName }}.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.
@@ -96,7 +102,7 @@ class {{ .StructName }}Encoder {
         {{- range .Fields }}
         case Type{{.Name}}:
             // Encode {{.Name}}
-            {{.name}}Encoder.encode(val.{{.name}});
+            {{.name}}Encoder.encode(val.{{.name}}{{if not .IsPrimitive}}, forceAllFields{{end}});
             break;
         {{- end }}
         }

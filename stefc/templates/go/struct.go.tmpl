@@ -169,6 +169,39 @@ func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
     {{- end -}}
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *{{ $.StructName }}) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    s.modifiedFields.parent = parentModifiedFields
+    s.modifiedFields.parentBit = parentModifiedBit
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    {{- if .Type.Flags.StoreByPtr}}
+    {{- if .Optional}}
+    if s.Has{{.Name}}() && s.{{.name}} != nil {
+    {{- if .Type.DictName}}
+        if !s.{{.name}}.canBeShared() {
+            s.{{.name}}.attachParent(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+        }
+    {{- else}}
+        s.{{.name}}.attachParent(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end}}
+    }
+    {{- else}}
+    {{- if .Type.DictName}}
+    if !s.{{.name}}.canBeShared() {
+        s.{{.name}}.attachParent(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    }
+    {{- else}}
+    s.{{.name}}.attachParent(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end}}
+    {{- end}}
+    {{- else }}
+    s.{{.name}}.attachParent(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
+    {{- end }}
+    {{- end -}}
+    {{- end -}}
+}
+
 {{if .DictName}}
 // Freeze the struct. Any attempt to modify it after this will panic.
 // This marks the struct as eligible for safely sharing by pointer without cloning,
@@ -242,7 +275,7 @@ func (s *{{ $.StructName }}) Set{{.Name}}(v {{if .Type.Flags.PassByPtr}}*{{end}}
         }
     } else {
         if s.{{.name}}.canBeShared() {
-            s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
+            s.{{.name}} = s.{{.name}}.clone(&Allocators{})
         }
         s.{{.name}}.CopyFrom({{.Type.ToStorage "v"}})
         s.modifiedFields.markModified(fieldModified{{ $.StructName }}{{.Name}})
@@ -321,6 +354,29 @@ func (s *{{ $.StructName }}) setUnmodifiedRecursively() {
     s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *{{ $.StructName }}) clearModifiedRecursively() {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive}}
+    {{- if .Optional}}
+    if s.Has{{.Name}}() {
+    {{- end}}
+    {{- if .Type.DictName}}
+        if !s.{{.name}}.canBeShared() {
+            s.{{.name}}.clearModifiedRecursively()
+        }
+    {{- else}}
+        s.{{.name}}.clearModifiedRecursively()
+    {{- end}}
+    {{- if .Optional}}
+    }
+    {{- end}}
+    {{- end}}
+    {{- end }}
+    s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *{{ $.StructName }}) computeDiff(val *{{ $.StructName }}) (ret bool) {
@@ -368,40 +424,58 @@ func (s *{{ .StructName }}) canBeShared() bool {
     return {{if .DictName}}s.isFrozen(){{else}}false{{end}}
 }
 
+{{if .Type.Flags.StoreByPtr}}
+// clone returns a clone of s allocated using allocators.
+func (s *{{ .StructName }}) clone(allocators *Allocators) *{{.StructName}} {
+    allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.StructName}}{})))
+    c := allocators.{{.StructName}}.Alloc()
+    s.CloneTo(c, allocators)
+    return c
+}
+
 // cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
-func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
+func (s *{{ .StructName }}) cloneShared(allocators *Allocators) *{{.StructName}} {
 {{- if .DictName}}
     if s.isFrozen() {
         // If s is frozen it means it is safe to share without cloning.
         return s
     }
 {{- end}}
-    return s.Clone(allocators)
+    return s.clone(allocators)
 }
+{{end}}
 
-func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-{{- if .Type.Flags.StoreByPtr}}
-    allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.StructName}}{})))
-    c := allocators.{{.StructName}}.Alloc()
-    *c = {{.StructName}}{
-{{- else}}
-    c := {{.StructName}}{
-{{- end}}
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *{{ .StructName }}) CloneTo(dst *{{.StructName}}, allocators *Allocators) {
+    *dst = {{.StructName}}{
         {{- range .Fields }}
         {{- if .Type.IsPrimitive}}
         {{.name}}: s.{{.name}},
-        {{- else if .Type.Flags.StoreByPtr}}
-        {{.name}}: s.{{.name}}.cloneShared(allocators),
         {{- end}}
         {{- end }}
 	}
     {{- range .Fields }}
-    {{- if and (not .Type.IsPrimitive) (not .Type.Flags.StoreByPtr)}}
-    copyToNew{{.Type.Storage}}({{if .Type.Flags.TakePtr}}&{{end}}c.{{.name}}, {{if .Type.Flags.TakePtr}}&{{end}}s.{{.name}}, allocators)
+    {{- if not .Type.IsPrimitive}}
+    {{- if .Optional}}
+    if s.Has{{.Name}}() {
+    {{- end}}
+    {{- if .Type.Flags.StoreByPtr}}
+    dst.{{.name}} = s.{{.name}}.cloneShared(allocators)
+    {{- else}}
+    copyToNew{{.Type.Storage}}({{if .Type.Flags.TakePtr}}&{{end}}dst.{{.name}}, {{if .Type.Flags.TakePtr}}&{{end}}s.{{.name}}, allocators)
+    {{- end}}
+    {{- if .Optional}}
+    }
+    {{- end}}
     {{- end}}
     {{- end }}
-    return c
+    {{- if .OptionalFieldCount}}
+    dst.optionalFieldsPresent = s.optionalFieldsPresent
+    {{- end}}
+    dst.attachParent(nil, 0)
+    dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -581,12 +655,12 @@ func (s *{{ .StructName }}) mutateRandom(random *rand.Rand, schem *schema.Schema
                 s.{{.name}} = new({{ .Type.Storage }})
                 s.{{.name}}.init(&s.modifiedFields, fieldModified{{ $.StructName }}{{.Name}})
             } else {
-                s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
+                s.{{.name}} = s.{{.name}}.clone(&Allocators{})
             }
         }
         if s.{{.name}}.canBeShared() {
             // {{.name}} may be shared by pointer. Clone it to have exclusive ownership.
-            s.{{.name}} = s.{{.name}}.Clone(&Allocators{})
+            s.{{.name}} = s.{{.name}}.clone(&Allocators{})
         }
         {{end}}
         s.{{.name}}.mutateRandom(random, schem, limiter)
@@ -726,7 +800,7 @@ func (d *{{ .StructName }}EncoderDict) Add(val *{{ .StructName }}) {
 		d.dict.Set(val, refNum)
 		return
 	}
-	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone := val.clone(d.allocators) // Clone before adding to dictionary.
 	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
 	d.dict.Set(clone, refNum)
 }
@@ -1036,7 +1110,7 @@ func (d *{{ .StructName }}Decoder) Decode(dstPtr {{if.DictName}}*{{end}}*{{.Stru
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).clone(d.allocators)
 	if d.allocators.allocSizeChecker.IsOverLimit() {
         return pkg.ErrRecordAllocLimitExceeded
     }

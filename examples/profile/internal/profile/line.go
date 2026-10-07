@@ -89,6 +89,15 @@ func (s *Line) fixParent(parentModifiedFields *modifiedFields) {
 	s.function.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Line) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	if !s.function.canBeShared() {
+		s.function.attachParent(&s.modifiedFields, fieldModifiedLineFunction)
+	}
+}
+
 func (s *Line) freeze() {
 	if s.isFrozen() {
 		return
@@ -117,7 +126,7 @@ func (s *Line) SetFunction(v *Function) {
 		}
 	} else {
 		if s.function.canBeShared() {
-			s.function = s.function.Clone(&Allocators{})
+			s.function = s.function.clone(&Allocators{})
 		}
 		s.function.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedLineFunction)
@@ -199,6 +208,15 @@ func (s *Line) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Line) clearModifiedRecursively() {
+	if !s.function.canBeShared() {
+		s.function.clearModifiedRecursively()
+	}
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Line) computeDiff(val *Line) (ret bool) {
@@ -225,19 +243,16 @@ func (s *Line) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Line) cloneShared(allocators *Allocators) Line {
-	return s.Clone(allocators)
-}
-
-func (s *Line) Clone(allocators *Allocators) Line {
-	c := Line{
-		function: s.function.cloneShared(allocators),
-		line:     s.line,
-		column:   s.column,
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Line) CloneTo(dst *Line, allocators *Allocators) {
+	*dst = Line{
+		line:   s.line,
+		column: s.column,
 	}
-	return c
+	dst.function = s.function.cloneShared(allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -316,12 +331,12 @@ func (s *Line) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *mu
 				s.function = new(Function)
 				s.function.init(&s.modifiedFields, fieldModifiedLineFunction)
 			} else {
-				s.function = s.function.Clone(&Allocators{})
+				s.function = s.function.clone(&Allocators{})
 			}
 		}
 		if s.function.canBeShared() {
 			// function may be shared by pointer. Clone it to have exclusive ownership.
-			s.function = s.function.Clone(&Allocators{})
+			s.function = s.function.clone(&Allocators{})
 		}
 
 		s.function.mutateRandom(random, schem, limiter)

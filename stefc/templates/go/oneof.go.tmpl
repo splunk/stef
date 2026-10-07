@@ -114,6 +114,27 @@ func (s *{{ $.StructName }}) fixParent(parentModifiedFields *modifiedFields) {
     }
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *{{ $.StructName }}) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    s.parentModifiedFields = parentModifiedFields
+    s.parentModifiedBit = parentModifiedBit
+
+    switch s.Type() {
+    {{- range .Fields }}
+    {{- if not .Type.IsPrimitive }}
+    case {{ $.StructName }}Type{{.Name}}:
+        {{- if .Type.DictName}}
+        if !s.{{.name}}Ptr().canBeShared() {
+            s.{{.name}}Ptr().attachParent(parentModifiedFields, parentModifiedBit)
+        }
+        {{- else}}
+        s.{{.name}}Ptr().attachParent(parentModifiedFields, parentModifiedBit)
+        {{- end}}
+    {{- end }}
+    {{- end }}
+    }
+}
+
 type {{$.StructName }}Type byte
 const (
     {{.StructName }}TypeNone = {{$.StructName }}Type(iota)
@@ -238,39 +259,46 @@ func (s *{{ .StructName }}) canBeShared() bool {
     return false
 }
 
-func (s *{{ .StructName }}) cloneShared(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-    // Oneof is not shareable, so cloneShared is just a Clone.
-    return s.Clone(allocators)
-}
-
-func (s *{{ .StructName }}) Clone(allocators *Allocators) {{if .Type.Flags.StoreByPtr}}*{{end}}{{.StructName}} {
-{{- if .Type.Flags.StoreByPtr}}
+{{if .Type.Flags.StoreByPtr}}
+func (s *{{ .StructName }}) clone(allocators *Allocators) *{{.StructName}} {
     allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.StructName}}{})))
     c := allocators.{{.StructName}}.Alloc()
-{{- else}}
-    c := {{.StructName}}{}
-{{- end}}
-    c.clearValSetType(s.Type())
+    s.CloneTo(c, allocators)
+    return c
+}
+
+func (s *{{ .StructName }}) cloneShared(allocators *Allocators) *{{.StructName}} {
+    // Oneof is not shareable, so cloneShared is just a clone.
+    return s.clone(allocators)
+}
+{{end}}
+
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *{{ .StructName }}) CloneTo(dst *{{.StructName}}, allocators *Allocators) {
+    *dst = {{.StructName}}{}
+    dst.clearValSetType(s.Type())
     switch s.Type() {
     {{- range .Fields }}
     {{- $isStringOrBytes := or (eq .Type.Storage "string") (eq .Type.Storage "pkg.Bytes") }}
     case {{ $.StructName }}Type{{.Name}}:
         {{- if .Type.IsPrimitive}}
         {{- if $isStringOrBytes}}
-        c.set{{.Name}}(s.{{.Name}}())
+        dst.set{{.Name}}(s.{{.Name}}())
         {{- else}}
-        *c.{{.name}}Ptr() = *s.{{.name}}Ptr()
+        *dst.{{.name}}Ptr() = *s.{{.name}}Ptr()
         {{- end}}
         {{- else if .Type.Flags.StoreByPtr}}
-        c.ptr = unsafe.Pointer(s.{{.name}}Ptr().cloneShared(allocators))
+        dst.ptr = unsafe.Pointer(s.{{.name}}Ptr().cloneShared(allocators))
         {{- else}}
         allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof({{.Type.Storage}}{})))
-        c.alloc{{.Name}}Alloc(allocators)
-        copyToNew{{.Type.Storage}}(c.{{.name}}Ptr(), s.{{.name}}Ptr(), allocators)
+        dst.alloc{{.Name}}Alloc(allocators)
+        copyToNew{{.Type.Storage}}(dst.{{.name}}Ptr(), s.{{.name}}Ptr(), allocators)
         {{- end}}
     {{- end }}
 	}
-    return c
+    dst.attachParent(nil, 0)
+    dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -371,6 +399,24 @@ func (s *{{ $.StructName }}) setUnmodifiedRecursively() {
         {{- if not .Type.IsPrimitive}}
         case {{ $.StructName }}Type{{.Name}}:
             s.{{.name}}Ptr().setUnmodifiedRecursively()
+        {{- end}}
+    {{- end}}
+    }
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *{{ $.StructName }}) clearModifiedRecursively() {
+    switch s.Type() {
+    {{- range .Fields}}
+        {{- if not .Type.IsPrimitive}}
+        case {{ $.StructName }}Type{{.Name}}:
+            {{- if .Type.DictName}}
+            if !s.{{.name}}Ptr().canBeShared() {
+                s.{{.name}}Ptr().clearModifiedRecursively()
+            }
+            {{- else}}
+            s.{{.name}}Ptr().clearModifiedRecursively()
+            {{- end}}
         {{- end}}
     {{- end}}
     }

@@ -52,6 +52,15 @@ func (e *JsonValueArray) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied array.
+func (e *JsonValueArray) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	e.parentModifiedFields = parentModifiedFields
+	e.parentModifiedBit = parentModifiedBit
+	for i := range e.elems {
+		e.elems[i].attachParent(parentModifiedFields, parentModifiedBit)
+	}
+}
+
 func (e *JsonValueArray) canBeShared() bool {
 	// An array can never be shared.
 	return false
@@ -92,6 +101,14 @@ func (e *JsonValueArray) setModifiedRecursively() {
 func (e *JsonValueArray) setUnmodifiedRecursively() {
 	for i := 0; i < len(e.elems); i++ {
 		e.elems[i].setUnmodifiedRecursively()
+	}
+
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (e *JsonValueArray) clearModifiedRecursively() {
+	for i := 0; i < len(e.elems); i++ {
+		e.elems[i].clearModifiedRecursively()
 	}
 
 }

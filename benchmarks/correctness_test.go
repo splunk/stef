@@ -8,17 +8,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/splunk/stef/benchmarks/encodings/stef"
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/otelstef"
+	"github.com/splunk/stef/go/pdata/logs"
+	logtesttools "github.com/splunk/stef/go/pdata/logs/testtools"
 	"github.com/splunk/stef/go/pdata/metrics"
 	"github.com/splunk/stef/go/pdata/metrics/testtools"
 	"github.com/splunk/stef/go/pkg"
 )
 
-func TestConvertSTEFFromToOTLP(t *testing.T) {
+func TestMetricsConvertSTEFFromToOTLP(t *testing.T) {
 	tests := []struct {
 		file string
 	}{
@@ -33,7 +36,7 @@ func TestConvertSTEFFromToOTLP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(
 			test.file, func(t *testing.T) {
-				otlpDataSrc, err := testutils.ReadOTLPFile(test.file)
+				otlpDataSrc, err := testutils.ReadOTLPMetricsFile(test.file)
 				require.NoError(t, err)
 
 				testtools.NormalizeMetrics(otlpDataSrc)
@@ -69,11 +72,45 @@ func TestConvertSTEFFromToOTLP(t *testing.T) {
 	}
 }
 
+func TestLogsConvertSTEFFromToOTLP(t *testing.T) {
+	otlpDataSrc, err := testutils.ReadOTLPLogsFile("testdata/astronomy-otellogs.zst")
+	require.NoError(t, err)
+
+	logtesttools.NormalizeLogs(otlpDataSrc)
+	srcCount := otlpDataSrc.LogRecordCount()
+
+	buf := &pkg.MemChunkWriter{}
+	writer, err := otelstef.NewLogsWriter(buf, pkg.WriterOptions{})
+	require.NoError(t, err)
+
+	toStef := logs.OtlpToStefUnsorted{Sorted: true}
+	require.NoError(t, toStef.Convert(otlpDataSrc, writer))
+	require.NoError(t, writer.Flush())
+
+	reader, err := otelstef.NewLogsReader(bytes.NewBuffer(buf.Bytes()))
+	require.NoError(t, err)
+
+	toOtlp := logs.StefToOtlpUnsorted{}
+	otlpDataCopy, err := toOtlp.Convert(reader, true)
+	require.NoError(t, err)
+
+	logtesttools.NormalizeLogs(otlpDataCopy)
+	assert.EqualValues(t, srcCount, otlpDataCopy.LogRecordCount())
+	assert.True(t, bytes.Equal(logsToBytes(t, otlpDataSrc), logsToBytes(t, otlpDataCopy)))
+}
+
 func toBytes(t *testing.T, data pmetric.Metrics) []byte {
 	marshaler := pmetric.ProtoMarshaler{}
 	bytes, err := marshaler.MarshalMetrics(data)
 	require.NoError(t, err)
 	return bytes
+}
+
+func logsToBytes(t *testing.T, data plog.Logs) []byte {
+	marshaler := plog.ProtoMarshaler{}
+	dataBytes, err := marshaler.MarshalLogs(data)
+	require.NoError(t, err)
+	return dataBytes
 }
 
 func TestTEFMultiPart(t *testing.T) {
@@ -88,7 +125,7 @@ func TestTEFMultiPart(t *testing.T) {
 		t.Run(
 			inputFile, func(t *testing.T) {
 
-				parts, err := testutils.ReadMultipartOTLPFile(inputFile)
+				parts, err := testutils.ReadMultipartMetricsOTLPFile(inputFile)
 				require.NoError(t, err)
 
 				tefStream, err := tefEncoding.StartMultipart("")

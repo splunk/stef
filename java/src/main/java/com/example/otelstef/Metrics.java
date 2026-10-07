@@ -211,12 +211,8 @@ public class Metrics {
 
     public Metrics clone() {
         Metrics cpy = new Metrics();
-        cpy.envelope = this.envelope.clone();
-        cpy.metric = this.metric.clone();
-        cpy.resource = this.resource.clone();
-        cpy.scope = this.scope.clone();
-        cpy.attributes = this.attributes.clone();
-        cpy.point = this.point.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

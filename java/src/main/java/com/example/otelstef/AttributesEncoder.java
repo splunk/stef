@@ -19,6 +19,8 @@ class AttributesEncoder {
     private AnyValueEncoder valueEncoder;
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
+    // Set after reset so the first non-empty multimap is encoded in full.
+    private boolean forceFull;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -44,6 +46,7 @@ class AttributesEncoder {
     }
 
     public void reset() {
+        forceFull = true;
         if (!isKeyRecursive) {
             keyEncoder.reset();
         }
@@ -53,6 +56,10 @@ class AttributesEncoder {
     }
 
     public void encode(Attributes list) throws IOException {
+        encode(list, false);
+    }
+
+    public void encode(Attributes list, boolean forceAllElements) throws IOException {
         int oldLen = buf.size();
 
         if (list.elemsLen == 0) {
@@ -64,11 +71,13 @@ class AttributesEncoder {
             return;
         }
 
-        if (!list.areKeysModified() && list.elemsLen < 63) {
+        boolean encodeAllElements = forceAllElements || forceFull;
+        if (!encodeAllElements && !list.areKeysModified() && list.elemsLen < 63) {
             encodeValuesOnly(list);
         } else {
-            encodeFull(list);
+            encodeFull(list, encodeAllElements);
         }
+        forceFull = false;
 
         limiter.addFrameBytes(buf.size() - oldLen);
 
@@ -99,14 +108,14 @@ class AttributesEncoder {
         }
     }
 
-    private void encodeFull(Attributes list) throws IOException {
+    private void encodeFull(Attributes list, boolean forceAllElements) throws IOException {
         // Record multimap len (LSB is 1 to indicate full encoding).
         buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
 
-    	// Encode keys and values.
+        // Encode keys and values.
         for (int i = 0; i < list.elemsLen; i++) {
             keyEncoder.encode(list.elems[i].key);
-            valueEncoder.encode(list.elems[i].value);
+            valueEncoder.encode(list.elems[i].value, forceAllElements);
         }
     }
 
@@ -122,4 +131,3 @@ class AttributesEncoder {
         }
     }
 }
-

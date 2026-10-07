@@ -14,6 +14,8 @@ type ReaderState struct {
 	// Dictionaries
 	AnyValueString    codecs.StringDictDecoderDict
 	AttributeKey      codecs.StringDictDecoderDict
+	LogEventName      codecs.StringDictDecoderDict
+	LogSeverityText   codecs.StringDictDecoderDict
 	Metric            MetricDecoderDict
 	MetricDescription codecs.StringDictDecoderDict
 	MetricName        codecs.StringDictDecoderDict
@@ -44,6 +46,8 @@ type ReaderState struct {
 	KeyValueListDecoder        *KeyValueListDecoder
 	LinkDecoder                *LinkDecoder
 	LinkArrayDecoder           *LinkArrayDecoder
+	LogRecordDecoder           *LogRecordDecoder
+	LogsDecoder                *LogsDecoder
 	MetricDecoder              *MetricDecoder
 	MetricsDecoder             *MetricsDecoder
 	PointDecoder               *PointDecoder
@@ -66,6 +70,8 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 
 	d.AnyValueString.Init()
 	d.AttributeKey.Init()
+	d.LogEventName.Init()
+	d.LogSeverityText.Init()
 	d.Metric.Init()
 	d.MetricDescription.Init()
 	d.MetricName.Init()
@@ -84,6 +90,8 @@ func (d *ReaderState) Init(overrideSchema *schema.WireSchema) {
 func (d *ReaderState) ResetDicts() {
 	d.AnyValueString.Reset()
 	d.AttributeKey.Reset()
+	d.LogEventName.Reset()
+	d.LogSeverityText.Reset()
 	d.Metric.Reset()
 	d.MetricDescription.Reset()
 	d.MetricName.Reset()

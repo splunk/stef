@@ -89,6 +89,13 @@ func (s *Event) fixParent(parentModifiedFields *modifiedFields) {
 	s.attributes.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Event) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.attributes.attachParent(&s.modifiedFields, fieldModifiedEventAttributes)
+}
+
 func (s *Event) freeze() {
 	if s.isFrozen() {
 		return
@@ -205,6 +212,13 @@ func (s *Event) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Event) clearModifiedRecursively() {
+	s.attributes.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Event) computeDiff(val *Event) (ret bool) {
@@ -236,20 +250,17 @@ func (s *Event) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Event) cloneShared(allocators *Allocators) Event {
-	return s.Clone(allocators)
-}
-
-func (s *Event) Clone(allocators *Allocators) Event {
-	c := Event{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Event) CloneTo(dst *Event, allocators *Allocators) {
+	*dst = Event{
 		name:                   s.name,
 		timeUnixNano:           s.timeUnixNano,
 		droppedAttributesCount: s.droppedAttributesCount,
 	}
-	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
-	return c
+	copyToNewAttributes(&dst.attributes, &s.attributes, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

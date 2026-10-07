@@ -113,6 +113,19 @@ func (s *ProfileMetadata) fixParent(parentModifiedFields *modifiedFields) {
 	s.defaultSampleType.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *ProfileMetadata) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	if !s.periodType.canBeShared() {
+		s.periodType.attachParent(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType)
+	}
+	s.comments.attachParent(&s.modifiedFields, fieldModifiedProfileMetadataComments)
+	if !s.defaultSampleType.canBeShared() {
+		s.defaultSampleType.attachParent(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
+	}
+}
+
 func (s *ProfileMetadata) freeze() {
 	if s.isFrozen() {
 		return
@@ -239,7 +252,7 @@ func (s *ProfileMetadata) SetPeriodType(v *SampleValueType) {
 		}
 	} else {
 		if s.periodType.canBeShared() {
-			s.periodType = s.periodType.Clone(&Allocators{})
+			s.periodType = s.periodType.clone(&Allocators{})
 		}
 		s.periodType.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedProfileMetadataPeriodType)
@@ -314,7 +327,7 @@ func (s *ProfileMetadata) SetDefaultSampleType(v *SampleValueType) {
 		}
 	} else {
 		if s.defaultSampleType.canBeShared() {
-			s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
+			s.defaultSampleType = s.defaultSampleType.clone(&Allocators{})
 		}
 		s.defaultSampleType.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedProfileMetadataDefaultSampleType)
@@ -357,6 +370,19 @@ func (s *ProfileMetadata) setUnmodifiedRecursively() {
 	}
 	if s.IsDefaultSampleTypeModified() {
 		s.defaultSampleType.setUnmodifiedRecursively()
+	}
+	s.modifiedFields.mask = 0
+}
+
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *ProfileMetadata) clearModifiedRecursively() {
+	if !s.periodType.canBeShared() {
+		s.periodType.clearModifiedRecursively()
+	}
+	s.comments.clearModifiedRecursively()
+	if !s.defaultSampleType.canBeShared() {
+		s.defaultSampleType.clearModifiedRecursively()
 	}
 	s.modifiedFields.mask = 0
 }
@@ -412,24 +438,21 @@ func (s *ProfileMetadata) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *ProfileMetadata) cloneShared(allocators *Allocators) ProfileMetadata {
-	return s.Clone(allocators)
-}
-
-func (s *ProfileMetadata) Clone(allocators *Allocators) ProfileMetadata {
-	c := ProfileMetadata{
-		dropFrames:        s.dropFrames,
-		keepFrames:        s.keepFrames,
-		timeNanos:         s.timeNanos,
-		durationNanos:     s.durationNanos,
-		periodType:        s.periodType.cloneShared(allocators),
-		period:            s.period,
-		defaultSampleType: s.defaultSampleType.cloneShared(allocators),
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *ProfileMetadata) CloneTo(dst *ProfileMetadata, allocators *Allocators) {
+	*dst = ProfileMetadata{
+		dropFrames:    s.dropFrames,
+		keepFrames:    s.keepFrames,
+		timeNanos:     s.timeNanos,
+		durationNanos: s.durationNanos,
+		period:        s.period,
 	}
-	copyToNewStringArray(&c.comments, &s.comments, allocators)
-	return c
+	dst.periodType = s.periodType.cloneShared(allocators)
+	copyToNewStringArray(&dst.comments, &s.comments, allocators)
+	dst.defaultSampleType = s.defaultSampleType.cloneShared(allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -567,12 +590,12 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema, 
 				s.periodType = new(SampleValueType)
 				s.periodType.init(&s.modifiedFields, fieldModifiedProfileMetadataPeriodType)
 			} else {
-				s.periodType = s.periodType.Clone(&Allocators{})
+				s.periodType = s.periodType.clone(&Allocators{})
 			}
 		}
 		if s.periodType.canBeShared() {
 			// periodType may be shared by pointer. Clone it to have exclusive ownership.
-			s.periodType = s.periodType.Clone(&Allocators{})
+			s.periodType = s.periodType.clone(&Allocators{})
 		}
 
 		s.periodType.mutateRandom(random, schem, limiter)
@@ -605,12 +628,12 @@ func (s *ProfileMetadata) mutateRandom(random *rand.Rand, schem *schema.Schema, 
 				s.defaultSampleType = new(SampleValueType)
 				s.defaultSampleType.init(&s.modifiedFields, fieldModifiedProfileMetadataDefaultSampleType)
 			} else {
-				s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
+				s.defaultSampleType = s.defaultSampleType.clone(&Allocators{})
 			}
 		}
 		if s.defaultSampleType.canBeShared() {
 			// defaultSampleType may be shared by pointer. Clone it to have exclusive ownership.
-			s.defaultSampleType = s.defaultSampleType.Clone(&Allocators{})
+			s.defaultSampleType = s.defaultSampleType.clone(&Allocators{})
 		}
 
 		s.defaultSampleType.mutateRandom(random, schem, limiter)

@@ -453,20 +453,8 @@ public class Span {
 
     public Span clone() {
         Span cpy = new Span();
-        cpy.traceID = this.traceID;
-        cpy.spanID = this.spanID;
-        cpy.traceState = this.traceState;
-        cpy.parentSpanID = this.parentSpanID;
-        cpy.flags = this.flags;
-        cpy.name = this.name;
-        cpy.kind = this.kind;
-        cpy.startTimeUnixNano = this.startTimeUnixNano;
-        cpy.endTimeUnixNano = this.endTimeUnixNano;
-        cpy.attributes = this.attributes.clone();
-        cpy.droppedAttributesCount = this.droppedAttributesCount;
-        cpy.events = this.events.clone();
-        cpy.links = this.links.clone();
-        cpy.status = this.status.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

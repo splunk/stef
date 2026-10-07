@@ -123,6 +123,7 @@ public class KeyValueList {
         for (int i=0; i<elemsLen; i++) {
             elems[i].value.markUnmodifiedRecursively();
         }
+        modifiedElems.markUnmodifiedAll();
     }
 
     // Append adds a key-value pair to the multimap.

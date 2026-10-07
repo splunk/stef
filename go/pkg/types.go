@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"cmp"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -42,13 +43,7 @@ func BoolCompare(left, right bool) int {
 }
 
 func Float64Compare(left, right float64) int {
-	if left > right {
-		return 1
-	}
-	if left < right {
-		return -1
-	}
-	return 0
+	return cmp.Compare(left, right)
 }
 
 func StringCompare(left, right string) int {

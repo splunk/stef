@@ -10,6 +10,8 @@ public class ReaderState {
     // Dictionaries
     final StringDictDecoderDict AnyValueString = new StringDictDecoderDict();
     final StringDictDecoderDict AttributeKey = new StringDictDecoderDict();
+    final StringDictDecoderDict LogEventName = new StringDictDecoderDict();
+    final StringDictDecoderDict LogSeverityText = new StringDictDecoderDict();
     final MetricDecoderDict Metric = new MetricDecoderDict();
     final StringDictDecoderDict MetricDescription = new StringDictDecoderDict();
     final StringDictDecoderDict MetricName = new StringDictDecoderDict();
@@ -40,6 +42,8 @@ public class ReaderState {
     KeyValueListDecoder KeyValueListDecoder;
     LinkDecoder LinkDecoder;
     LinkArrayDecoder LinkArrayDecoder;
+    LogRecordDecoder LogRecordDecoder;
+    LogsDecoder LogsDecoder;
     MetricDecoder MetricDecoder;
     MetricsDecoder MetricsDecoder;
     PointDecoder PointDecoder;
@@ -58,6 +62,8 @@ public class ReaderState {
         structFieldCounts.init(overrideSchema);
         this.AnyValueString.init();
         this.AttributeKey.init();
+        this.LogEventName.init();
+        this.LogSeverityText.init();
         this.Metric.init();
         this.MetricDescription.init();
         this.MetricName.init();
@@ -77,6 +83,8 @@ public class ReaderState {
     public void resetDicts() {
         this.AnyValueString.reset();
         this.AttributeKey.reset();
+        this.LogEventName.reset();
+        this.LogSeverityText.reset();
         this.Metric.reset();
         this.MetricDescription.reset();
         this.MetricName.reset();

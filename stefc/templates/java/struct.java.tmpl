@@ -161,9 +161,8 @@ public class {{ .StructName }} {
 
     public {{.StructName}} clone() {
         {{.StructName}} cpy = new {{.StructName}}();
-        {{- range .Fields }}
-        cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
-        {{- end }}
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
@@ -43,7 +44,7 @@ func openOTLPFile(filePath string) (io.Reader, func(), error) {
 	return reader, closer, nil
 }
 
-func ReadMultipartOTLPFile(filePath string) ([]pmetric.Metrics, error) {
+func ReadMultipartMetricsOTLPFile(filePath string) ([]pmetric.Metrics, error) {
 	var result []pmetric.Metrics
 
 	reader, closer, err := openOTLPFile(filePath)
@@ -135,14 +136,31 @@ func ReadMultipartOTLPFileGeneric(filePath string, unmarshaler func([]byte) (any
 	return result, nil
 }
 
-func ReadOTLPFile(filePath string) (pmetric.Metrics, error) {
+func ReadOTLPMetricsFile(filePath string) (pmetric.Metrics, error) {
 	combined := pmetric.NewMetrics()
-	parts, err := ReadMultipartOTLPFile(filePath)
+	parts, err := ReadMultipartMetricsOTLPFile(filePath)
 	if err != nil {
 		return combined, err
 	}
 	for _, part := range parts {
 		part.ResourceMetrics().MoveAndAppendTo(combined.ResourceMetrics())
+	}
+	return combined, nil
+}
+
+func ReadOTLPLogsFile(filePath string) (plog.Logs, error) {
+	combined := plog.NewLogs()
+	unmarshaler := plog.ProtoUnmarshaler{}
+	parts, err := ReadMultipartOTLPFileGeneric(
+		filePath, func(data []byte) (any, error) {
+			return unmarshaler.UnmarshalLogs(data)
+		},
+	)
+	if err != nil {
+		return combined, err
+	}
+	for _, part := range parts {
+		part.(plog.Logs).ResourceLogs().MoveAndAppendTo(combined.ResourceLogs())
 	}
 	return combined, nil
 }

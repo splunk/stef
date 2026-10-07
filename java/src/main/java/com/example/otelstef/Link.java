@@ -227,12 +227,8 @@ public class Link {
 
     public Link clone() {
         Link cpy = new Link();
-        cpy.traceID = this.traceID;
-        cpy.spanID = this.spanID;
-        cpy.traceState = this.traceState;
-        cpy.flags = this.flags;
-        cpy.attributes = this.attributes.clone();
-        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

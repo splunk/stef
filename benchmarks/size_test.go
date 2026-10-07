@@ -12,6 +12,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/splunk/stef/benchmarks/encodings"
@@ -22,6 +23,7 @@ import (
 	"github.com/splunk/stef/benchmarks/generators"
 	"github.com/splunk/stef/benchmarks/testutils"
 	"github.com/splunk/stef/go/otel/otelstef"
+	pdatalogs "github.com/splunk/stef/go/pdata/logs"
 	"github.com/splunk/stef/go/pdata/traces"
 	"github.com/splunk/stef/go/pkg"
 )
@@ -69,7 +71,7 @@ var metricsDataVariations = []struct {
 }
 
 var sizeEncodings = []encodings.MetricEncoding{
-	&otlp.OTLPEncoding{},
+	&otlp.MetricsEncoding{},
 	&stef.STEFEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&stef.STEFUEncoding{Opts: pkg.WriterOptions{Compression: pkg.CompressionNone}},
 	&parquetenc.Encoding{},
@@ -98,7 +100,7 @@ func TestMetricsSize(t *testing.T) {
 		wantChart := strings.HasSuffix(dataVariation.generator.GetName(), ".zst")
 
 		if wantChart {
-			chart.BeginChart("Dataset: "+dataVariation.generator.GetName(), t)
+			chart.BeginChart("Dataset: "+dataVariation.generator.GetName(), "Bytes/point", t)
 		}
 
 		for _, encoding := range sizeEncodings {
@@ -179,7 +181,6 @@ func TestMetricsSize(t *testing.T) {
 
 		if wantChart {
 			chart.EndChart(
-				"Bytes/point",
 				charts.WithColorsOpts(opts.Colors{"#92C5F9"}),
 			)
 		}
@@ -201,7 +202,7 @@ func TestMetricsMultipart(t *testing.T) {
 	}
 
 	testMultipartEncodings := []encodings.MetricMultipartEncoding{
-		&otlp.OTLPEncoding{},
+		&otlp.MetricsEncoding{},
 		&stef.STEFEncoding{},
 		&stef.STEFUEncoding{},
 		&otelarrow.OtelArrowEncoding{},
@@ -213,7 +214,7 @@ func TestMetricsMultipart(t *testing.T) {
 
 	for _, compression := range compressions {
 		for _, dataset := range datasets {
-			chart.BeginChart("Dataset: "+dataset.name, t)
+			chart.BeginChart("Dataset: "+dataset.name, "Bytes/point", t)
 
 			fmt.Printf("%-30s %4v %9v %4v\n", dataset.name, "Comp", "Bytes", "Ratio")
 
@@ -225,7 +226,7 @@ func TestMetricsMultipart(t *testing.T) {
 				// Encode each part one after another and write to the same STEF stream.
 				// This models more closely the operation of STEF exporter in Collector.
 
-				parts, err := testutils.ReadMultipartOTLPFile("testdata/" + dataset.name + ".zst")
+				parts, err := testutils.ReadMultipartMetricsOTLPFile("testdata/" + dataset.name + ".zst")
 				require.NoError(t, err)
 
 				pointCount := 0
@@ -258,7 +259,6 @@ func TestMetricsMultipart(t *testing.T) {
 			}
 
 			chart.EndChart(
-				"Bytes/point",
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
 		}
@@ -266,7 +266,7 @@ func TestMetricsMultipart(t *testing.T) {
 }
 
 func TestSTEFVeryShortFrames(t *testing.T) {
-	input, err := testutils.ReadOTLPFile("testdata/hipstershop-otelmetrics.zst")
+	input, err := testutils.ReadOTLPMetricsFile("testdata/hipstershop-otelmetrics.zst")
 	require.NoError(t, err)
 
 	compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}
@@ -348,7 +348,7 @@ func TestTracesMultipart(t *testing.T) {
 			}
 			fmt.Println(compressionStr)
 
-			chart.BeginChart("Dataset: "+fileName, t)
+			chart.BeginChart("Dataset: "+fileName, "Bytes/span", t)
 
 			otlpSize := 0
 			spanCount := 0
@@ -382,8 +382,11 @@ func TestTracesMultipart(t *testing.T) {
 
 				converter := traces.OtlpToStefUnsorted{Sorted: sorted}
 
-				for i := 0; i < len(traceData); i++ {
-					err = converter.Convert(traceData[i].(ptrace.Traces), writer)
+				for i := 0; i < len(otlpParts); i++ {
+					tracesPart, err := u.UnmarshalTraces(otlpParts[i])
+					require.NoError(t, err)
+
+					err = converter.Convert(tracesPart, writer)
 					require.NoError(t, err)
 
 					err = writer.Flush()
@@ -412,7 +415,110 @@ func TestTracesMultipart(t *testing.T) {
 				)
 			}
 			chart.EndChart(
-				"Bytes/span",
+				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
+			)
+		}
+	}
+}
+
+func TestLogsMultipart(t *testing.T) {
+	u := plog.ProtoUnmarshaler{}
+
+	fileNames := []string{"astronomy-otellogs"}
+
+	chart.BeginSection("Size - Many Batches, Multipart Logs")
+
+	for _, fileName := range fileNames {
+		fmt.Println("======= " + fileName)
+
+		var otlpParts [][]byte
+		logsData, err := testutils.ReadMultipartOTLPFileGeneric(
+			"testdata/"+fileName+".zst", func(data []byte) (any, error) {
+				otlpParts = append(otlpParts, data)
+				return u.UnmarshalLogs(data)
+			},
+		)
+		require.NoError(t, err)
+
+		compressions := []pkg.Compression{pkg.CompressionNone, pkg.CompressionZstd}
+		sorteds := []bool{false, true}
+
+		for _, compression := range compressions {
+			var compressionStr string
+			if compression == pkg.CompressionZstd {
+				compressionStr = "zstd"
+			} else {
+				compressionStr = "none"
+			}
+			fmt.Println(compressionStr)
+
+			chart.BeginChart("Dataset: "+fileName, "Bytes/log", t)
+
+			otlpSize := 0
+			logCount := 0
+			for i := 0; i < len(logsData); i++ {
+				if compression == pkg.CompressionNone {
+					otlpSize += len(otlpParts[i])
+				} else {
+					otlpZstd := testutils.CompressZstd(otlpParts[i])
+					otlpSize += len(otlpZstd)
+				}
+				logCount += logsData[i].(plog.Logs).LogRecordCount()
+			}
+
+			chart.Record(
+				nil, "OTLP", "Bytes/log, compression="+compressionStr,
+				unitSize(otlpSize, logCount),
+			)
+
+			for _, sorted := range sorteds {
+				var sortedStr string
+				if sorted {
+					sortedStr = "Sorted"
+				} else {
+					sortedStr = "Unsorted"
+				}
+				fmt.Println(sortedStr)
+
+				outputBuf := &pkg.MemChunkWriter{}
+				writer, err := otelstef.NewLogsWriter(outputBuf, pkg.WriterOptions{Compression: compression})
+				require.NoError(t, err)
+
+				converter := pdatalogs.OtlpToStefUnsorted{Sorted: sorted}
+
+				for i := 0; i < len(otlpParts); i++ {
+					logsPart, err := u.UnmarshalLogs(otlpParts[i])
+					require.NoError(t, err)
+
+					err = converter.Convert(logsPart, writer)
+					require.NoError(t, err)
+
+					err = writer.Flush()
+					require.NoError(t, err)
+				}
+
+				stefSize := len(outputBuf.Bytes())
+
+				fmt.Printf(
+					"Logs OTLP: %8d (%5.1f bytes/log)\n",
+					otlpSize,
+					float64(otlpSize)/float64(logCount),
+				)
+				fmt.Printf(
+					"Logs STEF: %8d (%5.1f bytes/log)\n",
+					stefSize,
+					float64(stefSize)/float64(logCount),
+				)
+				fmt.Printf(
+					"Ratio:       %8.2f\n", float64(otlpSize)/float64(stefSize),
+				)
+
+				chart.Record(
+					nil, "STEF "+sortedStr, "Bytes/log, compression="+compressionStr,
+					unitSize(stefSize, logCount),
+				)
+			}
+			chart.EndChart(
 				charts.WithColorsOpts(opts.Colors{"#87BB62"}),
 			)
 		}

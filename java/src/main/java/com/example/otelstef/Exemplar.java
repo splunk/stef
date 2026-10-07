@@ -196,11 +196,8 @@ public class Exemplar {
 
     public Exemplar clone() {
         Exemplar cpy = new Exemplar();
-        cpy.timestamp = this.timestamp;
-        cpy.value = this.value.clone();
-        cpy.spanID = this.spanID;
-        cpy.traceID = this.traceID;
-        cpy.filteredAttributes = this.filteredAttributes.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

@@ -16,6 +16,10 @@ class {{ .ArrayName }}Encoder {
     private {{.ElemType.EncoderType}}Encoder elemEncoder;
     private WriterState state;
     private boolean isRecursive = false;
+    {{- if not .ElemType.IsPrimitive}}
+    // Set after reset so every element in the first non-empty array is encoded in full.
+    private boolean forceElements;
+    {{- end}}
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
@@ -47,21 +51,36 @@ class {{ .ArrayName }}Encoder {
     }
 
     public void reset() {
+        {{- if not .ElemType.IsPrimitive}}
+        forceElements = true;
+        {{- end}}
         if (!isRecursive) {
             elemEncoder.reset();
         }
     }
 
     public void encode({{ .ArrayName }} arr) throws IOException {
+        encode(arr, false);
+    }
+
+    public void encode({{ .ArrayName }} arr, boolean forceAllElements) throws IOException {
         int oldBitLen = buf.bitCount();
 
         // Write the length of the array.
         int newLen = arr.elemsLen;
         buf.writeUvarintCompact(newLen);
 
+        {{- if not .ElemType.IsPrimitive}}
+        boolean forceElementsNow = forceAllElements || forceElements;
+        {{- end}}
         for (int i = 0; i < newLen; i++) {
-            elemEncoder.encode(arr.elems[i]);
+            elemEncoder.encode(arr.elems[i]{{if not .ElemType.IsPrimitive}}, forceElementsNow{{end}});
         }
+        {{- if not .ElemType.IsPrimitive}}
+        if (newLen != 0) {
+            forceElements = false;
+        }
+        {{- end}}
 
         // Account written bits in the limiter.
         int newBitLen = buf.bitCount();
@@ -75,4 +94,3 @@ class {{ .ArrayName }}Encoder {
         }
     }
 }
-

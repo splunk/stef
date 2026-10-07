@@ -140,9 +140,8 @@ public class SummaryValue {
 
     public SummaryValue clone() {
         SummaryValue cpy = new SummaryValue();
-        cpy.count = this.count;
-        cpy.sum = this.sum;
-        cpy.quantileValues = this.quantileValues.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

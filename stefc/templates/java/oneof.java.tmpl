@@ -133,10 +133,8 @@ public class {{ .StructName }} {
     // Clone returns a deep copy of this oneof.
     public {{.StructName}} clone() {
         {{.StructName}} cpy = new {{.StructName}}();
-        cpy.typ = this.typ;
-        {{- range .Fields }}
-        cpy.{{.name}} = this.{{.name}}{{if .Type.MustClone}}.clone(){{end}};
-        {{- end }}
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 
@@ -290,11 +288,13 @@ public class {{ .StructName }} {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-        {{- range $index, $element := .Fields }}
-            {{.name}},
+        switch (this.typ) {
+        {{- range .Fields }}
+        case Type{{.Name}}:
+            return Objects.hash(typ, {{.name}});
         {{- end }}
-            typ
-        );
+        default:
+            return Objects.hash(typ);
+        }
     }
 }

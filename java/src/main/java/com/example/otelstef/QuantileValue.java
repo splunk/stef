@@ -113,8 +113,8 @@ public class QuantileValue {
 
     public QuantileValue clone() {
         QuantileValue cpy = new QuantileValue();
-        cpy.quantile = this.quantile;
-        cpy.value = this.value;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

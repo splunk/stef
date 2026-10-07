@@ -247,11 +247,8 @@ public class HistogramValue {
 
     public HistogramValue clone() {
         HistogramValue cpy = new HistogramValue();
-        cpy.count = this.count;
-        cpy.sum = this.sum;
-        cpy.min = this.min;
-        cpy.max = this.max;
-        cpy.bucketCounts = this.bucketCounts.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

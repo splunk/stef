@@ -198,11 +198,8 @@ public class Scope {
 
     public Scope clone() {
         Scope cpy = new Scope();
-        cpy.name = this.name;
-        cpy.version = this.version;
-        cpy.schemaURL = this.schemaURL;
-        cpy.attributes = this.attributes.clone();
-        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

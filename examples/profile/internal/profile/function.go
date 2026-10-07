@@ -98,6 +98,12 @@ func (s *Function) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Function) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+}
+
 // Freeze the struct. Any attempt to modify it after this will panic.
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
@@ -221,6 +227,12 @@ func (s *Function) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Function) clearModifiedRecursively() {
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Function) computeDiff(val *Function) (ret bool) {
@@ -252,6 +264,14 @@ func (s *Function) canBeShared() bool {
 	return s.isFrozen()
 }
 
+// clone returns a clone of s allocated using allocators.
+func (s *Function) clone(allocators *Allocators) *Function {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Function{})))
+	c := allocators.Function.Alloc()
+	s.CloneTo(c, allocators)
+	return c
+}
+
 // cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Function) cloneShared(allocators *Allocators) *Function {
@@ -259,19 +279,20 @@ func (s *Function) cloneShared(allocators *Allocators) *Function {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
-	return s.Clone(allocators)
+	return s.clone(allocators)
 }
 
-func (s *Function) Clone(allocators *Allocators) *Function {
-	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Function{})))
-	c := allocators.Function.Alloc()
-	*c = Function{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Function) CloneTo(dst *Function, allocators *Allocators) {
+	*dst = Function{
 		name:       s.name,
 		systemName: s.systemName,
 		filename:   s.filename,
 		startLine:  s.startLine,
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -461,7 +482,7 @@ func (d *FunctionEncoderDict) Add(val *Function) {
 		d.dict.Set(val, refNum)
 		return
 	}
-	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone := val.clone(d.allocators) // Clone before adding to dictionary.
 	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
 	d.dict.Set(clone, refNum)
 }
@@ -795,7 +816,7 @@ func (d *FunctionDecoder) Decode(dstPtr **Function) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).clone(d.allocators)
 	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}

@@ -361,15 +361,8 @@ public class ExpHistogramValue {
 
     public ExpHistogramValue clone() {
         ExpHistogramValue cpy = new ExpHistogramValue();
-        cpy.count = this.count;
-        cpy.sum = this.sum;
-        cpy.min = this.min;
-        cpy.max = this.max;
-        cpy.scale = this.scale;
-        cpy.zeroCount = this.zeroCount;
-        cpy.positiveBuckets = this.positiveBuckets.clone();
-        cpy.negativeBuckets = this.negativeBuckets.clone();
-        cpy.zeroThreshold = this.zeroThreshold;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

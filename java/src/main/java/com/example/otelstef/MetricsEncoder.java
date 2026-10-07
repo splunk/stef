@@ -185,15 +185,22 @@ class MetricsEncoder {
 
     // encode encodes val into buf
     public void encode(Metrics val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Metrics val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Metrics.fieldModifiedEnvelope | 
                 Metrics.fieldModifiedMetric | 
@@ -201,6 +208,7 @@ class MetricsEncoder {
                 Metrics.fieldModifiedScope | 
                 Metrics.fieldModifiedAttributes | 
                 Metrics.fieldModifiedPoint | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -213,32 +221,32 @@ class MetricsEncoder {
         
         if ((fieldMask & Metrics.fieldModifiedEnvelope) != 0) {
             // Encode Envelope
-            this.envelopeEncoder.encode(val.envelope);
+            this.envelopeEncoder.encode(val.envelope, forceFields);
         }
         
         if ((fieldMask & Metrics.fieldModifiedMetric) != 0) {
             // Encode Metric
-            this.metricEncoder.encode(val.metric);
+            this.metricEncoder.encode(val.metric, forceFields);
         }
         
         if ((fieldMask & Metrics.fieldModifiedResource) != 0) {
             // Encode Resource
-            this.resourceEncoder.encode(val.resource);
+            this.resourceEncoder.encode(val.resource, forceFields);
         }
         
         if ((fieldMask & Metrics.fieldModifiedScope) != 0) {
             // Encode Scope
-            this.scopeEncoder.encode(val.scope);
+            this.scopeEncoder.encode(val.scope, forceFields);
         }
         
         if ((fieldMask & Metrics.fieldModifiedAttributes) != 0) {
             // Encode Attributes
-            this.attributesEncoder.encode(val.attributes);
+            this.attributesEncoder.encode(val.attributes, forceFields);
         }
         
         if ((fieldMask & Metrics.fieldModifiedPoint) != 0) {
             // Encode Point
-            this.pointEncoder.encode(val.point);
+            this.pointEncoder.encode(val.point, forceFields);
         }
         
         // Account written bits in the limiter.
@@ -311,4 +319,3 @@ class MetricsEncoder {
         
     }
 }
-

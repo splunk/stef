@@ -86,6 +86,13 @@ func (s *SummaryValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.quantileValues.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *SummaryValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.quantileValues.attachParent(&s.modifiedFields, fieldModifiedSummaryValueQuantileValues)
+}
+
 func (s *SummaryValue) freeze() {
 	if s.isFrozen() {
 		return
@@ -177,6 +184,13 @@ func (s *SummaryValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *SummaryValue) clearModifiedRecursively() {
+	s.quantileValues.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *SummaryValue) computeDiff(val *SummaryValue) (ret bool) {
@@ -203,19 +217,16 @@ func (s *SummaryValue) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *SummaryValue) cloneShared(allocators *Allocators) SummaryValue {
-	return s.Clone(allocators)
-}
-
-func (s *SummaryValue) Clone(allocators *Allocators) SummaryValue {
-	c := SummaryValue{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *SummaryValue) CloneTo(dst *SummaryValue, allocators *Allocators) {
+	*dst = SummaryValue{
 		count: s.count,
 		sum:   s.sum,
 	}
-	copyToNewQuantileValueArray(&c.quantileValues, &s.quantileValues, allocators)
-	return c
+	copyToNewQuantileValueArray(&dst.quantileValues, &s.quantileValues, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

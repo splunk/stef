@@ -169,10 +169,8 @@ public class Event {
 
     public Event clone() {
         Event cpy = new Event();
-        cpy.name = this.name;
-        cpy.timeUnixNano = this.timeUnixNano;
-        cpy.attributes = this.attributes.clone();
-        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

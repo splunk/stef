@@ -93,6 +93,12 @@ class {{ .StructName }}Encoder {
 
     // encode encodes val into buf
     public void encode({{ .StructName }} val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode({{ .StructName }} val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         {{if .DictName}}
@@ -124,12 +130,14 @@ class {{ .StructName }}Encoder {
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 {{- range .Fields }}
                 {{ $.StructName }}.fieldModified{{.Name}} | {{end}}0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -146,7 +154,7 @@ class {{ .StructName }}Encoder {
         if ((fieldMask & {{ $.StructName }}.fieldModified{{.Name}}) != 0
             {{- if .Optional}} && (val.optionalFieldsPresent & {{ $.StructName }}.fieldPresent{{.Name}}) != 0{{end}}) {
             // Encode {{.Name}}
-            this.{{.name}}Encoder.encode(val.{{.name}});
+            this.{{.name}}Encoder.encode(val.{{.name}}{{if not .IsPrimitive}}, forceFields{{end}});
         }
         {{ end }}
         // Account written bits in the limiter.
@@ -181,4 +189,3 @@ class {{ .StructName }}Encoder {
         {{- end }}
     }
 }
-

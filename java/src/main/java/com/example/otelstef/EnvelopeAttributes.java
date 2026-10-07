@@ -119,6 +119,7 @@ public class EnvelopeAttributes {
     void markUnmodifiedRecursively() {
         for (int i=0; i<elemsLen; i++) {
         }
+        modifiedElems.markUnmodifiedAll();
     }
 
     // Append adds a key-value pair to the multimap.

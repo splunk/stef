@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"cmp"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -199,6 +200,10 @@ func (s *PDataSorter) cmpResourceMetrics(left, right pmetric.ResourceMetrics) in
 	if c != 0 {
 		return c
 	}
+	c = cmp.Compare(left.Resource().DroppedAttributesCount(), right.Resource().DroppedAttributesCount())
+	if c != 0 {
+		return c
+	}
 	return s.cmpAttrs(left.Resource().Attributes(), right.Resource().Attributes())
 }
 
@@ -212,6 +217,10 @@ func (s *PDataSorter) cmpScopeMetrics(left, right pmetric.ScopeMetrics) int {
 		return c
 	}
 	c = strings.Compare(left.SchemaUrl(), right.SchemaUrl())
+	if c != 0 {
+		return c
+	}
+	c = cmp.Compare(left.Scope().DroppedAttributesCount(), right.Scope().DroppedAttributesCount())
 	if c != 0 {
 		return c
 	}
