@@ -119,6 +119,24 @@ func (s *Metrics) fixParent(parentModifiedFields *modifiedFields) {
 	s.point.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Metrics) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.envelope.attachParent(&s.modifiedFields, fieldModifiedMetricsEnvelope)
+	if !s.metric.canBeShared() {
+		s.metric.attachParent(&s.modifiedFields, fieldModifiedMetricsMetric)
+	}
+	if !s.resource.canBeShared() {
+		s.resource.attachParent(&s.modifiedFields, fieldModifiedMetricsResource)
+	}
+	if !s.scope.canBeShared() {
+		s.scope.attachParent(&s.modifiedFields, fieldModifiedMetricsScope)
+	}
+	s.attributes.attachParent(&s.modifiedFields, fieldModifiedMetricsAttributes)
+	s.point.attachParent(&s.modifiedFields, fieldModifiedMetricsPoint)
+}
+
 func (s *Metrics) freeze() {
 	if s.isFrozen() {
 		return
@@ -168,7 +186,7 @@ func (s *Metrics) SetMetric(v *Metric) {
 		}
 	} else {
 		if s.metric.canBeShared() {
-			s.metric = s.metric.Clone(&Allocators{})
+			s.metric = s.metric.clone(&Allocators{})
 		}
 		s.metric.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedMetricsMetric)
@@ -203,7 +221,7 @@ func (s *Metrics) SetResource(v *Resource) {
 		}
 	} else {
 		if s.resource.canBeShared() {
-			s.resource = s.resource.Clone(&Allocators{})
+			s.resource = s.resource.clone(&Allocators{})
 		}
 		s.resource.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedMetricsResource)
@@ -238,7 +256,7 @@ func (s *Metrics) SetScope(v *Scope) {
 		}
 	} else {
 		if s.scope.canBeShared() {
-			s.scope = s.scope.Clone(&Allocators{})
+			s.scope = s.scope.clone(&Allocators{})
 		}
 		s.scope.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedMetricsScope)
@@ -327,6 +345,24 @@ func (s *Metrics) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Metrics) clearModifiedRecursively() {
+	s.envelope.clearModifiedRecursively()
+	if !s.metric.canBeShared() {
+		s.metric.clearModifiedRecursively()
+	}
+	if !s.resource.canBeShared() {
+		s.resource.clearModifiedRecursively()
+	}
+	if !s.scope.canBeShared() {
+		s.scope.clearModifiedRecursively()
+	}
+	s.attributes.clearModifiedRecursively()
+	s.point.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Metrics) computeDiff(val *Metrics) (ret bool) {
@@ -368,22 +404,18 @@ func (s *Metrics) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Metrics) cloneShared(allocators *Allocators) Metrics {
-	return s.Clone(allocators)
-}
-
-func (s *Metrics) Clone(allocators *Allocators) Metrics {
-	c := Metrics{
-		metric:   s.metric.cloneShared(allocators),
-		resource: s.resource.cloneShared(allocators),
-		scope:    s.scope.cloneShared(allocators),
-	}
-	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
-	copyToNewAttributes(&c.attributes, &s.attributes, allocators)
-	copyToNewPoint(&c.point, &s.point, allocators)
-	return c
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Metrics) CloneTo(dst *Metrics, allocators *Allocators) {
+	*dst = Metrics{}
+	copyToNewEnvelope(&dst.envelope, &s.envelope, allocators)
+	dst.metric = s.metric.cloneShared(allocators)
+	dst.resource = s.resource.cloneShared(allocators)
+	dst.scope = s.scope.cloneShared(allocators)
+	copyToNewAttributes(&dst.attributes, &s.attributes, allocators)
+	copyToNewPoint(&dst.point, &s.point, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -515,12 +547,12 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter 
 				s.metric = new(Metric)
 				s.metric.init(&s.modifiedFields, fieldModifiedMetricsMetric)
 			} else {
-				s.metric = s.metric.Clone(&Allocators{})
+				s.metric = s.metric.clone(&Allocators{})
 			}
 		}
 		if s.metric.canBeShared() {
 			// metric may be shared by pointer. Clone it to have exclusive ownership.
-			s.metric = s.metric.Clone(&Allocators{})
+			s.metric = s.metric.clone(&Allocators{})
 		}
 
 		s.metric.mutateRandom(random, schem, limiter)
@@ -539,12 +571,12 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter 
 				s.resource = new(Resource)
 				s.resource.init(&s.modifiedFields, fieldModifiedMetricsResource)
 			} else {
-				s.resource = s.resource.Clone(&Allocators{})
+				s.resource = s.resource.clone(&Allocators{})
 			}
 		}
 		if s.resource.canBeShared() {
 			// resource may be shared by pointer. Clone it to have exclusive ownership.
-			s.resource = s.resource.Clone(&Allocators{})
+			s.resource = s.resource.clone(&Allocators{})
 		}
 
 		s.resource.mutateRandom(random, schem, limiter)
@@ -563,12 +595,12 @@ func (s *Metrics) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter 
 				s.scope = new(Scope)
 				s.scope.init(&s.modifiedFields, fieldModifiedMetricsScope)
 			} else {
-				s.scope = s.scope.Clone(&Allocators{})
+				s.scope = s.scope.clone(&Allocators{})
 			}
 		}
 		if s.scope.canBeShared() {
 			// scope may be shared by pointer. Clone it to have exclusive ownership.
-			s.scope = s.scope.Clone(&Allocators{})
+			s.scope = s.scope.clone(&Allocators{})
 		}
 
 		s.scope.mutateRandom(random, schem, limiter)

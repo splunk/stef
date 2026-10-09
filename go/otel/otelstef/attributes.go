@@ -60,6 +60,15 @@ func (m *Attributes) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied multimap.
+func (m *Attributes) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	m.modifiedElems.attachParent(parentModifiedFields, parentModifiedBit)
+	elems := m.elems[:m.initedCount]
+	for i := 0; i < len(elems); i++ {
+		elems[i].value.attachParent(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+	}
+}
+
 func (m *Attributes) canBeShared() bool {
 	// Multimap can never be shared.
 	return false
@@ -118,6 +127,14 @@ func (m *Attributes) setModifiedRecursively() {
 func (m *Attributes) setUnmodifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 		m.elems[i].value.setUnmodifiedRecursively()
+	}
+	m.modifiedElems.setUnmodifiedAll()
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (m *Attributes) clearModifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+		m.elems[i].value.clearModifiedRecursively()
 	}
 	m.modifiedElems.setUnmodifiedAll()
 }

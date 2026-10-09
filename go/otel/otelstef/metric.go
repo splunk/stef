@@ -116,6 +116,14 @@ func (s *Metric) fixParent(parentModifiedFields *modifiedFields) {
 	s.histogramBounds.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Metric) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.metadata.attachParent(&s.modifiedFields, fieldModifiedMetricMetadata)
+	s.histogramBounds.attachParent(&s.modifiedFields, fieldModifiedMetricHistogramBounds)
+}
+
 // Freeze the struct. Any attempt to modify it after this will panic.
 // This marks the struct as eligible for safely sharing by pointer without cloning,
 // which can improve encoding performance.
@@ -336,6 +344,14 @@ func (s *Metric) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Metric) clearModifiedRecursively() {
+	s.metadata.clearModifiedRecursively()
+	s.histogramBounds.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Metric) computeDiff(val *Metric) (ret bool) {
@@ -387,6 +403,14 @@ func (s *Metric) canBeShared() bool {
 	return s.isFrozen()
 }
 
+// clone returns a clone of s allocated using allocators.
+func (s *Metric) clone(allocators *Allocators) *Metric {
+	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Metric{})))
+	c := allocators.Metric.Alloc()
+	s.CloneTo(c, allocators)
+	return c
+}
+
 // cloneShared returns a clone of s. It may return s if it is safe to share without cloning
 // (for example if s is frozen).
 func (s *Metric) cloneShared(allocators *Allocators) *Metric {
@@ -394,13 +418,13 @@ func (s *Metric) cloneShared(allocators *Allocators) *Metric {
 		// If s is frozen it means it is safe to share without cloning.
 		return s
 	}
-	return s.Clone(allocators)
+	return s.clone(allocators)
 }
 
-func (s *Metric) Clone(allocators *Allocators) *Metric {
-	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(Metric{})))
-	c := allocators.Metric.Alloc()
-	*c = Metric{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Metric) CloneTo(dst *Metric, allocators *Allocators) {
+	*dst = Metric{
 		name:                   s.name,
 		description:            s.description,
 		unit:                   s.unit,
@@ -408,9 +432,10 @@ func (s *Metric) Clone(allocators *Allocators) *Metric {
 		aggregationTemporality: s.aggregationTemporality,
 		monotonic:              s.monotonic,
 	}
-	copyToNewAttributes(&c.metadata, &s.metadata, allocators)
-	copyToNewFloat64Array(&c.histogramBounds, &s.histogramBounds, allocators)
-	return c
+	copyToNewAttributes(&dst.metadata, &s.metadata, allocators)
+	copyToNewFloat64Array(&dst.histogramBounds, &s.histogramBounds, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -674,7 +699,7 @@ func (d *MetricEncoderDict) Add(val *Metric) {
 		d.dict.Set(val, refNum)
 		return
 	}
-	clone := val.Clone(d.allocators) // Clone before adding to dictionary.
+	clone := val.clone(d.allocators) // Clone before adding to dictionary.
 	clone.Freeze()                   // Freeze the clone so that it can be safely shared by pointer.
 	d.dict.Set(clone, refNum)
 }
@@ -1224,7 +1249,7 @@ func (d *MetricDecoder) Decode(dstPtr **Metric) error {
 
 	// *dstPtr is pointing to a element in the dictionary. We are not allowed
 	// to modify it. Make a clone of it and decode into the clone.
-	val := (*dstPtr).Clone(d.allocators)
+	val := (*dstPtr).clone(d.allocators)
 	if d.allocators.allocSizeChecker.IsOverLimit() {
 		return pkg.ErrRecordAllocLimitExceeded
 	}

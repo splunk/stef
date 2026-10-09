@@ -115,6 +115,13 @@ func (m *modifiedFieldsMultimap) fixParent(parentModifiedFields *modifiedFields)
 	m.vals.parent = parentModifiedFields
 }
 
+func (m *modifiedFieldsMultimap) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	m.keys.parent = parentModifiedFields
+	m.vals.parent = parentModifiedFields
+	m.keys.parentBit = parentModifiedBit
+	m.vals.parentBit = parentModifiedBit
+}
+
 // Returns a bitmask to be set in keys or vals to mark modification of
 // multimap element at index.
 func (m *modifiedFieldsMultimap) maskForIndex(index int) uint64 {

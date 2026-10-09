@@ -124,9 +124,8 @@ public class ExemplarValue {
     // Clone returns a deep copy of this oneof.
     public ExemplarValue clone() {
         ExemplarValue cpy = new ExemplarValue();
-        cpy.typ = this.typ;
-        cpy.int64 = this.int64;
-        cpy.float64 = this.float64;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 
@@ -267,10 +266,13 @@ public class ExemplarValue {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            int64,
-            float64,
-            typ
-        );
+        switch (this.typ) {
+        case TypeInt64:
+            return Objects.hash(typ, int64);
+        case TypeFloat64:
+            return Objects.hash(typ, float64);
+        default:
+            return Objects.hash(typ);
+        }
     }
 }

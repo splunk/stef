@@ -23,7 +23,7 @@ func (f *File) GetName() string {
 }
 
 func (f *File) Generate() pmetric.Metrics {
-	all, err := testutils.ReadOTLPFile(f.FilePath)
+	all, err := testutils.ReadOTLPMetricsFile(f.FilePath)
 	if err != nil {
 		log.Fatalf("Error reading file %s: %v", f.FilePath, err)
 	}

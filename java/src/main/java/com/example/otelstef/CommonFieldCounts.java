@@ -21,6 +21,8 @@ class CommonFieldCounts {
     private int countExpHistogramValue; // Number of fields in ExpHistogramValue struct.
     private int countHistogramValue; // Number of fields in HistogramValue struct.
     private int countLink; // Number of fields in Link struct.
+    private int countLogRecord; // Number of fields in LogRecord struct.
+    private int countLogs; // Number of fields in Logs struct.
     private int countMetric; // Number of fields in Metric struct.
     private int countMetrics; // Number of fields in Metrics struct.
     private int countPoint; // Number of fields in Point struct.
@@ -52,6 +54,8 @@ class CommonFieldCounts {
         countExpHistogramValue = -1;
         countHistogramValue = -1;
         countLink = -1;
+        countLogRecord = -1;
+        countLogs = -1;
         countMetric = -1;
         countMetrics = -1;
         countPoint = -1;
@@ -128,6 +132,16 @@ class CommonFieldCounts {
     public int getLinkFieldCount() throws IOException {
         countLink = getFieldCount(countLink, "Link", overrideSchemaIter, 6);
         return countLink;
+    }
+
+    public int getLogRecordFieldCount() throws IOException {
+        countLogRecord = getFieldCount(countLogRecord, "LogRecord", overrideSchemaIter, 11);
+        return countLogRecord;
+    }
+
+    public int getLogsFieldCount() throws IOException {
+        countLogs = getFieldCount(countLogs, "Logs", overrideSchemaIter, 4);
+        return countLogs;
     }
 
     public int getMetricFieldCount() throws IOException {

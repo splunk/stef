@@ -104,6 +104,20 @@ func (s *Spans) fixParent(parentModifiedFields *modifiedFields) {
 	s.span.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Spans) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.envelope.attachParent(&s.modifiedFields, fieldModifiedSpansEnvelope)
+	if !s.resource.canBeShared() {
+		s.resource.attachParent(&s.modifiedFields, fieldModifiedSpansResource)
+	}
+	if !s.scope.canBeShared() {
+		s.scope.attachParent(&s.modifiedFields, fieldModifiedSpansScope)
+	}
+	s.span.attachParent(&s.modifiedFields, fieldModifiedSpansSpan)
+}
+
 func (s *Spans) freeze() {
 	if s.isFrozen() {
 		return
@@ -151,7 +165,7 @@ func (s *Spans) SetResource(v *Resource) {
 		}
 	} else {
 		if s.resource.canBeShared() {
-			s.resource = s.resource.Clone(&Allocators{})
+			s.resource = s.resource.clone(&Allocators{})
 		}
 		s.resource.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedSpansResource)
@@ -186,7 +200,7 @@ func (s *Spans) SetScope(v *Scope) {
 		}
 	} else {
 		if s.scope.canBeShared() {
-			s.scope = s.scope.Clone(&Allocators{})
+			s.scope = s.scope.clone(&Allocators{})
 		}
 		s.scope.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedSpansScope)
@@ -249,6 +263,20 @@ func (s *Spans) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Spans) clearModifiedRecursively() {
+	s.envelope.clearModifiedRecursively()
+	if !s.resource.canBeShared() {
+		s.resource.clearModifiedRecursively()
+	}
+	if !s.scope.canBeShared() {
+		s.scope.clearModifiedRecursively()
+	}
+	s.span.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Spans) computeDiff(val *Spans) (ret bool) {
@@ -280,20 +308,16 @@ func (s *Spans) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Spans) cloneShared(allocators *Allocators) Spans {
-	return s.Clone(allocators)
-}
-
-func (s *Spans) Clone(allocators *Allocators) Spans {
-	c := Spans{
-		resource: s.resource.cloneShared(allocators),
-		scope:    s.scope.cloneShared(allocators),
-	}
-	copyToNewEnvelope(&c.envelope, &s.envelope, allocators)
-	copyToNewSpan(&c.span, &s.span, allocators)
-	return c
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Spans) CloneTo(dst *Spans, allocators *Allocators) {
+	*dst = Spans{}
+	copyToNewEnvelope(&dst.envelope, &s.envelope, allocators)
+	dst.resource = s.resource.cloneShared(allocators)
+	dst.scope = s.scope.cloneShared(allocators)
+	copyToNewSpan(&dst.span, &s.span, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -401,12 +425,12 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *m
 				s.resource = new(Resource)
 				s.resource.init(&s.modifiedFields, fieldModifiedSpansResource)
 			} else {
-				s.resource = s.resource.Clone(&Allocators{})
+				s.resource = s.resource.clone(&Allocators{})
 			}
 		}
 		if s.resource.canBeShared() {
 			// resource may be shared by pointer. Clone it to have exclusive ownership.
-			s.resource = s.resource.Clone(&Allocators{})
+			s.resource = s.resource.clone(&Allocators{})
 		}
 
 		s.resource.mutateRandom(random, schem, limiter)
@@ -425,12 +449,12 @@ func (s *Spans) mutateRandom(random *rand.Rand, schem *schema.Schema, limiter *m
 				s.scope = new(Scope)
 				s.scope.init(&s.modifiedFields, fieldModifiedSpansScope)
 			} else {
-				s.scope = s.scope.Clone(&Allocators{})
+				s.scope = s.scope.clone(&Allocators{})
 			}
 		}
 		if s.scope.canBeShared() {
 			// scope may be shared by pointer. Clone it to have exclusive ownership.
-			s.scope = s.scope.Clone(&Allocators{})
+			s.scope = s.scope.clone(&Allocators{})
 		}
 
 		s.scope.mutateRandom(random, schem, limiter)

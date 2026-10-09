@@ -133,21 +133,29 @@ class ExemplarEncoder {
 
     // encode encodes val into buf
     public void encode(Exemplar val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Exemplar val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Exemplar.fieldModifiedTimestamp | 
                 Exemplar.fieldModifiedValue | 
                 Exemplar.fieldModifiedSpanID | 
                 Exemplar.fieldModifiedTraceID | 
                 Exemplar.fieldModifiedFilteredAttributes | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -165,7 +173,7 @@ class ExemplarEncoder {
         
         if ((fieldMask & Exemplar.fieldModifiedValue) != 0) {
             // Encode Value
-            this.valueEncoder.encode(val.value);
+            this.valueEncoder.encode(val.value, forceFields);
         }
         
         if ((fieldMask & Exemplar.fieldModifiedSpanID) != 0) {
@@ -180,7 +188,7 @@ class ExemplarEncoder {
         
         if ((fieldMask & Exemplar.fieldModifiedFilteredAttributes) != 0) {
             // Encode FilteredAttributes
-            this.filteredAttributesEncoder.encode(val.filteredAttributes);
+            this.filteredAttributesEncoder.encode(val.filteredAttributes, forceFields);
         }
         
         // Account written bits in the limiter.
@@ -241,4 +249,3 @@ class ExemplarEncoder {
         
     }
 }
-

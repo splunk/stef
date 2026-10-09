@@ -119,6 +119,14 @@ func (s *ExpHistogramValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.negativeBuckets.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *ExpHistogramValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.positiveBuckets.attachParent(&s.modifiedFields, fieldModifiedExpHistogramValuePositiveBuckets)
+	s.negativeBuckets.attachParent(&s.modifiedFields, fieldModifiedExpHistogramValueNegativeBuckets)
+}
+
 func (s *ExpHistogramValue) freeze() {
 	if s.isFrozen() {
 		return
@@ -399,6 +407,14 @@ func (s *ExpHistogramValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *ExpHistogramValue) clearModifiedRecursively() {
+	s.positiveBuckets.clearModifiedRecursively()
+	s.negativeBuckets.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *ExpHistogramValue) computeDiff(val *ExpHistogramValue) (ret bool) {
@@ -497,14 +513,10 @@ func (s *ExpHistogramValue) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *ExpHistogramValue) cloneShared(allocators *Allocators) ExpHistogramValue {
-	return s.Clone(allocators)
-}
-
-func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
-	c := ExpHistogramValue{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *ExpHistogramValue) CloneTo(dst *ExpHistogramValue, allocators *Allocators) {
+	*dst = ExpHistogramValue{
 		count:         s.count,
 		sum:           s.sum,
 		min:           s.min,
@@ -513,9 +525,11 @@ func (s *ExpHistogramValue) Clone(allocators *Allocators) ExpHistogramValue {
 		zeroCount:     s.zeroCount,
 		zeroThreshold: s.zeroThreshold,
 	}
-	copyToNewExpHistogramBuckets(&c.positiveBuckets, &s.positiveBuckets, allocators)
-	copyToNewExpHistogramBuckets(&c.negativeBuckets, &s.negativeBuckets, allocators)
-	return c
+	copyToNewExpHistogramBuckets(&dst.positiveBuckets, &s.positiveBuckets, allocators)
+	copyToNewExpHistogramBuckets(&dst.negativeBuckets, &s.negativeBuckets, allocators)
+	dst.optionalFieldsPresent = s.optionalFieldsPresent
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

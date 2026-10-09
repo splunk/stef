@@ -149,6 +149,12 @@ class AnyValueEncoder {
 
     // Encode encodes val into buf
     public void encode(AnyValue val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf and propagates forced full encoding through
+    // the selected non-primitive value.
+    public void encode(AnyValue val, boolean forceAllFields) throws IOException {
         AnyValue.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.
@@ -181,11 +187,11 @@ class AnyValueEncoder {
             break;
         case TypeArray:
             // Encode Array
-            arrayEncoder.encode(val.array);
+            arrayEncoder.encode(val.array, forceAllFields);
             break;
         case TypeKVList:
             // Encode KVList
-            kVListEncoder.encode(val.kVList);
+            kVListEncoder.encode(val.kVList, forceAllFields);
             break;
         case TypeBytes:
             // Encode Bytes

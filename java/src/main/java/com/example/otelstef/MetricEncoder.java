@@ -172,6 +172,12 @@ class MetricEncoder {
 
     // encode encodes val into buf
     public void encode(Metric val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Metric val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
@@ -203,9 +209,10 @@ class MetricEncoder {
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Metric.fieldModifiedName | 
                 Metric.fieldModifiedDescription | 
@@ -215,6 +222,7 @@ class MetricEncoder {
                 Metric.fieldModifiedHistogramBounds | 
                 Metric.fieldModifiedAggregationTemporality | 
                 Metric.fieldModifiedMonotonic | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -247,12 +255,12 @@ class MetricEncoder {
         
         if ((fieldMask & Metric.fieldModifiedMetadata) != 0) {
             // Encode Metadata
-            this.metadataEncoder.encode(val.metadata);
+            this.metadataEncoder.encode(val.metadata, forceFields);
         }
         
         if ((fieldMask & Metric.fieldModifiedHistogramBounds) != 0) {
             // Encode HistogramBounds
-            this.histogramBoundsEncoder.encode(val.histogramBounds);
+            this.histogramBoundsEncoder.encode(val.histogramBounds, forceFields);
         }
         
         if ((fieldMask & Metric.fieldModifiedAggregationTemporality) != 0) {
@@ -347,4 +355,3 @@ class MetricEncoder {
         
     }
 }
-

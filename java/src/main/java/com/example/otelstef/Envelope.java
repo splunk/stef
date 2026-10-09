@@ -82,7 +82,8 @@ public class Envelope {
 
     public Envelope clone() {
         Envelope cpy = new Envelope();
-        cpy.attributes = this.attributes.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

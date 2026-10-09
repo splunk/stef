@@ -1,7 +1,7 @@
 // This is Otel/STEF schema: a representation of OpenTelemetry data model
 // as STEF records. Data model is virtually a direct mapping from OpenTelemetry
-// Protobuf IDL for metrics and traces, see: https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto
-// TODO: add Logs and Profiles.
+// Protobuf IDL for metrics, logs and traces, see: https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto
+// TODO: add Profiles.
 
 package com.example.otelstef
 
@@ -212,4 +212,57 @@ struct Event {
 struct SpanStatus {
   Message string
   Code    uint64
+}
+
+////////////////////////////////////////////////////////////////
+// Log signal schema.
+////////////////////////////////////////////////////////////////
+
+struct Logs root {
+  Envelope Envelope
+  Resource Resource
+  Scope    Scope
+  Log      LogRecord
+}
+
+struct LogRecord {
+  TimeUnixNano           uint64
+  ObservedTimeUnixNano   uint64
+  SeverityNumber         SeverityNumber
+  SeverityText           string dict(LogSeverityText)
+  Body                   AnyValue
+  Attributes             Attributes
+  DroppedAttributesCount uint64
+  Flags                  uint64
+  TraceID                bytes
+  SpanID                 bytes
+  EventName              string dict(LogEventName)
+}
+
+enum SeverityNumber {
+  Unspecified = 0
+  Trace       = 1
+  Trace2      = 2
+  Trace3      = 3
+  Trace4      = 4
+  Debug       = 5
+  Debug2      = 6
+  Debug3      = 7
+  Debug4      = 8
+  Info        = 9
+  Info2       = 10
+  Info3       = 11
+  Info4       = 12
+  Warn        = 13
+  Warn2       = 14
+  Warn3       = 15
+  Warn4       = 16
+  Error       = 17
+  Error2      = 18
+  Error3      = 19
+  Error4      = 20
+  Fatal       = 21
+  Fatal2      = 22
+  Fatal3      = 23
+  Fatal4      = 24
 }

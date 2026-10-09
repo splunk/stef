@@ -30,7 +30,7 @@ func TefToOtlpMap(in *otelstef.Attributes, out pcommon.Map) error {
 	//decoder := anyvalue.Decoder{}
 	for i := 0; i < in.Len(); i++ {
 		val := out.PutEmpty(in.Key(i))
-		err := tefAnyValueToOtlp(in.Value(i), val)
+		err := TefAnyValueToOtlp(in.Value(i), val)
 		if err != nil {
 			return err
 		}
@@ -40,7 +40,7 @@ func TefToOtlpMap(in *otelstef.Attributes, out pcommon.Map) error {
 
 var errDecode = errors.New("decode error")
 
-func tefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
+func TefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
 	switch anyVal.Type() {
 	case otelstef.AnyValueTypeString:
 		into.SetStr(anyVal.String())
@@ -65,7 +65,7 @@ func tefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
 		arr := anyVal.Array()
 		for i := 0; i < arr.Len(); i++ {
 			val := values.AppendEmpty()
-			err := tefAnyValueToOtlp(arr.At(i), val)
+			err := TefAnyValueToOtlp(arr.At(i), val)
 			if err != nil {
 				return err
 			}
@@ -76,7 +76,7 @@ func tefAnyValueToOtlp(anyVal *otelstef.AnyValue, into pcommon.Value) error {
 		kvList := anyVal.KVList()
 		for i := 0; i < kvList.Len(); i++ {
 			val := values.PutEmpty(kvList.Key(i))
-			err := tefAnyValueToOtlp(kvList.Value(i), val)
+			err := TefAnyValueToOtlp(kvList.Value(i), val)
 			if err != nil {
 				return err
 			}

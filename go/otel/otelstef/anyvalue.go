@@ -82,6 +82,19 @@ func (s *AnyValue) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *AnyValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	switch s.Type() {
+	case AnyValueTypeArray:
+		s.arrayPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	case AnyValueTypeKVList:
+		s.kVListPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	}
+}
+
 type AnyValueType byte
 
 const (
@@ -287,36 +300,45 @@ func (s *AnyValue) canBeShared() bool {
 	return false
 }
 
-func (s *AnyValue) cloneShared(allocators *Allocators) *AnyValue {
-	// Oneof is not shareable, so cloneShared is just a Clone.
-	return s.Clone(allocators)
-}
-
-func (s *AnyValue) Clone(allocators *Allocators) *AnyValue {
+func (s *AnyValue) clone(allocators *Allocators) *AnyValue {
 	allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(AnyValue{})))
 	c := allocators.AnyValue.Alloc()
-	c.clearValSetType(s.Type())
+	s.CloneTo(c, allocators)
+	return c
+}
+
+func (s *AnyValue) cloneShared(allocators *Allocators) *AnyValue {
+	// Oneof is not shareable, so cloneShared is just a clone.
+	return s.clone(allocators)
+}
+
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *AnyValue) CloneTo(dst *AnyValue, allocators *Allocators) {
+	*dst = AnyValue{}
+	dst.clearValSetType(s.Type())
 	switch s.Type() {
 	case AnyValueTypeString:
-		c.setString(s.String())
+		dst.setString(s.String())
 	case AnyValueTypeBool:
-		*c.boolPtr() = *s.boolPtr()
+		*dst.boolPtr() = *s.boolPtr()
 	case AnyValueTypeInt64:
-		*c.int64Ptr() = *s.int64Ptr()
+		*dst.int64Ptr() = *s.int64Ptr()
 	case AnyValueTypeFloat64:
-		*c.float64Ptr() = *s.float64Ptr()
+		*dst.float64Ptr() = *s.float64Ptr()
 	case AnyValueTypeArray:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(AnyValueArray{})))
-		c.allocArrayAlloc(allocators)
-		copyToNewAnyValueArray(c.arrayPtr(), s.arrayPtr(), allocators)
+		dst.allocArrayAlloc(allocators)
+		copyToNewAnyValueArray(dst.arrayPtr(), s.arrayPtr(), allocators)
 	case AnyValueTypeKVList:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(KeyValueList{})))
-		c.allocKVListAlloc(allocators)
-		copyToNewKeyValueList(c.kVListPtr(), s.kVListPtr(), allocators)
+		dst.allocKVListAlloc(allocators)
+		copyToNewKeyValueList(dst.kVListPtr(), s.kVListPtr(), allocators)
 	case AnyValueTypeBytes:
-		c.setBytes(s.Bytes())
+		dst.setBytes(s.Bytes())
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -430,6 +452,16 @@ func (s *AnyValue) setUnmodifiedRecursively() {
 		s.arrayPtr().setUnmodifiedRecursively()
 	case AnyValueTypeKVList:
 		s.kVListPtr().setUnmodifiedRecursively()
+	}
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *AnyValue) clearModifiedRecursively() {
+	switch s.Type() {
+	case AnyValueTypeArray:
+		s.arrayPtr().clearModifiedRecursively()
+	case AnyValueTypeKVList:
+		s.kVListPtr().clearModifiedRecursively()
 	}
 }
 

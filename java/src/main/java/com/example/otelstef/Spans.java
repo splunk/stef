@@ -159,10 +159,8 @@ public class Spans {
 
     public Spans clone() {
         Spans cpy = new Spans();
-        cpy.envelope = this.envelope.clone();
-        cpy.resource = this.resource.clone();
-        cpy.scope = this.scope.clone();
-        cpy.span = this.span.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

@@ -92,6 +92,14 @@ func (s *Point) fixParent(parentModifiedFields *modifiedFields) {
 	s.exemplars.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Point) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.value.attachParent(&s.modifiedFields, fieldModifiedPointValue)
+	s.exemplars.attachParent(&s.modifiedFields, fieldModifiedPointExemplars)
+}
+
 func (s *Point) freeze() {
 	if s.isFrozen() {
 		return
@@ -205,6 +213,14 @@ func (s *Point) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Point) clearModifiedRecursively() {
+	s.value.clearModifiedRecursively()
+	s.exemplars.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Point) computeDiff(val *Point) (ret bool) {
@@ -236,20 +252,17 @@ func (s *Point) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Point) cloneShared(allocators *Allocators) Point {
-	return s.Clone(allocators)
-}
-
-func (s *Point) Clone(allocators *Allocators) Point {
-	c := Point{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Point) CloneTo(dst *Point, allocators *Allocators) {
+	*dst = Point{
 		startTimestamp: s.startTimestamp,
 		timestamp:      s.timestamp,
 	}
-	copyToNewPointValue(&c.value, &s.value, allocators)
-	copyToNewExemplarArray(&c.exemplars, &s.exemplars, allocators)
-	return c
+	copyToNewPointValue(&dst.value, &s.value, allocators)
+	copyToNewExemplarArray(&dst.exemplars, &s.exemplars, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

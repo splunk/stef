@@ -58,6 +58,14 @@ func (m *EnvelopeAttributes) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied multimap.
+func (m *EnvelopeAttributes) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	m.modifiedElems.attachParent(parentModifiedFields, parentModifiedBit)
+	elems := m.elems[:m.initedCount]
+	for i := 0; i < len(elems); i++ {
+	}
+}
+
 func (m *EnvelopeAttributes) canBeShared() bool {
 	// Multimap can never be shared.
 	return false
@@ -108,6 +116,13 @@ func (m *EnvelopeAttributes) setModifiedRecursively() {
 }
 
 func (m *EnvelopeAttributes) setUnmodifiedRecursively() {
+	for i := 0; i < len(m.elems); i++ {
+	}
+	m.modifiedElems.setUnmodifiedAll()
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (m *EnvelopeAttributes) clearModifiedRecursively() {
 	for i := 0; i < len(m.elems); i++ {
 	}
 	m.modifiedElems.setUnmodifiedAll()

@@ -17,6 +17,8 @@ class LinkArrayEncoder {
     private LinkEncoder elemEncoder;
     private WriterState state;
     private boolean isRecursive = false;
+    // Set after reset so every element in the first non-empty array is encoded in full.
+    private boolean forceElements;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         this.state = state;
@@ -43,20 +45,28 @@ class LinkArrayEncoder {
     }
 
     public void reset() {
+        forceElements = true;
         if (!isRecursive) {
             elemEncoder.reset();
         }
     }
 
     public void encode(LinkArray arr) throws IOException {
+        encode(arr, false);
+    }
+
+    public void encode(LinkArray arr, boolean forceAllElements) throws IOException {
         int oldBitLen = buf.bitCount();
 
         // Write the length of the array.
         int newLen = arr.elemsLen;
         buf.writeUvarintCompact(newLen);
-
+        boolean forceElementsNow = forceAllElements || forceElements;
         for (int i = 0; i < newLen; i++) {
-            elemEncoder.encode(arr.elems[i]);
+            elemEncoder.encode(arr.elems[i], forceElementsNow);
+        }
+        if (newLen != 0) {
+            forceElements = false;
         }
 
         // Account written bits in the limiter.
@@ -71,4 +81,3 @@ class LinkArrayEncoder {
         }
     }
 }
-

@@ -16,6 +16,8 @@ type WriterState struct {
 	// Dictionaries
 	AnyValueString    codecs.StringDictEncoderDict
 	AttributeKey      codecs.StringDictEncoderDict
+	LogEventName      codecs.StringDictEncoderDict
+	LogSeverityText   codecs.StringDictEncoderDict
 	Metric            MetricEncoderDict
 	MetricDescription codecs.StringDictEncoderDict
 	MetricName        codecs.StringDictEncoderDict
@@ -46,6 +48,8 @@ type WriterState struct {
 	KeyValueListEncoder        *KeyValueListEncoder
 	LinkEncoder                *LinkEncoder
 	LinkArrayEncoder           *LinkArrayEncoder
+	LogRecordEncoder           *LogRecordEncoder
+	LogsEncoder                *LogsEncoder
 	MetricEncoder              *MetricEncoder
 	MetricsEncoder             *MetricsEncoder
 	PointEncoder               *PointEncoder
@@ -71,6 +75,8 @@ func (d *WriterState) Init(opts *pkg.WriterOptions) {
 	// Init dictionaries
 	d.AnyValueString.Init(&d.limiter)
 	d.AttributeKey.Init(&d.limiter)
+	d.LogEventName.Init(&d.limiter)
+	d.LogSeverityText.Init(&d.limiter)
 	d.Metric.Init(&d.limiter)
 	d.MetricDescription.Init(&d.limiter)
 	d.MetricName.Init(&d.limiter)
@@ -89,6 +95,8 @@ func (d *WriterState) ResetDicts() {
 	d.limiter.ResetDict()
 	d.AnyValueString.Reset()
 	d.AttributeKey.Reset()
+	d.LogEventName.Reset()
+	d.LogSeverityText.Reset()
 	d.Metric.Reset()
 	d.MetricDescription.Reset()
 	d.MetricName.Reset()

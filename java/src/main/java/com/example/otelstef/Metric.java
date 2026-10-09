@@ -283,14 +283,8 @@ public class Metric {
 
     public Metric clone() {
         Metric cpy = new Metric();
-        cpy.name = this.name;
-        cpy.description = this.description;
-        cpy.unit = this.unit;
-        cpy.type_ = this.type_;
-        cpy.metadata = this.metadata.clone();
-        cpy.histogramBounds = this.histogramBounds.clone();
-        cpy.aggregationTemporality = this.aggregationTemporality;
-        cpy.monotonic = this.monotonic;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

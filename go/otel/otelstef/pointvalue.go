@@ -86,6 +86,21 @@ func (s *PointValue) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *PointValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	switch s.Type() {
+	case PointValueTypeHistogram:
+		s.histogramPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	case PointValueTypeExpHistogram:
+		s.expHistogramPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	case PointValueTypeSummary:
+		s.summaryPtr().attachParent(parentModifiedFields, parentModifiedBit)
+	}
+}
+
 type PointValueType byte
 
 const (
@@ -253,33 +268,31 @@ func (s *PointValue) canBeShared() bool {
 	return false
 }
 
-func (s *PointValue) cloneShared(allocators *Allocators) PointValue {
-	// Oneof is not shareable, so cloneShared is just a Clone.
-	return s.Clone(allocators)
-}
-
-func (s *PointValue) Clone(allocators *Allocators) PointValue {
-	c := PointValue{}
-	c.clearValSetType(s.Type())
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *PointValue) CloneTo(dst *PointValue, allocators *Allocators) {
+	*dst = PointValue{}
+	dst.clearValSetType(s.Type())
 	switch s.Type() {
 	case PointValueTypeInt64:
-		*c.int64Ptr() = *s.int64Ptr()
+		*dst.int64Ptr() = *s.int64Ptr()
 	case PointValueTypeFloat64:
-		*c.float64Ptr() = *s.float64Ptr()
+		*dst.float64Ptr() = *s.float64Ptr()
 	case PointValueTypeHistogram:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(HistogramValue{})))
-		c.allocHistogramAlloc(allocators)
-		copyToNewHistogramValue(c.histogramPtr(), s.histogramPtr(), allocators)
+		dst.allocHistogramAlloc(allocators)
+		copyToNewHistogramValue(dst.histogramPtr(), s.histogramPtr(), allocators)
 	case PointValueTypeExpHistogram:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(ExpHistogramValue{})))
-		c.allocExpHistogramAlloc(allocators)
-		copyToNewExpHistogramValue(c.expHistogramPtr(), s.expHistogramPtr(), allocators)
+		dst.allocExpHistogramAlloc(allocators)
+		copyToNewExpHistogramValue(dst.expHistogramPtr(), s.expHistogramPtr(), allocators)
 	case PointValueTypeSummary:
 		allocators.allocSizeChecker.AddAllocSize(uint(unsafe.Sizeof(SummaryValue{})))
-		c.allocSummaryAlloc(allocators)
-		copyToNewSummaryValue(c.summaryPtr(), s.summaryPtr(), allocators)
+		dst.allocSummaryAlloc(allocators)
+		copyToNewSummaryValue(dst.summaryPtr(), s.summaryPtr(), allocators)
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -383,6 +396,18 @@ func (s *PointValue) setUnmodifiedRecursively() {
 		s.expHistogramPtr().setUnmodifiedRecursively()
 	case PointValueTypeSummary:
 		s.summaryPtr().setUnmodifiedRecursively()
+	}
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *PointValue) clearModifiedRecursively() {
+	switch s.Type() {
+	case PointValueTypeHistogram:
+		s.histogramPtr().clearModifiedRecursively()
+	case PointValueTypeExpHistogram:
+		s.expHistogramPtr().clearModifiedRecursively()
+	case PointValueTypeSummary:
+		s.summaryPtr().clearModifiedRecursively()
 	}
 }
 

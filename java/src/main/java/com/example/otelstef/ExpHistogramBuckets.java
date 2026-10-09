@@ -111,8 +111,8 @@ public class ExpHistogramBuckets {
 
     public ExpHistogramBuckets clone() {
         ExpHistogramBuckets cpy = new ExpHistogramBuckets();
-        cpy.offset = this.offset;
-        cpy.bucketCounts = this.bucketCounts.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

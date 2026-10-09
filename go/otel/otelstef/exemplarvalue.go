@@ -73,6 +73,15 @@ func (s *ExemplarValue) fixParent(parentModifiedFields *modifiedFields) {
 	}
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied oneof.
+func (s *ExemplarValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.parentModifiedFields = parentModifiedFields
+	s.parentModifiedBit = parentModifiedBit
+
+	switch s.Type() {
+	}
+}
+
 type ExemplarValueType byte
 
 const (
@@ -159,21 +168,19 @@ func (s *ExemplarValue) canBeShared() bool {
 	return false
 }
 
-func (s *ExemplarValue) cloneShared(allocators *Allocators) ExemplarValue {
-	// Oneof is not shareable, so cloneShared is just a Clone.
-	return s.Clone(allocators)
-}
-
-func (s *ExemplarValue) Clone(allocators *Allocators) ExemplarValue {
-	c := ExemplarValue{}
-	c.clearValSetType(s.Type())
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *ExemplarValue) CloneTo(dst *ExemplarValue, allocators *Allocators) {
+	*dst = ExemplarValue{}
+	dst.clearValSetType(s.Type())
 	switch s.Type() {
 	case ExemplarValueTypeInt64:
-		*c.int64Ptr() = *s.int64Ptr()
+		*dst.int64Ptr() = *s.int64Ptr()
 	case ExemplarValueTypeFloat64:
-		*c.float64Ptr() = *s.float64Ptr()
+		*dst.float64Ptr() = *s.float64Ptr()
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -237,6 +244,12 @@ func (s *ExemplarValue) setModifiedRecursively() {
 }
 
 func (s *ExemplarValue) setUnmodifiedRecursively() {
+	switch s.Type() {
+	}
+}
+
+// clearModifiedRecursively clears modification state in all mutable descendants.
+func (s *ExemplarValue) clearModifiedRecursively() {
 	switch s.Type() {
 	}
 }

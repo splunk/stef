@@ -113,8 +113,8 @@ public class SpanStatus {
 
     public SpanStatus clone() {
         SpanStatus cpy = new SpanStatus();
-        cpy.message = this.message;
-        cpy.code = this.code;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

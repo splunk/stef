@@ -135,6 +135,12 @@ class PointValueEncoder {
 
     // Encode encodes val into buf
     public void encode(PointValue val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf and propagates forced full encoding through
+    // the selected non-primitive value.
+    public void encode(PointValue val, boolean forceAllFields) throws IOException {
         PointValue.Type typ = val.typ;
         if (typ.getValue() > fieldCount) {
             // The current field type is not supported in target schema. Encode the type as None.
@@ -159,15 +165,15 @@ class PointValueEncoder {
             break;
         case TypeHistogram:
             // Encode Histogram
-            histogramEncoder.encode(val.histogram);
+            histogramEncoder.encode(val.histogram, forceAllFields);
             break;
         case TypeExpHistogram:
             // Encode ExpHistogram
-            expHistogramEncoder.encode(val.expHistogram);
+            expHistogramEncoder.encode(val.expHistogram, forceAllFields);
             break;
         case TypeSummary:
             // Encode Summary
-            summaryEncoder.encode(val.summary);
+            summaryEncoder.encode(val.summary, forceAllFields);
             break;
         }
     }

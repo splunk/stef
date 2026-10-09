@@ -86,6 +86,15 @@ func (s *SampleValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.type_.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *SampleValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	if !s.type_.canBeShared() {
+		s.type_.attachParent(&s.modifiedFields, fieldModifiedSampleValueType)
+	}
+}
+
 func (s *SampleValue) freeze() {
 	if s.isFrozen() {
 		return
@@ -138,7 +147,7 @@ func (s *SampleValue) SetType(v *SampleValueType) {
 		}
 	} else {
 		if s.type_.canBeShared() {
-			s.type_ = s.type_.Clone(&Allocators{})
+			s.type_ = s.type_.clone(&Allocators{})
 		}
 		s.type_.CopyFrom(v)
 		s.modifiedFields.markModified(fieldModifiedSampleValueType)
@@ -171,6 +180,15 @@ func (s *SampleValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *SampleValue) clearModifiedRecursively() {
+	if !s.type_.canBeShared() {
+		s.type_.clearModifiedRecursively()
+	}
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *SampleValue) computeDiff(val *SampleValue) (ret bool) {
@@ -192,18 +210,15 @@ func (s *SampleValue) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *SampleValue) cloneShared(allocators *Allocators) SampleValue {
-	return s.Clone(allocators)
-}
-
-func (s *SampleValue) Clone(allocators *Allocators) SampleValue {
-	c := SampleValue{
-		val:   s.val,
-		type_: s.type_.cloneShared(allocators),
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *SampleValue) CloneTo(dst *SampleValue, allocators *Allocators) {
+	*dst = SampleValue{
+		val: s.val,
 	}
-	return c
+	dst.type_ = s.type_.cloneShared(allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate
@@ -287,12 +302,12 @@ func (s *SampleValue) mutateRandom(random *rand.Rand, schem *schema.Schema, limi
 				s.type_ = new(SampleValueType)
 				s.type_.init(&s.modifiedFields, fieldModifiedSampleValueType)
 			} else {
-				s.type_ = s.type_.Clone(&Allocators{})
+				s.type_ = s.type_.clone(&Allocators{})
 			}
 		}
 		if s.type_.canBeShared() {
 			// type_ may be shared by pointer. Clone it to have exclusive ownership.
-			s.type_ = s.type_.Clone(&Allocators{})
+			s.type_ = s.type_.clone(&Allocators{})
 		}
 
 		s.type_.mutateRandom(random, schem, limiter)

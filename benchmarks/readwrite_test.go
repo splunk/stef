@@ -76,7 +76,7 @@ func TestCopy(t *testing.T) {
 	}
 }
 
-func BenchmarkReadSTEF(b *testing.B) {
+func BenchmarkMetricsReadSTEF(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
@@ -130,7 +130,7 @@ func BenchmarkReadSTEF(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/point")
 }
 
-func BenchmarkReadSTEFZ(b *testing.B) {
+func BenchmarkMetricsReadSTEFZ(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 
@@ -157,7 +157,7 @@ func BenchmarkReadSTEFZ(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*recCount), "ns/point")
 }
 
-func BenchmarkReadSTEFZWriteSTEF(b *testing.B) {
+func BenchmarkMetricsReadSTEFZWriteSTEF(b *testing.B) {
 	tefBytes, err := os.ReadFile("testdata/generated/hipstershop-otelmetrics.stefz")
 	require.NoError(b, err)
 

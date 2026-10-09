@@ -140,9 +140,8 @@ public class Resource {
 
     public Resource clone() {
         Resource cpy = new Resource();
-        cpy.schemaURL = this.schemaURL;
-        cpy.attributes = this.attributes.clone();
-        cpy.droppedAttributesCount = this.droppedAttributesCount;
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

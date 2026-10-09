@@ -141,20 +141,28 @@ class SpansEncoder {
 
     // encode encodes val into buf
     public void encode(Spans val) throws IOException {
+        encode(val, false);
+    }
+
+    // encode encodes val into buf. forceAllFields is used by collection encoders
+    // when every element must be independently reconstructable after a restart.
+    public void encode(Spans val, boolean forceAllFields) throws IOException {
         int oldLen = this.buf.bitCount();
 
         
 
         // Mask that describes what fields are encoded. Start with all modified fields.
         long fieldMask = val.modifiedFields.mask;
-        // If forceModifiedFields we need to set to 1 all bits so that we
+        // On an encoder restart or when requested by a containing collection,
         // force writing of all fields.
-        if (this.forceModifiedFields) {
+        boolean forceFields = forceAllFields || this.forceModifiedFields;
+        if (forceFields) {
             fieldMask =
                 Spans.fieldModifiedEnvelope | 
                 Spans.fieldModifiedResource | 
                 Spans.fieldModifiedScope | 
                 Spans.fieldModifiedSpan | 0L;
+            this.forceModifiedFields = false;
         }
 
         // Only write fields that we want to write. See init() for keepFieldMask.
@@ -167,22 +175,22 @@ class SpansEncoder {
         
         if ((fieldMask & Spans.fieldModifiedEnvelope) != 0) {
             // Encode Envelope
-            this.envelopeEncoder.encode(val.envelope);
+            this.envelopeEncoder.encode(val.envelope, forceFields);
         }
         
         if ((fieldMask & Spans.fieldModifiedResource) != 0) {
             // Encode Resource
-            this.resourceEncoder.encode(val.resource);
+            this.resourceEncoder.encode(val.resource, forceFields);
         }
         
         if ((fieldMask & Spans.fieldModifiedScope) != 0) {
             // Encode Scope
-            this.scopeEncoder.encode(val.scope);
+            this.scopeEncoder.encode(val.scope, forceFields);
         }
         
         if ((fieldMask & Spans.fieldModifiedSpan) != 0) {
             // Encode Span
-            this.spanEncoder.encode(val.span);
+            this.spanEncoder.encode(val.span, forceFields);
         }
         
         // Account written bits in the limiter.
@@ -237,4 +245,3 @@ class SpansEncoder {
         
     }
 }
-

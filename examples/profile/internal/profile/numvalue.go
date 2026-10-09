@@ -80,6 +80,12 @@ func (s *NumValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *NumValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+}
+
 func (s *NumValue) freeze() {
 	s.modifiedFields.freeze()
 }
@@ -146,6 +152,12 @@ func (s *NumValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *NumValue) clearModifiedRecursively() {
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *NumValue) computeDiff(val *NumValue) (ret bool) {
@@ -167,18 +179,15 @@ func (s *NumValue) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *NumValue) cloneShared(allocators *Allocators) NumValue {
-	return s.Clone(allocators)
-}
-
-func (s *NumValue) Clone(allocators *Allocators) NumValue {
-	c := NumValue{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *NumValue) CloneTo(dst *NumValue, allocators *Allocators) {
+	*dst = NumValue{
 		val:  s.val,
 		unit: s.unit,
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

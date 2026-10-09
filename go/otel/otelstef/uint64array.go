@@ -51,6 +51,12 @@ func (e *Uint64Array) fixParent(parentModifiedFields *modifiedFields) {
 	e.parentModifiedFields = parentModifiedFields
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied array.
+func (e *Uint64Array) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	e.parentModifiedFields = parentModifiedFields
+	e.parentModifiedBit = parentModifiedBit
+}
+
 func (e *Uint64Array) canBeShared() bool {
 	// An array can never be shared.
 	return false
@@ -94,6 +100,11 @@ func (e *Uint64Array) setModifiedRecursively() {
 }
 
 func (e *Uint64Array) setUnmodifiedRecursively() {
+
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (e *Uint64Array) clearModifiedRecursively() {
 
 }
 

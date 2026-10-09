@@ -19,6 +19,8 @@ class EnvelopeAttributesEncoder {
     private BytesEncoder valueEncoder;
     private boolean isKeyRecursive = false;
     private boolean isValueRecursive = false;
+    // Set after reset so the first non-empty multimap is encoded in full.
+    private boolean forceFull;
 
     public void init(WriterState state, WriteColumnSet columns) throws IOException {
         // Remember this encoder in the state so that we can detect recursion.
@@ -38,6 +40,7 @@ class EnvelopeAttributesEncoder {
     }
 
     public void reset() {
+        forceFull = true;
         if (!isKeyRecursive) {
             keyEncoder.reset();
         }
@@ -47,6 +50,10 @@ class EnvelopeAttributesEncoder {
     }
 
     public void encode(EnvelopeAttributes list) throws IOException {
+        encode(list, false);
+    }
+
+    public void encode(EnvelopeAttributes list, boolean forceAllElements) throws IOException {
         int oldLen = buf.size();
 
         if (list.elemsLen == 0) {
@@ -58,11 +65,13 @@ class EnvelopeAttributesEncoder {
             return;
         }
 
-        if (!list.areKeysModified() && list.elemsLen < 63) {
+        boolean encodeAllElements = forceAllElements || forceFull;
+        if (!encodeAllElements && !list.areKeysModified() && list.elemsLen < 63) {
             encodeValuesOnly(list);
         } else {
-            encodeFull(list);
+            encodeFull(list, encodeAllElements);
         }
+        forceFull = false;
 
         limiter.addFrameBytes(buf.size() - oldLen);
 
@@ -93,11 +102,11 @@ class EnvelopeAttributesEncoder {
         }
     }
 
-    private void encodeFull(EnvelopeAttributes list) throws IOException {
+    private void encodeFull(EnvelopeAttributes list, boolean forceAllElements) throws IOException {
         // Record multimap len (LSB is 1 to indicate full encoding).
         buf.writeUvarint(((long)list.elemsLen << 1) | 0b1);
 
-    	// Encode keys and values.
+        // Encode keys and values.
         for (int i = 0; i < list.elemsLen; i++) {
             keyEncoder.encode(list.elems[i].key);
             valueEncoder.encode(list.elems[i].value);
@@ -116,4 +125,3 @@ class EnvelopeAttributesEncoder {
         }
     }
 }
-

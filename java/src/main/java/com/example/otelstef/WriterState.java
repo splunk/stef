@@ -14,6 +14,8 @@ public class WriterState {
     // Dictionaries
     final StringDictEncoderDict AnyValueString;
     final StringDictEncoderDict AttributeKey;
+    final StringDictEncoderDict LogEventName;
+    final StringDictEncoderDict LogSeverityText;
     final MetricEncoderDict Metric;
     final StringDictEncoderDict MetricDescription;
     final StringDictEncoderDict MetricName;
@@ -45,6 +47,8 @@ public class WriterState {
     KeyValueListEncoder KeyValueListEncoder;
     LinkEncoder LinkEncoder;
     LinkArrayEncoder LinkArrayEncoder;
+    LogRecordEncoder LogRecordEncoder;
+    LogsEncoder LogsEncoder;
     MetricEncoder MetricEncoder;
     MetricsEncoder MetricsEncoder;
     PointEncoder PointEncoder;
@@ -64,6 +68,8 @@ public class WriterState {
         limiter = new SizeLimiter();
         AnyValueString = new StringDictEncoderDict();
         AttributeKey = new StringDictEncoderDict();
+        LogEventName = new StringDictEncoderDict();
+        LogSeverityText = new StringDictEncoderDict();
         Metric = new MetricEncoderDict();
         MetricDescription = new StringDictEncoderDict();
         MetricName = new StringDictEncoderDict();
@@ -85,6 +91,8 @@ public class WriterState {
         // Init dictionaries
         AnyValueString.init(limiter);
         AttributeKey.init(limiter);
+        LogEventName.init(limiter);
+        LogSeverityText.init(limiter);
         Metric.init(limiter);
         MetricDescription.init(limiter);
         MetricName.init(limiter);
@@ -103,6 +111,8 @@ public class WriterState {
         limiter.resetDict();
         AnyValueString.reset();
         AttributeKey.reset();
+        LogEventName.reset();
+        LogSeverityText.reset();
         Metric.reset();
         MetricDescription.reset();
         MetricName.reset();

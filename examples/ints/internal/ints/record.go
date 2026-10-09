@@ -77,6 +77,12 @@ func (s *Record) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Record) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+}
+
 func (s *Record) freeze() {
 	s.modifiedFields.freeze()
 }
@@ -118,6 +124,12 @@ func (s *Record) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Record) clearModifiedRecursively() {
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Record) computeDiff(val *Record) (ret bool) {
@@ -134,17 +146,14 @@ func (s *Record) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Record) cloneShared(allocators *Allocators) Record {
-	return s.Clone(allocators)
-}
-
-func (s *Record) Clone(allocators *Allocators) Record {
-	c := Record{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Record) CloneTo(dst *Record, allocators *Allocators) {
+	*dst = Record{
 		uint64: s.uint64,
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

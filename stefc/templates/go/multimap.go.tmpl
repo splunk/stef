@@ -70,6 +70,20 @@ func (m *{{.MultimapName}}) fixParent(parentModifiedFields *modifiedFields) {
     }
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied multimap.
+func (m *{{.MultimapName}}) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    m.modifiedElems.attachParent(parentModifiedFields, parentModifiedBit)
+    elems := m.elems[:m.initedCount]
+    for i:=0; i < len(elems); i++ {
+        {{- if not .Key.Type.IsPrimitive}}
+        elems[i].key.attachParent(&m.modifiedElems.keys, m.modifiedElems.maskForIndex(i))
+        {{- end}}
+        {{- if not .Value.Type.IsPrimitive}}
+        elems[i].value.attachParent(&m.modifiedElems.vals, m.modifiedElems.maskForIndex(i))
+        {{- end}}
+    }
+}
+
 func (m *{{.MultimapName}}) canBeShared() bool {
     // Multimap can never be shared.
     return false
@@ -159,6 +173,19 @@ func (m* {{.MultimapName}}) setUnmodifiedRecursively() {
 	m.modifiedElems.setUnmodifiedAll()
 }
 
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (m* {{.MultimapName}}) clearModifiedRecursively() {
+	for i:=0; i < len(m.elems); i++ {
+		{{- if not .Key.Type.IsPrimitive}}
+		m.elems[i].key.clearModifiedRecursively()
+		{{- end}}
+		{{- if not .Value.Type.IsPrimitive}}
+		m.elems[i].value.clearModifiedRecursively()
+		{{- end}}
+	}
+	m.modifiedElems.setUnmodifiedAll()
+}
+
 // computeDiff compares m to val and returns true if they differ.
 // All fields that are different in m will be marked as modified.
 func (m *{{.MultimapName}}) computeDiff(val *{{.MultimapName}}) (ret bool) {
@@ -236,7 +263,7 @@ func (m *{{.MultimapName}}) SetKey(i int, k {{if .Key.Type.Flags.PassByPtr}}*{{e
     } else {
     	if !m.elems[i].key.IsEqual(k) {
             if m.elems[i].key.canBeShared() {
-                m.elems[i].key = m.elems[i].key.Clone(&Allocators{})
+                m.elems[i].key = m.elems[i].key.clone(&Allocators{})
             }
             m.elems[i].key.CopyFrom({{.Key.Type.ToStorage "k"}})
             m.modifiedElems.markKeyModified(i)
@@ -266,7 +293,7 @@ func (m *{{.MultimapName}}) SetValue(i int, v {{if.Value.Type.Flags.PassByPtr}}*
     } else {
     	if !m.elems[i].value.IsEqual(v) {
             if m.elems[i].value.canBeShared() {
-                m.elems[i].value = m.elems[i].value.Clone(&Allocators{})
+                m.elems[i].value = m.elems[i].value.clone(&Allocators{})
             }
             m.elems[i].value.CopyFrom({{.Value.Type.ToStorage "v"}})
             m.modifiedElems.markValModified(i)

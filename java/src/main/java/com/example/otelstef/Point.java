@@ -167,10 +167,8 @@ public class Point {
 
     public Point clone() {
         Point cpy = new Point();
-        cpy.startTimestamp = this.startTimestamp;
-        cpy.timestamp = this.timestamp;
-        cpy.value = this.value.clone();
-        cpy.exemplars = this.exemplars.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 

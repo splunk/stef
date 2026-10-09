@@ -158,6 +158,7 @@ public class {{ .MultimapName }} {
             elems[i].value.markUnmodifiedRecursively();
             {{- end}}
         }
+        modifiedElems.markUnmodifiedAll();
     }
 
     // Append adds a key-value pair to the multimap.

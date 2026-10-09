@@ -181,12 +181,8 @@ public class PointValue {
     // Clone returns a deep copy of this oneof.
     public PointValue clone() {
         PointValue cpy = new PointValue();
-        cpy.typ = this.typ;
-        cpy.int64 = this.int64;
-        cpy.float64 = this.float64;
-        cpy.histogram = this.histogram.clone();
-        cpy.expHistogram = this.expHistogram.clone();
-        cpy.summary = this.summary.clone();
+        cpy.copyFrom(this);
+        cpy.markUnmodifiedRecursively();
         return cpy;
     }
 
@@ -408,13 +404,19 @@ public class PointValue {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            int64,
-            float64,
-            histogram,
-            expHistogram,
-            summary,
-            typ
-        );
+        switch (this.typ) {
+        case TypeInt64:
+            return Objects.hash(typ, int64);
+        case TypeFloat64:
+            return Objects.hash(typ, float64);
+        case TypeHistogram:
+            return Objects.hash(typ, histogram);
+        case TypeExpHistogram:
+            return Objects.hash(typ, expHistogram);
+        case TypeSummary:
+            return Objects.hash(typ, summary);
+        default:
+            return Objects.hash(typ);
+        }
     }
 }

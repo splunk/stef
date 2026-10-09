@@ -95,6 +95,14 @@ func (s *Exemplar) fixParent(parentModifiedFields *modifiedFields) {
 	s.filteredAttributes.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Exemplar) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.value.attachParent(&s.modifiedFields, fieldModifiedExemplarValue)
+	s.filteredAttributes.attachParent(&s.modifiedFields, fieldModifiedExemplarFilteredAttributes)
+}
+
 func (s *Exemplar) freeze() {
 	if s.isFrozen() {
 		return
@@ -233,6 +241,14 @@ func (s *Exemplar) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Exemplar) clearModifiedRecursively() {
+	s.value.clearModifiedRecursively()
+	s.filteredAttributes.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Exemplar) computeDiff(val *Exemplar) (ret bool) {
@@ -269,21 +285,18 @@ func (s *Exemplar) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Exemplar) cloneShared(allocators *Allocators) Exemplar {
-	return s.Clone(allocators)
-}
-
-func (s *Exemplar) Clone(allocators *Allocators) Exemplar {
-	c := Exemplar{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Exemplar) CloneTo(dst *Exemplar, allocators *Allocators) {
+	*dst = Exemplar{
 		timestamp: s.timestamp,
 		spanID:    s.spanID,
 		traceID:   s.traceID,
 	}
-	copyToNewExemplarValue(&c.value, &s.value, allocators)
-	copyToNewAttributes(&c.filteredAttributes, &s.filteredAttributes, allocators)
-	return c
+	copyToNewExemplarValue(&dst.value, &s.value, allocators)
+	copyToNewAttributes(&dst.filteredAttributes, &s.filteredAttributes, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

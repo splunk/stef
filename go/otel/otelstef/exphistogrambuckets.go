@@ -83,6 +83,13 @@ func (s *ExpHistogramBuckets) fixParent(parentModifiedFields *modifiedFields) {
 	s.bucketCounts.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *ExpHistogramBuckets) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.bucketCounts.attachParent(&s.modifiedFields, fieldModifiedExpHistogramBucketsBucketCounts)
+}
+
 func (s *ExpHistogramBuckets) freeze() {
 	if s.isFrozen() {
 		return
@@ -149,6 +156,13 @@ func (s *ExpHistogramBuckets) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *ExpHistogramBuckets) clearModifiedRecursively() {
+	s.bucketCounts.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *ExpHistogramBuckets) computeDiff(val *ExpHistogramBuckets) (ret bool) {
@@ -170,18 +184,15 @@ func (s *ExpHistogramBuckets) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *ExpHistogramBuckets) cloneShared(allocators *Allocators) ExpHistogramBuckets {
-	return s.Clone(allocators)
-}
-
-func (s *ExpHistogramBuckets) Clone(allocators *Allocators) ExpHistogramBuckets {
-	c := ExpHistogramBuckets{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *ExpHistogramBuckets) CloneTo(dst *ExpHistogramBuckets, allocators *Allocators) {
+	*dst = ExpHistogramBuckets{
 		offset: s.offset,
 	}
-	copyToNewUint64Array(&c.bucketCounts, &s.bucketCounts, allocators)
-	return c
+	copyToNewUint64Array(&dst.bucketCounts, &s.bucketCounts, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

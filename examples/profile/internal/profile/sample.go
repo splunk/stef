@@ -98,6 +98,16 @@ func (s *Sample) fixParent(parentModifiedFields *modifiedFields) {
 	s.labels.fixParent(&s.modifiedFields)
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *Sample) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+	s.metadata.attachParent(&s.modifiedFields, fieldModifiedSampleMetadata)
+	s.locations.attachParent(&s.modifiedFields, fieldModifiedSampleLocations)
+	s.values.attachParent(&s.modifiedFields, fieldModifiedSampleValues)
+	s.labels.attachParent(&s.modifiedFields, fieldModifiedSampleLabels)
+}
+
 func (s *Sample) freeze() {
 	if s.isFrozen() {
 		return
@@ -205,6 +215,16 @@ func (s *Sample) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *Sample) clearModifiedRecursively() {
+	s.metadata.clearModifiedRecursively()
+	s.locations.clearModifiedRecursively()
+	s.values.clearModifiedRecursively()
+	s.labels.clearModifiedRecursively()
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *Sample) computeDiff(val *Sample) (ret bool) {
@@ -236,19 +256,16 @@ func (s *Sample) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *Sample) cloneShared(allocators *Allocators) Sample {
-	return s.Clone(allocators)
-}
-
-func (s *Sample) Clone(allocators *Allocators) Sample {
-	c := Sample{}
-	copyToNewProfileMetadata(&c.metadata, &s.metadata, allocators)
-	copyToNewLocationArray(&c.locations, &s.locations, allocators)
-	copyToNewSampleValueArray(&c.values, &s.values, allocators)
-	copyToNewLabels(&c.labels, &s.labels, allocators)
-	return c
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *Sample) CloneTo(dst *Sample, allocators *Allocators) {
+	*dst = Sample{}
+	copyToNewProfileMetadata(&dst.metadata, &s.metadata, allocators)
+	copyToNewLocationArray(&dst.locations, &s.locations, allocators)
+	copyToNewSampleValueArray(&dst.values, &s.values, allocators)
+	copyToNewLabels(&dst.labels, &s.labels, allocators)
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

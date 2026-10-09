@@ -80,6 +80,12 @@ func (s *QuantileValue) fixParent(parentModifiedFields *modifiedFields) {
 	s.modifiedFields.parent = parentModifiedFields
 }
 
+// attachParent establishes both parent pointers and bits in a newly copied struct.
+func (s *QuantileValue) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+	s.modifiedFields.parent = parentModifiedFields
+	s.modifiedFields.parentBit = parentModifiedBit
+}
+
 func (s *QuantileValue) freeze() {
 	s.modifiedFields.freeze()
 }
@@ -146,6 +152,12 @@ func (s *QuantileValue) setUnmodifiedRecursively() {
 	s.modifiedFields.mask = 0
 }
 
+// clearModifiedRecursively clears modification state in s and all mutable descendants.
+// Unlike setUnmodifiedRecursively it does not rely on parent modification bits being set.
+func (s *QuantileValue) clearModifiedRecursively() {
+	s.modifiedFields.mask = 0
+}
+
 // computeDiff compares s and val and returns true if they differ.
 // All fields that are different in s will be marked as modified.
 func (s *QuantileValue) computeDiff(val *QuantileValue) (ret bool) {
@@ -167,18 +179,15 @@ func (s *QuantileValue) canBeShared() bool {
 	return false
 }
 
-// cloneShared returns a clone of s. It may return s if it is safe to share without cloning
-// (for example if s is frozen).
-func (s *QuantileValue) cloneShared(allocators *Allocators) QuantileValue {
-	return s.Clone(allocators)
-}
-
-func (s *QuantileValue) Clone(allocators *Allocators) QuantileValue {
-	c := QuantileValue{
+// CloneTo performs a deep copy from s to dst. dst does not need to be initialized
+// and must not alias s. dst must remain at a stable address while it is modified.
+func (s *QuantileValue) CloneTo(dst *QuantileValue, allocators *Allocators) {
+	*dst = QuantileValue{
 		quantile: s.quantile,
 		value:    s.value,
 	}
-	return c
+	dst.attachParent(nil, 0)
+	dst.clearModifiedRecursively()
 }
 
 // ByteSize returns approximate memory usage in bytes. Used to calculate

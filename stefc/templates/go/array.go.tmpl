@@ -55,6 +55,23 @@ func (e *{{.ArrayName}}) fixParent(parentModifiedFields *modifiedFields) {
     e.parentModifiedFields = parentModifiedFields
 }
 
+// attachParent establishes both parent pointer and bit in a newly copied array.
+func (e *{{.ArrayName}}) attachParent(parentModifiedFields *modifiedFields, parentModifiedBit uint64) {
+    e.parentModifiedFields = parentModifiedFields
+    e.parentModifiedBit = parentModifiedBit
+    {{- if not .ElemType.IsPrimitive}}
+    for i := range e.elems {
+        {{- if .ElemType.DictName}}
+        if !e.elems[i].canBeShared() {
+            e.elems[i].attachParent(parentModifiedFields, parentModifiedBit)
+        }
+        {{- else}}
+        e.elems[i].attachParent(parentModifiedFields, parentModifiedBit)
+        {{- end}}
+    }
+    {{- end}}
+}
+
 func (e *{{.ArrayName}}) canBeShared() bool {
     // An array can never be shared.
     return false
@@ -133,6 +150,21 @@ func (e* {{.ArrayName}}) setUnmodifiedRecursively() {
 {{if not .ElemType.IsPrimitive -}}
 	for i:=0; i < len(e.elems); i++ {
 		e.elems[i].setUnmodifiedRecursively()
+	}
+{{end}}
+}
+
+// clearModifiedRecursively clears modification state in all mutable elements.
+func (e* {{.ArrayName}}) clearModifiedRecursively() {
+{{if not .ElemType.IsPrimitive -}}
+	for i:=0; i < len(e.elems); i++ {
+        {{- if .ElemType.DictName}}
+        if !e.elems[i].canBeShared() {
+            e.elems[i].clearModifiedRecursively()
+        }
+        {{- else}}
+		e.elems[i].clearModifiedRecursively()
+        {{- end}}
 	}
 {{end}}
 }
@@ -384,7 +416,7 @@ func (a *{{ .ArrayName }}) mutateRandom(random *rand.Rand, schem *schema.Schema,
 		    {{- if .ElemType.DictName}}
 		    if a.elems[i].canBeShared() {
                 // Elem may be shared by pointer. Clone it to have exclusive ownership.
-                a.elems[i] = a.elems[i].Clone(&Allocators{})
+                a.elems[i] = a.elems[i].clone(&Allocators{})
             }
 		    {{- end}}
 			a.elems[i].mutateRandom(random, schem, limiter)
