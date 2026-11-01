@@ -3,7 +3,7 @@ module github.com/splunk/stef/benchmarks
 go 1.26.0
 
 require (
-	github.com/go-echarts/go-echarts/v2 v2.7.2
+	github.com/go-echarts/go-echarts/v2 v2.7.3
 	github.com/klauspost/compress v1.20.3
 	github.com/open-telemetry/otel-arrow/go v0.59.0
 	github.com/parquet-go/parquet-go v0.32.0
