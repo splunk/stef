@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/go-echarts/go-echarts/v2 v2.7.3
 	github.com/klauspost/compress v1.20.3
-	github.com/open-telemetry/otel-arrow/go v0.59.0
+	github.com/open-telemetry/otel-arrow/go v0.60.1
 	github.com/parquet-go/parquet-go v0.32.0
 	github.com/splunk/stef/go/otel v0.1.2
 	github.com/splunk/stef/go/pdata v0.0.0
@@ -24,7 +24,7 @@ require (
 	github.com/axiomhq/hyperloglog v0.2.6 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
@@ -50,7 +50,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
+	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
